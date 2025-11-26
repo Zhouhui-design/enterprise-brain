@@ -67,6 +67,17 @@ export const menuList: MenuItem[] = [
       { path: '/company/privacy', name: '隐私政策' }
     ]
   }
+  // 在menuList中添加人事管理菜单
+{
+  path: '/human-resources',
+  name: '人事管理',
+  icon: User, // 确保已导入User图标
+  children: [
+    { path: '/human-resources/dashboard', name: '人事概览' },
+    { path: '/human-resources/user-list', name: '用户列表' }
+  ]
+}
+
 ];
 
 export default menuList;

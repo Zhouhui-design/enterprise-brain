@@ -1,22 +1,80 @@
 <template>
-  <!-- 路由出口：所有页面都会渲染到这里 -->
-  <router-view />
+  <div id="app">
+    <router-view v-slot="{ Component }">
+      <transition name="fade" mode="out-in">
+        <component :is="Component" />
+      </transition>
+    </router-view>
+  </div>
 </template>
 
-<script setup lang="ts">
-// 暂时注释组件导入，先确保路由正常
-// import Navbar from '@/components/common/Navbar.vue';
-// import Sidebar from '@/components/common/Sidebar.vue';
-// import Footer from '@/components/common/Footer.vue';
+<script>
+export default {
+  name: 'App'
+}
 </script>
 
-<style scoped>
-#app {
-  font-family: Avenir, Helvetica, Arial, sans-serif;
-  -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
-  text-align: center;
-  color: #2c3e50;
-  margin-top: 20px;
+<style>
+/* 全局样式重置 */
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+html, body {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+  font-size: 14px;
+  color: #333;
+  background-color: #f5f7fa;
+}
+
+/* 滚动条样式优化 */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: #f1f1f1;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #888;
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #555;
+}
+
+/* 全局过渡动画 */
+.fade-enter-active,
+.fade-leave-active {
+  transition: opacity 0.3s ease;
+}
+
+.fade-enter-from,
+.fade-leave-to {
+  opacity: 0;
+}
+
+/* 全局错误提示样式 */
+.el-message {
+  min-width: 280px;
+}
+
+/* 全局表单样式优化 */
+.el-form {
+  max-width: 100%;
+}
+
+.el-form-item {
+  margin-bottom: 16px;
+}
+
+/* 全局按钮组样式 */
+.el-button-group {
+  margin-bottom: 16px;
 }
 </style>
