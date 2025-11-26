@@ -1,0 +1,31 @@
+{
+  "envId": "{{env.ENV_ID}}",
+  "framework": {
+    "name": "uniapp",
+    "plugins": {
+      "client": {
+        "use": "@cloudbase/framework-plugin-website",
+        "inputs": {
+          "buildCommand": "npm run build:h5",
+          "outputPath": "dist/build/h5"
+        }
+      },
+      "functions": {
+        "use": "@cloudbase/framework-plugin-function",
+        "inputs": {
+          "functionRootPath": "./cloudfunctions"
+        }
+      }
+    }
+  },
+  "functionRoot": "./functions",
+  "functions": [],
+  "ai": {
+    "defaultAgent": "{{env.AI_DEFAULT_AGENT}}",
+    "agents": {
+      "codebuddy": {
+        "type": "none"
+      }
+    }
+  }
+}
