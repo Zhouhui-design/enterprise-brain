@@ -1,965 +1,810 @@
 <template>
-  <view class="warranty-management">
-    <view class="header-container">
-      <view class="header-shield"></view>
-      <view class="header-content">
-        <text class="page-title">保修服务</text>
-        <text class="page-subtitle">管理您的产品保修信息</text>
-      </view>
-    </view>
+  <div class="warranty-management">
+    <!-- 页面标题 -->
+    <div class="page-header">
+      <h1>质保管理</h1>
+      <div class="header-actions">
+        <el-button type="primary" @click="showCreateDialog = true">
+          <i class="fas fa-plus"></i> 新建质保
+        </el-button>
+        <el-button @click="exportData">
+          <i class="fas fa-download"></i> 导出数据
+        </el-button>
+      </div>
+    </div>
 
-    <!-- 保修概览卡片 -->
-    <view class="warranty-overview">
-      <view class="overview-card">
-        <view class="card-header">
-          <text class="overview-title">保修概览</text>
-          <view class="scan-button" @tap="scanWarranty">
-            <text class="scan-icon">📷</text>
-          </view>
-        </view>
-        <view class="overview-stats">
-          <view class="stat-item">
-            <text class="stat-number">{{ warrantyStats.active }}</text>
-            <text class="stat-label">有效保修</text>
-          </view>
-          <view class="stat-item">
-            <text class="stat-number">{{ warrantyStats.expiring }}</text>
-            <text class="stat-label">即将到期</text>
-          </view>
-          <view class="stat-item">
-            <text class="stat-number">{{ warrantyStats.expired }}</text>
-            <text class="stat-label">已过期</text>
-          </view>
-        </view>
-      </view>
-    </view>
+    <!-- 统计概览 -->
+    <div class="stats-overview">
+      <el-row :gutter="20">
+        <el-col :span="6" v-for="(stat, index) in statsData" :key="index">
+          <el-card class="stat-card">
+            <div class="stat-content">
+              <div class="stat-icon" :style="{ backgroundColor: stat.color }">
+                <i :class="stat.icon"></i>
+              </div>
+              <div class="stat-info">
+                <div class="stat-value">{{ stat.value }}</div>
+                <div class="stat-label">{{ stat.label }}</div>
+                <div class="stat-trend" :class="stat.trend">
+                  <i :class="stat.trend === 'up' ? 'fas fa-arrow-up' : 'fas fa-arrow-down'"></i>
+                  {{ stat.change }}
+                </div>
+              </div>
+            </div>
+          </el-card>
+        </el-col>
+      </el-row>
+    </div>
 
-    <!-- 快捷操作 -->
-    <view class="quick-actions">
-      <view class="action-item" @tap="registerWarranty">
-        <view class="action-icon register">
-          <text class="icon">📝</text>
-        </view>
-        <text class="action-text">注册保修</text>
-      </view>
-      <view class="action-item" @tap="checkWarranty">
-        <view class="action-icon check">
-          <text class="icon">🔍</text>
-        </view>
-        <text class="action-text">查询保修</text>
-      </view>
-      <view class="action-item" @tap="fileClaim">
-        <view class="action-icon claim">
-          <text class="icon">🛡️</text>
-        </view>
-        <text class="action-text">申请保修</text>
-      </view>
-      <view class="action-item" @tap="serviceCenter">
-        <view class="action-icon service">
-          <text class="icon">🔧</text>
-        </view>
-        <text class="action-text">服务中心</text>
-      </view>
-    </view>
-
-    <!-- 筛选标签 -->
-    <view class="filter-tabs">
-      <view 
-        v-for="(tab, index) in filterTabs" 
-        :key="index"
-        class="filter-tab"
-        :class="{ 'tab-active': activeFilter === tab.value }"
-        @tap="switchFilter(tab.value)"
-      >
-        <text class="tab-text">{{ tab.label }}</text>
-        <view v-if="tab.count > 0" class="tab-badge">{{ tab.count }}</view>
-      </view>
-    </view>
-
-    <!-- 保修列表 -->
-    <view class="warranty-list">
-      <view 
-        v-for="(warranty, index) in filteredWarranties" 
-        :key="warranty.id"
-        class="warranty-card"
-        @tap="viewWarrantyDetail(warranty)"
-      >
-        <view class="card-header">
-          <view class="product-info">
-            <image 
-              class="product-image" 
-              :src="warranty.productImage || '/static/images/product-placeholder.png'"
-              mode="aspectFill"
+    <!-- 搜索筛选 -->
+    <div class="filter-section">
+      <el-card>
+        <el-form :model="searchForm" inline>
+          <el-form-item label="质保编号">
+            <el-input v-model="searchForm.warrantyNumber" placeholder="请输入质保编号" clearable />
+          </el-form-item>
+          <el-form-item label="产品编号">
+            <el-input v-model="searchForm.productNumber" placeholder="请输入产品编号" clearable />
+          </el-form-item>
+          <el-form-item label="客户名称">
+            <el-input v-model="searchForm.customerName" placeholder="请输入客户名称" clearable />
+          </el-form-item>
+          <el-form-item label="质保类型">
+            <el-select v-model="searchForm.warrantyType" placeholder="请选择质保类型" clearable>
+              <el-option label="标准质保" value="standard" />
+              <el-option label="延长质保" value="extended" />
+              <el-option label="增值质保" value="premium" />
+            </el-select>
+          </el-form-item>
+          <el-form-item label="质保状态">
+            <el-select v-model="searchForm.status" placeholder="请选择质保状态" clearable>
+              <el-option label="生效中" value="active" />
+              <el-option label="即将到期" value="expiring" />
+              <el-option label="已过期" value="expired" />
+              <el-option label="已激活" value="activated" />
+            </el-select>
+          </el-form-item>
+          <el-form-item label="到期时间">
+            <el-date-picker
+              v-model="searchForm.dateRange"
+              type="daterange"
+              range-separator="至"
+              start-placeholder="开始日期"
+              end-placeholder="结束日期"
+              format="YYYY-MM-DD"
+              value-format="YYYY-MM-DD"
             />
-            <view class="product-details">
-              <text class="product-name">{{ warranty.productName }}</text>
-              <text class="product-model">{{ warranty.model }}</text>
-              <text class="serial-number">序列号: {{ warranty.serialNumber }}</text>
-            </view>
-          </view>
-          <view class="warranty-status" :class="`status-${warranty.status}`">
-            {{ getWarrantyStatusText(warranty.status) }}
-          </view>
-        </view>
+          </el-form-item>
+          <el-form-item>
+            <el-button type="primary" @click="handleSearch">搜索</el-button>
+            <el-button @click="resetSearch">重置</el-button>
+          </el-form-item>
+        </el-form>
+      </el-card>
+    </div>
 
-        <view class="warranty-info">
-          <view class="info-row">
-            <text class="info-label">保修期：</text>
-            <text class="info-value">{{ warranty.warrantyPeriod }}个月</text>
-          </view>
-          <view class="info-row">
-            <text class="info-label">开始时间：</text>
-            <text class="info-value">{{ formatDate(warranty.startDate) }}</text>
-          </view>
-          <view class="info-row">
-            <text class="info-label">结束时间：</text>
-            <text class="info-value" :class="{ 'text-expired': warranty.status === 'expired' }">
-              {{ formatDate(warranty.endDate) }}
-            </text>
-          </view>
-        </view>
+    <!-- 质保列表 -->
+    <div class="warranty-list">
+      <el-card>
+        <el-table :data="warrantyList" v-loading="loading" stripe>
+          <el-table-column prop="warrantyNumber" label="质保编号" width="160" />
+          <el-table-column prop="productNumber" label="产品编号" width="140" />
+          <el-table-column prop="productName" label="产品名称" min-width="150" show-overflow-tooltip />
+          <el-table-column prop="customerName" label="客户名称" width="120" />
+          <el-table-column prop="warrantyType" label="质保类型" width="120">
+            <template #default="{ row }">
+              <el-tag :type="getWarrantyTypeTag(row.warrantyType)">
+                {{ getWarrantyTypeLabel(row.warrantyType) }}
+              </el-tag>
+            </template>
+          </el-table-column>
+          <el-table-column prop="warrantyPeriod" label="质保期限" width="120" />
+          <el-table-column prop="startDate" label="生效时间" width="140" />
+          <el-table-column prop="endDate" label="到期时间" width="140" />
+          <el-table-column prop="status" label="状态" width="100">
+            <template #default="{ row }">
+              <el-tag :type="getStatusTagType(row.status)">
+                {{ getStatusLabel(row.status) }}
+              </el-tag>
+            </template>
+          </el-table-column>
+          <el-table-column prop="remainingDays" label="剩余天数" width="100">
+            <template #default="{ row }">
+              <span :class="getRemainingDaysClass(row.remainingDays)">
+                {{ row.remainingDays > 0 ? `${row.remainingDays}天` : '已过期' }}
+              </span>
+            </template>
+          </el-table-column>
+          <el-table-column label="操作" width="200" fixed="right">
+            <template #default="{ row }">
+              <el-button size="small" @click="viewWarranty(row)">查看</el-button>
+              <el-button size="small" type="primary" @click="editWarranty(row)">编辑</el-button>
+              <el-button size="small" type="warning" @click="extendWarranty(row)" v-if="row.status !== 'expired'">
+                延期
+              </el-button>
+            </template>
+          </el-table-column>
+        </el-table>
 
-        <view class="progress-section" v-if="warranty.status === 'active'">
-          <view class="progress-header">
-            <text class="progress-label">保修进度</text>
-            <text class="progress-days">剩余 {{ warranty.remainingDays }} 天</text>
-          </view>
-          <view class="progress-bar">
-            <view 
-              class="progress-fill" 
-              :style="{ width: warranty.progress + '%' }"
-            ></view>
-          </view>
-        </view>
+        <div class="pagination-wrapper">
+          <el-pagination
+            v-model:current-page="pagination.currentPage"
+            v-model:page-size="pagination.pageSize"
+            :page-sizes="[10, 20, 50, 100]"
+            :total="pagination.total"
+            layout="total, sizes, prev, pager, next, jumper"
+            @size-change="handleSizeChange"
+            @current-change="handleCurrentChange"
+          />
+        </div>
+      </el-card>
+    </div>
 
-        <view class="card-footer">
-          <view class="warranty-actions">
-            <button class="btn-secondary" @tap.stop="downloadCertificate(warranty)">
-              下载证书
-            </button>
-            <button 
-              class="btn-primary" 
-              @tap.stop="fileWarrantyClaim(warranty)"
-              :disabled="warranty.status === 'expired'"
+    <!-- 新建/编辑质保对话框 -->
+    <el-dialog
+      v-model="showCreateDialog"
+      :title="editingWarranty ? '编辑质保' : '新建质保'"
+      width="700px"
+      @close="resetForm"
+    >
+      <el-form :model="warrantyForm" :rules="warrantyRules" ref="warrantyFormRef" label-width="120px">
+        <el-row :gutter="20">
+          <el-col :span="12">
+            <el-form-item label="质保编号" prop="warrantyNumber" v-if="editingWarranty">
+              <el-input v-model="warrantyForm.warrantyNumber" disabled />
+            </el-form-item>
+          </el-col>
+          <el-col :span="12">
+            <el-form-item label="产品编号" prop="productNumber">
+              <el-input v-model="warrantyForm.productNumber" placeholder="请输入产品编号" />
+            </el-form-item>
+          </el-col>
+        </el-row>
+        <el-row :gutter="20">
+          <el-col :span="12">
+            <el-form-item label="产品名称" prop="productName">
+              <el-input v-model="warrantyForm.productName" placeholder="请输入产品名称" />
+            </el-form-item>
+          </el-col>
+          <el-col :span="12">
+            <el-form-item label="客户名称" prop="customerName">
+              <el-input v-model="warrantyForm.customerName" placeholder="请输入客户名称" />
+            </el-form-item>
+          </el-col>
+        </el-row>
+        <el-row :gutter="20">
+          <el-col :span="12">
+            <el-form-item label="联系电话" prop="phone">
+              <el-input v-model="warrantyForm.phone" placeholder="请输入联系电话" />
+            </el-form-item>
+          </el-col>
+          <el-col :span="12">
+            <el-form-item label="质保类型" prop="warrantyType">
+              <el-select v-model="warrantyForm.warrantyType" placeholder="请选择质保类型" style="width: 100%">
+                <el-option label="标准质保" value="standard" />
+                <el-option label="延长质保" value="extended" />
+                <el-option label="增值质保" value="premium" />
+              </el-select>
+            </el-form-item>
+          </el-col>
+        </el-row>
+        <el-row :gutter="20">
+          <el-col :span="12">
+            <el-form-item label="质保期限" prop="warrantyPeriod">
+              <el-select v-model="warrantyForm.warrantyPeriod" placeholder="请选择质保期限" style="width: 100%">
+                <el-option label="6个月" value="6" />
+                <el-option label="1年" value="12" />
+                <el-option label="2年" value="24" />
+                <el-option label="3年" value="36" />
+                <el-option label="5年" value="60" />
+              </el-select>
+            </el-form-item>
+          </el-col>
+          <el-col :span="12">
+            <el-form-item label="生效时间" prop="startDate">
+              <el-date-picker
+                v-model="warrantyForm.startDate"
+                type="date"
+                placeholder="选择生效时间"
+                format="YYYY-MM-DD"
+                value-format="YYYY-MM-DD"
+                style="width: 100%"
+              />
+            </el-form-item>
+          </el-col>
+        </el-row>
+        <el-form-item label="质保范围" prop="coverage">
+          <el-checkbox-group v-model="warrantyForm.coverage">
+            <el-checkbox label="hardware">硬件</el-checkbox>
+            <el-checkbox label="software">软件</el-checkbox>
+            <el-checkbox label="installation">安装</el-checkbox>
+            <el-checkbox label="maintenance">维护</el-checkbox>
+          </el-checkbox-group>
+        </el-form-item>
+        <el-form-item label="备注说明">
+          <el-input
+            v-model="warrantyForm.remarks"
+            type="textarea"
+            :rows="3"
+            placeholder="请输入备注说明"
+          />
+        </el-form-item>
+      </el-form>
+      <template #footer>
+        <span class="dialog-footer">
+          <el-button @click="showCreateDialog = false">取消</el-button>
+          <el-button type="primary" @click="saveWarranty" :loading="saving">
+            {{ editingWarranty ? '更新' : '创建' }}
+          </el-button>
+        </span>
+      </template>
+    </el-dialog>
+
+    <!-- 质保详情对话框 -->
+    <el-dialog v-model="showDetailDialog" title="质保详情" width="800px">
+      <div class="warranty-detail" v-if="currentWarranty">
+        <el-descriptions :column="2" border>
+          <el-descriptions-item label="质保编号">{{ currentWarranty.warrantyNumber }}</el-descriptions-item>
+          <el-descriptions-item label="产品编号">{{ currentWarranty.productNumber }}</el-descriptions-item>
+          <el-descriptions-item label="产品名称">{{ currentWarranty.productName }}</el-descriptions-item>
+          <el-descriptions-item label="客户名称">{{ currentWarranty.customerName }}</el-descriptions-item>
+          <el-descriptions-item label="联系电话">{{ currentWarranty.phone }}</el-descriptions-item>
+          <el-descriptions-item label="质保类型">
+            <el-tag :type="getWarrantyTypeTag(currentWarranty.warrantyType)">
+              {{ getWarrantyTypeLabel(currentWarranty.warrantyType) }}
+            </el-tag>
+          </el-descriptions-item>
+          <el-descriptions-item label="质保期限">{{ currentWarranty.warrantyPeriod }}</el-descriptions-item>
+          <el-descriptions-item label="生效时间">{{ currentWarranty.startDate }}</el-descriptions-item>
+          <el-descriptions-item label="到期时间">{{ currentWarranty.endDate }}</el-descriptions-item>
+          <el-descriptions-item label="状态">
+            <el-tag :type="getStatusTagType(currentWarranty.status)">
+              {{ getStatusLabel(currentWarranty.status) }}
+            </el-tag>
+          </el-descriptions-item>
+          <el-descriptions-item label="剩余天数">
+            <span :class="getRemainingDaysClass(currentWarranty.remainingDays)">
+              {{ currentWarranty.remainingDays > 0 ? `${currentWarranty.remainingDays}天` : '已过期' }}
+            </span>
+          </el-descriptions-item>
+          <el-descriptions-item label="质保范围" :span="2">
+            <el-tag v-for="item in currentWarranty.coverage" :key="item" style="margin-right: 5px">
+              {{ getCoverageLabel(item) }}
+            </el-tag>
+          </el-descriptions-item>
+          <el-descriptions-item label="备注说明" :span="2" v-if="currentWarranty.remarks">
+            {{ currentWarranty.remarks }}
+          </el-descriptions-item>
+        </el-descriptions>
+
+        <div class="warranty-history" v-if="currentWarranty.history && currentWarranty.history.length > 0">
+          <h4>质保记录</h4>
+          <el-timeline>
+            <el-timeline-item
+              v-for="(record, index) in currentWarranty.history"
+              :key="index"
+              :timestamp="record.time"
+              :color="record.type === 'create' ? '#67C23A' : record.type === 'extend' ? '#409EFF' : '#E6A23C'"
             >
-              申请保修
-            </button>
-          </view>
-        </view>
-      </view>
+              <div class="record-content">
+                <div class="record-title">{{ record.title }}</div>
+                <div class="record-desc">{{ record.description }}</div>
+              </div>
+            </el-timeline-item>
+          </el-timeline>
+        </div>
+      </div>
+      <template #footer>
+        <span class="dialog-footer">
+          <el-button @click="showDetailDialog = false">关闭</el-button>
+          <el-button type="primary" @click="editWarranty(currentWarranty)" v-if="currentWarranty">
+            编辑
+          </el-button>
+        </span>
+      </template>
+    </el-dialog>
 
-      <!-- 空状态 -->
-      <view v-if="filteredWarranties.length === 0" class="empty-state">
-        <text class="empty-icon">🛡️</text>
-        <text class="empty-text">暂无{{ getFilterName() }}保修信息</text>
-        <button class="btn-primary" @tap="registerWarranty">注册保修</button>
-      </view>
-    </view>
-
-    <!-- 浮动按钮 -->
-    <view class="fab-button" @tap="registerWarranty">
-      <text class="fab-icon">+</text>
-    </view>
-  </view>
+    <!-- 延期对话框 -->
+    <el-dialog v-model="showExtendDialog" title="质保延期" width="500px">
+      <el-form :model="extendForm" :rules="extendRules" ref="extendFormRef" label-width="100px">
+        <el-form-item label="延期时长" prop="extendMonths">
+          <el-select v-model="extendForm.extendMonths" placeholder="请选择延期时长" style="width: 100%">
+            <el-option label="1个月" :value="1" />
+            <el-option label="3个月" :value="3" />
+            <el-option label="6个月" :value="6" />
+            <el-option label="1年" :value="12" />
+          </el-select>
+        </el-form-item>
+        <el-form-item label="延期原因" prop="reason">
+          <el-input
+            v-model="extendForm.reason"
+            type="textarea"
+            :rows="3"
+            placeholder="请输入延期原因"
+          />
+        </el-form-item>
+      </el-form>
+      <template #footer>
+        <span class="dialog-footer">
+          <el-button @click="showExtendDialog = false">取消</el-button>
+          <el-button type="primary" @click="submitExtend" :loading="extending">
+            确认延期
+          </el-button>
+        </span>
+      </template>
+    </el-dialog>
+  </div>
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue'
+import { ref, reactive, onMounted } from 'vue'
+import { ElMessage, ElMessageBox } from 'element-plus'
 
-// 页面状态
-const activeFilter = ref<string>('all')
-const warranties = ref<any[]>([])
-const warrantyStats = ref({
-  active: 0,
-  expiring: 0,
-  expired: 0
+interface Warranty {
+  id: string
+  warrantyNumber: string
+  productNumber: string
+  productName: string
+  customerName: string
+  phone: string
+  warrantyType: string
+  warrantyPeriod: string
+  coverage: string[]
+  startDate: string
+  endDate: string
+  status: string
+  remainingDays: number
+  remarks?: string
+  history?: Array<{
+    type: string
+    title: string
+    description: string
+    time: string
+  }>
+}
+
+const loading = ref(false)
+const saving = ref(false)
+const extending = ref(false)
+const showCreateDialog = ref(false)
+const showDetailDialog = ref(false)
+const showExtendDialog = ref(false)
+const editingWarranty = ref<Warranty | null>(null)
+const currentWarranty = ref<Warranty | null>(null)
+
+const searchForm = reactive({
+  warrantyNumber: '',
+  productNumber: '',
+  customerName: '',
+  warrantyType: '',
+  status: '',
+  dateRange: null as [string, string] | null
 })
 
-// 筛选标签
-const filterTabs = ref([
-  { label: '全部', value: 'all', count: 0 },
-  { label: '有效', value: 'active', count: 0 },
-  { label: '即将到期', value: 'expiring', count: 0 },
-  { label: '已过期', value: 'expired', count: 0 }
+const warrantyForm = reactive({
+  warrantyNumber: '',
+  productNumber: '',
+  productName: '',
+  customerName: '',
+  phone: '',
+  warrantyType: '',
+  warrantyPeriod: '',
+  coverage: [],
+  startDate: '',
+  remarks: ''
+})
+
+const extendForm = reactive({
+  extendMonths: null,
+  reason: ''
+})
+
+const warrantyRules = {
+  productNumber: [
+    { required: true, message: '请输入产品编号', trigger: 'blur' }
+  ],
+  productName: [
+    { required: true, message: '请输入产品名称', trigger: 'blur' }
+  ],
+  customerName: [
+    { required: true, message: '请输入客户名称', trigger: 'blur' }
+  ],
+  phone: [
+    { required: true, message: '请输入联系电话', trigger: 'blur' },
+    { pattern: /^1[3-9]\d{9}$/, message: '请输入正确的手机号码', trigger: 'blur' }
+  ],
+  warrantyType: [
+    { required: true, message: '请选择质保类型', trigger: 'change' }
+  ],
+  warrantyPeriod: [
+    { required: true, message: '请选择质保期限', trigger: 'change' }
+  ],
+  startDate: [
+    { required: true, message: '请选择生效时间', trigger: 'change' }
+  ]
+}
+
+const extendRules = {
+  extendMonths: [
+    { required: true, message: '请选择延期时长', trigger: 'change' }
+  ],
+  reason: [
+    { required: true, message: '请输入延期原因', trigger: 'blur' }
+  ]
+}
+
+const pagination = reactive({
+  currentPage: 1,
+  pageSize: 20,
+  total: 0
+})
+
+const statsData = reactive([
+  { label: '总质保数', value: '1,234', icon: 'fas fa-shield-alt', color: '#409EFF', trend: 'up', change: '8%' },
+  { label: '生效中', value: '856', icon: 'fas fa-check-circle', color: '#67C23A', trend: 'up', change: '5%' },
+  { label: '即将到期', value: '89', icon: 'fas fa-exclamation-triangle', color: '#E6A23C', trend: 'down', change: '3%' },
+  { label: '已过期', value: '289', icon: 'fas fa-times-circle', color: '#F56C6C', trend: 'up', change: '2%' }
 ])
 
-// 过滤后的保修列表
-const filteredWarranties = computed(() => {
-  if (activeFilter.value === 'all') {
-    return warranties.value
+const warrantyList = ref<Warranty[]>([])
+
+const getWarrantyTypeLabel = (type: string) => {
+  const typeMap: Record<string, string> = {
+    standard: '标准质保',
+    extended: '延长质保',
+    premium: '增值质保'
   }
-  return warranties.value.filter(warranty => warranty.status === activeFilter.value)
-})
-
-// 获取筛选名称
-const getFilterName = () => {
-  const tab = filterTabs.value.find(t => t.value === activeFilter.value)
-  return tab ? tab.label : ''
+  return typeMap[type] || type
 }
 
-// 切换筛选
-const switchFilter = (value: string) => {
-  activeFilter.value = value
+const getWarrantyTypeTag = (type: string) => {
+  const typeMap: Record<string, string> = {
+    standard: '',
+    extended: 'warning',
+    premium: 'success'
+  }
+  return typeMap[type] || ''
 }
 
-// 获取保修状态文本
-const getWarrantyStatusText = (status: string) => {
-  const statusMap: { [key: string]: string } = {
-    'active': '有效',
-    'expiring': '即将到期',
-    'expired': '已过期'
+const getStatusLabel = (status: string) => {
+  const statusMap: Record<string, string> = {
+    active: '生效中',
+    expiring: '即将到期',
+    expired: '已过期',
+    activated: '已激活'
   }
   return statusMap[status] || status
 }
 
-// 格式化日期
-const formatDate = (date: string) => {
-  const d = new Date(date)
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+const getStatusTagType = (status: string) => {
+  const statusMap: Record<string, string> = {
+    active: 'success',
+    expiring: 'warning',
+    expired: 'danger',
+    activated: 'info'
+  }
+  return statusMap[status] || ''
 }
 
-// 扫描保修码
-const scanWarranty = () => {
-  uni.scanCode({
-    success: (res) => {
-      // 处理扫描结果
-      console.log('扫描结果:', res.result)
-      checkWarrantyByCode(res.result)
-    },
-    fail: () => {
-      uni.showToast({
-        title: '扫描失败',
-        icon: 'error'
-      })
-    }
-  })
+const getCoverageLabel = (coverage: string) => {
+  const coverageMap: Record<string, string> = {
+    hardware: '硬件',
+    software: '软件',
+    installation: '安装',
+    maintenance: '维护'
+  }
+  return coverageMap[coverage] || coverage
 }
 
-// 根据码查询保修
-const checkWarrantyByCode = async (code: string) => {
+const getRemainingDaysClass = (days: number) => {
+  if (days <= 0) return 'expired'
+  if (days <= 30) return 'warning'
+  return 'normal'
+}
+
+const mockWarranties: Warranty[] = [
+  {
+    id: '1',
+    warrantyNumber: 'WY2024010001',
+    productNumber: 'PRD001',
+    productName: '智能控制系统',
+    customerName: '张先生',
+    phone: '13800138001',
+    warrantyType: 'standard',
+    warrantyPeriod: '1年',
+    coverage: ['hardware', 'software'],
+    startDate: '2024-01-01',
+    endDate: '2025-01-01',
+    status: 'active',
+    remainingDays: 180
+  }
+]
+
+const loadWarranties = async () => {
+  loading.value = true
   try {
-    const db = uniCloud.database()
-    const res = await db.collection('warranties')
-      .where({
-        serialNumber: code
-      })
-      .get()
-    
-    if (res.data && res.data.length > 0) {
-      uni.navigateTo({
-        url: `/pages/after-sales/WarrantyDetail?id=${res.data[0].id}`
-      })
-    } else {
-      uni.showToast({
-        title: '未找到保修信息',
-        icon: 'none'
-      })
-    }
+    await new Promise(resolve => setTimeout(resolve, 500))
+    warrantyList.value = mockWarranties
+    pagination.total = mockWarranties.length
   } catch (error) {
-    uni.showToast({
-      title: '查询失败',
-      icon: 'error'
-    })
+    ElMessage.error('加载质保列表失败')
+  } finally {
+    loading.value = false
   }
 }
 
-// 注册保修
-const registerWarranty = () => {
-  uni.navigateTo({
-    url: '/pages/after-sales/WarrantyRegistration'
-  })
+const handleSearch = () => {
+  pagination.currentPage = 1
+  loadWarranties()
 }
 
-// 查询保修
-const checkWarranty = () => {
-  uni.showActionSheet({
-    itemList: ['按序列号查询', '按产品查询', '按订单查询'],
-    success: (res) => {
-      switch(res.tapIndex) {
-        case 0:
-          uni.navigateTo({ url: '/pages/after-sales/WarrantySearch?type=serial' })
-          break
-        case 1:
-          uni.navigateTo({ url: '/pages/after-sales/WarrantySearch?type=product' })
-          break
-        case 2:
-          uni.navigateTo({ url: '/pages/after-sales/WarrantySearch?type=order' })
-          break
-      }
-    }
+const resetSearch = () => {
+  Object.assign(searchForm, {
+    warrantyNumber: '',
+    productNumber: '',
+    customerName: '',
+    warrantyType: '',
+    status: '',
+    dateRange: null
   })
+  handleSearch()
 }
 
-// 申请保修
-const fileClaim = () => {
-  uni.navigateTo({
-    url: '/pages/after-sales/WarrantyClaim'
-  })
+const handleSizeChange = (val: number) => {
+  pagination.pageSize = val
+  loadWarranties()
 }
 
-// 服务中心
-const serviceCenter = () => {
-  uni.navigateTo({
-    url: '/pages/after-sales/ServiceCenter'
-  })
+const handleCurrentChange = (val: number) => {
+  pagination.currentPage = val
+  loadWarranties()
 }
 
-// 查看保修详情
-const viewWarrantyDetail = (warranty: any) => {
-  uni.navigateTo({
-    url: `/pages/after-sales/WarrantyDetail?id=${warranty.id}`
-  })
+const viewWarranty = (warranty: Warranty) => {
+  currentWarranty.value = warranty
+  showDetailDialog.value = true
 }
 
-// 下载证书
-const downloadCertificate = async (warranty: any) => {
-  uni.showLoading({
-    title: '生成证书中...'
+const editWarranty = (warranty: Warranty) => {
+  editingWarranty.value = warranty
+  Object.assign(warrantyForm, {
+    warrantyNumber: warranty.warrantyNumber,
+    productNumber: warranty.productNumber,
+    productName: warranty.productName,
+    customerName: warranty.customerName,
+    phone: warranty.phone,
+    warrantyType: warranty.warrantyType,
+    warrantyPeriod: warranty.warrantyPeriod,
+    coverage: warranty.coverage,
+    startDate: warranty.startDate,
+    remarks: warranty.remarks || ''
   })
-  
+  showCreateDialog.value = true
+}
+
+const extendWarranty = (warranty: Warranty) => {
+  currentWarranty.value = warranty
+  showExtendDialog.value = true
+}
+
+const saveWarranty = async () => {
+  const formRef = ref()
   try {
-    // 调用云函数生成保修证书
-    const res = await uniCloud.callFunction({
-      name: 'generateWarrantyCertificate',
-      data: {
-        warrantyId: warranty.id
-      }
-    })
+    await formRef.value.validate()
+    saving.value = true
     
-    if (res.result && res.result.fileUrl) {
-      // 下载文件
-      uni.downloadFile({
-        url: res.result.fileUrl,
-        success: (downloadRes) => {
-          uni.hideLoading()
-          uni.showToast({
-            title: '证书已下载',
-            icon: 'success'
-          })
-        },
-        fail: () => {
-          uni.hideLoading()
-          uni.showToast({
-            title: '下载失败',
-            icon: 'error'
-          })
-        }
-      })
-    }
+    await new Promise(resolve => setTimeout(resolve, 1000))
+    
+    ElMessage.success(editingWarranty.value ? '质保更新成功' : '质保创建成功')
+    showCreateDialog.value = false
+    loadWarranties()
   } catch (error) {
-    uni.hideLoading()
-    uni.showToast({
-      title: '生成失败',
-      icon: 'error'
-    })
+    ElMessage.error('保存失败')
+  } finally {
+    saving.value = false
   }
 }
 
-// 申请保修服务
-const fileWarrantyClaim = (warranty: any) => {
-  if (warranty.status === 'expired') {
-    uni.showToast({
-      title: '保修已过期',
-      icon: 'none'
-    })
-    return
-  }
-  
-  uni.navigateTo({
-    url: `/pages/after-sales/WarrantyClaimForm?warrantyId=${warranty.id}`
-  })
-}
-
-// 获取保修数据
-const fetchWarranties = async () => {
+const submitExtend = async () => {
+  const formRef = ref()
   try {
-    const db = uniCloud.database()
-    const res = await db.collection('warranties')
-      .orderBy('startDate', 'desc')
-      .get()
+    await formRef.value.validate()
+    extending.value = true
     
-    if (res.data && res.data.length > 0) {
-      warranties.value = res.data.map(warranty => {
-        const now = new Date()
-        const startDate = new Date(warranty.startDate)
-        const endDate = new Date(warranty.endDate)
-        const totalDays = Math.ceil((endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24))
-        const remainingDays = Math.ceil((endDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24))
-        
-        // 计算保修状态
-        let status = 'expired'
-        if (remainingDays > 0) {
-          status = remainingDays <= 30 ? 'expiring' : 'active'
-        }
-        
-        return {
-          ...warranty,
-          status,
-          remainingDays: Math.max(0, remainingDays),
-          progress: Math.max(0, Math.min(100, ((totalDays - remainingDays) / totalDays) * 100))
-        }
-      })
-      updateStats()
-      updateTabCounts()
-    } else {
-      // 使用模拟数据
-      warranties.value = [
-        {
-          id: 'W001',
-          productName: 'iPhone 15 Pro',
-          model: 'A3108',
-          serialNumber: 'FX8M4Q2HG',
-          warrantyPeriod: 12,
-          startDate: '2023-09-15T00:00:00',
-          endDate: '2024-09-15T00:00:00',
-          status: 'active',
-          remainingDays: 242,
-          progress: 33
-        },
-        {
-          id: 'W002',
-          productName: 'MacBook Pro 14"',
-          model: 'A2992',
-          serialNumber: 'Z0D0M1KXJ',
-          warrantyPeriod: 12,
-          startDate: '2023-06-10T00:00:00',
-          endDate: '2024-06-10T00:00:00',
-          status: 'expiring',
-          remainingDays: 15,
-          progress: 88
-        },
-        {
-          id: 'W003',
-          productName: 'AirPods Pro',
-          model: 'A2084',
-          serialNumber: 'L5H9G2X3P',
-          warrantyPeriod: 12,
-          startDate: '2022-12-01T00:00:00',
-          endDate: '2023-12-01T00:00:00',
-          status: 'expired',
-          remainingDays: 0,
-          progress: 100
-        }
-      ]
-      updateStats()
-      updateTabCounts()
-    }
+    await new Promise(resolve => setTimeout(resolve, 1000))
+    
+    ElMessage.success('质保延期成功')
+    showExtendDialog.value = false
+    loadWarranties()
   } catch (error) {
-    console.error('获取保修数据失败:', error)
-    uni.showToast({
-      title: '数据加载失败',
-      icon: 'error'
-    })
+    ElMessage.error('延期失败')
+  } finally {
+    extending.value = false
   }
 }
 
-// 更新统计数据
-const updateStats = () => {
-  warrantyStats.value = {
-    active: warranties.value.filter(w => w.status === 'active').length,
-    expiring: warranties.value.filter(w => w.status === 'expiring').length,
-    expired: warranties.value.filter(w => w.status === 'expired').length
-  }
-}
-
-// 更新标签计数
-const updateTabCounts = () => {
-  filterTabs.value.forEach(tab => {
-    if (tab.value === 'all') {
-      tab.count = warranties.value.length
-    } else {
-      tab.count = warranties.value.filter(w => w.status === tab.value).length
-    }
+const resetForm = () => {
+  editingWarranty.value = null
+  Object.assign(warrantyForm, {
+    warrantyNumber: '',
+    productNumber: '',
+    productName: '',
+    customerName: '',
+    phone: '',
+    warrantyType: '',
+    warrantyPeriod: '',
+    coverage: [],
+    startDate: '',
+    remarks: ''
   })
+}
+
+const exportData = () => {
+  ElMessage.success('导出功能开发中')
 }
 
 onMounted(() => {
-  fetchWarranties()
+  loadWarranties()
 })
 </script>
 
 <style scoped>
 .warranty-management {
-  min-height: 100vh;
-  background: linear-gradient(135deg, #fef3c7 0%, #fde68a 100%);
-  font-family: 'Source Han Sans SC', -system-ui, sans-serif;
+  padding: 20px;
 }
 
-.header-container {
-  position: relative;
-  height: 240rpx;
-  overflow: hidden;
-}
-
-.header-shield {
-  position: absolute;
-  top: -60rpx;
-  right: -150rpx;
-  width: 500rpx;
-  height: 500rpx;
-  background: linear-gradient(135deg, #f59e0b 0%, #f97316 100%);
-  border-radius: 50%;
-  transform: rotate(15deg);
-}
-
-.header-content {
-  position: absolute;
-  top: 80rpx;
-  left: 60rpx;
-  z-index: 2;
-}
-
-.page-title {
-  font-size: 48rpx;
-  font-weight: 700;
-  color: #f59e0b;
-  margin-bottom: 16rpx;
-  display: block;
-}
-
-.page-subtitle {
-  font-size: 28rpx;
-  color: #64748b;
-  display: block;
-}
-
-.warranty-overview {
-  padding: 0 30rpx;
-  margin-top: -40rpx;
-  position: relative;
-  z-index: 3;
-}
-
-.overview-card {
-  background: #ffffff;
-  border-radius: 24rpx;
-  padding: 40rpx;
-  box-shadow: 0 8rpx 32rpx rgba(0, 0, 0, 0.1);
-}
-
-.card-header {
+.page-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: 40rpx;
+  margin-bottom: 20px;
 }
 
-.overview-title {
-  font-size: 32rpx;
-  font-weight: 600;
-  color: #1f2937;
+.page-header h1 {
+  margin: 0;
+  font-size: 24px;
+  color: #303133;
 }
 
-.scan-button {
-  width: 80rpx;
-  height: 80rpx;
-  background: linear-gradient(135deg, #fef3c7 0%, #fde68a 100%);
+.header-actions {
+  display: flex;
+  gap: 12px;
+}
+
+.stats-overview {
+  margin-bottom: 20px;
+}
+
+.stat-card {
+  border: none;
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.1);
+}
+
+.stat-content {
+  display: flex;
+  align-items: center;
+  padding: 15px 0;
+}
+
+.stat-icon {
+  width: 60px;
+  height: 60px;
   border-radius: 50%;
   display: flex;
   align-items: center;
   justify-content: center;
-  transition: all 0.3s ease;
+  color: white;
+  margin-right: 16px;
 }
 
-.scan-button:active {
-  transform: scale(0.9);
+.stat-icon i {
+  font-size: 24px;
 }
 
-.scan-icon {
-  font-size: 40rpx;
+.stat-info {
+  flex: 1;
 }
 
-.overview-stats {
-  display: flex;
-  justify-content: space-around;
-}
-
-.stat-item {
-  text-align: center;
-}
-
-.stat-number {
-  font-size: 48rpx;
-  font-weight: 700;
-  color: #f59e0b;
-  display: block;
-  margin-bottom: 8rpx;
+.stat-value {
+  font-size: 28px;
+  font-weight: bold;
+  color: #303133;
+  line-height: 1;
 }
 
 .stat-label {
-  font-size: 24rpx;
-  color: #64748b;
-  display: block;
+  font-size: 14px;
+  color: #909399;
+  margin-top: 5px;
 }
 
-.quick-actions {
-  display: grid;
-  grid-template-columns: repeat(4, 1fr);
-  gap: 20rpx;
-  padding: 30rpx;
+.stat-trend {
+  font-size: 12px;
+  margin-top: 3px;
 }
 
-.action-item {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 16rpx;
-  background: #ffffff;
-  border-radius: 20rpx;
-  padding: 30rpx 20rpx;
-  transition: all 0.3s ease;
+.stat-trend.up {
+  color: #67C23A;
 }
 
-.action-item:active {
-  transform: translateY(-8rpx);
-  box-shadow: 0 12rpx 32rpx rgba(0, 0, 0, 0.15);
+.stat-trend.down {
+  color: #F56C6C;
 }
 
-.action-icon {
-  width: 80rpx;
-  height: 80rpx;
-  border-radius: 50%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-
-.action-icon.register {
-  background: linear-gradient(135deg, #dbeafe 0%, #bfdbfe 100%);
-}
-
-.action-icon.check {
-  background: linear-gradient(135deg, #d1fae5 0%, #a7f3d0 100%);
-}
-
-.action-icon.claim {
-  background: linear-gradient(135deg, #fef3c7 0%, #fde68a 100%);
-}
-
-.action-icon.service {
-  background: linear-gradient(135deg, #fee2e2 0%, #fecaca 100%);
-}
-
-.icon {
-  font-size: 40rpx;
-}
-
-.action-text {
-  font-size: 24rpx;
-  color: #1f2937;
-  font-weight: 500;
-  text-align: center;
-}
-
-.filter-tabs {
-  display: flex;
-  padding: 0 30rpx 30rpx;
-  gap: 20rpx;
-  overflow-x: auto;
-}
-
-.filter-tab {
-  display: flex;
-  align-items: center;
-  gap: 12rpx;
-  padding: 20rpx 32rpx;
-  background: #ffffff;
-  border-radius: 50rpx;
-  border: 2rpx solid #e5e7eb;
-  white-space: nowrap;
-  transition: all 0.3s ease;
-  position: relative;
-  overflow: hidden;
-}
-
-.filter-tab::before {
-  content: '';
-  position: absolute;
-  top: 0;
-  left: -100%;
-  width: 100%;
-  height: 100%;
-  background: linear-gradient(90deg, transparent, rgba(245, 158, 11, 0.1), transparent);
-  transition: left 0.5s ease;
-}
-
-.tab-active::before {
-  left: 100%;
-}
-
-.tab-active {
-  background: linear-gradient(135deg, #fffbeb 0%, #fef3c7 100%);
-  border-color: #f59e0b;
-  transform: translateY(-4rpx);
-}
-
-.tab-text {
-  font-size: 26rpx;
-  color: #64748b;
-  font-weight: 500;
-}
-
-.tab-active .tab-text {
-  color: #f59e0b;
-}
-
-.tab-badge {
-  min-width: 32rpx;
-  height: 32rpx;
-  background: #f59e0b;
-  color: #ffffff;
-  border-radius: 50%;
-  font-size: 20rpx;
-  font-weight: 600;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 0 6rpx;
+.filter-section {
+  margin-bottom: 20px;
 }
 
 .warranty-list {
-  padding: 0 30rpx 200rpx;
+  background: white;
 }
 
-.warranty-card {
-  background: #ffffff;
-  border-radius: 24rpx;
-  padding: 32rpx;
-  margin-bottom: 24rpx;
-  box-shadow: 0 6rpx 24rpx rgba(0, 0, 0, 0.08);
-  transition: all 0.3s ease;
-  border-left: 6rpx solid transparent;
-}
-
-.warranty-card:active {
-  transform: translateY(-8rpx);
-  box-shadow: 0 12rpx 40rpx rgba(0, 0, 0, 0.12);
-}
-
-.warranty-card:nth-child(odd) {
-  border-left-color: #f59e0b;
-}
-
-.warranty-card:nth-child(even) {
-  border-left-color: #3b82f6;
-}
-
-.card-header {
+.pagination-wrapper {
   display: flex;
-  justify-content: space-between;
-  align-items: flex-start;
-  margin-bottom: 24rpx;
+  justify-content: center;
+  margin-top: 20px;
 }
 
-.product-info {
-  display: flex;
-  gap: 24rpx;
-  flex: 1;
-}
-
-.product-image {
-  width: 100rpx;
-  height: 100rpx;
-  border-radius: 16rpx;
-  background: #f3f4f6;
-}
-
-.product-details {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  justify-content: space-between;
-}
-
-.product-name {
-  font-size: 28rpx;
-  font-weight: 600;
-  color: #1f2937;
-  margin-bottom: 8rpx;
-}
-
-.product-model {
-  font-size: 24rpx;
-  color: #6b7280;
-  margin-bottom: 8rpx;
-}
-
-.serial-number {
-  font-size: 22rpx;
-  color: #9ca3af;
-}
-
-.warranty-status {
-  font-size: 24rpx;
-  font-weight: 600;
-  padding: 8rpx 16rpx;
-  border-radius: 20rpx;
-}
-
-.status-active {
-  background: #d1fae5;
-  color: #059669;
-}
-
-.status-expiring {
-  background: #fef3c7;
-  color: #d97706;
-}
-
-.status-expired {
-  background: #fee2e2;
-  color: #dc2626;
-}
-
-.warranty-info {
-  margin-bottom: 24rpx;
-}
-
-.info-row {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 12rpx;
-}
-
-.info-label {
-  font-size: 24rpx;
-  color: #6b7280;
-}
-
-.info-value {
-  font-size: 24rpx;
-  color: #1f2937;
-  font-weight: 500;
-}
-
-.text-expired {
-  color: #dc2626;
-}
-
-.progress-section {
-  margin-bottom: 24rpx;
-}
-
-.progress-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 12rpx;
-}
-
-.progress-label {
-  font-size: 24rpx;
-  color: #6b7280;
-}
-
-.progress-days {
-  font-size: 24rpx;
-  color: #f59e0b;
-  font-weight: 600;
-}
-
-.progress-bar {
-  height: 8rpx;
-  background: #e5e7eb;
-  border-radius: 4rpx;
-  overflow: hidden;
-}
-
-.progress-fill {
-  height: 100%;
-  background: linear-gradient(90deg, #f59e0b 0%, #f97316 100%);
-  border-radius: 4rpx;
-  transition: width 0.3s ease;
-}
-
-.card-footer {
+.dialog-footer {
   display: flex;
   justify-content: flex-end;
+  gap: 10px;
 }
 
-.warranty-actions {
-  display: flex;
-  gap: 16rpx;
+.warranty-detail {
+  margin-bottom: 20px;
 }
 
-.btn-secondary,
-.btn-primary {
-  padding: 16rpx 24rpx;
-  border-radius: 20rpx;
-  font-size: 24rpx;
+.warranty-history {
+  margin-top: 20px;
+  padding-top: 20px;
+  border-top: 1px solid #ebeef5;
+}
+
+.warranty-history h4 {
+  margin-bottom: 15px;
+  color: #303133;
+}
+
+.record-content {
+  padding-left: 10px;
+}
+
+.record-title {
   font-weight: 500;
-  border: none;
-  transition: all 0.3s ease;
+  color: #303133;
+  margin-bottom: 5px;
 }
 
-.btn-secondary {
-  background: #f3f4f6;
-  color: #6b7280;
+.record-desc {
+  color: #606266;
+  font-size: 14px;
 }
 
-.btn-primary {
-  background: linear-gradient(135deg, #f59e0b 0%, #f97316 100%);
-  color: #ffffff;
+.normal {
+  color: #67C23A;
+  font-weight: 500;
 }
 
-.btn-primary:disabled {
-  background: #e5e7eb;
-  color: #9ca3af;
+.warning {
+  color: #E6A23C;
+  font-weight: 500;
 }
 
-.btn-secondary:active {
-  transform: scale(0.95);
-  background: #e5e7eb;
+.expired {
+  color: #F56C6C;
+  font-weight: 500;
 }
 
-.btn-primary:active:not(:disabled) {
-  transform: scale(0.95);
-  background: linear-gradient(135deg, #d97706 0%, #ea580c 100%);
-}
-
-.empty-state {
-  text-align: center;
-  padding: 120rpx 40rpx;
-}
-
-.empty-icon {
-  font-size: 120rpx;
-  margin-bottom: 30rpx;
-  display: block;
-}
-
-.empty-text {
-  font-size: 28rpx;
-  color: #6b7280;
-  margin-bottom: 40rpx;
-  display: block;
-}
-
-.fab-button {
-  position: fixed;
-  bottom: 120rpx;
-  right: 40rpx;
-  width: 120rpx;
-  height: 120rpx;
-  background: linear-gradient(135deg, #f59e0b 0%, #f97316 100%);
-  border-radius: 50%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  box-shadow: 0 12rpx 40rpx rgba(245, 158, 11, 0.3);
-  z-index: 100;
-  transition: all 0.3s ease;
-}
-
-.fab-button:active {
-  transform: scale(0.9);
-  box-shadow: 0 8rpx 24rpx rgba(245, 158, 11, 0.4);
-}
-
-.fab-icon {
-  font-size: 48rpx;
-  color: #ffffff;
-  font-weight: 300;
+@media (max-width: 768px) {
+  .page-header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 15px;
+  }
+  
+  .el-col-6 {
+    margin-bottom: 15px;
+  }
 }
 </style>
