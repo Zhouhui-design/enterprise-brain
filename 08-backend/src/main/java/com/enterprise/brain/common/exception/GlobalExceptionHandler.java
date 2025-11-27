@@ -1,10 +1,8 @@
 package com.enterprise.brain.common.exception;
 
 import com.enterprise.brain.common.response.ApiResponse;
-import com.enterprise.brain.common.response.ErrorCode;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
-import org.springframework.security.access.AccessDeniedException;
 import org.springframework.validation.BindException;
 import org.springframework.validation.FieldError;
 import org.springframework.web.bind.MethodArgumentNotValidException;
@@ -12,118 +10,109 @@ import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 
+import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.ConstraintViolation;
 import jakarta.validation.ConstraintViolationException;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 /**
  * 全局异常处理器
- * 统一处理应用中的各类异常，返回标准化的错误响应
- * 
+ *
  * @author Enterprise Brain Team
- * @version 1.0.0
- * @since 2024-01-01
+ * @since 1.0.0
  */
 @Slf4j
 @RestControllerAdvice
 public class GlobalExceptionHandler {
 
     /**
-     * 处理请求参数验证异常
-     * 当@Valid注解验证失败时触发
-     * 
-     * @param ex 参数验证异常
-     * @return 错误响应，包含详细的字段验证错误信息
+     * 处理业务异常
+     */
+    @ExceptionHandler(BusinessException.class)
+    @ResponseStatus(HttpStatus.OK)
+    public ApiResponse<Object> handleBusinessException(BusinessException e, HttpServletRequest request) {
+        log.error("业务异常: {} - URI: {}", e.getMessage(), request.getRequestURI(), e);
+        return ApiResponse.fail(e.getCode(), e.getMessage());
+    }
+
+    /**
+     * 处理参数校验异常（@Valid）
      */
     @ExceptionHandler(MethodArgumentNotValidException.class)
     @ResponseStatus(HttpStatus.BAD_REQUEST)
-    public ApiResponse<Void> handleValidationExceptions(MethodArgumentNotValidException ex) {
-        log.warn("参数验证失败: {}", ex.getMessage());
-        
-        String errorMessage = ex.getBindingResult().getFieldErrors().stream()
-                .map(error -> String.format("%s: %s", error.getField(), error.getDefaultMessage()))
+    public ApiResponse<Object> handleMethodArgumentNotValidException(MethodArgumentNotValidException e) {
+        String message = e.getBindingResult().getFieldErrors().stream()
+                .map(FieldError::getDefaultMessage)
                 .collect(Collectors.joining("; "));
-        
-        return ApiResponse.error(ErrorCode.PARAMETER_VALIDATION_FAILED, errorMessage);
+        log.error("参数校验失败: {}", message, e);
+        return ApiResponse.fail("VALIDATION_ERROR", message);
     }
 
     /**
-     * 处理绑定异常
-     * 当数据绑定过程中发生错误时触发
-     * 
-     * @param ex 绑定异常
-     * @return 错误响应，包含绑定错误详情
+     * 处理参数绑定异常
      */
     @ExceptionHandler(BindException.class)
     @ResponseStatus(HttpStatus.BAD_REQUEST)
-    public ApiResponse<Void> handleBindException(BindException ex) {
-        log.warn("数据绑定失败: {}", ex.getMessage());
-        
-        String errorMessage = ex.getFieldErrors().stream()
-                .map(error -> String.format("%s: %s", error.getField(), error.getDefaultMessage()))
+    public ApiResponse<Object> handleBindException(BindException e) {
+        String message = e.getBindingResult().getFieldErrors().stream()
+                .map(error -> error.getField() + ": " + error.getDefaultMessage())
                 .collect(Collectors.joining("; "));
-        
-        return ApiResponse.error(ErrorCode.PARAMETER_VALIDATION_FAILED, errorMessage);
+        log.error("参数绑定失败: {}", message, e);
+        return ApiResponse.fail("BIND_ERROR", message);
     }
 
     /**
-     * 处理约束违反异常
-     * 当方法级别的验证失败时触发
-     * 
-     * @param ex 约束违反异常
-     * @return 错误响应，包含约束验证失败信息
+     * 处理约束违反异常（@Validated）
      */
     @ExceptionHandler(ConstraintViolationException.class)
     @ResponseStatus(HttpStatus.BAD_REQUEST)
-    public ApiResponse<Void> handleConstraintViolationException(ConstraintViolationException ex) {
-        log.warn("约束验证失败: {}", ex.getMessage());
-        
-        String errorMessage = ex.getConstraintViolations().stream()
+    public ApiResponse<Object> handleConstraintViolationException(ConstraintViolationException e) {
+        Set<ConstraintViolation<?>> violations = e.getConstraintViolations();
+        String message = violations.stream()
                 .map(ConstraintViolation::getMessage)
                 .collect(Collectors.joining("; "));
-        
-        return ApiResponse.error(ErrorCode.CONSTRAINT_VIOLATION, errorMessage);
+        log.error("约束违反: {}", message, e);
+        return ApiResponse.fail("CONSTRAINT_VIOLATION", message);
     }
 
     /**
-     * 处理业务异常
-     * 自定义的业务逻辑异常
-     * 
-     * @param ex 业务异常
-     * @return 错误响应，包含业务错误信息
+     * 处理非法参数异常
      */
-    @ExceptionHandler(BusinessException.class)
+    @ExceptionHandler(IllegalArgumentException.class)
     @ResponseStatus(HttpStatus.BAD_REQUEST)
-    public ApiResponse<Void> handleBusinessException(BusinessException ex) {
-        log.warn("业务异常: {}", ex.getMessage());
-        return ApiResponse.error(ex.getErrorCode(), ex.getMessage());
+    public ApiResponse<Object> handleIllegalArgumentException(IllegalArgumentException e) {
+        log.error("非法参数: {}", e.getMessage(), e);
+        return ApiResponse.fail("ILLEGAL_ARGUMENT", e.getMessage());
     }
 
     /**
-     * 处理访问拒绝异常
-     * 当用户无权限访问资源时触发
-     * 
-     * @param ex 访问拒绝异常
-     * @return 错误响应，提示权限不足
+     * 处理空指针异常
      */
-    @ExceptionHandler(AccessDeniedException.class)
-    @ResponseStatus(HttpStatus.FORBIDDEN)
-    public ApiResponse<Void> handleAccessDeniedException(AccessDeniedException ex) {
-        log.warn("访问被拒绝: {}", ex.getMessage());
-        return ApiResponse.error(ErrorCode.ACCESS_DENIED, "访问被拒绝，权限不足");
+    @ExceptionHandler(NullPointerException.class)
+    @ResponseStatus(HttpStatus.INTERNAL_SERVER_ERROR)
+    public ApiResponse<Object> handleNullPointerException(NullPointerException e, HttpServletRequest request) {
+        log.error("空指针异常 - URI: {}", request.getRequestURI(), e);
+        return ApiResponse.fail("NULL_POINTER", "系统内部错误，请联系管理员");
     }
 
     /**
-     * 处理系统异常
-     * 未被其他异常处理器捕获的系统异常
-     * 
-     * @param ex 系统异常
-     * @return 错误响应，提示系统内部错误
+     * 处理运行时异常
+     */
+    @ExceptionHandler(RuntimeException.class)
+    @ResponseStatus(HttpStatus.INTERNAL_SERVER_ERROR)
+    public ApiResponse<Object> handleRuntimeException(RuntimeException e, HttpServletRequest request) {
+        log.error("运行时异常 - URI: {}", request.getRequestURI(), e);
+        return ApiResponse.fail("RUNTIME_ERROR", "系统运行异常: " + e.getMessage());
+    }
+
+    /**
+     * 处理所有未捕获的异常
      */
     @ExceptionHandler(Exception.class)
     @ResponseStatus(HttpStatus.INTERNAL_SERVER_ERROR)
-    public ApiResponse<Void> handleSystemException(Exception ex) {
-        log.error("系统异常: ", ex);
-        return ApiResponse.error(ErrorCode.SYSTEM_ERROR, "系统内部错误，请稍后重试");
+    public ApiResponse<Object> handleException(Exception e, HttpServletRequest request) {
+        log.error("未知异常 - URI: {}", request.getRequestURI(), e);
+        return ApiResponse.fail("SYSTEM_ERROR", "系统错误，请稍后重试");
     }
 }
