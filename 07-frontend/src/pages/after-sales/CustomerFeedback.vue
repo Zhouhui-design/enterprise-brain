@@ -1,882 +1,788 @@
 <template>
-  <view class="customer-feedback">
-    <view class="header-container">
-      <view class="header-pattern"></view>
-      <view class="header-content">
-        <text class="page-title">客户反馈</text>
-        <text class="page-subtitle">分享您的使用体验</text>
-      </view>
-    </view>
+  <div class="customer-feedback">
+    <!-- 页面标题 -->
+    <div class="page-header">
+      <h1>客户反馈管理</h1>
+      <div class="header-actions">
+        <el-button type="primary" @click="showCreateDialog = true">
+          <i class="fas fa-plus"></i> 新建反馈
+        </el-button>
+        <el-button @click="exportData">
+          <i class="fas fa-download"></i> 导出数据
+        </el-button>
+      </div>
+    </div>
 
-    <!-- 快速统计 -->
-    <view class="feedback-stats">
-      <view class="stat-card">
-        <view class="stat-icon">
-          <text class="icon">⭐</text>
-        </view>
-        <text class="stat-number">{{ feedbackStats.totalFeedbacks }}</text>
-        <text class="stat-label">总反馈数</text>
-      </view>
-      <view class="stat-card">
-        <view class="stat-icon">
-          <text class="icon">👍</text>
-        </view>
-        <text class="stat-number">{{ feedbackStats.positiveRate }}%</text>
-        <text class="stat-label">满意度</text>
-      </view>
-      <view class="stat-card">
-        <view class="stat-icon">
-          <text class="icon">💬</text>
-        </view>
-        <text class="stat-number">{{ feedbackStats.pendingResponse }}</text>
-        <text class="stat-label">待回复</text>
-      </view>
-    </view>
+    <!-- 统计概览 -->
+    <div class="stats-overview">
+      <el-row :gutter="20">
+        <el-col :span="6" v-for="(stat, index) in statsData" :key="index">
+          <el-card class="stat-card">
+            <div class="stat-content">
+              <div class="stat-icon" :style="{ backgroundColor: stat.color }">
+                <i :class="stat.icon"></i>
+              </div>
+              <div class="stat-info">
+                <div class="stat-value">{{ stat.value }}</div>
+                <div class="stat-label">{{ stat.label }}</div>
+                <div class="stat-trend" :class="stat.trend">
+                  <i :class="stat.trend === 'up' ? 'fas fa-arrow-up' : 'fas fa-arrow-down'"></i>
+                  {{ stat.change }}
+                </div>
+              </div>
+            </div>
+          </el-card>
+        </el-col>
+      </el-row>
+    </div>
 
-    <!-- 快速反馈入口 -->
-    <view class="quick-feedback">
-      <view class="feedback-card">
-        <view class="card-header">
-          <text class="card-title">快速反馈</text>
-          <text class="card-subtitle">选择反馈类型快速开始</text>
-        </view>
-        <view class="feedback-types">
-          <view 
-            v-for="(type, index) in feedbackTypes" 
-            :key="index"
-            class="type-item"
-            @tap="selectFeedbackType(type)"
-          >
-            <view class="type-icon" :class="type.iconClass">
-              <text class="icon">{{ type.icon }}</text>
-            </view>
-            <text class="type-name">{{ type.name }}</text>
-            <text class="type-count">{{ type.count }}次</text>
-          </view>
-        </view>
-      </view>
-    </view>
-
-    <!-- 筛选标签 -->
-    <view class="filter-section">
-      <text class="filter-title">我的反馈</text>
-      <view class="filter-tabs">
-        <view 
-          v-for="(tab, index) in filterTabs" 
-          :key="index"
-          class="filter-tab"
-          :class="{ 'tab-active': activeFilter === tab.value }"
-          @tap="switchFilter(tab.value)"
-        >
-          <text class="tab-text">{{ tab.label }}</text>
-        </view>
-      </view>
-    </view>
+    <!-- 搜索筛选 -->
+    <div class="filter-section">
+      <el-card>
+        <el-form :model="searchForm" inline>
+          <el-form-item label="反馈编号">
+            <el-input v-model="searchForm.feedbackId" placeholder="请输入反馈编号" clearable />
+          </el-form-item>
+          <el-form-item label="客户名称">
+            <el-input v-model="searchForm.customerName" placeholder="请输入客户名称" clearable />
+          </el-form-item>
+          <el-form-item label="反馈类型">
+            <el-select v-model="searchForm.feedbackType" placeholder="请选择反馈类型" clearable>
+              <el-option label="产品建议" value="suggestion" />
+              <el-option label="服务投诉" value="complaint" />
+              <el-option label="功能问题" value="issue" />
+              <el-option label="使用体验" value="experience" />
+            </el-select>
+          </el-form-item>
+          <el-form-item label="满意度">
+            <el-select v-model="searchForm.satisfaction" placeholder="请选择满意度" clearable>
+              <el-option label="非常满意" value="very_satisfied" />
+              <el-option label="满意" value="satisfied" />
+              <el-option label="一般" value="neutral" />
+              <el-option label="不满意" value="unsatisfied" />
+              <el-option label="非常不满意" value="very_unsatisfied" />
+            </el-select>
+          </el-form-item>
+          <el-form-item label="处理状态">
+            <el-select v-model="searchForm.status" placeholder="请选择处理状态" clearable>
+              <el-option label="待处理" value="pending" />
+              <el-option label="处理中" value="processing" />
+              <el-option label="已回复" value="replied" />
+              <el-option label="已解决" value="resolved" />
+              <el-option label="已关闭" value="closed" />
+            </el-select>
+          </el-form-item>
+          <el-form-item label="反馈时间">
+            <el-date-picker
+              v-model="searchForm.dateRange"
+              type="daterange"
+              range-separator="至"
+              start-placeholder="开始日期"
+              end-placeholder="结束日期"
+              format="YYYY-MM-DD"
+              value-format="YYYY-MM-DD"
+            />
+          </el-form-item>
+          <el-form-item>
+            <el-button type="primary" @click="handleSearch">搜索</el-button>
+            <el-button @click="resetSearch">重置</el-button>
+          </el-form-item>
+        </el-form>
+      </el-card>
+    </div>
 
     <!-- 反馈列表 -->
-    <view class="feedback-list">
-      <view 
-        v-for="(feedback, index) in filteredFeedbacks" 
-        :key="feedback.id"
-        class="feedback-item"
-        @tap="viewFeedbackDetail(feedback)"
-      >
-        <view class="item-header">
-          <view class="feedback-info">
-            <text class="feedback-id">#{{ feedback.id }}</text>
-            <view class="feedback-type" :class="`type-${feedback.type}`">
-              {{ getFeedbackTypeText(feedback.type) }}
-            </view>
-          </view>
-          <text class="feedback-date">{{ formatDate(feedback.createTime) }}</text>
-        </view>
+    <div class="feedback-list">
+      <el-card>
+        <el-table :data="feedbackList" v-loading="loading" stripe>
+          <el-table-column prop="feedbackId" label="反馈编号" width="140" />
+          <el-table-column prop="customerName" label="客户名称" width="120" />
+          <el-table-column prop="feedbackType" label="反馈类型" width="120">
+            <template #default="{ row }">
+              <el-tag :type="getFeedbackTypeTag(row.feedbackType)">
+                {{ getFeedbackTypeLabel(row.feedbackType) }}
+              </el-tag>
+            </template>
+          </el-table-column>
+          <el-table-column prop="title" label="反馈主题" min-width="200" show-overflow-tooltip />
+          <el-table-column prop="satisfaction" label="满意度" width="120">
+            <template #default="{ row }">
+              <el-rate
+                v-model="row.satisfactionScore"
+                :max="5"
+                disabled
+                show-score
+                text-color="#ff9900"
+                score-template="{value}"
+              />
+            </template>
+          </el-table-column>
+          <el-table-column prop="status" label="处理状态" width="100">
+            <template #default="{ row }">
+              <el-tag :type="getStatusTagType(row.status)">
+                {{ getStatusLabel(row.status) }}
+              </el-tag>
+            </template>
+          </el-table-column>
+          <el-table-column prop="priority" label="优先级" width="80">
+            <template #default="{ row }">
+              <el-tag :type="getPriorityTagType(row.priority)" size="small">
+                {{ getPriorityLabel(row.priority) }}
+              </el-tag>
+            </template>
+          </el-table-column>
+          <el-table-column prop="createTime" label="反馈时间" width="140" />
+          <el-table-column prop="assignedTo" label="负责人" width="100" />
+          <el-table-column label="操作" width="180" fixed="right">
+            <template #default="{ row }">
+              <el-button size="small" @click="viewFeedback(row)">查看</el-button>
+              <el-button size="small" type="primary" @click="replyFeedback(row)" v-if="row.status === 'pending'">
+                回复
+              </el-button>
+              <el-button size="small" type="success" @click="resolveFeedback(row)" v-if="row.status !== 'closed'">
+                解决
+              </el-button>
+            </template>
+          </el-table-column>
+        </el-table>
 
-        <view class="item-content">
-          <text class="feedback-title">{{ feedback.title }}</text>
-          <text class="feedback-desc">{{ feedback.content }}</text>
-          
-          <!-- 评分显示 -->
-          <view class="rating-section" v-if="feedback.rating">
-            <text class="rating-label">评分：</text>
-            <view class="rating-stars">
-              <text 
-                v-for="i in 5" 
-                :key="i"
-                class="star"
-                :class="{ 'star-filled': i <= feedback.rating }"
-              >
-                ⭐
-              </text>
-            </view>
-          </view>
+        <div class="pagination-wrapper">
+          <el-pagination
+            v-model:current-page="pagination.currentPage"
+            v-model:page-size="pagination.pageSize"
+            :page-sizes="[10, 20, 50, 100]"
+            :total="pagination.total"
+            layout="total, sizes, prev, pager, next, jumper"
+            @size-change="handleSizeChange"
+            @current-change="handleCurrentChange"
+          />
+        </div>
+      </el-card>
+    </div>
 
-          <!-- 标签 -->
-          <view class="feedback-tags" v-if="feedback.tags && feedback.tags.length">
-            <view 
-              v-for="tag in feedback.tags" 
-              :key="tag"
-              class="tag"
-            >
-              {{ tag }}
-            </view>
-          </view>
-        </view>
+    <!-- 新建反馈对话框 -->
+    <el-dialog
+      v-model="showCreateDialog"
+      title="新建客户反馈"
+      width="600px"
+      @close="resetForm"
+    >
+      <el-form :model="feedbackForm" :rules="feedbackRules" ref="feedbackFormRef" label-width="100px">
+        <el-form-item label="客户名称" prop="customerName">
+          <el-input v-model="feedbackForm.customerName" placeholder="请输入客户名称" />
+        </el-form-item>
+        <el-form-item label="联系电话" prop="phone">
+          <el-input v-model="feedbackForm.phone" placeholder="请输入联系电话" />
+        </el-form-item>
+        <el-form-item label="邮箱地址" prop="email">
+          <el-input v-model="feedbackForm.email" placeholder="请输入邮箱地址" />
+        </el-form-item>
+        <el-form-item label="反馈类型" prop="feedbackType">
+          <el-select v-model="feedbackForm.feedbackType" placeholder="请选择反馈类型" style="width: 100%">
+            <el-option label="产品建议" value="suggestion" />
+            <el-option label="服务投诉" value="complaint" />
+            <el-option label="功能问题" value="issue" />
+            <el-option label="使用体验" value="experience" />
+          </el-select>
+        </el-form-item>
+        <el-form-item label="反馈主题" prop="title">
+          <el-input v-model="feedbackForm.title" placeholder="请输入反馈主题" />
+        </el-form-item>
+        <el-form-item label="满意度" prop="satisfactionScore">
+          <el-rate
+            v-model="feedbackForm.satisfactionScore"
+            :max="5"
+            show-text
+            :texts="['非常不满意', '不满意', '一般', '满意', '非常满意']"
+          />
+        </el-form-item>
+        <el-form-item label="详细内容" prop="content">
+          <el-input
+            v-model="feedbackForm.content"
+            type="textarea"
+            :rows="6"
+            placeholder="请详细描述您的反馈内容"
+          />
+        </el-form-item>
+        <el-form-item label="相关附件">
+          <el-upload
+            drag
+            multiple
+            :auto-upload="false"
+            :on-change="handleFileChange"
+            :file-list="fileList"
+            action="#"
+          >
+            <i class="el-icon-upload"></i>
+            <div class="el-upload__text">将文件拖到此处，或<em>点击上传</em></div>
+            <template #tip>
+              <div class="el-upload__tip">支持jpg/png/pdf文件，且不超过10MB</div>
+            </template>
+          </el-upload>
+        </el-form-item>
+      </el-form>
+      <template #footer>
+        <span class="dialog-footer">
+          <el-button @click="showCreateDialog = false">取消</el-button>
+          <el-button type="primary" @click="saveFeedback" :loading="saving">
+            提交反馈
+          </el-button>
+        </span>
+      </template>
+    </el-dialog>
 
-        <!-- 回复状态 -->
-        <view class="reply-section" v-if="feedback.reply">
-          <view class="reply-header">
-            <text class="reply-label">客服回复</text>
-            <text class="reply-date">{{ formatDate(feedback.replyTime) }}</text>
-          </view>
-          <text class="reply-content">{{ feedback.reply }}</text>
-        </view>
+    <!-- 查看详情对话框 -->
+    <el-dialog v-model="showDetailDialog" title="反馈详情" width="800px">
+      <div class="feedback-detail" v-if="currentFeedback">
+        <el-descriptions :column="2" border>
+          <el-descriptions-item label="反馈编号">{{ currentFeedback.feedbackId }}</el-descriptions-item>
+          <el-descriptions-item label="客户名称">{{ currentFeedback.customerName }}</el-descriptions-item>
+          <el-descriptions-item label="联系电话">{{ currentFeedback.phone }}</el-descriptions-item>
+          <el-descriptions-item label="反馈类型">
+            <el-tag :type="getFeedbackTypeTag(currentFeedback.feedbackType)">
+              {{ getFeedbackTypeLabel(currentFeedback.feedbackType) }}
+            </el-tag>
+          </el-descriptions-item>
+          <el-descriptions-item label="满意度">
+            <el-rate
+              v-model="currentFeedback.satisfactionScore"
+              :max="5"
+              disabled
+              show-score
+              text-color="#ff9900"
+              score-template="{value}"
+            />
+          </el-descriptions-item>
+          <el-descriptions-item label="处理状态">
+            <el-tag :type="getStatusTagType(currentFeedback.status)">
+              {{ getStatusLabel(currentFeedback.status) }}
+            </el-tag>
+          </el-descriptions-item>
+          <el-descriptions-item label="负责人">{{ currentFeedback.assignedTo }}</el-descriptions-item>
+          <el-descriptions-item label="反馈时间">{{ currentFeedback.createTime }}</el-descriptions-item>
+          <el-descriptions-item label="反馈主题" :span="2">{{ currentFeedback.title }}</el-descriptions-item>
+          <el-descriptions-item label="详细内容" :span="2">
+            <div class="content-text">{{ currentFeedback.content }}</div>
+          </el-descriptions-item>
+        </el-descriptions>
 
-        <view class="item-footer">
-          <view class="status-info" :class="`status-${feedback.status}`">
-            {{ getStatusText(feedback.status) }}
-          </view>
-          <view class="action-buttons">
-            <button class="btn-secondary" @tap.stop="editFeedback(feedback)">
-              编辑
-            </button>
-            <button class="btn-primary" @tap.stop="viewDetail(feedback)">
-              详情
-            </button>
-          </view>
-        </view>
-      </view>
+        <div class="reply-section" v-if="currentFeedback.replies && currentFeedback.replies.length > 0">
+          <h4>回复记录</h4>
+          <div class="reply-list">
+            <div v-for="(reply, index) in currentFeedback.replies" :key="index" class="reply-item">
+              <div class="reply-header">
+                <span class="reply-person">{{ reply.person }}</span>
+                <span class="reply-time">{{ reply.time }}</span>
+              </div>
+              <div class="reply-content">{{ reply.content }}</div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <template #footer>
+        <span class="dialog-footer">
+          <el-button @click="showDetailDialog = false">关闭</el-button>
+          <el-button type="primary" @click="addReply" v-if="currentFeedback">
+            添加回复
+          </el-button>
+        </span>
+      </template>
+    </el-dialog>
 
-      <!-- 空状态 -->
-      <view v-if="filteredFeedbacks.length === 0" class="empty-state">
-        <text class="empty-icon">💭</text>
-        <text class="empty-text">暂无{{ getFilterName() }}反馈</text>
-        <button class="btn-primary" @tap="createFeedback">发表反馈</button>
-      </view>
-    </view>
-
-    <!-- 浮动按钮 -->
-    <view class="fab-button" @tap="createFeedback">
-      <text class="fab-icon">+</text>
-    </view>
-  </view>
+    <!-- 回复对话框 -->
+    <el-dialog v-model="showReplyDialog" title="添加回复" width="500px">
+      <el-form :model="replyForm" :rules="replyRules" ref="replyFormRef" label-width="80px">
+        <el-form-item label="回复内容" prop="content">
+          <el-input
+            v-model="replyForm.content"
+            type="textarea"
+            :rows="6"
+            placeholder="请输入回复内容"
+          />
+        </el-form-item>
+      </el-form>
+      <template #footer>
+        <span class="dialog-footer">
+          <el-button @click="showReplyDialog = false">取消</el-button>
+          <el-button type="primary" @click="submitReply" :loading="replying">
+            提交回复
+          </el-button>
+        </span>
+      </template>
+    </el-dialog>
+  </div>
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue'
+import { ref, reactive, onMounted } from 'vue'
+import { ElMessage, ElMessageBox } from 'element-plus'
 
-// 页面状态
-const activeFilter = ref<string>('all')
-const feedbacks = ref<any[]>([])
-const feedbackStats = ref({
-  totalFeedbacks: 0,
-  positiveRate: 0,
-  pendingResponse: 0
-})
-
-// 反馈类型
-const feedbackTypes = ref([
-  { name: '产品建议', icon: '💡', iconClass: 'type-suggestion', count: 0, type: 'suggestion' },
-  { name: '问题反馈', icon: '🐛', iconClass: 'type-bug', count: 0, type: 'bug' },
-  { name: '服务评价', icon: '⭐', iconClass: 'type-rating', count: 0, type: 'rating' },
-  { name: '功能需求', icon: '🚀', iconClass: 'type-feature', count: 0, type: 'feature' }
-])
-
-// 筛选标签
-const filterTabs = ref([
-  { label: '全部', value: 'all' },
-  { label: '待回复', value: 'pending' },
-  { label: '已回复', value: 'replied' },
-  { label: '已解决', value: 'resolved' }
-])
-
-// 过滤后的反馈列表
-const filteredFeedbacks = computed(() => {
-  if (activeFilter.value === 'all') {
-    return feedbacks.value
-  }
-  return feedbacks.value.filter(feedback => feedback.status === activeFilter.value)
-})
-
-// 获取筛选名称
-const getFilterName = () => {
-  const tab = filterTabs.value.find(t => t.value === activeFilter.value)
-  return tab ? tab.label : ''
+interface Feedback {
+  id: string
+  feedbackId: string
+  customerName: string
+  phone: string
+  email: string
+  feedbackType: string
+  title: string
+  content: string
+  satisfactionScore: number
+  status: string
+  priority: string
+  assignedTo: string
+  createTime: string
+  replies?: Array<{
+    person: string
+    content: string
+    time: string
+  }>
 }
 
-// 切换筛选
-const switchFilter = (value: string) => {
-  activeFilter.value = value
+const loading = ref(false)
+const saving = ref(false)
+const replying = ref(false)
+const showCreateDialog = ref(false)
+const showDetailDialog = ref(false)
+const showReplyDialog = ref(false)
+const currentFeedback = ref<Feedback | null>(null)
+const fileList = ref([])
+
+const searchForm = reactive({
+  feedbackId: '',
+  customerName: '',
+  feedbackType: '',
+  satisfaction: '',
+  status: '',
+  dateRange: null as [string, string] | null
+})
+
+const feedbackForm = reactive({
+  customerName: '',
+  phone: '',
+  email: '',
+  feedbackType: '',
+  title: '',
+  content: '',
+  satisfactionScore: 3
+})
+
+const replyForm = reactive({
+  content: ''
+})
+
+const feedbackRules = {
+  customerName: [
+    { required: true, message: '请输入客户名称', trigger: 'blur' }
+  ],
+  phone: [
+    { required: true, message: '请输入联系电话', trigger: 'blur' },
+    { pattern: /^1[3-9]\d{9}$/, message: '请输入正确的手机号码', trigger: 'blur' }
+  ],
+  feedbackType: [
+    { required: true, message: '请选择反馈类型', trigger: 'change' }
+  ],
+  title: [
+    { required: true, message: '请输入反馈主题', trigger: 'blur' }
+  ],
+  content: [
+    { required: true, message: '请输入反馈内容', trigger: 'blur' }
+  ]
 }
 
-// 获取反馈类型文本
-const getFeedbackTypeText = (type: string) => {
-  const typeMap: { [key: string]: string } = {
-    'suggestion': '建议',
-    'bug': '问题',
-    'rating': '评价',
-    'feature': '需求',
-    'complaint': '投诉'
+const replyRules = {
+  content: [
+    { required: true, message: '请输入回复内容', trigger: 'blur' }
+  ]
+}
+
+const pagination = reactive({
+  currentPage: 1,
+  pageSize: 20,
+  total: 0
+})
+
+const statsData = reactive([
+  { label: '总反馈', value: '328', icon: 'fas fa-comments', color: '#409EFF', trend: 'up', change: '12%' },
+  { label: '待处理', value: '45', icon: 'fas fa-clock', color: '#E6A23C', trend: 'down', change: '8%' },
+  { label: '已回复', value: '234', icon: 'fas fa-reply', color: '#67C23A', trend: 'up', change: '15%' },
+  { label: '满意度', value: '4.2', icon: 'fas fa-smile', color: '#F56C6C', trend: 'up', change: '5%' }
+])
+
+const feedbackList = ref<Feedback[]>([])
+
+const getFeedbackTypeLabel = (type: string) => {
+  const typeMap: Record<string, string> = {
+    suggestion: '产品建议',
+    complaint: '服务投诉',
+    issue: '功能问题',
+    experience: '使用体验'
   }
   return typeMap[type] || type
 }
 
-// 获取状态文本
-const getStatusText = (status: string) => {
-  const statusMap: { [key: string]: string } = {
-    'pending': '待回复',
-    'replied': '已回复',
-    'resolved': '已解决',
-    'closed': '已关闭'
+const getFeedbackTypeTag = (type: string) => {
+  const typeMap: Record<string, string> = {
+    suggestion: 'primary',
+    complaint: 'danger',
+    issue: 'warning',
+    experience: 'info'
+  }
+  return typeMap[type] || ''
+}
+
+const getStatusLabel = (status: string) => {
+  const statusMap: Record<string, string> = {
+    pending: '待处理',
+    processing: '处理中',
+    replied: '已回复',
+    resolved: '已解决',
+    closed: '已关闭'
   }
   return statusMap[status] || status
 }
 
-// 格式化日期
-const formatDate = (date: string) => {
-  const d = new Date(date)
-  return `${d.getMonth() + 1}-${d.getDate()}`
-}
-
-// 选择反馈类型
-const selectFeedbackType = (type: any) => {
-  uni.navigateTo({
-    url: `/pages/after-sales/FeedbackForm?type=${type.type}&title=${type.name}`
-  })
-}
-
-// 查看反馈详情
-const viewFeedbackDetail = (feedback: any) => {
-  uni.navigateTo({
-    url: `/pages/after-sales/FeedbackDetail?id=${feedback.id}`
-  })
-}
-
-// 编辑反馈
-const editFeedback = (feedback: any) => {
-  if (feedback.reply) {
-    uni.showToast({
-      title: '已回复的反馈无法编辑',
-      icon: 'none'
-    })
-    return
+const getStatusTagType = (status: string) => {
+  const statusMap: Record<string, string> = {
+    pending: 'warning',
+    processing: 'primary',
+    replied: 'info',
+    resolved: 'success',
+    closed: ''
   }
-  
-  uni.navigateTo({
-    url: `/pages/after-sales/FeedbackForm?id=${feedback.id}&type=${feedback.type}`
-  })
+  return statusMap[status] || ''
 }
 
-// 查看详情
-const viewDetail = (feedback: any) => {
-  uni.navigateTo({
-    url: `/pages/after-sales/FeedbackDetail?id=${feedback.id}`
-  })
+const getPriorityLabel = (priority: string) => {
+  const priorityMap: Record<string, string> = {
+    low: '低',
+    medium: '中',
+    high: '高'
+  }
+  return priorityMap[priority] || priority
 }
 
-// 创建反馈
-const createFeedback = () => {
-  uni.showActionSheet({
-    itemList: ['产品建议', '问题反馈', '服务评价', '功能需求'],
-    success: (res) => {
-      const types = ['suggestion', 'bug', 'rating', 'feature']
-      const titles = ['产品建议', '问题反馈', '服务评价', '功能需求']
-      const type = types[res.tapIndex]
-      const title = titles[res.tapIndex]
-      
-      uni.navigateTo({
-        url: `/pages/after-sales/FeedbackForm?type=${type}&title=${title}`
-      })
-    }
-  })
+const getPriorityTagType = (priority: string) => {
+  const priorityMap: Record<string, string> = {
+    low: 'info',
+    medium: '',
+    high: 'danger'
+  }
+  return priorityMap[priority] || ''
 }
 
-// 获取反馈数据
-const fetchFeedbacks = async () => {
+const mockFeedbacks: Feedback[] = [
+  {
+    id: '1',
+    feedbackId: 'FB2024010001',
+    customerName: '张先生',
+    phone: '13800138001',
+    email: 'zhang@example.com',
+    feedbackType: 'suggestion',
+    title: '建议增加导出功能',
+    content: '希望系统可以增加数据导出功能，方便数据分析和报表制作。',
+    satisfactionScore: 4,
+    status: 'pending',
+    priority: 'medium',
+    assignedTo: '客服A',
+    createTime: '2024-01-15 09:30:00',
+    replies: []
+  }
+]
+
+const loadFeedbacks = async () => {
+  loading.value = true
   try {
-    const db = uniCloud.database()
-    const res = await db.collection('customer_feedback')
-      .orderBy('createTime', 'desc')
-      .get()
-    
-    if (res.data && res.data.length > 0) {
-      feedbacks.value = res.data
-      updateStats()
-      updateTypeCounts()
-    } else {
-      // 使用模拟数据
-      feedbacks.value = [
-        {
-          id: 'F001',
-          type: 'suggestion',
-          title: '建议增加夜间模式',
-          content: '希望APP能增加夜间模式功能，保护用户视力',
-          rating: 4,
-          tags: ['功能建议', '用户体验'],
-          status: 'replied',
-          createTime: '2024-01-15T10:30:00',
-          reply: '感谢您的建议，我们会在下个版本中考虑加入夜间模式功能。',
-          replyTime: '2024-01-15T14:20:00'
-        },
-        {
-          id: 'F002',
-          type: 'bug',
-          title: '支付页面卡顿',
-          content: '在支付页面时出现明显卡顿，影响用户体验',
-          rating: 2,
-          tags: ['性能问题', '支付'],
-          status: 'pending',
-          createTime: '2024-01-14T09:15:00'
-        },
-        {
-          id: 'F003',
-          type: 'rating',
-          title: '客服服务态度很好',
-          content: '今天联系客服解决了问题，服务态度非常好，专业耐心',
-          rating: 5,
-          tags: ['客服', '表扬'],
-          status: 'resolved',
-          createTime: '2024-01-13T16:45:00',
-          reply: '感谢您的认可，我们会继续提供优质的服务。',
-          replyTime: '2024-01-13T17:30:00'
-        }
-      ]
-      updateStats()
-      updateTypeCounts()
-    }
+    await new Promise(resolve => setTimeout(resolve, 500))
+    feedbackList.value = mockFeedbacks
+    pagination.total = mockFeedbacks.length
   } catch (error) {
-    console.error('获取反馈数据失败:', error)
-    uni.showToast({
-      title: '数据加载失败',
-      icon: 'error'
-    })
+    ElMessage.error('加载反馈列表失败')
+  } finally {
+    loading.value = false
   }
 }
 
-// 更新统计数据
-const updateStats = () => {
-  const total = feedbacks.value.length
-  const replied = feedbacks.value.filter(f => f.status === 'replied' || f.status === 'resolved')
-  const positive = feedbacks.value.filter(f => f.rating && f.rating >= 4)
-  
-  feedbackStats.value = {
-    totalFeedbacks: total,
-    positiveRate: total > 0 ? Math.round((positive.length / total) * 100) : 0,
-    pendingResponse: feedbacks.value.filter(f => f.status === 'pending').length
-  }
+const handleSearch = () => {
+  pagination.currentPage = 1
+  loadFeedbacks()
 }
 
-// 更新类型计数
-const updateTypeCounts = () => {
-  feedbackTypes.value.forEach(type => {
-    type.count = feedbacks.value.filter(f => f.type === type.type).length
+const resetSearch = () => {
+  Object.assign(searchForm, {
+    feedbackId: '',
+    customerName: '',
+    feedbackType: '',
+    satisfaction: '',
+    status: '',
+    dateRange: null
   })
+  handleSearch()
+}
+
+const handleSizeChange = (val: number) => {
+  pagination.pageSize = val
+  loadFeedbacks()
+}
+
+const handleCurrentChange = (val: number) => {
+  pagination.currentPage = val
+  loadFeedbacks()
+}
+
+const viewFeedback = (feedback: Feedback) => {
+  currentFeedback.value = feedback
+  showDetailDialog.value = true
+}
+
+const replyFeedback = (feedback: Feedback) => {
+  currentFeedback.value = feedback
+  showDetailDialog.value = true
+  setTimeout(() => {
+    addReply()
+  }, 100)
+}
+
+const resolveFeedback = (feedback: Feedback) => {
+  ElMessageBox.confirm('确认将该反馈标记为已解决？', '确认操作', {
+    confirmButtonText: '确认',
+    cancelButtonText: '取消',
+    type: 'warning'
+  }).then(() => {
+    ElMessage.success('反馈已标记为已解决')
+    loadFeedbacks()
+  })
+}
+
+const saveFeedback = async () => {
+  const formRef = ref()
+  try {
+    await formRef.value.validate()
+    saving.value = true
+    
+    await new Promise(resolve => setTimeout(resolve, 1000))
+    
+    ElMessage.success('反馈提交成功')
+    showCreateDialog.value = false
+    loadFeedbacks()
+  } catch (error) {
+    ElMessage.error('提交失败')
+  } finally {
+    saving.value = false
+  }
+}
+
+const addReply = () => {
+  if (currentFeedback.value) {
+    showDetailDialog.value = false
+    showReplyDialog.value = true
+  }
+}
+
+const submitReply = async () => {
+  const formRef = ref()
+  try {
+    await formRef.value.validate()
+    replying.value = true
+    
+    await new Promise(resolve => setTimeout(resolve, 500))
+    
+    ElMessage.success('回复提交成功')
+    showReplyDialog.value = false
+    loadFeedbacks()
+  } catch (error) {
+    ElMessage.error('回复失败')
+  } finally {
+    replying.value = false
+  }
+}
+
+const handleFileChange = (file: any, fileList: any) => {
+  console.log('文件选择:', file, fileList)
+}
+
+const resetForm = () => {
+  Object.assign(feedbackForm, {
+    customerName: '',
+    phone: '',
+    email: '',
+    feedbackType: '',
+    title: '',
+    content: '',
+    satisfactionScore: 3
+  })
+  fileList.value = []
+}
+
+const exportData = () => {
+  ElMessage.success('导出功能开发中')
 }
 
 onMounted(() => {
-  fetchFeedbacks()
+  loadFeedbacks()
 })
 </script>
 
 <style scoped>
 .customer-feedback {
-  min-height: 100vh;
-  background: linear-gradient(135deg, #f0f9ff 0%, #e0f2fe 100%);
-  font-family: 'Source Han Sans SC', -system-ui, sans-serif;
+  padding: 20px;
 }
 
-.header-container {
-  position: relative;
-  height: 240rpx;
-  overflow: hidden;
-}
-
-.header-pattern {
-  position: absolute;
-  top: -80rpx;
-  left: -200rpx;
-  width: 600rpx;
-  height: 600rpx;
-  background: linear-gradient(135deg, #0ea5e9 0%, #38bdf8 100%);
-  border-radius: 50%;
-  transform: rotate(-20deg);
-}
-
-.header-content {
-  position: absolute;
-  top: 80rpx;
-  left: 60rpx;
-  z-index: 2;
-}
-
-.page-title {
-  font-size: 48rpx;
-  font-weight: 700;
-  color: #0ea5e9;
-  margin-bottom: 16rpx;
-  display: block;
-}
-
-.page-subtitle {
-  font-size: 28rpx;
-  color: #64748b;
-  display: block;
-}
-
-.feedback-stats {
-  display: flex;
-  justify-content: space-around;
-  padding: 20rpx 30rpx;
-  margin-top: -40rpx;
-  position: relative;
-  z-index: 3;
-}
-
-.stat-card {
-  background: #ffffff;
-  border-radius: 20rpx;
-  padding: 30rpx 20rpx;
-  text-align: center;
-  box-shadow: 0 8rpx 24rpx rgba(0, 0, 0, 0.08);
-  min-width: 200rpx;
-  transition: all 0.3s ease;
-}
-
-.stat-card:active {
-  transform: translateY(-6rpx);
-  box-shadow: 0 12rpx 32rpx rgba(0, 0, 0, 0.12);
-}
-
-.stat-icon {
-  width: 80rpx;
-  height: 80rpx;
-  background: linear-gradient(135deg, #dbeafe 0%, #bfdbfe 100%);
-  border-radius: 50%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  margin: 0 auto 16rpx;
-}
-
-.icon {
-  font-size: 40rpx;
-}
-
-.stat-number {
-  font-size: 40rpx;
-  font-weight: 700;
-  color: #0ea5e9;
-  display: block;
-  margin-bottom: 8rpx;
-}
-
-.stat-label {
-  font-size: 24rpx;
-  color: #64748b;
-  display: block;
-}
-
-.quick-feedback {
-  padding: 0 30rpx;
-  margin-bottom: 30rpx;
-}
-
-.feedback-card {
-  background: #ffffff;
-  border-radius: 24rpx;
-  padding: 40rpx;
-  box-shadow: 0 8rpx 32rpx rgba(0, 0, 0, 0.08);
-}
-
-.card-header {
-  margin-bottom: 30rpx;
-}
-
-.card-title {
-  font-size: 32rpx;
-  font-weight: 600;
-  color: #1f2937;
-  margin-bottom: 8rpx;
-  display: block;
-}
-
-.card-subtitle {
-  font-size: 26rpx;
-  color: #6b7280;
-  display: block;
-}
-
-.feedback-types {
-  display: grid;
-  grid-template-columns: repeat(2, 1fr);
-  gap: 20rpx;
-}
-
-.type-item {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  padding: 30rpx 20rpx;
-  background: #f9fafb;
-  border-radius: 20rpx;
-  transition: all 0.3s ease;
-}
-
-.type-item:active {
-  transform: translateY(-8rpx);
-  box-shadow: 0 12rpx 32rpx rgba(0, 0, 0, 0.12);
-}
-
-.type-icon {
-  width: 80rpx;
-  height: 80rpx;
-  border-radius: 50%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  margin-bottom: 16rpx;
-}
-
-.type-icon.type-suggestion {
-  background: linear-gradient(135deg, #fef3c7 0%, #fde68a 100%);
-}
-
-.type-icon.type-bug {
-  background: linear-gradient(135deg, #fee2e2 0%, #fecaca 100%);
-}
-
-.type-icon.type-rating {
-  background: linear-gradient(135deg, #d1fae5 0%, #a7f3d0 100%);
-}
-
-.type-icon.type-feature {
-  background: linear-gradient(135deg, #e0e7ff 0%, #c7d2fe 100%);
-}
-
-.type-name {
-  font-size: 26rpx;
-  font-weight: 600;
-  color: #1f2937;
-  margin-bottom: 8rpx;
-}
-
-.type-count {
-  font-size: 22rpx;
-  color: #6b7280;
-}
-
-.filter-section {
-  padding: 0 30rpx 30rpx;
-}
-
-.filter-title {
-  font-size: 32rpx;
-  font-weight: 600;
-  color: #1f2937;
-  margin-bottom: 20rpx;
-  display: block;
-}
-
-.filter-tabs {
-  display: flex;
-  gap: 16rpx;
-  overflow-x: auto;
-  padding-bottom: 10rpx;
-}
-
-.filter-tab {
-  padding: 20rpx 32rpx;
-  background: #ffffff;
-  border-radius: 50rpx;
-  border: 2rpx solid #e5e7eb;
-  white-space: nowrap;
-  transition: all 0.3s ease;
-}
-
-.tab-active {
-  background: linear-gradient(135deg, #dbeafe 0%, #bfdbfe 100%);
-  border-color: #0ea5e9;
-}
-
-.tab-text {
-  font-size: 26rpx;
-  color: #64748b;
-  font-weight: 500;
-}
-
-.tab-active .tab-text {
-  color: #0ea5e9;
-}
-
-.feedback-list {
-  padding: 0 30rpx 200rpx;
-}
-
-.feedback-item {
-  background: #ffffff;
-  border-radius: 24rpx;
-  padding: 32rpx;
-  margin-bottom: 24rpx;
-  box-shadow: 0 6rpx 24rpx rgba(0, 0, 0, 0.08);
-  transition: all 0.3s ease;
-}
-
-.feedback-item:active {
-  transform: translateY(-6rpx);
-  box-shadow: 0 12rpx 40rpx rgba(0, 0, 0, 0.12);
-}
-
-.item-header {
+.page-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: 20rpx;
+  margin-bottom: 20px;
 }
 
-.feedback-info {
+.page-header h1 {
+  margin: 0;
+  font-size: 24px;
+  color: #303133;
+}
+
+.header-actions {
+  display: flex;
+  gap: 12px;
+}
+
+.stats-overview {
+  margin-bottom: 20px;
+}
+
+.stat-card {
+  border: none;
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.1);
+}
+
+.stat-content {
   display: flex;
   align-items: center;
-  gap: 16rpx;
+  padding: 15px 0;
 }
 
-.feedback-id {
-  font-size: 24rpx;
-  color: #64748b;
-  font-weight: 600;
+.stat-icon {
+  width: 60px;
+  height: 60px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: white;
+  margin-right: 16px;
 }
 
-.feedback-type {
-  font-size: 22rpx;
-  font-weight: 600;
-  padding: 8rpx 16rpx;
-  border-radius: 20rpx;
+.stat-icon i {
+  font-size: 24px;
 }
 
-.type-suggestion {
-  background: #fef3c7;
-  color: #d97706;
+.stat-info {
+  flex: 1;
 }
 
-.type-bug {
-  background: #fee2e2;
-  color: #dc2626;
+.stat-value {
+  font-size: 28px;
+  font-weight: bold;
+  color: #303133;
+  line-height: 1;
 }
 
-.type-rating {
-  background: #d1fae5;
-  color: #059669;
+.stat-label {
+  font-size: 14px;
+  color: #909399;
+  margin-top: 5px;
 }
 
-.type-feature {
-  background: #e0e7ff;
-  color: #4f46e5;
+.stat-trend {
+  font-size: 12px;
+  margin-top: 3px;
 }
 
-.feedback-date {
-  font-size: 24rpx;
-  color: #9ca3af;
+.stat-trend.up {
+  color: #67C23A;
 }
 
-.item-content {
-  margin-bottom: 24rpx;
+.stat-trend.down {
+  color: #F56C6C;
 }
 
-.feedback-title {
-  font-size: 30rpx;
-  font-weight: 600;
-  color: #1f2937;
-  margin-bottom: 12rpx;
-  display: block;
+.filter-section {
+  margin-bottom: 20px;
 }
 
-.feedback-desc {
-  font-size: 26rpx;
-  color: #6b7280;
+.feedback-list {
+  background: white;
+}
+
+.pagination-wrapper {
+  display: flex;
+  justify-content: center;
+  margin-top: 20px;
+}
+
+.dialog-footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+}
+
+.feedback-detail {
+  margin-bottom: 20px;
+}
+
+.content-text {
   line-height: 1.6;
-  margin-bottom: 16rpx;
-  display: block;
-}
-
-.rating-section {
-  display: flex;
-  align-items: center;
-  gap: 12rpx;
-  margin-bottom: 16rpx;
-}
-
-.rating-label {
-  font-size: 24rpx;
-  color: #6b7280;
-}
-
-.rating-stars {
-  display: flex;
-  gap: 4rpx;
-}
-
-.star {
-  font-size: 24rpx;
-  color: #e5e7eb;
-}
-
-.star-filled {
-  color: #f59e0b;
-}
-
-.feedback-tags {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 12rpx;
-}
-
-.tag {
-  font-size: 22rpx;
-  color: #6b7280;
-  background: #f3f4f6;
-  padding: 6rpx 12rpx;
-  border-radius: 12rpx;
+  max-height: 200px;
+  overflow-y: auto;
 }
 
 .reply-section {
-  background: #f9fafb;
-  border-radius: 16rpx;
-  padding: 20rpx;
-  margin-bottom: 24rpx;
+  margin-top: 20px;
+  padding-top: 20px;
+  border-top: 1px solid #ebeef5;
+}
+
+.reply-section h4 {
+  margin-bottom: 15px;
+  color: #303133;
+}
+
+.reply-item {
+  background: #f8f9fa;
+  padding: 12px;
+  border-radius: 4px;
+  margin-bottom: 10px;
 }
 
 .reply-header {
   display: flex;
   justify-content: space-between;
-  align-items: center;
-  margin-bottom: 12rpx;
+  margin-bottom: 8px;
 }
 
-.reply-label {
-  font-size: 24rpx;
-  color: #0ea5e9;
-  font-weight: 600;
+.reply-person {
+  font-weight: 500;
+  color: #409EFF;
 }
 
-.reply-date {
-  font-size: 22rpx;
-  color: #9ca3af;
+.reply-time {
+  color: #909399;
+  font-size: 12px;
 }
 
 .reply-content {
-  font-size: 26rpx;
-  color: #1f2937;
-  line-height: 1.6;
+  color: #606266;
+  line-height: 1.5;
 }
 
-.item-footer {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-}
-
-.status-info {
-  font-size: 24rpx;
-  font-weight: 600;
-  padding: 8rpx 16rpx;
-  border-radius: 20rpx;
-}
-
-.status-pending {
-  background: #fef3c7;
-  color: #d97706;
-}
-
-.status-replied {
-  background: #dbeafe;
-  color: #2563eb;
-}
-
-.status-resolved {
-  background: #d1fae5;
-  color: #059669;
-}
-
-.status-closed {
-  background: #f3f4f6;
-  color: #6b7280;
-}
-
-.action-buttons {
-  display: flex;
-  gap: 16rpx;
-}
-
-.btn-secondary,
-.btn-primary {
-  padding: 16rpx 24rpx;
-  border-radius: 20rpx;
-  font-size: 24rpx;
-  font-weight: 500;
-  border: none;
-  transition: all 0.3s ease;
-}
-
-.btn-secondary {
-  background: #f3f4f6;
-  color: #6b7280;
-}
-
-.btn-primary {
-  background: linear-gradient(135deg, #0ea5e9 0%, #38bdf8 100%);
-  color: #ffffff;
-}
-
-.btn-secondary:active {
-  transform: scale(0.95);
-  background: #e5e7eb;
-}
-
-.btn-primary:active {
-  transform: scale(0.95);
-  background: linear-gradient(135deg, #0284c7 0%, #0ea5e9 100%);
-}
-
-.empty-state {
-  text-align: center;
-  padding: 120rpx 40rpx;
-}
-
-.empty-icon {
-  font-size: 120rpx;
-  margin-bottom: 30rpx;
-  display: block;
-}
-
-.empty-text {
-  font-size: 28rpx;
-  color: #6b7280;
-  margin-bottom: 40rpx;
-  display: block;
-}
-
-.fab-button {
-  position: fixed;
-  bottom: 120rpx;
-  right: 40rpx;
-  width: 120rpx;
-  height: 120rpx;
-  background: linear-gradient(135deg, #0ea5e9 0%, #38bdf8 100%);
-  border-radius: 50%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  box-shadow: 0 12rpx 40rpx rgba(14, 165, 233, 0.3);
-  z-index: 100;
-  transition: all 0.3s ease;
-}
-
-.fab-button:active {
-  transform: scale(0.9);
-  box-shadow: 0 8rpx 24rpx rgba(14, 165, 233, 0.4);
-}
-
-.fab-icon {
-  font-size: 48rpx;
-  color: #ffffff;
-  font-weight: 300;
+@media (max-width: 768px) {
+  .page-header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 15px;
+  }
+  
+  .el-col-6 {
+    margin-bottom: 15px;
+  }
 }
 </style>

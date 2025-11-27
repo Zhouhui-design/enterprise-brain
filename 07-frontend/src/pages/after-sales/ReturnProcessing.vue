@@ -1,849 +1,954 @@
 <template>
-  <view class="return-processing">
-    <view class="header-container">
-      <view class="header-wave"></view>
-      <view class="header-content">
-        <text class="page-title">退换货处理</text>
-        <text class="page-subtitle">管理您的退换货申请</text>
-      </view>
-    </view>
+  <div class="return-processing">
+    <div class="page-header">
+      <div class="header-left">
+        <h1>退货处理</h1>
+        <p>客户退货申请审核与处理流程管理</p>
+      </div>
+      <div class="header-right">
+        <el-button type="primary" @click="handleCreateReturn">
+          <el-icon><Plus /></el-icon>
+          新建退货
+        </el-button>
+        <el-button @click="handleExportData">
+          <el-icon><Download /></el-icon>
+          导出报表
+        </el-button>
+      </div>
+    </div>
 
-    <!-- 快速统计 -->
-    <view class="quick-stats">
-      <view class="stat-card">
-        <view class="stat-icon processing">
-          <text class="icon">🔄</text>
-        </view>
-        <text class="stat-number">{{ stats.processing }}</text>
-        <text class="stat-label">处理中</text>
-      </view>
-      <view class="stat-card">
-        <view class="stat-icon completed">
-          <text class="icon">✅</text>
-        </view>
-        <text class="stat-number">{{ stats.completed }}</text>
-        <text class="stat-label">已完成</text>
-      </view>
-      <view class="stat-card">
-        <view class="stat-icon pending">
-          <text class="icon">⏰</text>
-        </view>
-        <text class="stat-number">{{ stats.pending }}</text>
-        <text class="stat-label">待审核</text>
-      </view>
-    </view>
+    <!-- 统计卡片 -->
+    <div class="stats-cards">
+      <el-row :gutter="20">
+        <el-col :span="6">
+          <div class="stat-card">
+            <div class="stat-icon blue">
+              <el-icon><Document /></el-icon>
+            </div>
+            <div class="stat-content">
+              <div class="stat-value">{{ stats.totalReturns }}</div>
+              <div class="stat-label">总退货数</div>
+            </div>
+          </div>
+        </el-col>
+        <el-col :span="6">
+          <div class="stat-card">
+            <div class="stat-icon orange">
+              <el-icon><Clock /></el-icon>
+            </div>
+            <div class="stat-content">
+              <div class="stat-value">{{ stats.pendingReturns }}</div>
+              <div class="stat-label">待审核</div>
+            </div>
+          </div>
+        </el-col>
+        <el-col :span="6">
+          <div class="stat-card">
+            <div class="stat-icon green">
+              <el-icon><Refresh /></el-icon>
+            </div>
+            <div class="stat-content">
+              <div class="stat-value">{{ stats.processingReturns }}</div>
+              <div class="stat-label">处理中</div>
+            </div>
+          </div>
+        </el-col>
+        <el-col :span="6">
+          <div class="stat-card">
+            <div class="stat-icon purple">
+              <el-icon><CircleCheck /></el-icon>
+            </div>
+            <div class="stat-content">
+              <div class="stat-value">{{ stats.completedReturns }}</div>
+              <div class="stat-label">已完成</div>
+            </div>
+          </div>
+        </el-col>
+      </el-row>
+    </div>
 
-    <!-- 申请类型切换 -->
-    <view class="type-tabs">
-      <view 
-        v-for="(tab, index) in typeTabs" 
-        :key="index"
-        class="type-tab"
-        :class="{ 'tab-active': activeTab === tab.value }"
-        @tap="switchTab(tab.value)"
-      >
-        <text class="tab-icon">{{ tab.icon }}</text>
-        <text class="tab-label">{{ tab.label }}</text>
-        <view v-if="tab.count > 0" class="tab-badge">{{ tab.count }}</view>
-      </view>
-    </view>
-
-    <!-- 退换货列表 -->
-    <view class="return-list">
-      <view 
-        v-for="(item, index) in filteredReturns" 
-        :key="item.id"
-        class="return-card"
-        @tap="viewReturnDetail(item)"
-      >
-        <view class="card-header">
-          <view class="order-info">
-            <text class="order-number">{{ item.orderNumber }}</text>
-            <view class="return-type" :class="`type-${item.type}`">
-              {{ item.type === 'return' ? '退货' : '换货' }}
-            </view>
-          </view>
-          <text class="apply-date">{{ formatDate(item.applyTime) }}</text>
-        </view>
-
-        <view class="product-info">
-          <image 
-            class="product-image" 
-            :src="item.productImage || '/static/images/product-placeholder.png'"
-            mode="aspectFill"
+    <!-- 筛选和搜索 -->
+    <div class="filter-section">
+      <el-form :model="filterForm" inline>
+        <el-form-item label="关键词">
+          <el-input
+            v-model="filterForm.keyword"
+            placeholder="搜索退货单号、客户姓名、产品型号"
+            clearable
+            style="width: 200px"
+            @keyup.enter="handleSearch"
+          >
+            <template #prefix>
+              <el-icon><Search /></el-icon>
+            </template>
+          </el-input>
+        </el-form-item>
+        <el-form-item label="退货原因">
+          <el-select v-model="filterForm.returnReason" placeholder="选择原因" clearable style="width: 150px">
+            <el-option label="产品质量问题" value="quality" />
+            <el-option label="产品不符合描述" value="description" />
+            <el-option label="客户不满意" value="dissatisfaction" />
+            <el-option label="运输损坏" value="damage" />
+            <el-option label="其他原因" value="other" />
+          </el-select>
+        </el-form-item>
+        <el-form-item label="状态">
+          <el-select v-model="filterForm.status" placeholder="选择状态" clearable style="width: 120px">
+            <el-option label="待审核" value="pending" />
+            <el-option label="审核通过" value="approved" />
+            <el-option label="审核拒绝" value="rejected" />
+            <el-option label="处理中" value="processing" />
+            <el-option label="已完成" value="completed" />
+          </el-select>
+        </el-form-item>
+        <el-form-item label="申请时间">
+          <el-date-picker
+            v-model="filterForm.dateRange"
+            type="daterange"
+            range-separator="至"
+            start-placeholder="开始日期"
+            end-placeholder="结束日期"
+            style="width: 240px"
           />
-          <view class="product-details">
-            <text class="product-name">{{ item.productName }}</text>
-            <text class="product-spec">{{ item.specification }}</text>
-            <text class="product-price">¥{{ item.price }}</text>
-          </view>
-        </view>
+        </el-form-item>
+        <el-form-item>
+          <el-button type="primary" @click="handleSearch">搜索</el-button>
+          <el-button @click="handleReset">重置</el-button>
+        </el-form-item>
+      </el-form>
+    </div>
 
-        <view class="return-reason">
-          <text class="reason-label">退换原因：</text>
-          <text class="reason-text">{{ item.reason }}</text>
-        </view>
+    <!-- 退货列表 -->
+    <div class="table-section">
+      <el-table
+        :data="filteredReturns"
+        stripe
+        style="width: 100%"
+        @selection-change="handleSelectionChange"
+      >
+        <el-table-column type="selection" width="55" />
+        <el-table-column prop="returnNo" label="退货单号" width="140" fixed="left">
+          <template #default="{ row }">
+            <el-link type="primary" @click="handleViewReturn(row)">
+              {{ row.returnNo }}
+            </el-link>
+          </template>
+        </el-table-column>
+        <el-table-column prop="customerName" label="客户姓名" width="100" />
+        <el-table-column prop="customerPhone" label="联系电话" width="130" />
+        <el-table-column prop="productModel" label="产品型号" width="150" show-overflow-tooltip />
+        <el-table-column prop="quantity" label="数量" width="80" />
+        <el-table-column prop="amount" label="退货金额" width="120">
+          <template #default="{ row }">
+            ¥{{ row.amount.toLocaleString() }}
+          </template>
+        </el-table-column>
+        <el-table-column prop="returnReason" label="退货原因" width="120">
+          <template #default="{ row }">
+            <el-tag :type="getReturnReasonTagType(row.returnReason)" size="small">
+              {{ getReturnReasonLabel(row.returnReason) }}
+            </el-tag>
+          </template>
+        </el-table-column>
+        <el-table-column prop="status" label="状态" width="100">
+          <template #default="{ row }">
+            <el-tag :type="getStatusTagType(row.status)">
+              {{ getStatusLabel(row.status) }}
+            </el-tag>
+          </template>
+        </el-table-column>
+        <el-table-column prop="applicationTime" label="申请时间" width="160" />
+        <el-table-column prop="processor" label="处理人" width="100" />
+        <el-table-column label="操作" width="280" fixed="right">
+          <template #default="{ row }">
+            <el-button link type="primary" @click="handleViewReturn(row)">查看</el-button>
+            <el-button link type="primary" @click="handleEditReturn(row)" v-if="row.status === 'pending'">编辑</el-button>
+            <el-button link type="success" @click="handleApproveReturn(row)" v-if="row.status === 'pending'">审核</el-button>
+            <el-button link type="warning" @click="handleProcessReturn(row)" v-if="row.status === 'approved'">处理</el-button>
+            <el-dropdown @command="(command) => handleCommand(command, row)">
+              <el-button link type="info">
+                更多<el-icon class="el-icon--right"><ArrowDown /></el-icon>
+              </el-button>
+              <template #dropdown>
+                <el-dropdown-menu>
+                  <el-dropdown-item command="timeline">处理进度</el-dropdown-item>
+                  <el-dropdown-item command="refund" v-if="row.status === 'processing'">退款处理</el-dropdown-item>
+                  <el-dropdown-item command="return">收货确认</el-dropdown-item>
+                  <el-dropdown-item command="print">打印退货单</el-dropdown-item>
+                  <el-dropdown-item command="close" v-if="row.status === 'completed'">关闭</el-dropdown-item>
+                  <el-dropdown-item command="delete" divided>删除</el-dropdown-item>
+                </el-dropdown-menu>
+              </template>
+            </el-dropdown>
+          </template>
+        </el-table-column>
+      </el-table>
 
-        <view class="status-timeline">
-          <view class="timeline-item">
-            <view 
-              class="timeline-dot" 
-              :class="{ 'dot-completed': item.statusIndex >= 0 }"
-            ></view>
-            <text class="timeline-text">提交申请</text>
-          </view>
-          <view class="timeline-line"></view>
-          <view class="timeline-item">
-            <view 
-              class="timeline-dot" 
-              :class="{ 'dot-completed': item.statusIndex >= 1 }"
-            ></view>
-            <text class="timeline-text">审核通过</text>
-          </view>
-          <view class="timeline-line"></view>
-          <view class="timeline-item">
-            <view 
-              class="timeline-dot" 
-              :class="{ 'dot-completed': item.statusIndex >= 2 }"
-            ></view>
-            <text class="timeline-text">寄回商品</text>
-          </view>
-          <view class="timeline-line"></view>
-          <view class="timeline-item">
-            <view 
-              class="timeline-dot" 
-              :class="{ 'dot-completed': item.statusIndex >= 3 }"
-            ></view>
-            <text class="timeline-text">处理完成</text>
-          </view>
-        </view>
+      <div class="pagination-wrapper">
+        <el-pagination
+          v-model:current-page="filterForm.page"
+          v-model:page-size="filterForm.pageSize"
+          :page-sizes="[10, 20, 50, 100]"
+          :total="filterForm.total"
+          layout="total, sizes, prev, pager, next, jumper"
+          @size-change="handleSizeChange"
+          @current-change="handleCurrentChange"
+        />
+      </div>
+    </div>
 
-        <view class="card-footer">
-          <text class="current-status">{{ getStatusText(item.status) }}</text>
-          <button class="btn-action" @tap.stop="takeAction(item)">
-            {{ getActionText(item.status) }}
-          </button>
-        </view>
-      </view>
+    <!-- 新建/编辑退货对话框 -->
+    <el-dialog
+      v-model="returnDialog.visible"
+      :title="returnDialog.title"
+      width="900px"
+      :close-on-click-modal="false"
+    >
+      <el-form
+        ref="returnFormRef"
+        :model="returnForm"
+        :rules="returnRules"
+        label-width="100px"
+      >
+        <el-row :gutter="20">
+          <el-col :span="12">
+            <el-form-item label="退货单号" prop="returnNo">
+              <el-input v-model="returnForm.returnNo" placeholder="RT-YYYYMMDD-001" disabled />
+            </el-form-item>
+          </el-col>
+          <el-col :span="12">
+            <el-form-item label="退货原因" prop="returnReason">
+              <el-select v-model="returnForm.returnReason" placeholder="选择退货原因" style="width: 100%">
+                <el-option label="产品质量问题" value="quality" />
+                <el-option label="产品不符合描述" value="description" />
+                <el-option label="客户不满意" value="dissatisfaction" />
+                <el-option label="运输损坏" value="damage" />
+                <el-option label="其他原因" value="other" />
+              </el-select>
+            </el-form-item>
+          </el-col>
+        </el-row>
 
-      <!-- 空状态 -->
-      <view v-if="filteredReturns.length === 0" class="empty-state">
-        <text class="empty-icon">📦</text>
-        <text class="empty-text">暂无{{ getTabName() }}申请</text>
-        <button class="btn-primary" @tap="createReturn">申请退换货</button>
-      </view>
-    </view>
+        <el-row :gutter="20">
+          <el-col :span="12">
+            <el-form-item label="客户姓名" prop="customerName">
+              <el-input v-model="returnForm.customerName" placeholder="请输入客户姓名" />
+            </el-form-item>
+          </el-col>
+          <el-col :span="12">
+            <el-form-item label="联系电话" prop="customerPhone">
+              <el-input v-model="returnForm.customerPhone" placeholder="请输入联系电话" />
+            </el-form-item>
+          </el-col>
+        </el-row>
 
-    <!-- 浮动按钮 -->
-    <view class="fab-container">
-      <view class="fab-button" @tap="createReturn">
-        <text class="fab-icon">+</text>
-      </view>
-      <text class="fab-text">申请退换货</text>
-    </view>
-  </view>
+        <el-row :gutter="20">
+          <el-col :span="12">
+            <el-form-item label="产品型号" prop="productModel">
+              <el-input v-model="returnForm.productModel" placeholder="请输入产品型号" />
+            </el-form-item>
+          </el-col>
+          <el-col :span="12">
+            <el-form-item label="购买单号">
+              <el-input v-model="returnForm.orderNo" placeholder="请输入购买单号" />
+            </el-form-item>
+          </el-col>
+        </el-row>
+
+        <el-row :gutter="20">
+          <el-col :span="8">
+            <el-form-item label="退货数量" prop="quantity">
+              <el-input-number v-model="returnForm.quantity" :min="1" :max="999" style="width: 100%" />
+            </el-form-item>
+          </el-col>
+          <el-col :span="8">
+            <el-form-item label="单价" prop="unitPrice">
+              <el-input-number v-model="returnForm.unitPrice" :min="0" :precision="2" style="width: 100%" />
+            </el-form-item>
+          </el-col>
+          <el-col :span="8">
+            <el-form-item label="总金额">
+              <el-input :value="returnForm.quantity * returnForm.unitPrice" disabled style="width: 100%">
+                <template #prefix>¥</template>
+              </el-input>
+            </el-form-item>
+          </el-col>
+        </el-row>
+
+        <el-form-item label="退货说明" prop="returnDescription">
+          <el-input
+            v-model="returnForm.returnDescription"
+            type="textarea"
+            :rows="4"
+            placeholder="请详细描述退货原因和具体情况"
+          />
+        </el-form-item>
+
+        <el-row :gutter="20">
+          <el-col :span="12">
+            <el-form-item label="收货地址" prop="returnAddress">
+              <el-input
+                v-model="returnForm.returnAddress"
+                type="textarea"
+                :rows="2"
+                placeholder="请输入退货收货地址"
+              />
+            </el-form-item>
+          </el-col>
+          <el-col :span="12">
+            <el-form-item label="处理人">
+              <el-select v-model="returnForm.processor" placeholder="分配处理人" style="width: 100%">
+                <el-option label="张三" value="张三" />
+                <el-option label="李四" value="李四" />
+                <el-option label="王五" value="王五" />
+                <el-option label="赵六" value="赵六" />
+              </el-select>
+            </el-form-item>
+          </el-col>
+        </el-row>
+
+        <el-form-item label="附件资料">
+          <el-upload
+            v-model:file-list="returnForm.attachments"
+            :action="uploadUrl"
+            multiple
+            :limit="10"
+            :on-success="handleUploadSuccess"
+            :on-remove="handleRemoveFile"
+          >
+            <el-button>上传附件</el-button>
+            <template #tip>
+              <div class="el-upload__tip">
+                支持jpg/png/pdf格式，单个文件不超过10MB
+              </div>
+            </template>
+          </el-upload>
+        </el-form-item>
+      </el-form>
+      
+      <template #footer>
+        <div class="dialog-footer">
+          <el-button @click="returnDialog.visible = false">取消</el-button>
+          <el-button type="primary" @click="handleSaveReturn">保存</el-button>
+        </div>
+      </template>
+    </el-dialog>
+
+    <!-- 审核对话框 -->
+    <el-dialog
+      v-model="approveDialog.visible"
+      title="退货审核"
+      width="600px"
+      :close-on-click-modal="false"
+    >
+      <div class="approve-content">
+        <h4>退货信息</h4>
+        <p><strong>退货单号：</strong>{{ approveData.returnNo }}</p>
+        <p><strong>客户姓名：</strong>{{ approveData.customerName }}</p>
+        <p><strong>产品型号：</strong>{{ approveData.productModel }}</p>
+        <p><strong>退货金额：</strong>¥{{ approveData.amount?.toLocaleString() }}</p>
+        <p><strong>退货原因：</strong>{{ getReturnReasonLabel(approveData.returnReason) }}</p>
+        
+        <el-divider />
+        
+        <el-form :model="approveForm" label-width="80px">
+          <el-form-item label="审核结果">
+            <el-radio-group v-model="approveForm.result">
+              <el-radio value="approved">通过</el-radio>
+              <el-radio value="rejected">拒绝</el-radio>
+            </el-radio-group>
+          </el-form-item>
+          <el-form-item label="审核意见">
+            <el-input
+              v-model="approveForm.comment"
+              type="textarea"
+              :rows="3"
+              placeholder="请输入审核意见"
+            />
+          </el-form-item>
+        </el-form>
+      </div>
+      
+      <template #footer>
+        <div class="dialog-footer">
+          <el-button @click="approveDialog.visible = false">取消</el-button>
+          <el-button type="primary" @click="handleSaveApprove">确认审核</el-button>
+        </div>
+      </template>
+    </el-dialog>
+
+    <!-- 处理进度对话框 -->
+    <el-dialog
+      v-model="timelineDialog.visible"
+      title="处理进度"
+      width="600px"
+      :close-on-click-modal="false"
+    >
+      <el-timeline>
+        <el-timeline-item
+          v-for="(activity, index) in timelineData"
+          :key="index"
+          :timestamp="activity.timestamp"
+          :color="activity.color"
+        >
+          <h4>{{ activity.title }}</h4>
+          <p>{{ activity.content }}</p>
+          <small>操作人：{{ activity.operator }}</small>
+        </el-timeline-item>
+      </el-timeline>
+    </el-dialog>
+  </div>
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue'
+import { ref, reactive, computed, onMounted } from 'vue'
+import { ElMessage, ElMessageBox, type FormInstance } from 'element-plus'
+import {
+  Plus,
+  Download,
+  Document,
+  Clock,
+  Refresh,
+  CircleCheck,
+  Search,
+  ArrowDown
+} from '@element-plus/icons-vue'
 
-// 页面状态
-const activeTab = ref<string>('all')
-const returns = ref<any[]>([])
-const stats = ref({
-  processing: 0,
-  completed: 0,
-  pending: 0
+// 响应式数据
+const filterForm = reactive({
+  keyword: '',
+  returnReason: '',
+  status: '',
+  dateRange: [],
+  page: 1,
+  pageSize: 20,
+  total: 0
 })
 
-// 类型标签
-const typeTabs = ref([
-  { label: '全部', value: 'all', icon: '📋', count: 0 },
-  { label: '退货', value: 'return', icon: '↩️', count: 0 },
-  { label: '换货', value: 'exchange', icon: '🔄', count: 0 },
-  { label: '待处理', value: 'pending', icon: '⏰', count: 0 }
+const stats = reactive({
+  totalReturns: 142,
+  pendingReturns: 23,
+  processingReturns: 45,
+  completedReturns: 74
+})
+
+const returns = ref([
+  {
+    id: 1,
+    returnNo: 'RT-20231127-001',
+    customerName: '周先生',
+    customerPhone: '13800138001',
+    productModel: 'EA888-2.0T',
+    quantity: 1,
+    unitPrice: 45000,
+    amount: 45000,
+    returnReason: 'quality',
+    status: 'pending',
+    orderNo: 'PO-20231015-003',
+    applicationTime: '2023-11-27 10:30:00',
+    processor: '张三',
+    returnDescription: '发动机使用一个月后出现异响，要求退货'
+  },
+  {
+    id: 2,
+    returnNo: 'RT-20231127-002',
+    customerName: '吴女士',
+    customerPhone: '13900139002',
+    productModel: 'DQ380变速箱',
+    quantity: 1,
+    unitPrice: 25000,
+    amount: 25000,
+    returnReason: 'damage',
+    status: 'approved',
+    orderNo: 'PO-20231020-005',
+    applicationTime: '2023-11-27 14:15:00',
+    processor: '李四',
+    returnDescription: '收货时发现产品外壳有明显划痕，影响使用'
+  },
+  {
+    id: 3,
+    returnNo: 'RT-20231126-003',
+    customerName: '郑工',
+    customerPhone: '13700137003',
+    productModel: 'MQB底盘件',
+    quantity: 5,
+    unitPrice: 3200,
+    amount: 16000,
+    returnReason: 'dissatisfaction',
+    status: 'processing',
+    orderNo: 'PO-20231010-002',
+    applicationTime: '2023-11-26 16:20:00',
+    processor: '王五',
+    returnDescription: '产品性能不如预期，无法满足项目要求'
+  }
 ])
 
-// 过滤后的退换货列表
-const filteredReturns = computed(() => {
-  if (activeTab.value === 'all') {
-    return returns.value
-  } else if (activeTab.value === 'pending') {
-    return returns.value.filter(item => ['submitted', 'reviewing'].includes(item.status))
-  } else {
-    return returns.value.filter(item => item.type === activeTab.value)
-  }
+const returnDialog = reactive({
+  visible: false,
+  title: '新建退货',
+  mode: 'create' // create | edit
 })
 
-// 获取标签名称
-const getTabName = () => {
-  const tab = typeTabs.value.find(t => t.value === activeTab.value)
-  return tab ? tab.label : ''
+const returnForm = reactive({
+  id: null,
+  returnNo: '',
+  customerName: '',
+  customerPhone: '',
+  productModel: '',
+  quantity: 1,
+  unitPrice: 0,
+  returnReason: '',
+  orderNo: '',
+  returnDescription: '',
+  returnAddress: '',
+  processor: '',
+  attachments: []
+})
+
+const returnRules = {
+  customerName: [
+    { required: true, message: '请输入客户姓名', trigger: 'blur' }
+  ],
+  customerPhone: [
+    { required: true, message: '请输入联系电话', trigger: 'blur' },
+    { pattern: /^1[3-9]\d{9}$/, message: '请输入正确的手机号码', trigger: 'blur' }
+  ],
+  productModel: [
+    { required: true, message: '请输入产品型号', trigger: 'blur' }
+  ],
+  quantity: [
+    { required: true, message: '请输入退货数量', trigger: 'blur' }
+  ],
+  unitPrice: [
+    { required: true, message: '请输入单价', trigger: 'blur' }
+  ],
+  returnReason: [
+    { required: true, message: '请选择退货原因', trigger: 'change' }
+  ],
+  returnDescription: [
+    { required: true, message: '请输入退货说明', trigger: 'blur' },
+    { min: 10, message: '退货说明至少10个字符', trigger: 'blur' }
+  ],
+  returnAddress: [
+    { required: true, message: '请输入收货地址', trigger: 'blur' }
+  ]
 }
 
-// 切换标签
-const switchTab = (value: string) => {
-  activeTab.value = value
+const approveDialog = reactive({
+  visible: false
+})
+
+const approveData = reactive({
+  returnNo: '',
+  customerName: '',
+  productModel: '',
+  amount: 0,
+  returnReason: ''
+})
+
+const approveForm = reactive({
+  result: 'approved',
+  comment: ''
+})
+
+const timelineDialog = reactive({
+  visible: false
+})
+
+const timelineData = ref([
+  {
+    timestamp: '2023-11-27 10:30:00',
+    title: '提交退货申请',
+    content: '客户提交了退货申请',
+    operator: '客户',
+    color: '#409EFF'
+  },
+  {
+    timestamp: '2023-11-27 11:00:00',
+    title: '申请审核',
+    content: '退货申请正在审核中',
+    operator: '系统',
+    color: '#E6A23C'
+  }
+])
+
+const uploadUrl = '/api/upload'
+
+// 表单引用
+const returnFormRef = ref<FormInstance>()
+
+// 计算属性
+const filteredReturns = computed(() => {
+  let filtered = returns.value
+
+  if (filterForm.keyword) {
+    filtered = filtered.filter(item => 
+      item.returnNo.toLowerCase().includes(filterForm.keyword.toLowerCase()) ||
+      item.customerName.toLowerCase().includes(filterForm.keyword.toLowerCase()) ||
+      item.productModel.toLowerCase().includes(filterForm.keyword.toLowerCase())
+    )
+  }
+
+  if (filterForm.returnReason) {
+    filtered = filtered.filter(item => item.returnReason === filterForm.returnReason)
+  }
+
+  if (filterForm.status) {
+    filtered = filtered.filter(item => item.status === filterForm.status)
+  }
+
+  if (filterForm.dateRange && filterForm.dateRange.length === 2) {
+    const [startDate, endDate] = filterForm.dateRange
+    filtered = filtered.filter(item => {
+      const returnDate = new Date(item.applicationTime)
+      return returnDate >= startDate && returnDate <= endDate
+    })
+  }
+
+  return filtered
+})
+
+// 方法
+const getReturnReasonLabel = (reason: string) => {
+  const reasonMap: Record<string, string> = {
+    quality: '产品质量问题',
+    description: '产品不符合描述',
+    dissatisfaction: '客户不满意',
+    damage: '运输损坏',
+    other: '其他原因'
+  }
+  return reasonMap[reason] || reason
 }
 
-// 获取状态文本
-const getStatusText = (status: string) => {
-  const statusMap: { [key: string]: string } = {
-    'submitted': '待审核',
-    'reviewing': '审核中',
-    'approved': '已通过',
-    'rejected': '已拒绝',
-    'shipping': '待寄回',
-    'received': '已收到',
-    'processing': '处理中',
-    'completed': '已完成'
+const getReturnReasonTagType = (reason: string) => {
+  const reasonMap: Record<string, string> = {
+    quality: 'danger',
+    description: 'warning',
+    dissatisfaction: 'primary',
+    damage: 'info',
+    other: ''
+  }
+  return reasonMap[reason] || 'info'
+}
+
+const getStatusLabel = (status: string) => {
+  const statusMap: Record<string, string> = {
+    pending: '待审核',
+    approved: '审核通过',
+    rejected: '审核拒绝',
+    processing: '处理中',
+    completed: '已完成'
   }
   return statusMap[status] || status
 }
 
-// 获取操作按钮文本
-const getActionText = (status: string) => {
-  const actionMap: { [key: string]: string } = {
-    'submitted': '查看详情',
-    'reviewing': '查看详情',
-    'approved': '填写地址',
-    'shipping': '查看物流',
-    'received': '查看进度',
-    'processing': '查看进度',
-    'completed': '评价服务',
-    'rejected': '重新申请'
+const getStatusTagType = (status: string) => {
+  const statusMap: Record<string, string> = {
+    pending: 'warning',
+    approved: 'success',
+    rejected: 'danger',
+    processing: 'primary',
+    completed: 'info'
   }
-  return actionMap[status] || '查看详情'
+  return statusMap[status] || 'info'
 }
 
-// 格式化日期
-const formatDate = (date: string) => {
-  const d = new Date(date)
-  return `${d.getMonth() + 1}-${d.getDate()}`
+const handleSearch = () => {
+  filterForm.page = 1
+  ElMessage.success('搜索完成')
 }
 
-// 查看退换货详情
-const viewReturnDetail = (item: any) => {
-  uni.navigateTo({
-    url: `/pages/after-sales/ReturnDetail?id=${item.id}`
+const handleReset = () => {
+  Object.assign(filterForm, {
+    keyword: '',
+    returnReason: '',
+    status: '',
+    dateRange: [],
+    page: 1,
+    pageSize: 20,
+    total: 0
   })
+  ElMessage.success('重置成功')
 }
 
-// 执行操作
-const takeAction = (item: any) => {
-  switch (item.status) {
-    case 'submitted':
-    case 'reviewing':
-      viewReturnDetail(item)
-      break
-    case 'approved':
-      fillShippingAddress(item)
-      break
-    case 'shipping':
-      viewLogistics(item)
-      break
-    case 'received':
-    case 'processing':
-      viewProgress(item)
-      break
-    case 'completed':
-      rateService(item)
-      break
-    case 'rejected':
-      reapplyReturn(item)
-      break
-  }
+const handleSelectionChange = (selection: any[]) => {
+  console.log('选择的退货：', selection)
 }
 
-// 填写寄回地址
-const fillShippingAddress = (item: any) => {
-  uni.navigateTo({
-    url: `/pages/after-sales/ShippingAddress?returnId=${item.id}`
-  })
+const handleCreateReturn = () => {
+  returnDialog.title = '新建退货'
+  returnDialog.mode = 'create'
+  returnDialog.visible = true
+  resetReturnForm()
+  
+  // 生成退货单号
+  const date = new Date().toISOString().slice(0, 10).replace(/-/g, '')
+  const random = Math.floor(Math.random() * 1000).toString().padStart(3, '0')
+  returnForm.returnNo = `RT-${date}-${random}`
 }
 
-// 查看物流
-const viewLogistics = (item: any) => {
-  uni.navigateTo({
-    url: `/pages/after-sales/LogisticsTracking?returnId=${item.id}`
-  })
+const handleEditReturn = (row: any) => {
+  returnDialog.title = '编辑退货'
+  returnDialog.mode = 'edit'
+  returnDialog.visible = true
+  Object.assign(returnForm, row)
 }
 
-// 查看进度
-const viewProgress = (item: any) => {
-  uni.navigateTo({
-    url: `/pages/after-sales/ReturnProgress?returnId=${item.id}`
-  })
+const handleViewReturn = (row: any) => {
+  ElMessage.info(`查看退货：${row.returnNo}`)
 }
 
-// 评价服务
-const rateService = (item: any) => {
-  uni.navigateTo({
-    url: `/pages/after-sales/ServiceRating?returnId=${item.id}&type=${item.type}`
-  })
+const handleApproveReturn = (row: any) => {
+  Object.assign(approveData, row)
+  approveForm.result = 'approved'
+  approveForm.comment = ''
+  approveDialog.visible = true
 }
 
-// 重新申请
-const reapplyReturn = (item: any) => {
-  uni.showModal({
-    title: '重新申请',
-    content: '将基于原订单信息创建新的退换货申请，是否继续？',
-    success: (res) => {
-      if (res.confirm) {
-        uni.navigateTo({
-          url: `/pages/after-sales/ServiceForm?type=${item.type}&orderId=${item.orderId}`
-        })
-      }
+const handleProcessReturn = (row: any) => {
+  ElMessage.info(`处理退货：${row.returnNo}`)
+}
+
+const handleSaveReturn = async () => {
+  if (!returnFormRef.value) return
+
+  await returnFormRef.value.validate((valid) => {
+    if (valid) {
+      // 这里添加保存逻辑
+      ElMessage.success('退货保存成功')
+      returnDialog.visible = false
+      resetReturnForm()
     }
   })
 }
 
-// 创建退换货申请
-const createReturn = () => {
-  uni.showActionSheet({
-    itemList: ['申请退货', '申请换货'],
-    success: (res) => {
-      const type = res.tapIndex === 0 ? 'return' : 'exchange'
-      const title = res.tapIndex === 0 ? '退货申请' : '换货申请'
-      uni.navigateTo({
-        url: `/pages/after-sales/ServiceForm?type=${type}&title=${title}`
-      })
-    }
-  })
+const handleSaveApprove = () => {
+  if (!approveForm.comment) {
+    ElMessage.warning('请输入审核意见')
+    return
+  }
+  
+  // 这里添加审核逻辑
+  ElMessage.success('审核完成')
+  approveDialog.visible = false
 }
 
-// 获取退换货数据
-const fetchReturns = async () => {
-  try {
-    const db = uniCloud.database()
-    const res = await db.collection('returns_exchanges')
-      .orderBy('applyTime', 'desc')
-      .get()
-    
-    if (res.data && res.data.length > 0) {
-      returns.value = res.data
-      updateStats()
-      updateTabCounts()
-    } else {
-      // 使用模拟数据
-      returns.value = [
-        {
-          id: 'R001',
-          orderNumber: 'ORD20240115001',
-          type: 'return',
-          status: 'approved',
-          statusIndex: 1,
-          productName: 'iPhone 15 Pro Max',
-          specification: '256GB 钛金属',
-          price: '9999',
-          productImage: '',
-          reason: '7天无理由退货',
-          applyTime: '2024-01-15T10:30:00',
-          orderId: 'ORD001'
-        },
-        {
-          id: 'R002',
-          orderNumber: 'ORD20240112002',
-          type: 'exchange',
-          status: 'shipping',
-          statusIndex: 2,
-          productName: 'AirPods Pro 2',
-          specification: 'USB-C版',
-          price: '1899',
-          productImage: '',
-          reason: '尺寸不合适',
-          applyTime: '2024-01-12T14:20:00',
-          orderId: 'ORD002'
-        },
-        {
-          id: 'R003',
-          orderNumber: 'ORD20240108003',
-          type: 'return',
-          status: 'completed',
-          statusIndex: 3,
-          productName: 'MacBook Pro 14"',
-          specification: 'M3 Pro 18GB 512GB',
-          price: '16999',
-          productImage: '',
-          reason: '质量问题退货',
-          applyTime: '2024-01-08T09:15:00',
-          orderId: 'ORD003'
-        }
-      ]
-      updateStats()
-      updateTabCounts()
-    }
-  } catch (error) {
-    console.error('获取退换货数据失败:', error)
-    uni.showToast({
-      title: '数据加载失败',
-      icon: 'error'
-    })
+const handleCommand = (command: string, row: any) => {
+  switch (command) {
+    case 'timeline':
+      Object.assign(timelineData.value, getTimelineData(row.returnNo))
+      timelineDialog.visible = true
+      break
+    case 'refund':
+      ElMessage.info(`处理退款：${row.returnNo}`)
+      break
+    case 'return':
+      ElMessage.info(`确认收货：${row.returnNo}`)
+      break
+    case 'print':
+      ElMessage.info(`打印退货单：${row.returnNo}`)
+      break
+    case 'close':
+      handleCloseReturn(row)
+      break
+    case 'delete':
+      handleDeleteReturn(row)
+      break
   }
 }
 
-// 更新统计数据
-const updateStats = () => {
-  stats.value = {
-    processing: returns.value.filter(r => ['reviewing', 'approved', 'shipping', 'received', 'processing'].includes(r.status)).length,
-    completed: returns.value.filter(r => r.status === 'completed').length,
-    pending: returns.value.filter(r => ['submitted', 'reviewing'].includes(r.status)).length
-  }
+const handleCloseReturn = (row: any) => {
+  ElMessageBox.confirm(
+    `确定要关闭退货"${row.returnNo}"吗？`,
+    '关闭确认',
+    {
+      confirmButtonText: '确定',
+      cancelButtonText: '取消',
+      type: 'warning'
+    }
+  ).then(() => {
+    // 这里添加关闭逻辑
+    ElMessage.success('退货已关闭')
+  })
 }
 
-// 更新标签计数
-const updateTabCounts = () => {
-  typeTabs.value.forEach(tab => {
-    if (tab.value === 'all') {
-      tab.count = returns.value.length
-    } else if (tab.value === 'pending') {
-      tab.count = returns.value.filter(r => ['submitted', 'reviewing'].includes(r.status)).length
-    } else {
-      tab.count = returns.value.filter(r => r.type === tab.value).length
+const handleDeleteReturn = (row: any) => {
+  ElMessageBox.confirm(
+    `确定要删除退货"${row.returnNo}"吗？此操作不可恢复。`,
+    '删除确认',
+    {
+      confirmButtonText: '确定',
+      cancelButtonText: '取消',
+      type: 'warning'
     }
+  ).then(() => {
+    // 这里添加删除逻辑
+    ElMessage.success('删除成功')
   })
+}
+
+const handleExportData = () => {
+  ElMessage.info('导出退货报表数据')
+}
+
+const handleUploadSuccess = (response: any, file: any) => {
+  ElMessage.success('上传成功')
+}
+
+const handleRemoveFile = (file: any) => {
+  ElMessage.info('移除文件')
+}
+
+const resetReturnForm = () => {
+  Object.assign(returnForm, {
+    id: null,
+    returnNo: '',
+    customerName: '',
+    customerPhone: '',
+    productModel: '',
+    quantity: 1,
+    unitPrice: 0,
+    returnReason: '',
+    orderNo: '',
+    returnDescription: '',
+    returnAddress: '',
+    processor: '',
+    attachments: []
+  })
+}
+
+const getTimelineData = (returnNo: string) => {
+  // 这里应该根据returnNo获取对应的进度数据
+  return [
+    {
+      timestamp: '2023-11-27 10:30:00',
+      title: '提交退货申请',
+      content: '客户提交了退货申请',
+      operator: '客户',
+      color: '#409EFF'
+    }
+  ]
+}
+
+const handleSizeChange = (val: number) => {
+  filterForm.pageSize = val
+  // 这里添加分页逻辑
+}
+
+const handleCurrentChange = (val: number) => {
+  filterForm.page = val
+  // 这里添加分页逻辑
 }
 
 onMounted(() => {
-  fetchReturns()
+  // 初始化数据
 })
 </script>
 
 <style scoped>
 .return-processing {
-  min-height: 100vh;
-  background: linear-gradient(135deg, #f0fdf4 0%, #dcfce7 100%);
-  font-family: 'Source Han Sans SC', -system-ui, sans-serif;
+  padding: 20px;
 }
 
-.header-container {
-  position: relative;
-  height: 240rpx;
-  overflow: hidden;
-}
-
-.header-wave {
-  position: absolute;
-  top: -80rpx;
-  left: -200rpx;
-  width: 600rpx;
-  height: 600rpx;
-  background: linear-gradient(135deg, #059669 0%, #10b981 100%);
-  border-radius: 50%;
-  transform: rotate(-20deg);
-}
-
-.header-content {
-  position: absolute;
-  top: 80rpx;
-  left: 60rpx;
-  z-index: 2;
-}
-
-.page-title {
-  font-size: 48rpx;
-  font-weight: 700;
-  color: #059669;
-  margin-bottom: 16rpx;
-  display: block;
-}
-
-.page-subtitle {
-  font-size: 28rpx;
-  color: #64748b;
-  display: block;
-}
-
-.quick-stats {
+.page-header {
   display: flex;
-  justify-content: space-around;
-  padding: 20rpx 30rpx;
-  margin-top: -40rpx;
-  position: relative;
-  z-index: 3;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 20px;
+}
+
+.header-left h1 {
+  margin: 0 0 8px 0;
+  font-size: 24px;
+  color: #303133;
+}
+
+.header-left p {
+  margin: 0;
+  color: #606266;
+  font-size: 14px;
+}
+
+.stats-cards {
+  margin-bottom: 20px;
 }
 
 .stat-card {
-  background: #ffffff;
-  border-radius: 20rpx;
-  padding: 30rpx 20rpx;
-  text-align: center;
-  box-shadow: 0 8rpx 24rpx rgba(0, 0, 0, 0.08);
-  min-width: 200rpx;
-  transition: all 0.3s ease;
-}
-
-.stat-card:active {
-  transform: translateY(-6rpx);
-  box-shadow: 0 12rpx 32rpx rgba(0, 0, 0, 0.12);
+  background: white;
+  border-radius: 8px;
+  padding: 20px;
+  display: flex;
+  align-items: center;
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.1);
 }
 
 .stat-icon {
-  width: 80rpx;
-  height: 80rpx;
+  width: 50px;
+  height: 50px;
   border-radius: 50%;
   display: flex;
   align-items: center;
   justify-content: center;
-  margin: 0 auto 16rpx;
+  margin-right: 15px;
+  font-size: 20px;
+  color: white;
 }
 
-.stat-icon.processing {
-  background: linear-gradient(135deg, #fef3c7 0%, #fde68a 100%);
-}
+.stat-icon.blue { background: #409EFF; }
+.stat-icon.green { background: #67C23A; }
+.stat-icon.orange { background: #E6A23C; }
+.stat-icon.purple { background: #909399; }
 
-.stat-icon.completed {
-  background: linear-gradient(135deg, #d1fae5 0%, #a7f3d0 100%);
-}
-
-.stat-icon.pending {
-  background: linear-gradient(135deg, #dbeafe 0%, #bfdbfe 100%);
-}
-
-.icon {
-  font-size: 40rpx;
-}
-
-.stat-number {
-  font-size: 40rpx;
-  font-weight: 700;
-  color: #059669;
-  display: block;
-  margin-bottom: 8rpx;
+.stat-value {
+  font-size: 24px;
+  font-weight: bold;
+  color: #303133;
+  line-height: 1;
 }
 
 .stat-label {
-  font-size: 24rpx;
-  color: #64748b;
-  display: block;
+  font-size: 14px;
+  color: #909399;
+  margin-top: 5px;
 }
 
-.type-tabs {
-  display: flex;
-  padding: 30rpx;
-  gap: 20rpx;
-  overflow-x: auto;
+.filter-section {
+  background: white;
+  padding: 20px;
+  border-radius: 8px;
+  margin-bottom: 20px;
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.1);
 }
 
-.type-tab {
-  display: flex;
-  align-items: center;
-  gap: 12rpx;
-  padding: 20rpx 28rpx;
-  background: #ffffff;
-  border-radius: 50rpx;
-  border: 2rpx solid #e5e7eb;
-  white-space: nowrap;
-  transition: all 0.3s ease;
-  position: relative;
-  overflow: hidden;
+.table-section {
+  background: white;
+  border-radius: 8px;
+  padding: 20px;
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.1);
 }
 
-.type-tab::before {
-  content: '';
-  position: absolute;
-  top: 0;
-  left: -100%;
-  width: 100%;
-  height: 100%;
-  background: linear-gradient(90deg, transparent, rgba(5, 150, 105, 0.1), transparent);
-  transition: left 0.5s ease;
+.pagination-wrapper {
+  margin-top: 20px;
+  text-align: right;
 }
 
-.tab-active::before {
-  left: 100%;
+.dialog-footer {
+  text-align: right;
 }
 
-.tab-active {
-  background: linear-gradient(135deg, #f0fdf4 0%, #dcfce7 100%);
-  border-color: #059669;
-  transform: translateY(-4rpx);
+.approve-content h4 {
+  margin-bottom: 15px;
+  color: #303133;
 }
 
-.tab-icon {
-  font-size: 32rpx;
+.approve-content p {
+  margin: 8px 0;
+  color: #606266;
 }
 
-.tab-label {
-  font-size: 26rpx;
-  color: #64748b;
-  font-weight: 500;
-}
-
-.tab-active .tab-label {
-  color: #059669;
-}
-
-.tab-badge {
-  min-width: 32rpx;
-  height: 32rpx;
-  background: #059669;
-  color: #ffffff;
-  border-radius: 50%;
-  font-size: 20rpx;
-  font-weight: 600;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 0 6rpx;
-}
-
-.return-list {
-  padding: 0 30rpx 200rpx;
-}
-
-.return-card {
-  background: #ffffff;
-  border-radius: 24rpx;
-  padding: 32rpx;
-  margin-bottom: 24rpx;
-  box-shadow: 0 6rpx 24rpx rgba(0, 0, 0, 0.08);
-  transition: all 0.3s ease;
-}
-
-.return-card:active {
-  transform: translateY(-8rpx);
-  box-shadow: 0 12rpx 40rpx rgba(0, 0, 0, 0.12);
-}
-
-.card-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 24rpx;
-}
-
-.order-info {
-  display: flex;
-  align-items: center;
-  gap: 16rpx;
-}
-
-.order-number {
-  font-size: 28rpx;
-  font-weight: 600;
-  color: #1f2937;
-}
-
-.return-type {
-  font-size: 22rpx;
-  font-weight: 600;
-  padding: 8rpx 16rpx;
-  border-radius: 20rpx;
-}
-
-.type-return {
-  background: #fee2e2;
-  color: #dc2626;
-}
-
-.type-exchange {
-  background: #e0f2fe;
-  color: #0284c7;
-}
-
-.apply-date {
-  font-size: 24rpx;
-  color: #9ca3af;
-}
-
-.product-info {
-  display: flex;
-  gap: 24rpx;
-  margin-bottom: 20rpx;
-}
-
-.product-image {
-  width: 120rpx;
-  height: 120rpx;
-  border-radius: 16rpx;
-  background: #f3f4f6;
-}
-
-.product-details {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  justify-content: space-between;
-}
-
-.product-name {
-  font-size: 28rpx;
-  font-weight: 600;
-  color: #1f2937;
-  margin-bottom: 8rpx;
-}
-
-.product-spec {
-  font-size: 24rpx;
-  color: #6b7280;
-  margin-bottom: 8rpx;
-}
-
-.product-price {
-  font-size: 26rpx;
-  font-weight: 600;
-  color: #059669;
-}
-
-.return-reason {
-  background: #f9fafb;
-  border-radius: 16rpx;
-  padding: 20rpx;
-  margin-bottom: 24rpx;
-}
-
-.reason-label {
-  font-size: 24rpx;
-  color: #6b7280;
-  margin-bottom: 8rpx;
-  display: block;
-}
-
-.reason-text {
-  font-size: 26rpx;
-  color: #1f2937;
-  display: block;
-}
-
-.status-timeline {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  margin-bottom: 24rpx;
-  padding: 0 20rpx;
-}
-
-.timeline-item {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 12rpx;
-}
-
-.timeline-dot {
-  width: 24rpx;
-  height: 24rpx;
-  border-radius: 50%;
-  background: #e5e7eb;
-  transition: all 0.3s ease;
-}
-
-.dot-completed {
-  background: #059669;
-  box-shadow: 0 0 0 8rpx rgba(5, 150, 105, 0.1);
-}
-
-.timeline-text {
-  font-size: 20rpx;
-  color: #6b7280;
-  text-align: center;
-  white-space: nowrap;
-}
-
-.timeline-line {
-  flex: 1;
-  height: 2rpx;
-  background: #e5e7eb;
-  margin: 0 8rpx;
-}
-
-.card-footer {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-}
-
-.current-status {
-  font-size: 26rpx;
-  color: #059669;
-  font-weight: 600;
-}
-
-.btn-action {
-  background: linear-gradient(135deg, #059669 0%, #10b981 100%);
-  color: #ffffff;
-  border: none;
-  border-radius: 24rpx;
-  padding: 16rpx 32rpx;
-  font-size: 24rpx;
-  font-weight: 500;
-  transition: all 0.3s ease;
-}
-
-.btn-action:active {
-  transform: scale(0.95);
-  background: linear-gradient(135deg, #047857 0%, #059669 100%);
-}
-
-.empty-state {
-  text-align: center;
-  padding: 120rpx 40rpx;
-}
-
-.empty-icon {
-  font-size: 120rpx;
-  margin-bottom: 30rpx;
-  display: block;
-}
-
-.empty-text {
-  font-size: 28rpx;
-  color: #6b7280;
-  margin-bottom: 40rpx;
-  display: block;
-}
-
-.btn-primary {
-  background: linear-gradient(135deg, #059669 0%, #10b981 100%);
-  color: #ffffff;
-  border: none;
-  border-radius: 24rpx;
-  padding: 20rpx 40rpx;
-  font-size: 28rpx;
-  font-weight: 500;
-}
-
-.fab-container {
-  position: fixed;
-  bottom: 40rpx;
-  right: 40rpx;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 12rpx;
-  z-index: 100;
-}
-
-.fab-button {
-  width: 120rpx;
-  height: 120rpx;
-  background: linear-gradient(135deg, #059669 0%, #10b981 100%);
-  border-radius: 50%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  box-shadow: 0 12rpx 40rpx rgba(5, 150, 105, 0.3);
-  transition: all 0.3s ease;
-}
-
-.fab-button:active {
-  transform: scale(0.9);
-  box-shadow: 0 8rpx 24rpx rgba(5, 150, 105, 0.4);
-}
-
-.fab-icon {
-  font-size: 48rpx;
-  color: #ffffff;
-  font-weight: 300;
-}
-
-.fab-text {
-  font-size: 22rpx;
-  color: #64748b;
-  background: #ffffff;
-  padding: 8rpx 16rpx;
-  border-radius: 20rpx;
-  box-shadow: 0 4rpx 16rpx rgba(0, 0, 0, 0.1);
+.el-upload__tip {
+  color: #909399;
+  font-size: 12px;
+  margin-top: 5px;
 }
 </style>
