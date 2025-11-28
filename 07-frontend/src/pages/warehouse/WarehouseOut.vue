@@ -3,7 +3,7 @@
     <el-card class="box-card">
       <div slot="header" class="clearfix">
         <span>生产领料出库管理</span>
-        <el-button type="primary" size="mini" @click="showCreateForm" style="float: right;">
+        <el-button type="primary" size="small" @click="showCreateForm" style="float: right;">
           新建出库单
         </el-button>
       </div>
@@ -60,13 +60,13 @@
         <el-table-column prop="departmentName" label="领用部门" min-width="150"></el-table-column>
         <el-table-column prop="applicantName" label="申请人" min-width="120"></el-table-column>
         <el-table-column prop="totalAmount" label="出库金额" align="right" min-width="120">
-          <template slot-scope="scope">
+          <template #default="scope">
             ¥{{ scope.row.totalAmount.toFixed(2) }}
           </template>
         </el-table-column>
         <el-table-column prop="totalQuantity" label="出库数量" align="right" min-width="100"></el-table-column>
         <el-table-column prop="status" label="状态" min-width="100">
-          <template slot-scope="scope">
+          <template #default="scope">
             <el-tag :type="statusTypeMap[scope.row.status]">
               {{ statusTextMap[scope.row.status] }}
             </el-tag>
@@ -76,16 +76,16 @@
         <el-table-column prop="createTime" label="创建时间" min-width="180"></el-table-column>
         <el-table-column prop="issueTime" label="出库时间" min-width="180"></el-table-column>
         <el-table-column label="操作" min-width="150" fixed="right">
-          <template slot-scope="scope">
-            <el-button size="mini" @click="viewDetail(scope.row)">查看</el-button>
+          <template #default="scope">
+            <el-button size="small" @click="viewDetail(scope.row)">查看</el-button>
             <template v-if="scope.row.status === 'pending'">
-              <el-button type="primary" size="mini" @click="editReceipt(scope.row)">编辑</el-button>
-              <el-button type="danger" size="mini" @click="deleteReceipt(scope.row)">取消</el-button>
+              <el-button type="primary" size="small" @click="editReceipt(scope.row)">编辑</el-button>
+              <el-button type="danger" size="small" @click="deleteReceipt(scope.row)">取消</el-button>
             </template>
             <template v-if="scope.row.status === 'approved'">
-              <el-button type="success" size="mini" @click="confirmIssue(scope.row)">确认出库</el-button>
+              <el-button type="success" size="small" @click="confirmIssue(scope.row)">确认出库</el-button>
             </template>
-            <el-button size="mini" @click="printReceipt(scope.row)">打印</el-button>
+            <el-button size="small" @click="printReceipt(scope.row)">打印</el-button>
           </template>
         </el-table-column>
       </el-table>
@@ -173,7 +173,7 @@
 
         <!-- 出库明细 -->
         <el-divider>出库明细</el-divider>
-        <el-button type="primary" size="mini" @click="addItem" style="margin-bottom: 10px;">添加物料</el-button>
+        <el-button type="primary" size="small" @click="addItem" style="margin-bottom: 10px;">添加物料</el-button>
         <el-table
           :data="warehouseOutForm.items"
           style="width: 100%"
@@ -188,7 +188,7 @@
           <el-table-column prop="unit" label="单位" min-width="80"></el-table-column>
           <el-table-column prop="stockQuantity" label="库存数量" min-width="100" align="right"></el-table-column>
           <el-table-column prop="issueQuantity" label="出库数量" min-width="100" align="right">
-            <template slot-scope="scope">
+            <template #default="scope">
               <el-input-number
                 v-model="scope.row.issueQuantity"
                 :min="1"
@@ -199,7 +199,7 @@
             </template>
           </el-table-column>
           <el-table-column prop="unitPrice" label="单价" min-width="100" align="right">
-            <template slot-scope="scope">
+            <template #default="scope">
               <el-input-number
                 v-model="scope.row.unitPrice"
                 :min="0"
@@ -210,27 +210,27 @@
             </template>
           </el-table-column>
           <el-table-column prop="subtotal" label="小计" min-width="120" align="right">
-            <template slot-scope="scope">
+            <template #default="scope">
               ¥{{ (scope.row.issueQuantity * scope.row.unitPrice).toFixed(2) }}
             </template>
           </el-table-column>
           <el-table-column prop="batchNo" label="批次号" min-width="150"></el-table-column>
           <el-table-column prop="locationCode" label="存放库位" min-width="120">
-            <template slot-scope="scope">
+            <template #default="scope">
               <el-select v-model="scope.row.locationCode" placeholder="请选择库位" size="small">
                 <el-option v-for="location in locations" :key="location.code" :label="location.code" :value="location.code"></el-option>
               </el-select>
             </template>
           </el-table-column>
           <el-table-column prop="usage" label="用途" min-width="150">
-            <template slot-scope="scope">
+            <template #default="scope">
               <el-input v-model="scope.row.usage" size="small" placeholder="请输入用途"></el-input>
             </template>
           </el-table-column>
           <el-table-column label="操作" min-width="80" fixed="right">
-            <template slot-scope="scope">
-              <el-button size="mini" @click="editItem(scope.row)">编辑</el-button>
-              <el-button type="danger" size="mini" @click="deleteItem(scope.$index)">删除</el-button>
+            <template #default="scope">
+              <el-button size="small" @click="editItem(scope.row)">编辑</el-button>
+              <el-button type="danger" size="small" @click="deleteItem(scope.$index)">删除</el-button>
             </template>
           </el-table-column>
         </el-table>

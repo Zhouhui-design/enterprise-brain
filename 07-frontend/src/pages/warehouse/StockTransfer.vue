@@ -71,14 +71,14 @@
         <el-table-column prop="totalItems" label="总项数" width="80"></el-table-column>
         <el-table-column prop="totalQuantity" label="总数量" width="80"></el-table-column>
         <el-table-column prop="status" label="状态" width="100">
-          <template slot-scope="scope">
+          <template #default="scope">
             <el-tag :type="getStatusType(scope.row.status)">{{ getStatusText(scope.row.status) }}</el-tag>
           </template>
         </el-table-column>
         <el-table-column prop="createdBy" label="制单人" width="100"></el-table-column>
         <el-table-column prop="createdTime" label="制单时间" width="180"></el-table-column>
         <el-table-column label="操作" width="200" fixed="right">
-          <template slot-scope="scope">
+          <template #default="scope">
             <el-button v-if="['pending', 'reviewing'].includes(scope.row.status)" type="text" size="small" @click="handleEdit(scope.row)">编辑</el-button>
             <el-button v-if="['pending'].includes(scope.row.status)" type="text" size="small" @click="handleCancel(scope.row)" style="color: #f56c6c">取消</el-button>
             <el-button v-if="['pending'].includes(scope.row.status)" type="text" size="small" @click="handleSubmit(scope.row)" style="color: #409eff">提交</el-button>
@@ -165,14 +165,14 @@
             <el-table-column prop="batchNo" label="批次号" width="150"></el-table-column>
             <el-table-column prop="expiryDate" label="有效期" width="120"></el-table-column>
             <el-table-column prop="fromLocation" label="转出位置" width="100">
-              <template slot-scope="scope">
+              <template #default="scope">
                 <el-select v-model="scope.row.fromLocation" placeholder="请选择">
                   <el-option v-for="loc in fromLocations" :key="loc.code" :label="loc.code" :value="loc.code"></el-option>
                 </el-select>
               </template>
             </el-table-column>
             <el-table-column prop="toLocation" label="转入位置" width="100">
-              <template slot-scope="scope">
+              <template #default="scope">
                 <el-select v-model="scope.row.toLocation" placeholder="请选择">
                   <el-option v-for="loc in toLocations" :key="loc.code" :label="loc.code" :value="loc.code"></el-option>
                 </el-select>
@@ -180,7 +180,7 @@
             </el-table-column>
             <el-table-column prop="availableQuantity" label="可用库存" width="100"></el-table-column>
             <el-table-column prop="quantity" label="转移数量" width="100">
-              <template slot-scope="scope">
+              <template #default="scope">
                 <el-input-number
                   v-model="scope.row.quantity"
                   :min="1"
@@ -192,7 +192,7 @@
             <el-table-column prop="unitCost" label="单位成本" width="100"></el-table-column>
             <el-table-column prop="subtotal" label="小计" width="100" :formatter="formatCurrency"></el-table-column>
             <el-table-column label="操作" width="100">
-              <template slot-scope="scope">
+              <template #default="scope">
                 <el-button type="text" size="small" @click="handleEditItem(scope.row)">编辑</el-button>
                 <el-button type="text" size="small" @click="handleDeleteItem(scope.row)" style="color: #f56c6c">删除</el-button>
               </template>
@@ -311,7 +311,7 @@
           <el-table-column prop="quantity" label="库存数量" width="100"></el-table-column>
           <el-table-column prop="unitCost" label="单位成本" width="100"></el-table-column>
           <el-table-column label="导入数量" width="120">
-            <template slot-scope="scope">
+            <template #default="scope">
               <el-input-number
                 v-model="scope.row.importQuantity"
                 :min="1"
