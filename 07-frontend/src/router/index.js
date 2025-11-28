@@ -5,6 +5,9 @@ import humanResourcesRouter from './modules/human-resources.js';
 import systemRouter from './modules/system.js';
 import systemMenuRouter from './modules/systemMenu.js';
 import qualityManagementRouter from './modules/quality-management.js';
+import financeRouter from './modules/finance.js';
+import salesRouter from './modules/sales.js';
+import purchaseRouter from './modules/purchase.js';
 
 const routes = [
   {
@@ -31,6 +34,12 @@ const routes = [
   // 系统管理路由
   systemRouter,
   systemMenuRouter,
+  // 财务管理路由
+  financeRouter,
+  // 销售管理路由
+  salesRouter,
+  // 采购管理路由
+  purchaseRouter,
   // 回厂管理相关路由
   {
     path: '/receipt',
