@@ -541,6 +541,7 @@
 <script>
 import { ref, reactive, computed, onMounted, nextTick } from 'vue';
 import { ElMessage, ElMessageBox } from 'element-plus';
+import { accountReceivableApi } from '@/api/finance/index';
 
 export default {
   name: 'AgingAnalysis',
@@ -1023,18 +1024,41 @@ export default {
     };
 
     // 导出分析报表
-    const exportAnalysis = () => {
+    const exportAnalysis = async () => {
       ElMessageBox.confirm('确定要导出账龄分析报表吗？', '提示', {
         confirmButtonText: '确定',
         cancelButtonText: '取消',
         type: 'info'
-      }).then(() => {
+      }).then(async () => {
         loading.value = true;
-        // 模拟导出
-        setTimeout(() => {
+        try {
+          // 构建请求参数
+          const params = {
+            ...searchForm,
+            asOfDate: searchForm.analysisDate ? searchForm.analysisDate.toISOString().split('T')[0] : new Date().toISOString().split('T')[0]
+          };
+          
+          // 调用API导出报告
+          const response = await accountReceivableApi.exportAgingReport(params);
+          
+          // 处理文件下载
+          const blob = new Blob([response.data], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+          const url = window.URL.createObjectURL(blob);
+          const link = document.createElement('a');
+          link.href = url;
+          link.download = `账龄分析报告_${searchForm.analysisDate ? searchForm.analysisDate.toISOString().split('T')[0] : new Date().toISOString().split('T')[0]}.xlsx`;
+          document.body.appendChild(link);
+          link.click();
+          document.body.removeChild(link);
+          window.URL.revokeObjectURL(url);
+          
           ElMessage.success('报表导出成功');
+        } catch (error) {
+          console.error('导出失败:', error);
+          ElMessage.error('导出失败，请稍后重试');
+        } finally {
           loading.value = false;
-        }, 1000);
+        }
       }).catch(() => {});
     };
 
@@ -1052,11 +1076,34 @@ export default {
     };
 
     // 加载数据
-    const loadData = () => {
+    const loadData = async () => {
       loading.value = true;
-      // 模拟API调用延迟
-      setTimeout(() => {
-        // 模拟数据
+      try {
+        // 构建请求参数
+        const params = {
+          ...searchForm,
+          asOfDate: searchForm.analysisDate ? searchForm.analysisDate.toISOString().split('T')[0] : new Date().toISOString().split('T')[0]
+        };
+        
+        // 调用API获取账龄分析数据
+        const response = await accountReceivableApi.getAgingAnalysis(params);
+        
+        if (response.code === 200) {
+          // 更新数据
+          agingData.value = response.data || [];
+          
+          // 初始化图表
+          nextTick(() => {
+            updateCharts();
+          });
+        } else {
+          ElMessage.error(response.message || '获取账龄分析数据失败');
+        }
+      } catch (error) {
+        console.error('获取账龄分析数据失败:', error);
+        ElMessage.error('网络错误，请稍后重试');
+        
+        // 加载失败时使用mock数据作为备用
         const mockData = [
           {
             id: 1,
@@ -1093,161 +1140,16 @@ export default {
             agingLevel: 'danger',
             riskLevel: 'high',
             lastPaymentDate: '2023-12-20'
-          },
-          {
-            id: 3,
-            customerName: '广州制造有限公司',
-            customerType: 'direct',
-            salesPerson: '王五',
-            creditLimit: 1500000.00,
-            creditLevel: 'AAA',
-            currentBalance: 80000.00,
-            days0To30: 80000.00,
-            days31To60: 0,
-            days61To90: 0,
-            days91To180: 0,
-            daysOver180: 0,
-            overdueDays: 0,
-            agingLevel: 'normal',
-            riskLevel: 'low',
-            lastPaymentDate: '2024-01-25'
-          },
-          {
-            id: 4,
-            customerName: '深圳科技集团',
-            customerType: 'vip',
-            salesPerson: '赵六',
-            creditLimit: 2000000.00,
-            creditLevel: 'AAA',
-            currentBalance: 320000.00,
-            days0To30: 200000.00,
-            days31To60: 120000.00,
-            days61To90: 0,
-            days91To180: 0,
-            daysOver180: 0,
-            overdueDays: 15,
-            agingLevel: 'warning',
-            riskLevel: 'medium',
-            lastPaymentDate: '2024-01-20'
-          },
-          {
-            id: 5,
-            customerName: '杭州电子有限公司',
-            customerType: 'retail',
-            salesPerson: '张三',
-            creditLimit: 500000.00,
-            creditLevel: 'A',
-            currentBalance: 120000.00,
-            days0To30: 0,
-            days31To60: 0,
-            days61To90: 80000.00,
-            days91To180: 40000.00,
-            daysOver180: 0,
-            overdueDays: 85,
-            agingLevel: 'danger',
-            riskLevel: 'high',
-            lastPaymentDate: '2023-11-30'
-          },
-          {
-            id: 6,
-            customerName: '南京自动化科技',
-            customerType: 'direct',
-            salesPerson: '李四',
-            creditLimit: 600000.00,
-            creditLevel: 'AA',
-            currentBalance: 0,
-            days0To30: 0,
-            days31To60: 0,
-            days61To90: 0,
-            days91To180: 0,
-            daysOver180: 0,
-            overdueDays: 0,
-            agingLevel: 'normal',
-            riskLevel: 'low',
-            lastPaymentDate: '2024-01-30'
-          },
-          {
-            id: 7,
-            customerName: '成都软件科技有限公司',
-            customerType: 'vip',
-            salesPerson: '王五',
-            creditLimit: 1200000.00,
-            creditLevel: 'AAA',
-            currentBalance: 180000.00,
-            days0To30: 150000.00,
-            days31To60: 30000.00,
-            days61To90: 0,
-            days91To180: 0,
-            daysOver180: 0,
-            overdueDays: 10,
-            agingLevel: 'normal',
-            riskLevel: 'low',
-            lastPaymentDate: '2024-01-28'
-          },
-          {
-            id: 8,
-            customerName: '武汉网络科技公司',
-            customerType: 'retail',
-            salesPerson: '赵六',
-            creditLimit: 300000.00,
-            creditLevel: 'B',
-            currentBalance: 60000.00,
-            days0To30: 0,
-            days31To60: 0,
-            days61To90: 0,
-            days91To180: 30000.00,
-            daysOver180: 30000.00,
-            overdueDays: 195,
-            agingLevel: 'danger',
-            riskLevel: 'high',
-            lastPaymentDate: '2023-10-15'
-          },
-          {
-            id: 9,
-            customerName: '西安电子信息公司',
-            customerType: 'direct',
-            salesPerson: '张三',
-            creditLimit: 900000.00,
-            creditLevel: 'AA',
-            currentBalance: 90000.00,
-            days0To30: 90000.00,
-            days31To60: 0,
-            days61To90: 0,
-            days91To180: 0,
-            daysOver180: 0,
-            overdueDays: 0,
-            agingLevel: 'normal',
-            riskLevel: 'low',
-            lastPaymentDate: '2024-01-22'
-          },
-          {
-            id: 10,
-            customerName: '重庆智能科技有限公司',
-            customerType: 'distributor',
-            salesPerson: '李四',
-            creditLimit: 700000.00,
-            creditLevel: 'A',
-            currentBalance: 140000.00,
-            days0To30: 0,
-            days31To60: 100000.00,
-            days61To90: 40000.00,
-            days91To180: 0,
-            daysOver180: 0,
-            overdueDays: 55,
-            agingLevel: 'warning',
-            riskLevel: 'medium',
-            lastPaymentDate: '2023-12-15'
           }
         ];
-
         agingData.value = mockData;
-        loading.value = false;
         
-        // 初始化图表
         nextTick(() => {
           updateCharts();
         });
-      }, 500);
+      } finally {
+        loading.value = false;
+      }
     };
 
     // 生命周期
