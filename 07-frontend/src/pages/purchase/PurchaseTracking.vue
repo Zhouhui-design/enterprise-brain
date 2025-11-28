@@ -1,149 +1,351 @@
 <template>
-  <div class="purchase-tracking">
-    <!-- 页面标题 -->
-    <div class="page-header">
-      <h1>采购跟踪管理</h1>
-      <el-button type="primary" icon="el-icon-refresh" @click="handleRefresh">
-        刷新数据
-      </el-button>
-    </div>
+  <ResponsiveLayout>
+    <template #header>
+      <HeaderNavigation
+        title="采购跟踪管理"
+        :show-search="true"
+        :show-notifications="true"
+        @toggle-sidebar="() => {}"
+      >
+        <template #actions>
+          <button 
+            class="header-action-btn primary"
+            @click="handleRefresh"
+            :disabled="loading"
+          >
+            <i class="fas fa-sync-alt"></i>
+            <span>刷新数据</span>
+          </button>
+          <button 
+            class="header-action-btn secondary"
+            @click="handleExport"
+          >
+            <i class="fas fa-download"></i>
+            <span>导出</span>
+          </button>
+        </template>
+      </HeaderNavigation>
+    </template>
+
+    <template #breadcrumb>
+      <BreadcrumbNav 
+        :items="breadcrumbItems"
+        :show-home="true"
+      />
+    </template>
+
+    <!-- 主要内容区域 -->
+    <div class="purchase-tracking">
 
     <!-- 搜索和筛选区域 -->
     <div class="filter-section">
-      <el-form :inline="true" :model="searchForm" class="demo-form-inline">
-        <el-form-item label="订单编号">
-          <el-input v-model="searchForm.orderNo" placeholder="请输入订单编号"></el-input>
-        </el-form-item>
-        <el-form-item label="物料编码/名称">
-          <el-input v-model="searchForm.itemKeyword" placeholder="请输入物料编码或名称"></el-input>
-        </el-form-item>
-        <el-form-item label="供应商">
-          <el-select v-model="searchForm.supplierId" placeholder="请选择供应商">
-            <el-option
-              v-for="supplier in suppliers"
-              :key="supplier.id"
-              :label="supplier.name"
-              :value="supplier.id"
-            ></el-option>
-          </el-select>
-        </el-form-item>
-        <el-form-item label="交付状态">
-          <el-select v-model="searchForm.deliveryStatus" placeholder="请选择交付状态">
-            <el-option label="未交付" value="NOT_DELIVERED"></el-option>
-            <el-option label="部分交付" value="PARTIALLY_DELIVERED"></el-option>
-            <el-option label="已交付" value="DELIVERED"></el-option>
-            <el-option label="延期" value="DELAYED"></el-option>
-          </el-select>
-        </el-form-item>
-        <el-form-item label="预计交付日期">
-          <el-date-picker
-            v-model="dateRange"
-            type="daterange"
-            range-separator="至"
-            start-placeholder="开始日期"
-            end-placeholder="结束日期"
-          ></el-date-picker>
-        </el-form-item>
-        <el-form-item>
-          <el-button type="primary" @click="handleSearch">查询</el-button>
-          <el-button @click="handleReset">重置</el-button>
-        </el-form-item>
-      </el-form>
+      <div class="filter-container">
+        <div class="filter-row">
+          <div class="filter-item">
+            <label class="filter-label">订单编号</label>
+            <input 
+              v-model="searchForm.orderNo" 
+              placeholder="请输入订单编号"
+              class="filter-input"
+              @keyup.enter="handleSearch"
+            />
+          </div>
+          <div class="filter-item">
+            <label class="filter-label">物料编码/名称</label>
+            <input 
+              v-model="searchForm.itemKeyword" 
+              placeholder="请输入物料编码或名称"
+              class="filter-input"
+              @keyup.enter="handleSearch"
+            />
+          </div>
+          <div class="filter-item">
+            <label class="filter-label">供应商</label>
+            <select v-model="searchForm.supplierId" class="filter-select">
+              <option value="">全部供应商</option>
+              <option
+                v-for="supplier in suppliers"
+                :key="supplier.id"
+                :value="supplier.id"
+              >
+                {{ supplier.name }}
+              </option>
+            </select>
+          </div>
+          <div class="filter-item">
+            <label class="filter-label">交付状态</label>
+            <select v-model="searchForm.deliveryStatus" class="filter-select">
+              <option value="">全部状态</option>
+              <option value="NOT_DELIVERED">未交付</option>
+              <option value="PARTIALLY_DELIVERED">部分交付</option>
+              <option value="DELIVERED">已交付</option>
+              <option value="DELAYED">延期</option>
+            </select>
+          </div>
+        </div>
+        
+        <div class="filter-row">
+          <div class="filter-item">
+            <label class="filter-label">预计交付日期</label>
+            <div class="date-range-container">
+              <input
+                v-model="startDate"
+                type="date"
+                class="filter-input"
+                placeholder="开始日期"
+              />
+              <span class="date-separator">至</span>
+              <input
+                v-model="endDate"
+                type="date"
+                class="filter-input"
+                placeholder="结束日期"
+              />
+            </div>
+          </div>
+          <div class="filter-actions">
+            <button 
+              class="search-btn primary"
+              @click="handleSearch"
+              :disabled="loading"
+            >
+              <i class="fas fa-search"></i>
+              <span>查询</span>
+            </button>
+            <button 
+              class="search-btn secondary"
+              @click="handleReset"
+            >
+              <i class="fas fa-redo"></i>
+              <span>重置</span>
+            </button>
+          </div>
+        </div>
+      </div>
     </div>
 
     <!-- 统计卡片 -->
     <div class="stats-section">
-      <el-row :gutter="20">
-        <el-col :span="6">
-          <el-card shadow="hover" class="stat-card">
-            <div class="stat-content">
-              <div class="stat-number">{{ stats.totalOrders }}</div>
-              <div class="stat-label">跟踪中订单</div>
-            </div>
-          </el-card>
-        </el-col>
-        <el-col :span="6">
-          <el-card shadow="hover" class="stat-card warning">
-            <div class="stat-content">
-              <div class="stat-number">{{ stats.delayedOrders }}</div>
-              <div class="stat-label">延期订单</div>
-            </div>
-          </el-card>
-        </el-col>
-        <el-col :span="6">
-          <el-card shadow="hover" class="stat-card success">
-            <div class="stat-content">
-              <div class="stat-number">{{ stats.completedOrders }}</div>
-              <div class="stat-label">已完成订单</div>
-            </div>
-          </el-card>
-        </el-col>
-        <el-col :span="6">
-          <el-card shadow="hover" class="stat-card info">
-            <div class="stat-content">
-              <div class="stat-number">{{ formatCurrency(stats.totalAmount) }}</div>
-              <div class="stat-label">订单总金额</div>
-            </div>
-          </el-card>
-        </el-col>
-      </el-row>
+      <div class="stats-grid">
+        <div class="stat-card primary">
+          <div class="stat-icon">
+            <i class="fas fa-clipboard-list"></i>
+          </div>
+          <div class="stat-content">
+            <div class="stat-number">{{ formatNumber(stats.totalOrders) }}</div>
+            <div class="stat-label">跟踪中订单</div>
+          </div>
+        </div>
+        
+        <div class="stat-card warning">
+          <div class="stat-icon">
+            <i class="fas fa-exclamation-triangle"></i>
+          </div>
+          <div class="stat-content">
+            <div class="stat-number">{{ formatNumber(stats.delayedOrders) }}</div>
+            <div class="stat-label">延期订单</div>
+          </div>
+        </div>
+        
+        <div class="stat-card success">
+          <div class="stat-icon">
+            <i class="fas fa-check-circle"></i>
+          </div>
+          <div class="stat-content">
+            <div class="stat-number">{{ formatNumber(stats.completedOrders) }}</div>
+            <div class="stat-label">已完成订单</div>
+          </div>
+        </div>
+        
+        <div class="stat-card info">
+          <div class="stat-icon">
+            <i class="fas fa-dollar-sign"></i>
+          </div>
+          <div class="stat-content">
+            <div class="stat-number">{{ formatCurrency(stats.totalAmount) }}</div>
+            <div class="stat-label">订单总金额</div>
+          </div>
+        </div>
+      </div>
     </div>
 
     <!-- 数据表格 -->
     <div class="table-section">
-      <el-table
-        v-loading="loading"
-        :data="trackingList"
-        style="width: 100%"
-        @selection-change="handleSelectionChange"
-      >
-        <el-table-column type="selection" width="55"></el-table-column>
-        <el-table-column prop="id" label="ID" width="80"></el-table-column>
-        <el-table-column prop="orderNo" label="订单编号" width="180"></el-table-column>
-        <el-table-column prop="supplierName" label="供应商" width="150"></el-table-column>
-        <el-table-column prop="itemNo" label="物料编码" width="150"></el-table-column>
-        <el-table-column prop="itemName" label="物料名称" width="200"></el-table-column>
-        <el-table-column prop="specification" label="规格型号" width="120"></el-table-column>
-        <el-table-column prop="unit" label="单位" width="80"></el-table-column>
-        <el-table-column prop="orderQuantity" label="订购数量" width="100"></el-table-column>
-        <el-table-column prop="receivedQuantity" label="已收数量" width="100"></el-table-column>
-        <el-table-column prop="pendingQuantity" label="待收数量" width="100"></el-table-column>
-        <el-table-column prop="deliveryDate" label="约定交付日期" width="150"></el-table-column>
-        <el-table-column prop="latestDeliveryDate" label="最新交付日期" width="150"></el-table-column>
-        <el-table-column prop="deliveryStatus" label="交付状态" width="120">
-          <template slot-scope="scope">
-            <el-tag :type="getDeliveryStatusTagType(scope.row.deliveryStatus)">
-              {{ getDeliveryStatusText(scope.row.deliveryStatus) }}
-            </el-tag>
-          </template>
-        </el-table-column>
-        <el-table-column prop="trackingNotes" label="跟踪记录" width="150">
-          <template slot-scope="scope">
-            <el-tooltip :content="scope.row.trackingNotes || '暂无跟踪记录'" placement="top">
-              <span>{{ scope.row.trackingNotes ? '查看' : '-' }}</span>
-            </el-tooltip>
-          </template>
-        </el-table-column>
-        <el-table-column label="操作" width="150" fixed="right">
-          <template slot-scope="scope">
-            <el-button size="small" @click="handleViewDetails(scope.row)">详情</el-button>
-            <el-button size="small" type="primary" @click="handleAddTrackingNote(scope.row)">跟踪</el-button>
-          </template>
-        </el-table-column>
-      </el-table>
+      <div class="table-container">
+        <div class="table-header">
+          <h3 class="table-title">采购跟踪列表</h3>
+          <div class="table-actions">
+            <button 
+              class="table-action-btn"
+              @click="handleBatchTracking"
+              :disabled="selectedRows.length === 0"
+            >
+              <i class="fas fa-plus"></i>
+              <span>批量跟踪</span>
+            </button>
+          </div>
+        </div>
+        
+        <div class="table-wrapper" v-loading="loading">
+          <table class="data-table">
+            <thead>
+              <tr>
+                <th class="checkbox-column">
+                  <input 
+                    type="checkbox" 
+                    @change="handleSelectAll"
+                    :checked="isAllSelected"
+                  />
+                </th>
+                <th class="sortable" @click="handleSort('id')">
+                  ID
+                  <i class="fas fa-sort" :class="getSortClass('id')"></i>
+                </th>
+                <th class="sortable" @click="handleSort('orderNo')">
+                  订单编号
+                  <i class="fas fa-sort" :class="getSortClass('orderNo')"></i>
+                </th>
+                <th>供应商</th>
+                <th>物料编码</th>
+                <th>物料名称</th>
+                <th>规格型号</th>
+                <th>单位</th>
+                <th class="sortable" @click="handleSort('orderQuantity')">
+                  订购数量
+                  <i class="fas fa-sort" :class="getSortClass('orderQuantity')"></i>
+                </th>
+                <th>已收数量</th>
+                <th>待收数量</th>
+                <th>约定交付日期</th>
+                <th>最新交付日期</th>
+                <th>交付状态</th>
+                <th>跟踪记录</th>
+                <th class="actions-column">操作</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr 
+                v-for="item in paginatedData" 
+                :key="item.id"
+                :class="{ 'selected': selectedRows.includes(item.id) }"
+              >
+                <td class="checkbox-column">
+                  <input 
+                    type="checkbox" 
+                    :checked="selectedRows.includes(item.id)"
+                    @change="handleRowSelect(item.id)"
+                  />
+                </td>
+                <td>{{ item.id }}</td>
+                <td class="order-no">{{ item.orderNo }}</td>
+                <td>{{ item.supplierName }}</td>
+                <td>{{ item.itemNo }}</td>
+                <td class="item-name">{{ item.itemName }}</td>
+                <td>{{ item.specification }}</td>
+                <td>{{ item.unit }}</td>
+                <td class="text-right">{{ item.orderQuantity }}</td>
+                <td class="text-right">{{ item.receivedQuantity }}</td>
+                <td class="text-right pending-quantity">{{ item.pendingQuantity }}</td>
+                <td>{{ item.deliveryDate }}</td>
+                <td>{{ item.latestDeliveryDate || '-' }}</td>
+                <td>
+                  <span 
+                    class="status-tag"
+                    :class="getDeliveryStatusClass(item.deliveryStatus)"
+                  >
+                    {{ getDeliveryStatusText(item.deliveryStatus) }}
+                  </span>
+                </td>
+                <td>
+                  <button 
+                    class="link-btn"
+                    @click="handleViewNotes(item)"
+                    :disabled="!item.trackingNotes"
+                  >
+                    {{ item.trackingNotes ? '查看' : '-' }}
+                  </button>
+                </td>
+                <td class="actions-column">
+                  <button 
+                    class="action-btn"
+                    @click="handleViewDetails(item)"
+                    title="查看详情"
+                  >
+                    <i class="fas fa-eye"></i>
+                  </button>
+                  <button 
+                    class="action-btn primary"
+                    @click="handleAddTrackingNote(item)"
+                    title="添加跟踪"
+                  >
+                    <i class="fas fa-plus"></i>
+                  </button>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
 
-      <!-- 分页控件 -->
-      <div class="pagination">
-        <el-pagination
-          background
-          layout="prev, pager, next, jumper, total, sizes"
-          :total="total"
-          :page-size="pageSize"
-          :current-page="currentPage"
-          :page-sizes="[10, 20, 50, 100]"
-          @size-change="handleSizeChange"
-          @current-change="handleCurrentChange"
-        ></el-pagination>
+        <!-- 分页控件 -->
+        <div class="pagination">
+          <div class="pagination-info">
+            显示 {{ (currentPage - 1) * pageSize + 1 }}-{{ Math.min(currentPage * pageSize, total) }} 条，共 {{ total }} 条
+          </div>
+          <div class="pagination-controls">
+            <button 
+              class="pagination-btn"
+              @click="currentPage = 1"
+              :disabled="currentPage === 1"
+            >
+              <i class="fas fa-angle-double-left"></i>
+            </button>
+            <button 
+              class="pagination-btn"
+              @click="currentPage--"
+              :disabled="currentPage === 1"
+            >
+              <i class="fas fa-angle-left"></i>
+            </button>
+            
+            <div class="pagination-pages">
+              <button 
+                v-for="page in visiblePages" 
+                :key="page"
+                class="pagination-page-btn"
+                :class="{ active: currentPage === page }"
+                @click="currentPage = page"
+              >
+                {{ page }}
+              </button>
+            </div>
+            
+            <button 
+              class="pagination-btn"
+              @click="currentPage++"
+              :disabled="currentPage === totalPages"
+            >
+              <i class="fas fa-angle-right"></i>
+            </button>
+            <button 
+              class="pagination-btn"
+              @click="currentPage = totalPages"
+              :disabled="currentPage === totalPages"
+            >
+              <i class="fas fa-angle-double-right"></i>
+            </button>
+          </div>
+          
+          <div class="pagination-size">
+            <span>每页显示</span>
+            <select v-model="pageSize" @change="handleSizeChange">
+              <option :value="10">10</option>
+              <option :value="20">20</option>
+              <option :value="50">50</option>
+              <option :value="100">100</option>
+            </select>
+            <span>条</span>
+          </div>
+        </div>
       </div>
     </div>
 
