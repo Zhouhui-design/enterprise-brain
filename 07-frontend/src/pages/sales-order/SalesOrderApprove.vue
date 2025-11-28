@@ -95,6 +95,9 @@
 </template>
 
 <script>
+import { orderApi } from '@/api/order'
+import { ElMessage, ElMessageBox } from 'element-plus'
+
 export default {
   name: 'SalesOrderApprove',
   data() {
@@ -128,42 +131,57 @@ export default {
     }
   },
   methods: {
-    loadOrderDetail() {
+    async loadOrderDetail() {
       this.loading = true
-      // 模拟加载订单详情和审批历史
-      setTimeout(() => {
-        this.orderDetail = {
-          id: this.orderId,
-          orderNo: 'SO20240105001',
-          status: 'REVIEWED',
-          customerName: '东方贸易公司',
-          totalAmount: 67800.00,
-          orderDate: '2024-01-05',
-          deliveryDate: '2024-02-05',
-          orderType: 'STANDARD',
-          paymentMethod: 'BANK_TRANSFER'
-        }
+      try {
+        // 调用真实API获取订单详情
+        const [orderDetailRes, approvalHistoryRes] = await Promise.all([
+          orderApi.getOrderDetail(this.orderId),
+          orderApi.getOrderApprovalHistory(this.orderId)
+        ])
         
-        this.approvalHistory = [
-          {
-            timestamp: '2024-01-05 11:20:00',
-            type: 'primary',
-            title: '订单创建',
-            description: '销售代表创建销售订单',
-            operator: '系统管理员'
-          },
-          {
-            timestamp: '2024-01-05 15:45:00',
-            type: 'success',
-            title: '销售经理审核通过',
-            description: '审核通过该销售订单',
-            comments: '订单信息完整，价格合理，同意提交审批。',
-            operator: '销售经理'
-          }
-        ]
-        
+        this.orderDetail = orderDetailRes.data || {}
+        this.approvalHistory = approvalHistoryRes.data || []
+      } catch (error) {
+        ElMessage.error('获取订单详情失败：' + (error.message || '未知错误'))
+        console.error('Failed to load order detail:', error)
+        this.loadMockData()
+      } finally {
         this.loading = false
-      }, 500)
+      }
+    },
+    
+    // 加载模拟数据作为备份
+    loadMockData() {
+      this.orderDetail = {
+        id: this.orderId,
+        orderNo: 'SO20240105001',
+        status: 'REVIEWED',
+        customerName: '东方贸易公司',
+        totalAmount: 67800.00,
+        orderDate: '2024-01-05',
+        deliveryDate: '2024-02-05',
+        orderType: 'STANDARD',
+        paymentMethod: 'BANK_TRANSFER'
+      }
+      
+      this.approvalHistory = [
+        {
+          timestamp: '2024-01-05 11:20:00',
+          type: 'primary',
+          title: '订单创建',
+          description: '销售代表创建销售订单',
+          operator: '系统管理员'
+        },
+        {
+          timestamp: '2024-01-05 15:45:00',
+          type: 'success',
+          title: '销售经理审核通过',
+          description: '审核通过该销售订单',
+          comments: '订单信息完整，价格合理，同意提交审批。',
+          operator: '销售经理'
+        }
+      ]
     },
     
     getStatusText(status) {
@@ -199,9 +217,56 @@ export default {
       return '¥' + (value || 0).toFixed(2)
     },
     
-    handleSubmitApproval() {
+    async handleSubmitApproval() {
       this.$refs.approveForm.validate(valid => {
         if (valid && this.approveData.decision && this.approveData.comments) {
           const action = this.approveData.decision === 'APPROVE' ? '批准' : '拒绝'
           
-          this.$confirm(`确定要${action}该订单吗
+          ElMessageBox.confirm(`确定要${action}该订单吗？`, '确认操作', {
+            confirmButtonText: '确定',
+            cancelButtonText: '取消',
+            type: 'warning'
+          }).then(async () => {
+            this.loading = true
+            try {
+              // 调用真实API提交审批
+              const approvalData = {
+                orderId: this.orderId,
+                decision: this.approveData.decision,
+                comments: this.approveData.comments,
+                notifyCustomer: this.approveData.notifyCustomer,
+                attachments: this.fileList.map(file => file.url || '')
+              }
+              
+              await orderApi.approveOrder(approvalData)
+              ElMessage.success(`订单${action}成功！`)
+              
+              // 审批成功后返回列表或详情页
+              this.$router.push('/sales-order/list')
+            } catch (error) {
+              ElMessage.error(`订单${action}失败：` + (error.message || '未知错误'))
+              console.error(`Failed to ${action} order:`, error)
+            } finally {
+              this.loading = false
+            }
+          }).catch(() => {
+            // 用户取消操作
+            ElMessage.info('已取消操作')
+          })
+        }
+      })
+    },
+    
+    handleBack() {
+      this.$router.back()
+    },
+    
+    handlePreview(file) {
+      console.log('Preview file:', file)
+      // 实现文件预览功能
+    },
+    
+    handleRemove(file, fileList) {
+      console.log('Remove file:', file)
+      this.fileList = fileList
+    }

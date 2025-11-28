@@ -181,6 +181,9 @@
 </template>
 
 <script>
+import { ElMessage, ElMessageBox, ElPrompt } from 'element-plus'
+import orderApi from '@/api/sales/orderApi'
+
 export default {
   name: 'OrderTracking',
   data() {
@@ -220,144 +223,161 @@ export default {
     // 获取订单跟踪数据
     async fetchOrderTrackingData() {
       try {
-        // 模拟API调用
-        // const response = await this.$axios.get(`/api/sales-orders/${this.orderId}/tracking`)
-        // const data = response.data
-        // this.orderInfo = data.orderInfo
-        // this.orderSteps = data.orderSteps
-        // this.logisticsInfo = data.logisticsInfo
-        // this.logisticsEvents = data.logisticsEvents
-        // this.operationLogs = data.operationLogs
+        // 获取订单详细信息
+        const orderDetail = await orderApi.getOrderDetail(this.orderId)
+        this.orderInfo = orderDetail
         
-        // 模拟数据
-        this.orderInfo = {
-          orderNo: 'SO20240522001',
-          status: 'SHIPPED',
-          customerName: '北京市科技有限公司',
-          grandTotal: 36800.00,
-          deliveryMethod: 'EXPRESS',
-          deliveryAddress: '北京市海淀区中关村科技园区8号楼',
-          expectedDeliveryDate: '2024-05-28',
-          actualDeliveryDate: '',
-          receiverName: '孙八',
-          receiverPhone: '13600136000',
-          paymentMethod: 'BANK_TRANSFER',
-          paidAmount: 36800.00,
-          unpaidAmount: 0,
-          paymentStatus: 'PAID',
-          trackingRemark: '客户要求周末送货，请提前联系确认'
-        }
+        // 获取订单步骤/进度
+        const stepsResponse = await orderApi.getOrderSteps(this.orderId)
+        this.orderSteps = stepsResponse || []
         
-        this.orderSteps = [
-          {
-            title: '订单创建',
-            description: '订单已创建并等待审批',
-            timestamp: '2024-05-22T10:00:00',
-            status: 'COMPLETED'
-          },
-          {
-            title: '订单审批',
-            description: '订单已通过审批',
-            timestamp: '2024-05-22T14:30:00',
-            status: 'COMPLETED'
-          },
-          {
-            title: '订单确认',
-            description: '订单已确认并安排生产',
-            timestamp: '2024-05-22T16:00:00',
-            status: 'COMPLETED'
-          },
-          {
-            title: '生产完成',
-            description: '产品已生产完成并准备发货',
-            timestamp: '2024-05-25T10:00:00',
-            status: 'COMPLETED'
-          },
-          {
-            title: '订单发货',
-            description: '订单已发货，正在配送中',
-            timestamp: '2024-05-26T09:00:00',
-            status: 'IN_PROGRESS',
-            actions: [
-              {
-                text: '更新物流信息',
-                type: 'primary',
-                action: 'updateLogistics'
-              }
-            ]
-          },
-          {
-            title: '订单送达',
-            description: '订单已送达客户',
-            timestamp: '',
-            status: 'PENDING',
-            actions: []
-          },
-          {
-            title: '订单完成',
-            description: '订单已完成',
-            timestamp: '',
-            status: 'PENDING',
-            actions: []
-          }
-        ]
+        // 获取物流信息
+        const logisticsResponse = await orderApi.getOrderLogistics(this.orderId)
+        this.logisticsInfo = logisticsResponse || { company: '', trackingNo: '' }
         
-        this.logisticsInfo = {
-          company: '顺丰速运',
-          trackingNo: 'SF1234567890123'
-        }
+        // 获取物流事件
+        const logisticsEventsResponse = await orderApi.getOrderLogisticsEvents(this.orderId)
+        this.logisticsEvents = logisticsEventsResponse || []
         
-        this.logisticsEvents = [
-          {
-            time: '2024-05-26T09:00:00',
-            description: '【北京市】快件已从北京海淀集散中心发出'
-          },
-          {
-            time: '2024-05-26T08:30:00',
-            description: '【北京市】快件已到达北京海淀集散中心'
-          },
-          {
-            time: '2024-05-26T07:00:00',
-            description: '【北京市】快件已被快递员揽收'
-          }
-        ]
+        // 获取操作日志
+        const logsResponse = await orderApi.getOrderLogs(this.orderId)
+        this.operationLogs = logsResponse || []
         
-        this.operationLogs = [
-          {
-            operator: '系统',
-            action: '发货通知',
-            content: '订单SO20240522001已发货，物流单号：SF1234567890123',
-            createTime: '2024-05-26T09:00:00'
-          },
-          {
-            operator: '张三',
-            action: '发货处理',
-            content: '处理了订单SO20240522001的发货',
-            createTime: '2024-05-26T08:00:00'
-          },
-          {
-            operator: '李四',
-            action: '付款确认',
-            content: '确认收到订单SO20240522001的款项36800元',
-            createTime: '2024-05-23T10:00:00'
-          },
-          {
-            operator: '王五',
-            action: '订单审批',
-            content: '审批通过了订单SO20240522001',
-            createTime: '2024-05-22T14:30:00'
-          },
-          {
-            operator: '赵六',
-            action: '创建订单',
-            content: '创建了订单SO20240522001',
-            createTime: '2024-05-22T10:00:00'
-          }
-        ]
       } catch (error) {
-        this.$message.error('获取订单跟踪数据失败')
+        ElMessage.error('获取订单跟踪数据失败: ' + (error.message || '未知错误'))
         console.error('获取订单跟踪数据失败:', error)
+        
+        // 加载失败时使用模拟数据作为备份
+        this.loadMockData()
       }
+    },
+    
+    // 加载模拟数据（作为备份）
+    loadMockData() {
+      this.orderInfo = {
+        orderNo: 'SO20240522001',
+        status: 'SHIPPED',
+        customerName: '北京市科技有限公司',
+        grandTotal: 36800.00,
+        deliveryMethod: 'EXPRESS',
+        deliveryAddress: '北京市海淀区中关村科技园区8号楼',
+        expectedDeliveryDate: '2024-05-28',
+        actualDeliveryDate: '',
+        receiverName: '孙八',
+        receiverPhone: '13600136000',
+        paymentMethod: 'BANK_TRANSFER',
+        paidAmount: 36800.00,
+        unpaidAmount: 0,
+        paymentStatus: 'PAID',
+        trackingRemark: '客户要求周末送货，请提前联系确认'
+      }
+      
+      this.orderSteps = [
+        {
+          title: '订单创建',
+          description: '订单已创建并等待审批',
+          timestamp: '2024-05-22T10:00:00',
+          status: 'COMPLETED'
+        },
+        {
+          title: '订单审批',
+          description: '订单已通过审批',
+          timestamp: '2024-05-22T14:30:00',
+          status: 'COMPLETED'
+        },
+        {
+          title: '订单确认',
+          description: '订单已确认并安排生产',
+          timestamp: '2024-05-22T16:00:00',
+          status: 'COMPLETED'
+        },
+        {
+          title: '生产完成',
+          description: '产品已生产完成并准备发货',
+          timestamp: '2024-05-25T10:00:00',
+          status: 'COMPLETED'
+        },
+        {
+          title: '订单发货',
+          description: '订单已发货，正在配送中',
+          timestamp: '2024-05-26T09:00:00',
+          status: 'IN_PROGRESS',
+          actions: [
+            {
+              text: '更新物流信息',
+              type: 'primary',
+              action: 'updateLogistics'
+            }
+          ]
+        },
+        {
+          title: '订单送达',
+          description: '订单已送达客户',
+          timestamp: '',
+          status: 'PENDING',
+          actions: []
+        },
+        {
+          title: '订单完成',
+          description: '订单已完成',
+          timestamp: '',
+          status: 'PENDING',
+          actions: []
+        }
+      ]
+      
+      this.logisticsInfo = {
+        company: '顺丰速运',
+        trackingNo: 'SF1234567890123'
+      }
+      
+      this.logisticsEvents = [
+        {
+          time: '2024-05-26T09:00:00',
+          description: '【北京市】快件已从北京海淀集散中心发出'
+        },
+        {
+          time: '2024-05-26T08:30:00',
+          description: '【北京市】快件已到达北京海淀集散中心'
+        },
+        {
+          time: '2024-05-26T07:00:00',
+          description: '【北京市】快件已被快递员揽收'
+        }
+      ]
+      
+      this.operationLogs = [
+        {
+          operator: '系统',
+          action: '发货通知',
+          content: '订单SO20240522001已发货，物流单号：SF1234567890123',
+          createTime: '2024-05-26T09:00:00'
+        },
+        {
+          operator: '张三',
+          action: '发货处理',
+          content: '处理了订单SO20240522001的发货',
+          createTime: '2024-05-26T08:00:00'
+        },
+        {
+          operator: '李四',
+          action: '付款确认',
+          content: '确认收到订单SO20240522001的款项36800元',
+          createTime: '2024-05-23T10:00:00'
+        },
+        {
+          operator: '王五',
+          action: '订单审批',
+          content: '审批通过了订单SO20240522001',
+          createTime: '2024-05-22T14:30:00'
+        },
+        {
+          operator: '赵六',
+          action: '创建订单',
+          content: '创建了订单SO20240522001',
+          createTime: '2024-05-22T10:00:00'
+        }
+      ]
     },
     
     // 处理步骤操作
@@ -368,27 +388,49 @@ export default {
     },
     
     // 更新物流信息
-    updateLogisticsInfo() {
-      this.$prompt('请输入最新物流单号', '更新物流信息', {
-        confirmButtonText: '确定',
-        cancelButtonText: '取消',
-        inputValue: this.logisticsInfo.trackingNo
-      }).then(({ value }) => {
-        // 模拟API调用
-        setTimeout(() => {
-          this.logisticsInfo.trackingNo = value
-          this.$message.success('物流信息已更新')
-          // 添加操作日志
-          this.operationLogs.unshift({
-            operator: '当前用户',
-            action: '更新物流',
-            content: `更新了订单SO20240522001的物流单号为${value}`,
-            createTime: new Date().toISOString()
-          })
-        }, 500)
-      }).catch(() => {
-        this.$message.info('已取消更新')
+    async updateLogisticsInfo() {
+      const { value: newTrackingNo } = await ElMessageBox.prompt(
+        '请输入最新物流单号',
+        '更新物流信息',
+        {
+          confirmButtonText: '确定',
+          cancelButtonText: '取消',
+          inputValue: this.logisticsInfo.trackingNo,
+          inputPattern: /^.+$/,
+          inputErrorMessage: '物流单号不能为空'
+        }
+      ).catch(() => {
+        ElMessage.info('已取消更新')
+        return { value: null }
       })
+      
+      if (newTrackingNo && newTrackingNo !== this.logisticsInfo.trackingNo) {
+        try {
+          // 更新物流信息
+          const logisticsData = {
+            ...this.logisticsInfo,
+            trackingNo: newTrackingNo
+          }
+          
+          await orderApi.updateOrderLogistics(this.orderId, logisticsData)
+          
+          // 更新本地状态
+          this.logisticsInfo.trackingNo = newTrackingNo
+          
+          // 重新获取最新物流事件
+          const logisticsEventsResponse = await orderApi.getOrderLogisticsEvents(this.orderId)
+          this.logisticsEvents = logisticsEventsResponse || []
+          
+          // 更新操作日志
+          const logsResponse = await orderApi.getOrderLogs(this.orderId)
+          this.operationLogs = logsResponse || []
+          
+          ElMessage.success('物流信息已更新')
+        } catch (error) {
+          ElMessage.error('更新物流信息失败: ' + (error.message || '未知错误'))
+          console.error('更新物流信息失败:', error)
+        }
+      }
     },
     
     // 返回列表

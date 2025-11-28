@@ -156,6 +156,9 @@
 </template>
 
 <script>
+import { ElMessage, ElMessageBox } from 'element-plus'
+import orderApi from '@/api/sales/orderApi'
+
 export default {
   name: 'SalesOrderReview',
   data() {
@@ -194,105 +197,115 @@ export default {
     // 获取订单详情
     async fetchOrderDetail() {
       try {
-        // 模拟API调用
-        // const response = await this.$axios.get(`/api/sales-orders/${this.orderId}`)
-        // this.orderInfo = response.data
+        // 获取订单详情
+        const response = await orderApi.getOrderDetail(this.orderId)
+        this.orderInfo = response || this.orderInfo
         
-        // 模拟数据
-        this.orderInfo = {
-          orderNo: 'SO20240521001',
-          status: 'SUBMITTED',
-          customerName: '广州市贸易有限公司',
-          contactPerson: '赵六',
-          contactPhone: '13700137000',
-          createTime: '2024-05-21T10:00:00',
-          createBy: '钱七',
-          orderDate: '2024-05-21',
-          deliveryMethod: 'LOGISTICS',
-          expectedDeliveryDate: '2024-05-28',
-          paymentMethod: 'CREDIT',
-          paymentTerms: '60天',
-          totalAmount: 58500.00,
-          freight: 1000.00,
-          discount: 2000.00,
-          grandTotal: 57500.00,
-          remark: '请尽快处理',
-          orderItems: [
-            {
-              productCode: 'P003',
-              productName: '企业级存储设备',
-              specification: '100TB 高速缓存',
-              unit: '台',
-              quantity: 1,
-              unitPrice: 45000.00,
-              amount: 45000.00,
-              remark: ''
-            },
-            {
-              productCode: 'P004',
-              productName: '网络安全设备',
-              specification: '企业级防火墙',
-              unit: '套',
-              quantity: 1,
-              unitPrice: 13500.00,
-              amount: 13500.00,
-              remark: ''
-            }
-          ]
+        // 确保订单状态为可审核状态
+        if (!['SUBMITTED', 'PENDING_REVIEW'].includes(this.orderInfo.status)) {
+          ElMessage.warning('该订单当前状态不可审核')
         }
       } catch (error) {
-        this.$message.error('获取订单详情失败')
+        ElMessage.error('获取订单详情失败: ' + (error.message || '未知错误'))
         console.error('获取订单详情失败:', error)
+        
+        // 加载失败时使用模拟数据作为备份
+        this.loadMockData()
+      }
+    },
+    
+    // 加载模拟数据（作为备份）
+    loadMockData() {
+      this.orderInfo = {
+        orderNo: 'SO20240521001',
+        status: 'SUBMITTED',
+        customerName: '广州市贸易有限公司',
+        contactPerson: '赵六',
+        contactPhone: '13700137000',
+        createTime: '2024-05-21T10:00:00',
+        createBy: '钱七',
+        orderDate: '2024-05-21',
+        deliveryMethod: 'LOGISTICS',
+        expectedDeliveryDate: '2024-05-28',
+        paymentMethod: 'CREDIT',
+        paymentTerms: '60天',
+        totalAmount: 58500.00,
+        freight: 1000.00,
+        discount: 2000.00,
+        grandTotal: 57500.00,
+        remark: '请尽快处理',
+        orderItems: [
+          {
+            productCode: 'P003',
+            productName: '企业级存储设备',
+            specification: '100TB 高速缓存',
+            unit: '台',
+            quantity: 1,
+            unitPrice: 45000.00,
+            amount: 45000.00,
+            remark: ''
+          },
+          {
+            productCode: 'P004',
+            productName: '网络安全设备',
+            specification: '企业级防火墙',
+            unit: '套',
+            quantity: 1,
+            unitPrice: 13500.00,
+            amount: 13500.00,
+            remark: ''
+          }
+        ]
       }
     },
     
     // 审核通过
     handleApprove() {
-      this.$confirm('确定要通过此订单审核吗？', '提示', {
+      ElMessageBox.confirm('确定要通过此订单审核吗？', '提示', {
         confirmButtonText: '确定',
         cancelButtonText: '取消',
         type: 'success'
       }).then(() => {
         this.submitReview('APPROVED')
       }).catch(() => {
-        this.$message.info('已取消操作')
+        ElMessage.info('已取消操作')
       })
     },
     
     // 审核拒绝
     handleReject() {
       if (!this.reviewForm.comment) {
-        this.$message.warning('请输入拒绝原因')
+        ElMessage.warning('请输入拒绝原因')
         return
       }
       
-      this.$confirm('确定要拒绝此订单审核吗？', '提示', {
+      ElMessageBox.confirm('确定要拒绝此订单审核吗？', '提示', {
         confirmButtonText: '确定',
         cancelButtonText: '取消',
         type: 'warning'
       }).then(() => {
         this.submitReview('REJECTED')
       }).catch(() => {
-        this.$message.info('已取消操作')
+        ElMessage.info('已取消操作')
       })
     },
     
     // 提交审核结果
     async submitReview(result) {
       try {
-        // 模拟API调用
-        // await this.$axios.post(`/api/sales-orders/${this.orderId}/review`, {
-        //   result,
-        //   comment: this.reviewForm.comment
-        // })
+        // 准备审核数据
+        const reviewData = {
+          result,
+          comment: this.reviewForm.comment
+        }
         
-        // 模拟成功响应
-        setTimeout(() => {
-          this.$message.success(`订单${result === 'APPROVED' ? '审核通过' : '审核拒绝'}`)
-          this.$router.push('/sales-order/list')
-        }, 500)
+        // 调用审核API
+        await orderApi.reviewOrder(this.orderId, reviewData)
+        
+        ElMessage.success(`订单${result === 'APPROVED' ? '审核通过' : '审核拒绝'}`)
+        this.$router.push('/sales-order/list')
       } catch (error) {
-        this.$message.error('提交审核结果失败')
+        ElMessage.error('提交审核结果失败: ' + (error.message || '未知错误'))
         console.error('提交审核结果失败:', error)
       }
     },

@@ -116,6 +116,7 @@
 
 <script>
 import { ElMessage, ElMessageBox } from 'element-plus'
+import { orderApi } from '@/api/order'
 
 export default {
   name: 'SalesOrderList',
@@ -141,12 +142,73 @@ export default {
   },
   methods: {
     // 获取订单列表
-    fetchOrderList() {
-      // 模拟API请求
-      setTimeout(() => {
-        this.orderList = this.getMockOrderList()
-        this.pagination.total = this.orderList.length
-      }, 500)
+    async fetchOrderList() {
+      try {
+        const params = {
+          ...this.searchForm,
+          page: this.pagination.currentPage,
+          size: this.pagination.pageSize
+        }
+        const response = await orderApi.getOrderList(params)
+        this.orderList = response.data || []
+        this.pagination.total = response.total || 0
+      } catch (error) {
+        ElMessage.error('获取订单列表失败: ' + (error.message || '未知错误'))
+        console.error('Failed to fetch order list:', error)
+        // 加载模拟数据作为备份
+        this.loadMockData()
+      }
+    },
+    
+    // 加载模拟数据作为备份
+    loadMockData() {
+      this.orderList = [
+        {
+          id: '1',
+          orderCode: 'SO20240101001',
+          customerName: '东方贸易公司',
+          totalAmount: 67800.00,
+          orderDate: '2024-01-01',
+          deliveryDate: '2024-02-01',
+          status: 'COMPLETED',
+          creatorName: '张三',
+          createTime: '2024-01-01 10:30:00'
+        },
+        {
+          id: '2',
+          orderCode: 'SO20240102002',
+          customerName: '南方科技公司',
+          totalAmount: 45200.00,
+          orderDate: '2024-01-02',
+          deliveryDate: '2024-02-02',
+          status: 'APPROVED',
+          creatorName: '李四',
+          createTime: '2024-01-02 14:20:00'
+        },
+        {
+          id: '3',
+          orderCode: 'SO20240103003',
+          customerName: '北方制造公司',
+          totalAmount: 89500.00,
+          orderDate: '2024-01-03',
+          deliveryDate: '2024-02-03',
+          status: 'PENDING_REVIEW',
+          creatorName: '王五',
+          createTime: '2024-01-03 09:15:00'
+        },
+        {
+          id: '4',
+          orderCode: 'SO20240104004',
+          customerName: '西方物流有限公司',
+          totalAmount: 23600.00,
+          orderDate: '2024-01-04',
+          deliveryDate: '2024-02-04',
+          status: 'DRAFT',
+          creatorName: '赵六',
+          createTime: '2024-01-04 16:40:00'
+        }
+      ]
+      this.pagination.total = this.orderList.length
     },
     
     // 搜索
@@ -187,11 +249,15 @@ export default {
         confirmButtonText: '确定',
         cancelButtonText: '取消',
         type: 'warning'
-      }).then(() => {
-        // 模拟删除操作
-        this.orderList = this.orderList.filter(order => order.id !== orderId)
-        this.pagination.total = this.orderList.length
-        ElMessage.success('订单删除成功')
+      }).then(async () => {
+        try {
+          await orderApi.deleteOrder(orderId)
+          this.orderList = this.orderList.filter(order => order.id !== orderId)
+          this.pagination.total -= 1
+          ElMessage.success('订单删除成功')
+        } catch (error) {
+          ElMessage.error('删除订单失败: ' + (error.message || '未知错误'))
+        }
       }).catch(() => {
         // 取消删除
       })
@@ -203,12 +269,16 @@ export default {
         confirmButtonText: '确定',
         cancelButtonText: '取消',
         type: 'info'
-      }).then(() => {
-        // 模拟提交操作
-        const order = this.orderList.find(o => o.id === orderId)
-        if (order) {
-          order.status = 'PENDING_REVIEW'
+      }).then(async () => {
+        try {
+          await orderApi.submitOrder(orderId)
+          const order = this.orderList.find(o => o.id === orderId)
+          if (order) {
+            order.status = 'PENDING_REVIEW'
+          }
           ElMessage.success('订单提交成功')
+        } catch (error) {
+          ElMessage.error('提交订单失败: ' + (error.message || '未知错误'))
         }
       }).catch(() => {
         // 取消提交
@@ -226,12 +296,17 @@ export default {
         confirmButtonText: '确定',
         cancelButtonText: '取消',
         type: 'warning'
-      }).then(() => {
-        const idsToDelete = this.selectedOrders.map(order => order.id)
-        this.orderList = this.orderList.filter(order => !idsToDelete.includes(order.id))
-        this.pagination.total = this.orderList.length
-        this.selectedOrders = []
-        ElMessage.success('批量删除成功')
+      }).then(async () => {
+        try {
+          const idsToDelete = this.selectedOrders.map(order => order.id)
+          await orderApi.batchDeleteOrders(idsToDelete)
+          this.orderList = this.orderList.filter(order => !idsToDelete.includes(order.id))
+          this.pagination.total -= idsToDelete.length
+          this.selectedOrders = []
+          ElMessage.success('批量删除成功')
+        } catch (error) {
+          ElMessage.error('批量删除失败: ' + (error.message || '未知错误'))
+        }
       }).catch(() => {
         // 取消删除
       })
@@ -243,15 +318,21 @@ export default {
         confirmButtonText: '确定',
         cancelButtonText: '取消',
         type: 'info'
-      }).then(() => {
-        this.selectedOrders.forEach(order => {
-          const o = this.orderList.find(item => item.id === order.id)
-          if (o) {
-            o.status = 'PENDING_REVIEW'
-          }
-        })
-        this.selectedOrders = []
-        ElMessage.success('批量提交成功')
+      }).then(async () => {
+        try {
+          const idsToSubmit = this.selectedOrders.map(order => order.id)
+          await orderApi.batchSubmitOrders(idsToSubmit)
+          this.selectedOrders.forEach(order => {
+            const o = this.orderList.find(item => item.id === order.id)
+            if (o) {
+              o.status = 'PENDING_REVIEW'
+            }
+          })
+          this.selectedOrders = []
+          ElMessage.success('批量提交成功')
+        } catch (error) {
+          ElMessage.error('批量提交失败: ' + (error.message || '未知错误'))
+        }
       }).catch(() => {
         // 取消提交
       })
@@ -338,29 +419,7 @@ export default {
       }).format(amount || 0)
     },
     
-    // 模拟订单数据
-    getMockOrderList() {
-      const statuses = ['DRAFT', 'PENDING_REVIEW', 'REVIEWING', 'APPROVED', 'COMPLETED', 'REJECTED']
-      const now = new Date()
-      
-      return Array.from({ length: 50 }, (_, index) => {
-        const orderDate = new Date(now.getTime() - Math.floor(Math.random() * 30) * 24 * 60 * 60 * 1000)
-        const deliveryDate = new Date(orderDate.getTime() + Math.floor(Math.random() * 60) * 24 * 60 * 60 * 1000)
-        const status = statuses[Math.floor(Math.random() * statuses.length)]
-        
-        return {
-          id: index + 1,
-          orderCode: `SO${String(index + 1).padStart(6, '0')}`,
-          customerName: `客户${index + 1}`,
-          totalAmount: Math.floor(Math.random() * 100000) / 100,
-          orderDate: orderDate.toISOString().split('T')[0],
-          deliveryDate: deliveryDate.toISOString().split('T')[0],
-          status,
-          creatorName: '管理员',
-          createTime: orderDate.toISOString().replace('T', ' ').substring(0, 19)
-        }
-      })
-    }
+    
   }
 }
 </script>
