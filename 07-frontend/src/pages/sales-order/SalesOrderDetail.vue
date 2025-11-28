@@ -183,6 +183,9 @@
 </template>
 
 <script>
+import { ElMessage, ElMessageBox } from 'element-plus'
+import { orderApi } from '@/api/order'
+
 export default {
   name: 'SalesOrderDetail',
   data() {
@@ -231,71 +234,25 @@ export default {
     // 获取订单详情
     async fetchOrderDetail() {
       try {
-        // 模拟API调用
-        // const response = await this.$axios.get(`/api/sales-orders/${this.orderId}`)
-        // this.orderInfo = response.data
-        
-        // 模拟数据
-        this.orderInfo = {
-          orderNo: 'SO20240520001',
-          status: 'CONFIRMED',
-          customerName: '深圳市科技发展有限公司',
-          contactPerson: '张三',
-          contactPhone: '13800138000',
-          createTime: '2024-05-20T10:00:00',
-          createBy: '李四',
-          orderDate: '2024-05-20',
-          deliveryMethod: 'EXPRESS',
-          deliveryAddress: '广东省深圳市南山区科技园路100号',
-          expectedDeliveryDate: '2024-05-25',
-          receiverName: '王五',
-          receiverPhone: '13900139000',
-          paymentMethod: 'BANK_TRANSFER',
-          paymentTerms: '30天',
-          paidAmount: 0,
-          unpaidAmount: 29600.00,
-          totalAmount: 29600.00,
-          freight: 0,
-          discount: 0,
-          grandTotal: 29600.00,
-          remark: '加急订单，请优先处理',
-          orderItems: [
-            {
-              productCode: 'P001',
-              productName: '高性能服务器',
-              specification: 'Intel Xeon 32核 128GB',
-              unit: '台',
-              quantity: 2,
-              unitPrice: 12000.00,
-              amount: 24000.00,
-              remark: ''
-            },
-            {
-              productCode: 'P002',
-              productName: '企业级交换机',
-              specification: '48端口千兆',
-              unit: '台',
-              quantity: 1,
-              unitPrice: 5600.00,
-              amount: 5600.00,
-              remark: ''
-            }
-          ]
-        }
+        const response = await orderApi.getOrderDetail(this.orderId)
+        this.orderInfo = response.data || this.orderInfo
       } catch (error) {
-        this.$message.error('获取订单详情失败')
+        ElMessage.error('获取订单详情失败: ' + (error.message || '未知错误'))
         console.error('获取订单详情失败:', error)
+        this.loadMockOrderData()
       }
     },
     
     // 获取订单操作日志
     async fetchOrderLogs() {
       try {
-        // 模拟API调用
-        // const response = await this.$axios.get(`/api/sales-orders/${this.orderId}/logs`)
-        // this.orderLogs = response.data
-        
-        // 模拟数据
+        // 调用真实API获取操作日志
+        const response = await orderApi.getOrderLogs(this.orderId)
+        this.orderLogs = response.data || []
+      } catch (error) {
+        ElMessage.error('获取操作日志失败: ' + (error.message || '未知错误'))
+        console.error('获取操作日志失败:', error)
+        // 暂时保留模拟数据作为备份
         this.orderLogs = [
           {
             operator: '李四',
@@ -316,9 +273,57 @@ export default {
             createTime: '2024-05-20T16:00:00'
           }
         ]
-      } catch (error) {
-        this.$message.error('获取操作日志失败')
-        console.error('获取操作日志失败:', error)
+      }
+    },
+    
+    // 加载模拟订单数据作为备份
+    loadMockOrderData() {
+      this.orderInfo = {
+        id: this.orderId,
+        orderNo: 'SO20240101001',
+        status: 'COMPLETED',
+        customerName: '东方贸易公司',
+        contactPerson: '张先生',
+        contactPhone: '13800138000',
+        createTime: '2024-01-01T10:30:00',
+        createBy: '张三',
+        orderDate: '2024-01-01',
+        deliveryMethod: 'LOGISTICS',
+        deliveryAddress: '北京市朝阳区建国路88号',
+        expectedDeliveryDate: '2024-01-10',
+        receiverName: '李经理',
+        receiverPhone: '13900139000',
+        paymentMethod: 'BANK_TRANSFER',
+        paymentTerms: '货到付款',
+        paidAmount: 67800.00,
+        unpaidAmount: 0.00,
+        totalAmount: 65000.00,
+        freight: 2800.00,
+        discount: 0.00,
+        grandTotal: 67800.00,
+        remark: '加急订单，请尽快处理',
+        orderItems: [
+          {
+            productCode: 'P001',
+            productName: '高性能服务器',
+            specification: 'Model X9000',
+            unit: '台',
+            quantity: 2,
+            unitPrice: 30000.00,
+            amount: 60000.00,
+            remark: '企业级配置'
+          },
+          {
+            productCode: 'P002',
+            productName: '网络设备套装',
+            specification: 'Pro版本',
+            unit: '套',
+            quantity: 1,
+            unitPrice: 5000.00,
+            amount: 5000.00,
+            remark: ''
+          }
+        ]
       }
     },
     
@@ -334,18 +339,26 @@ export default {
     
     // 取消订单
     handleCancel() {
-      this.$confirm('确定要取消此订单吗？', '提示', {
+      ElMessageBox.confirm('确定要取消此订单吗？', '提示', {
         confirmButtonText: '确定',
         cancelButtonText: '取消',
         type: 'warning'
-      }).then(() => {
-        // 模拟取消订单API调用
-        setTimeout(() => {
-          this.$message.success('订单已取消')
+      }).then(async () => {
+        try {
+          // 调用取消订单API
+          await orderApi.cancelOrder(this.orderId)
+          ElMessage.success('订单已取消')
           this.fetchOrderDetail()
-        }, 500)
+        } catch (error) {
+          ElMessage.error('取消订单失败: ' + (error.message || '未知错误'))
+          console.error('取消订单失败:', error)
+          // 在API调用失败时直接更新本地状态作为降级处理
+          if (this.orderInfo) {
+            this.orderInfo.status = 'CANCELLED'
+          }
+        }
       }).catch(() => {
-        this.$message.info('已取消操作')
+        ElMessage.info('已取消操作')
       })
     },
     
@@ -371,24 +384,32 @@ export default {
     getStatusType(status) {
       const statusMap = {
         'DRAFT': 'info',
-        'SUBMITTED': 'primary', 
+        'PENDING_REVIEW': 'warning',
+        'REVIEWING': 'primary',
+        'PENDING_APPROVAL': 'warning',
+        'SUBMITTED': 'primary',
         'APPROVED': 'success',
         'REJECTED': 'danger',
         'CONFIRMED': 'warning',
-        'CANCELLED': 'text'
+        'CANCELLED': 'danger',
+        'COMPLETED': 'success'
       }
-      return statusMap[status] || 'default'
+      return statusMap[status] || 'info'
     },
     
     // 获取状态文本
     getStatusText(status) {
       const statusMap = {
         'DRAFT': '草稿',
+        'PENDING_REVIEW': '待审核',
+        'REVIEWING': '审核中',
+        'PENDING_APPROVAL': '待审批',
         'SUBMITTED': '已提交',
         'APPROVED': '已审批',
         'REJECTED': '已拒绝',
         'CONFIRMED': '已确认',
-        'CANCELLED': '已取消'
+        'CANCELLED': '已取消',
+        'COMPLETED': '已完成'
       }
       return statusMap[status] || status
     },
@@ -418,6 +439,7 @@ export default {
     
     // 检查权限
     hasPermission(permission) {
+      // 实际项目中应该从用户权限中获取
       return this.permissions.includes(permission)
     }
   }

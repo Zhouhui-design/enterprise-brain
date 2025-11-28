@@ -128,6 +128,7 @@ import { ElMessage, ElMessageBox } from 'element-plus'
 import OrderItemsEditor from './components/OrderItemsEditor.vue'
 import DeliverySchedule from './components/DeliverySchedule.vue'
 import PaymentTerms from './components/PaymentTerms.vue'
+import orderApi from '@/api/sales/orderApi'
 
 export default {
   name: 'SalesOrderCreate',
@@ -200,95 +201,65 @@ export default {
     },
     
     // 加载客户数据
-    loadCustomers() {
-      // 模拟数据
-      this.customers = Array.from({ length: 10 }, (_, index) => ({
-        id: index + 1,
-        name: `客户${index + 1}`,
-        contactPerson: `联系人${index + 1}`,
-        phone: `1380013800${index}`,
-        email: `customer${index + 1}@example.com`
-      }))
+    async loadCustomers() {
+      try {
+        // 这里可以替换为真实的客户API调用
+        // const response = await customerApi.getCustomers()
+        // this.customers = response.data
+        
+        // 暂时使用模拟数据
+        this.customers = Array.from({ length: 10 }, (_, index) => ({
+          id: index + 1,
+          name: `客户${index + 1}`,
+          contactPerson: `联系人${index + 1}`,
+          phone: `1380013800${index}`,
+          email: `customer${index + 1}@example.com`
+        }))
+      } catch (error) {
+        ElMessage.error('加载客户数据失败')
+        console.error('加载客户数据失败:', error)
+      }
     },
     
     // 加载用户数据
-    loadUsers() {
-      // 模拟数据
-      this.users = Array.from({ length: 5 }, (_, index) => ({
-        id: index + 1,
-        name: `销售员${index + 1}`,
-        username: `sales${index + 1}`
-      }))
+    async loadUsers() {
+      try {
+        // 这里可以替换为真实的用户API调用
+        // const response = await userApi.getSalesUsers()
+        // this.users = response.data
+        
+        // 暂时使用模拟数据
+        this.users = Array.from({ length: 5 }, (_, index) => ({
+          id: index + 1,
+          name: `销售员${index + 1}`,
+          username: `sales${index + 1}`
+        }))
+      } catch (error) {
+        ElMessage.error('加载用户数据失败')
+        console.error('加载用户数据失败:', error)
+      }
     },
     
     // 加载订单数据
-    loadOrderData() {
-      // 模拟加载订单数据
-      setTimeout(() => {
-        const mockOrder = {
-          id: this.orderId,
-          orderCode: `SO202401${String(this.orderId).padStart(4, '0')}`,
-          customerId: Math.floor(Math.random() * 10) + 1,
-          orderDate: new Date().toISOString().split('T')[0],
-          deliveryDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
-          salesmanId: Math.floor(Math.random() * 5) + 1,
-          status: 'DRAFT',
-          statusText: '草稿',
-          orderItems: [
-            {
-              id: 1,
-              productId: 1,
-              productCode: 'P001',
-              productName: '精密轴承',
-              unit: '个',
-              quantity: 100,
-              unitPrice: 120.50,
-              amount: 12050.00
-            },
-            {
-              id: 2,
-              productId: 2,
-              productCode: 'P002',
-              productName: '电机控制器',
-              unit: '台',
-              quantity: 50,
-              unitPrice: 580.00,
-              amount: 29000.00
-            }
-          ],
-          deliverySchedules: [
-            {
-              id: 1,
-              deliveryDate: new Date(Date.now() + 15 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
-              deliveryItems: [
-                { productId: 1, productName: '精密轴承', quantity: 50 },
-                { productId: 2, productName: '电机控制器', quantity: 25 }
-              ]
-            },
-            {
-              id: 2,
-              deliveryDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
-              deliveryItems: [
-                { productId: 1, productName: '精密轴承', quantity: 50 },
-                { productId: 2, productName: '电机控制器', quantity: 25 }
-              ]
-            }
-          ],
-          paymentTerms: [
-            { id: 1, paymentPercentage: 30, paymentDueDays: 0, description: '预付30%' },
-            { id: 2, paymentPercentage: 70, paymentDueDays: 30, description: '发货后30天付70%' }
-          ],
-          subtotal: 41050.00,
-          shippingFee: 500.00,
-          taxAmount: 5336.50,
-          discountAmount: 0,
-          totalAmount: 46886.50,
-          remarks: '客户要求加急生产'
+    async loadOrderData() {
+      try {
+        if (this.orderId) {
+          const response = await orderApi.getOrderDetail(this.orderId)
+          this.orderForm = response || this.orderForm
+          this.orderForm.statusText = this.getStatusText(this.orderForm.status)
+          this.calculateOrderTotals()
+        } else {
+          // 新建订单，设置默认值
+          this.orderForm.orderDate = new Date().toISOString().split('T')[0]
+          const defaultDeliveryDate = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000)
+          this.orderForm.deliveryDate = defaultDeliveryDate.toISOString().split('T')[0]
+          this.orderForm.status = 'DRAFT'
+          this.orderForm.statusText = '草稿'
         }
-        
-        this.orderForm = mockOrder
-        this.calculateOrderTotals()
-      }, 500)
+      } catch (error) {
+        ElMessage.error('加载订单数据失败: ' + (error.message || '未知错误'))
+        console.error('加载订单数据失败:', error)
+      }
     },
     
     // 处理订单项变化
@@ -310,31 +281,47 @@ export default {
     },
     
     // 保存草稿
-    saveDraft() {
-      this.$refs.orderForm.validate(valid => {
+    async saveDraft() {
+      this.$refs.orderForm.validate(async valid => {
         if (valid) {
-          // 模拟保存操作
-          setTimeout(() => {
+          try {
+            const orderData = { ...this.orderForm, status: 'DRAFT' }
+            if (this.orderId) {
+              await orderApi.updateOrder(this.orderId, orderData)
+            } else {
+              await orderApi.createOrder(orderData)
+            }
             ElMessage.success('草稿保存成功')
-          }, 500)
+          } catch (error) {
+            ElMessage.error('保存草稿失败: ' + (error.message || '未知错误'))
+          }
         }
       })
     },
     
     // 提交订单
-    submitOrder() {
-      this.$refs.orderForm.validate(valid => {
+    async submitOrder() {
+      this.$refs.orderForm.validate(async valid => {
         if (valid) {
           ElMessageBox.confirm('确定要提交该订单进行审核吗？提交后将无法修改。', '提示', {
             confirmButtonText: '确定',
             cancelButtonText: '取消',
             type: 'info'
-          }).then(() => {
-            // 模拟提交操作
-            setTimeout(() => {
+          }).then(async () => {
+            try {
+              const orderData = { ...this.orderForm, status: 'SUBMITTED' }
+              if (this.orderId) {
+                await orderApi.updateOrder(this.orderId, orderData)
+                await orderApi.submitOrder(this.orderId)
+              } else {
+                const createdOrder = await orderApi.createOrder(orderData)
+                await orderApi.submitOrder(createdOrder.id)
+              }
               ElMessage.success('订单提交成功')
               this.$router.push('/sales-order/list')
-            }, 500)
+            } catch (error) {
+              ElMessage.error('提交订单失败: ' + (error.message || '未知错误'))
+            }
           }).catch(() => {
             // 取消提交
           })
@@ -345,6 +332,20 @@ export default {
     // 返回
     goBack() {
       this.$router.go(-1)
+    }
+    // 获取状态文本
+    getStatusText(status) {
+      const statusMap = {
+        'DRAFT': '草稿',
+        'SUBMITTED': '已提交',
+        'PENDING_REVIEW': '待审核',
+        'REVIEWING': '审核中',
+        'APPROVED': '已审批',
+        'REJECTED': '已拒绝',
+        'CANCELLED': '已取消',
+        'COMPLETED': '已完成'
+      }
+      return statusMap[status] || status
     }
   },
   watch: {
