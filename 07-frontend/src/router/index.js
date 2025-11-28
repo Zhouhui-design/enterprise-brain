@@ -8,6 +8,7 @@ import qualityManagementRouter from './modules/quality-management.js';
 import financeRouter from './modules/finance.js';
 import salesRouter from './modules/sales.js';
 import purchaseRouter from './modules/purchase.js';
+import manufacturingRouter from './modules/manufacturing.js';
 
 const routes = [
   {
@@ -17,14 +18,14 @@ const routes = [
   {
     path: '/auth/login',
     name: 'Login',
-    component: () => import('@/views/auth/Login.vue'),
+    component: () => import('@/pages/after-sales/auth/Login.vue'),
     hidden: true,
     meta: { title: '登录' }
   },
   {
     path: '/dashboard',
     name: 'Dashboard',
-    component: () => import('@/pages/system/Dashboard.vue'),
+    component: () => import('@/pages/after-sales/Dashboard.vue'),
     meta: { title: '首页' }
   },
   // 质量管理路由
@@ -40,6 +41,8 @@ const routes = [
   salesRouter,
   // 采购管理路由
   purchaseRouter,
+  // 生产管理路由
+  manufacturingRouter,
   // 回厂管理相关路由
   {
     path: '/receipt',

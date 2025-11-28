@@ -459,6 +459,7 @@
 <script>
 import { ref, reactive, computed, onMounted } from 'vue';
 import { ElMessage, ElMessageBox } from 'element-plus';
+import { accountReceivableApi, collectionApi } from '@/api/finance/index';
 
 export default {
   name: 'PaymentReminder',
@@ -844,17 +845,26 @@ export default {
     };
 
     // 保存提醒
-    const saveReminder = () => {
-      formRef.value.validate((valid) => {
-        if (valid) {
-          // 模拟提交
-          setTimeout(() => {
-            ElMessage.success(isEdit.value ? '编辑成功' : '创建提醒成功');
-            createDialogVisible.value = false;
-            loadData();
-          }, 500);
+    const saveReminder = async () => {
+      try {
+        await formRef.value.validate();
+        
+        // 调用API保存数据
+        const response = isEdit.value 
+          ? await accountReceivableApi.updatePaymentReminder(formData)
+          : await accountReceivableApi.createPaymentReminder(formData);
+          
+        if (response.code === 200) {
+          ElMessage.success(isEdit.value ? '更新成功' : '创建成功');
+          createDialogVisible.value = false;
+          loadData();
+        } else {
+          ElMessage.error(response.message || '操作失败');
         }
-      });
+      } catch (error) {
+        console.error('保存失败:', error);
+        ElMessage.error('网络错误，请稍后重试');
+      }
     };
 
     // 发送提醒
@@ -869,68 +879,96 @@ export default {
     };
 
     // 确认发送提醒
-    const confirmSendReminder = () => {
-      sendFormRef.value.validate((valid) => {
-        if (valid) {
-          // 模拟发送
-          ElMessageBox.confirm('确定要发送提醒吗？', '提示', {
-            confirmButtonText: '确定',
-            cancelButtonText: '取消',
-            type: 'info'
-          }).then(() => {
-            setTimeout(() => {
-              ElMessage.success('提醒发送成功');
-              sendDialogVisible.value = false;
-              loadData();
-            }, 500);
-          }).catch(() => {});
-        }
-      });
+    const confirmSendReminder = async () => {
+      try {
+        await sendFormRef.value.validate();
+        
+        // 模拟发送
+        ElMessageBox.confirm('确定要发送提醒吗？', '提示', {
+          confirmButtonText: '确定',
+          cancelButtonText: '取消',
+          type: 'info'
+        }).then(async () => {
+          // 调用API发送提醒
+          const response = await accountReceivableApi.sendPaymentReminder(sendForm);
+          
+          if (response.code === 200) {
+            ElMessage.success('提醒发送成功');
+            sendDialogVisible.value = false;
+            loadData();
+          } else {
+            ElMessage.error(response.message || '发送失败');
+          }
+        }).catch(() => {});
+      } catch (error) {
+        console.error('发送失败:', error);
+        ElMessage.error('网络错误，请稍后重试');
+      }
     };
 
     // 跟进提醒
-    const followUpReminder = (row) => {
+    const followUpReminder = async (row) => {
       currentReminder.value = { ...row };
-      // 模拟加载跟进记录
-      followUpRecords.value = [
-        {
-          id: '1',
-          followDate: '2024-01-28',
-          followMethod: 'phone',
-          content: '电话联系客户，确认付款计划',
-          feedback: '客户表示下周会安排付款',
-          nextFollowDate: '2024-02-05',
-          operator: '张三'
-        },
-        {
-          id: '2',
-          followDate: '2024-01-25',
-          followMethod: 'email',
-          content: '发送付款提醒邮件',
-          feedback: '客户已回复邮件',
-          nextFollowDate: '2024-01-28',
-          operator: '张三'
-        }
-      ];
+      // 重置跟进表单
+      Object.assign(followUpForm, {
+        followDate: new Date(),
+        followMethod: 'phone',
+        content: '',
+        feedback: '',
+        nextFollowDate: null
+      });
+      
+      // 加载跟进记录
+      await loadFollowUpRecords();
+      
       followUpDialogVisible.value = true;
     };
 
     // 添加跟进记录
-    const addFollowUpRecord = () => {
-      // 模拟添加记录
-      setTimeout(() => {
-        ElMessage.success('跟进记录添加成功');
-        // 重置跟进表单
-        Object.assign(followUpForm, {
-          followDate: new Date(),
-          followMethod: 'phone',
-          content: '',
-          feedback: '',
-          nextFollowDate: null
+    const addFollowUpRecord = async () => {
+      try {
+        // 调用API添加跟进记录
+        const response = await accountReceivableApi.addPaymentFollowUp({
+          reminderId: currentReminder.value.id,
+          ...followUpForm
         });
-        // 重新加载记录
-        followUpReminder(currentReminder.value);
-      }, 500);
+        
+        if (response.code === 200) {
+          ElMessage.success('记录添加成功');
+          // 重新加载跟进记录
+          await loadFollowUpRecords();
+          // 重置跟进表单
+          Object.assign(followUpForm, {
+            followDate: new Date(),
+            followMethod: 'phone',
+            content: '',
+            feedback: '',
+            nextFollowDate: null
+          });
+        } else {
+          ElMessage.error(response.message || '添加记录失败');
+        }
+      } catch (error) {
+        console.error('添加记录失败:', error);
+        ElMessage.error('网络错误，请稍后重试');
+      }
+    };
+    
+    // 加载跟进记录
+    const loadFollowUpRecords = async () => {
+      if (!currentReminder.value?.id) return;
+      
+      try {
+        const response = await accountReceivableApi.getPaymentFollowUpRecords({
+          reminderId: currentReminder.value.id
+        });
+        
+        if (response.code === 200) {
+          followUpRecords.value = response.data || [];
+        }
+      } catch (error) {
+        console.error('加载跟进记录失败:', error);
+      }
     };
 
     // 取消提醒
@@ -939,12 +977,21 @@ export default {
         confirmButtonText: '确定',
         cancelButtonText: '取消',
         type: 'warning'
-      }).then(() => {
-        // 模拟取消
-        setTimeout(() => {
-          ElMessage.success('提醒已取消');
-          loadData();
-        }, 500);
+      }).then(async () => {
+        try {
+          // 调用API取消提醒
+          const response = await accountReceivableApi.cancelPaymentReminder(row.id);
+          
+          if (response.code === 200) {
+            ElMessage.success('提醒已取消');
+            loadData();
+          } else {
+            ElMessage.error(response.message || '取消失败');
+          }
+        } catch (error) {
+          console.error('取消提醒失败:', error);
+          ElMessage.error('网络错误，请稍后重试');
+        }
       }).catch(() => {});
     };
 
@@ -966,128 +1013,41 @@ export default {
     };
 
     // 加载数据
-    const loadData = () => {
+    const loadData = async () => {
       loading.value = true;
-      // 模拟API调用延迟
-      setTimeout(() => {
-        // 模拟数据
-        const mockData = [
-          {
-            id: '1',
-            reminderNumber: 'RM20240001',
-            customerName: '北京科技有限公司',
-            orderNumber: 'SO20240001',
-            amount: 50000.00,
-            dueDate: '2024-01-30',
-            reminderDate: '2024-01-28',
-            reminderMethod: 'email',
-            responsiblePerson: '张三',
-            status: 'reminded',
-            nextFollowDate: '2024-02-01',
-            reminderContent: '尊敬的客户，请及时支付货款，谢谢合作！',
-            remark: '正常提醒'
-          },
-          {
-            id: '2',
-            reminderNumber: 'RM20240002',
-            customerName: '上海贸易公司',
-            orderNumber: 'SO20240002',
-            amount: 180000.00,
-            dueDate: '2024-01-20',
-            reminderDate: '2024-01-25',
-            reminderMethod: 'phone',
-            responsiblePerson: '李四',
-            status: 'pending',
-            nextFollowDate: null,
-            reminderContent: '客户欠款严重，需紧急跟进',
-            remark: '已逾期，需重点跟进'
-          },
-          {
-            id: '3',
-            reminderNumber: 'RM20240003',
-            customerName: '深圳科技集团',
-            orderNumber: 'SO20240004',
-            amount: 140000.00,
-            dueDate: '2024-02-10',
-            reminderDate: '2024-02-01',
-            reminderMethod: 'wechat',
-            responsiblePerson: '赵六',
-            status: 'pending',
-            nextFollowDate: null,
-            reminderContent: '按照合同约定进行付款提醒',
-            remark: '按计划提醒'
-          },
-          {
-            id: '4',
-            reminderNumber: 'RM20240004',
-            customerName: '杭州电子有限公司',
-            orderNumber: 'SO20240006',
-            amount: 150000.00,
-            dueDate: '2024-02-05',
-            reminderDate: '2024-01-30',
-            reminderMethod: 'sms',
-            responsiblePerson: '王五',
-            status: 'pending',
-            nextFollowDate: null,
-            reminderContent: '新客户，需提前提醒',
-            remark: '首次合作，需重视'
-          },
-          {
-            id: '5',
-            reminderNumber: 'RM20240005',
-            customerName: '广州制造有限公司',
-            orderNumber: 'SO20240003',
-            amount: 0.00,
-            dueDate: '2024-02-15',
-            reminderDate: '2024-02-10',
-            reminderMethod: 'email',
-            responsiblePerson: '张三',
-            status: 'completed',
-            nextFollowDate: null,
-            reminderContent: '尊敬的客户，感谢您的配合！',
-            remark: '已提前完成回款'
-          }
-        ];
-
-        // 应用搜索过滤
-        let filteredData = [...mockData];
-        if (searchForm.customerName) {
-          filteredData = filteredData.filter(item => 
-            item.customerName.includes(searchForm.customerName)
-          );
-        }
-        if (searchForm.orderNumber) {
-          filteredData = filteredData.filter(item => 
-            item.orderNumber.includes(searchForm.orderNumber)
-          );
-        }
-        if (searchForm.status) {
-          filteredData = filteredData.filter(item => 
-            item.status === searchForm.status
-          );
-        }
-        if (searchForm.responsiblePerson) {
-          filteredData = filteredData.filter(item => 
-            item.responsiblePerson === searchForm.responsiblePerson
-          );
-        }
-        if (searchForm.reminderDateRange && searchForm.reminderDateRange.length === 2) {
-          const startDate = new Date(searchForm.reminderDateRange[0]);
-          const endDate = new Date(searchForm.reminderDateRange[1]);
-          filteredData = filteredData.filter(item => {
-            const reminderDate = new Date(item.reminderDate);
-            return reminderDate >= startDate && reminderDate <= endDate;
-          });
-        }
-
-        // 分页处理
-        const start = (pagination.currentPage - 1) * pagination.pageSize;
-        const end = start + pagination.pageSize;
-        reminderList.value = filteredData.slice(start, end);
-        pagination.total = filteredData.length;
+      try {
+        // 构建请求参数
+        const params = {
+          ...searchForm,
+          page: pagination.currentPage,
+          pageSize: pagination.pageSize
+        };
         
+        // 调用API获取数据
+        const response = await accountReceivableApi.getPaymentReminderList(params);
+        
+        if (response.code === 200) {
+          reminderList.value = response.data.list || [];
+          pagination.total = response.data.total || 0;
+          
+          // 更新统计数据
+          pendingReminderCount.value = response.data.stats?.pendingCount || 0;
+          pendingReminderAmount.value = response.data.stats?.pendingAmount || 0;
+          todayDueCount.value = response.data.stats?.todayDueCount || 0;
+          todayDueAmount.value = response.data.stats?.todayDueAmount || 0;
+          weekDueCount.value = response.data.stats?.weekDueCount || 0;
+          weekDueAmount.value = response.data.stats?.weekDueAmount || 0;
+          completedCount.value = response.data.stats?.completedCount || 0;
+          completionRate.value = response.data.stats?.completionRate || 0;
+        } else {
+          ElMessage.error(response.message || '获取数据失败');
+        }
+      } catch (error) {
+        console.error('获取提醒列表失败:', error);
+        ElMessage.error('网络错误，请稍后重试');
+      } finally {
         loading.value = false;
-      }, 500);
+      }
     };
 
     // 生命周期

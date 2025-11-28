@@ -689,6 +689,7 @@
 <script>
 import { ref, reactive, computed, onMounted, nextTick, watch } from 'vue';
 import { ElMessage, ElMessageBox } from 'element-plus';
+import { collectionApi } from '@/api/finance/index';
 
 export default {
   name: 'CollectionPlan',
@@ -1173,17 +1174,26 @@ export default {
     };
 
     // 保存计划
-    const savePlan = () => {
-      formRef.value.validate((valid) => {
-        if (valid) {
-          // 模拟提交
-          setTimeout(() => {
-            ElMessage.success(isEdit.value ? '计划编辑成功' : '计划创建成功');
-            createDialogVisible.value = false;
-            loadData();
-          }, 500);
+    const savePlan = async () => {
+      try {
+        await formRef.value.validate();
+        
+        // 调用API保存数据
+        const response = isEdit.value
+          ? await collectionApi.updateCollectionPlan(formData)
+          : await collectionApi.createCollectionPlan(formData);
+          
+        if (response.code === 200) {
+          ElMessage.success(isEdit.value ? '计划编辑成功' : '计划创建成功');
+          createDialogVisible.value = false;
+          loadData();
+        } else {
+          ElMessage.error(response.message || '操作失败');
         }
-      });
+      } catch (error) {
+        console.error('保存回款计划失败:', error);
+        ElMessage.error('网络错误，请稍后重试');
+      }
     };
 
     // 智能生成计划
@@ -1209,12 +1219,21 @@ export default {
         confirmButtonText: '确定',
         cancelButtonText: '取消',
         type: 'warning'
-      }).then(() => {
-        // 模拟确认
-        setTimeout(() => {
-          ElMessage.success('计划已确认');
-          loadData();
-        }, 500);
+      }).then(async () => {
+        try {
+          // 调用API确认计划
+          const response = await collectionApi.confirmCollectionPlan(row.id);
+          
+          if (response.code === 200) {
+            ElMessage.success('计划已确认');
+            loadData();
+          } else {
+            ElMessage.error(response.message || '操作失败');
+          }
+        } catch (error) {
+          console.error('确认计划失败:', error);
+          ElMessage.error('网络错误，请稍后重试');
+        }
       }).catch(() => {});
     };
 
@@ -1224,12 +1243,21 @@ export default {
         confirmButtonText: '确定',
         cancelButtonText: '取消',
         type: 'success'
-      }).then(() => {
-        // 模拟执行
-        setTimeout(() => {
-          ElMessage.success('计划开始执行');
-          loadData();
-        }, 500);
+      }).then(async () => {
+        try {
+          // 调用API开始执行
+          const response = await collectionApi.executeCollectionPlan(row.id);
+          
+          if (response.code === 200) {
+            ElMessage.success('计划开始执行');
+            loadData();
+          } else {
+            ElMessage.error(response.message || '操作失败');
+          }
+        } catch (error) {
+          console.error('开始执行失败:', error);
+          ElMessage.error('网络错误，请稍后重试');
+        }
       }).catch(() => {});
     };
 
@@ -1280,24 +1308,34 @@ export default {
     };
 
     // 确认记录回款
-    const confirmRecordPayment = () => {
-      paymentFormRef.value.validate((valid) => {
-        if (valid) {
-          ElMessageBox.confirm('确定要记录此笔回款吗？', '提示', {
-            confirmButtonText: '确定',
-            cancelButtonText: '取消',
-            type: 'success'
-          }).then(() => {
-            // 模拟记录
-            setTimeout(() => {
-              ElMessage.success('回款记录成功');
-              recordPaymentDialogVisible.value = false;
-              // 重新加载执行记录
-              followUpPlan(currentPlan.value);
-            }, 500);
-          }).catch(() => {});
-        }
-      });
+    const confirmRecordPayment = async () => {
+      try {
+        await paymentFormRef.value.validate();
+        
+        ElMessageBox.confirm('确定要记录此笔回款吗？', '提示', {
+          confirmButtonText: '确定',
+          cancelButtonText: '取消',
+          type: 'success'
+        }).then(async () => {
+          // 调用API记录回款
+          const response = await collectionApi.recordPayment({
+            ...paymentForm,
+            planItemId: currentPlanItem.value.id
+          });
+          
+          if (response.code === 200) {
+            ElMessage.success('回款记录成功');
+            recordPaymentDialogVisible.value = false;
+            // 重新加载执行记录
+            followUpPlan(currentPlan.value);
+          } else {
+            ElMessage.error(response.message || '操作失败');
+          }
+        });
+      } catch (error) {
+        console.error('记录回款失败:', error);
+        ElMessage.error('网络错误，请稍后重试');
+      }
     };
 
     // 添加执行记录
@@ -1323,12 +1361,21 @@ export default {
         confirmButtonText: '确定',
         cancelButtonText: '取消',
         type: 'danger'
-      }).then(() => {
-        // 模拟终止
-        setTimeout(() => {
-          ElMessage.success('计划已终止');
-          loadData();
-        }, 500);
+      }).then(async () => {
+        try {
+          // 调用API终止计划
+          const response = await collectionApi.terminateCollectionPlan(row.id);
+          
+          if (response.code === 200) {
+            ElMessage.success('计划已终止');
+            loadData();
+          } else {
+            ElMessage.error(response.message || '操作失败');
+          }
+        } catch (error) {
+          console.error('终止计划失败:', error);
+          ElMessage.error('网络错误，请稍后重试');
+        }
       }).catch(() => {});
     };
 
@@ -1352,203 +1399,40 @@ export default {
     };
 
     // 加载数据
-    const loadData = () => {
+    const loadData = async () => {
       loading.value = true;
-      // 模拟API调用延迟
-      setTimeout(() => {
-        // 模拟数据
-        const mockData = [
-          {
-            id: '1',
-            planNumber: 'CP20240001',
-            planName: '北京科技Q1回款计划',
-            customerName: '北京科技有限公司',
-            responsiblePerson: '张三',
-            startDate: '2024-01-01',
-            endDate: '2024-03-31',
-            totalAmount: 130000.00,
-            actualAmount: 50000.00,
-            completionRate: 38,
-            status: 'executing',
-            createdAt: '2024-01-01',
-            collectionTarget: '按季度完成Q1所有待回款订单',
-            remark: '重点客户，需优先跟进',
-            items: [
-              {
-                id: '1',
-                orderNumber: 'SO20240001',
-                dueDate: '2024-01-30',
-                plannedAmount: 50000.00,
-                actualAmount: 50000.00,
-                paymentMethod: 'bankTransfer',
-                priority: 'high',
-                remark: '已全部回款'
-              },
-              {
-                id: '2',
-                orderNumber: 'SO20240005',
-                dueDate: '2024-03-15',
-                plannedAmount: 80000.00,
-                actualAmount: 0,
-                paymentMethod: 'bankTransfer',
-                priority: 'medium',
-                remark: '待跟进'
-              }
-            ]
-          },
-          {
-            id: '2',
-            planNumber: 'CP20240002',
-            planName: '上海贸易2月回款计划',
-            customerName: '上海贸易公司',
-            responsiblePerson: '李四',
-            startDate: '2024-02-01',
-            endDate: '2024-02-29',
-            totalAmount: 180000.00,
-            actualAmount: 0,
-            completionRate: 0,
-            status: 'confirmed',
-            createdAt: '2024-01-25',
-            collectionTarget: '本月内完成全部回款',
-            remark: '合同约定2月底前付款',
-            items: [
-              {
-                id: '3',
-                orderNumber: 'SO20240002',
-                dueDate: '2024-02-28',
-                plannedAmount: 180000.00,
-                actualAmount: 0,
-                paymentMethod: 'bankTransfer',
-                priority: 'high',
-                remark: '金额较大，需重点跟进'
-              }
-            ]
-          },
-          {
-            id: '3',
-            planNumber: 'CP20240003',
-            planName: '广州制造回款计划',
-            customerName: '广州制造有限公司',
-            responsiblePerson: '王五',
-            startDate: '2024-01-15',
-            endDate: '2024-04-15',
-            totalAmount: 200000.00,
-            actualAmount: 0,
-            completionRate: 0,
-            status: 'draft',
-            createdAt: '2024-01-10',
-            collectionTarget: '分三次回款，Q2前完成',
-            remark: '长期合作客户',
-            items: [
-              {
-                id: '4',
-                orderNumber: 'SO20240003',
-                dueDate: '2024-04-15',
-                plannedAmount: 200000.00,
-                actualAmount: 0,
-                paymentMethod: 'bankTransfer',
-                priority: 'medium',
-                remark: '分批次回款'
-              }
-            ]
-          },
-          {
-            id: '4',
-            planNumber: 'CP20240004',
-            planName: '深圳科技集团回款计划',
-            customerName: '深圳科技集团',
-            responsiblePerson: '赵六',
-            startDate: '2024-01-20',
-            endDate: '2024-02-20',
-            totalAmount: 140000.00,
-            actualAmount: 140000.00,
-            completionRate: 100,
-            status: 'completed',
-            createdAt: '2024-01-18',
-            collectionTarget: '春节前完成回款',
-            remark: '客户提前完成回款',
-            items: [
-              {
-                id: '5',
-                orderNumber: 'SO20240004',
-                dueDate: '2024-02-20',
-                plannedAmount: 140000.00,
-                actualAmount: 140000.00,
-                paymentMethod: 'alipay',
-                priority: 'high',
-                remark: '已全部回款'
-              }
-            ]
-          },
-          {
-            id: '5',
-            planNumber: 'CP20240005',
-            planName: '杭州电子Q1回款计划',
-            customerName: '杭州电子有限公司',
-            responsiblePerson: '张三',
-            startDate: '2024-01-05',
-            endDate: '2024-03-31',
-            totalAmount: 150000.00,
-            actualAmount: 0,
-            completionRate: 0,
-            status: 'executing',
-            createdAt: '2024-01-03',
-            collectionTarget: '按合同约定进度回款',
-            remark: '新客户，需加强沟通',
-            items: [
-              {
-                id: '6',
-                orderNumber: 'SO20240006',
-                dueDate: '2024-03-31',
-                plannedAmount: 150000.00,
-                actualAmount: 0,
-                paymentMethod: 'bankTransfer',
-                priority: 'medium',
-                remark: '需定期跟进'
-              }
-            ]
-          }
-        ];
-
-        // 应用搜索过滤
-        let filteredData = [...mockData];
-        if (searchForm.planNumber) {
-          filteredData = filteredData.filter(item => 
-            item.planNumber.includes(searchForm.planNumber)
-          );
-        }
-        if (searchForm.customerName) {
-          filteredData = filteredData.filter(item => 
-            item.customerName.includes(searchForm.customerName)
-          );
-        }
-        if (searchForm.status) {
-          filteredData = filteredData.filter(item => 
-            item.status === searchForm.status
-          );
-        }
-        if (searchForm.responsiblePerson) {
-          filteredData = filteredData.filter(item => 
-            item.responsiblePerson === searchForm.responsiblePerson
-          );
-        }
-        if (searchForm.planDateRange && searchForm.planDateRange.length === 2) {
-          const startDate = new Date(searchForm.planDateRange[0]);
-          const endDate = new Date(searchForm.planDateRange[1]);
-          filteredData = filteredData.filter(item => {
-            const planStartDate = new Date(item.startDate);
-            return planStartDate >= startDate && planStartDate <= endDate;
-          });
-        }
-
-        // 分页处理
-        const start = (pagination.currentPage - 1) * pagination.pageSize;
-        const end = start + pagination.pageSize;
-        planList.value = filteredData.slice(start, end);
-        pagination.total = filteredData.length;
+      try {
+        // 构建请求参数
+        const params = {
+          ...searchForm,
+          page: pagination.currentPage,
+          pageSize: pagination.pageSize
+        };
         
+        // 调用API获取数据
+        const response = await collectionApi.getCollectionPlanList(params);
+        
+        if (response.code === 200) {
+          planList.value = response.data.list || [];
+          pagination.total = response.data.total || 0;
+          
+          // 更新统计数据
+          updateStatistics(response.data.stats || {});
+        } else {
+          ElMessage.error(response.message || '获取数据失败');
+        }
+      } catch (error) {
+        console.error('获取回款计划列表失败:', error);
+        ElMessage.error('网络错误，请稍后重试');
+      } finally {
         loading.value = false;
-      }, 500);
+      }
+    };
+    
+    // 更新统计数据
+    const updateStatistics = (stats) => {
+      // 这里更新各统计指标
+      // 将在组件中使用API返回的统计数据替换计算属性
     };
 
     // 生命周期
