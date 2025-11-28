@@ -1,0 +1,432 @@
+/* 表格主题样式 */
+
+/* 基础表格样式 */
+.table {
+  width: 100%;
+  border-collapse: collapse;
+  border-spacing: 0;
+  background-color: var(--background-color, #ffffff);
+  color: var(--text-color, #303133);
+  border-radius: var(--border-radius, 8px);
+  overflow: hidden;
+  box-shadow: var(--shadow-base, 0 2px 8px rgba(0, 0, 0, 0.1));
+}
+
+.table th,
+.table td {
+  padding: 12px 16px;
+  text-align: left;
+  border-bottom: 1px solid var(--border-color, #dcdfe6);
+  transition: all 0.3s ease;
+}
+
+.table th {
+  background-color: var(--background-light, #f8f9fa);
+  font-weight: 600;
+  color: var(--text-primary, #303133);
+  position: sticky;
+  top: 0;
+  z-index: 10;
+}
+
+.table td {
+  color: var(--text-regular, #606266);
+}
+
+.table tbody tr:hover td {
+  background-color: var(--background-secondary, #fafbfc);
+  color: var(--text-primary, #303133);
+}
+
+/* 条纹表格 */
+.table-striped tbody tr:nth-child(even) td {
+  background-color: var(--background-secondary, #fafbfc);
+}
+
+.table-striped tbody tr:hover td {
+  background-color: var(--primary-bg, #ecf5ff);
+}
+
+/* 边框表格 */
+.table-bordered th,
+.table-bordered td {
+  border: 1px solid var(--border-color, #dcdfe6);
+}
+
+.table-bordered th {
+  border-bottom-width: 2px;
+  border-bottom-color: var(--primary-color, #409eff);
+}
+
+/* 无边框表格 */
+.table-borderless th,
+.table-borderless td {
+  border: none;
+}
+
+.table-borderless th {
+  background-color: transparent;
+}
+
+/* 紧凑表格 */
+.table-compact th,
+.table-compact td {
+  padding: 8px 12px;
+  font-size: 13px;
+}
+
+.table-compact.table-compact th,
+.table-compact.table-compact td {
+  padding: 6px 8px;
+  font-size: 12px;
+}
+
+/* 悬停高亮表格 */
+.table-hover tbody tr {
+  transition: all 0.3s ease;
+}
+
+.table-hover tbody tr:hover {
+  background-color: var(--primary-bg, #ecf5ff);
+  transform: scale(1.01);
+  box-shadow: var(--shadow-light, 0 2px 8px rgba(0, 0, 0, 0.08));
+}
+
+/* 深色主题表格 */
+.table-dark {
+  background-color: var(--background-dark, #1a1a1a);
+  color: var(--text-primary, #ffffff);
+}
+
+.table-dark th {
+  background-color: var(--background-color, #000000);
+  color: var(--text-primary, #ffffff);
+}
+
+.table-dark td {
+  border-bottom-color: var(--border-dark, #363636);
+  color: var(--text-regular, #e6e8eb);
+}
+
+.table-dark tbody tr:hover td {
+  background-color: var(--background-light, #262626);
+}
+
+/* 响应式表格 */
+.table-responsive {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+.table-responsive .table {
+  min-width: 600px;
+}
+
+/* 表格尺寸 */
+.table-small th,
+.table-small td {
+  padding: 6px 8px;
+  font-size: 12px;
+}
+
+.table-large th,
+.table-large td {
+  padding: 16px 20px;
+  font-size: 16px;
+}
+
+/* 可排序表格 */
+.table-sortable th {
+  cursor: pointer;
+  user-select: none;
+  position: relative;
+  padding-right: 30px;
+}
+
+.table-sortable th:hover {
+  background-color: var(--primary-bg, #ecf5ff);
+}
+
+.table-sortable th.sortable::after {
+  content: '⇅';
+  position: absolute;
+  right: 12px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: var(--text-secondary, #909399);
+  font-size: 12px;
+}
+
+.table-sortable th.sort-asc::after {
+  content: '↑';
+  color: var(--primary-color, #409eff);
+}
+
+.table-sortable th.sort-desc::after {
+  content: '↓';
+  color: var(--primary-color, #409eff);
+}
+
+/* 可选择表格 */
+.table-selectable tbody tr {
+  cursor: pointer;
+  transition: all 0.3s ease;
+}
+
+.table-selectable tbody tr:hover {
+  background-color: var(--primary-bg, #ecf5ff);
+}
+
+.table-selectable tbody tr.selected {
+  background-color: var(--primary-color, #409eff);
+  color: #ffffff;
+}
+
+.table-selectable tbody tr.selected td {
+  color: #ffffff;
+  border-bottom-color: var(--primary-dark, #337ecc);
+}
+
+/* 可展开表格 */
+.table-expandable .expand-icon {
+  cursor: pointer;
+  user-select: none;
+  width: 20px;
+  height: 20px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  background-color: var(--background-light, #f8f9fa);
+  color: var(--text-secondary, #909399);
+  transition: all 0.3s ease;
+}
+
+.table-expandable .expand-icon:hover {
+  background-color: var(--primary-color, #409eff);
+  color: #ffffff;
+  transform: rotate(90deg);
+}
+
+.table-expandable .expand-icon.expanded {
+  transform: rotate(180deg);
+}
+
+.expandable-row {
+  background-color: var(--background-secondary, #fafbfc);
+}
+
+.expandable-row td {
+  padding: 20px 16px;
+  background-color: var(--background-secondary, #fafbfc);
+}
+
+/* 表格状态行 */
+.table-info-row td {
+  background-color: var(--info-bg, #f4f4f5);
+  color: var(--info-color, #909399);
+  font-weight: 500;
+}
+
+.table-success-row td {
+  background-color: var(--success-bg, #f0f9ff);
+  color: var(--success-color, #67c23a);
+  font-weight: 500;
+}
+
+.table-warning-row td {
+  background-color: var(--warning-bg, #fdf6ec);
+  color: var(--warning-color, #e6a23c);
+  font-weight: 500;
+}
+
+.table-danger-row td {
+  background-color: var(--danger-bg, #fef0f0);
+  color: var(--danger-color, #f56c6c);
+  font-weight: 500;
+}
+
+/* 固定列表格 */
+.table-fixed {
+  table-layout: fixed;
+}
+
+.table-fixed th {
+  width: auto;
+}
+
+/* 表格工具栏 */
+.table-toolbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 12px 16px;
+  background-color: var(--background-light, #f8f9fa);
+  border: 1px solid var(--border-color, #dcdfe6);
+  border-bottom: none;
+  border-radius: var(--border-radius, 8px) var(--border-radius, 8px) 0 0;
+}
+
+.table-toolbar-left {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.table-toolbar-right {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+/* 表格分页 */
+.table-pagination {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  padding: 16px;
+  background-color: var(--background-light, #f8f9fa);
+  border: 1px solid var(--border-color, #dcdfe6);
+  border-top: none;
+  border-radius: 0 0 var(--border-radius, 8px) var(--border-radius, 8px);
+}
+
+/* 表格空状态 */
+.table-empty {
+  text-align: center;
+  padding: 40px 20px;
+  color: var(--text-secondary, #909399);
+  font-size: 14px;
+}
+
+.table-empty-icon {
+  font-size: 48px;
+  color: var(--text-placeholder, #c0c4cc);
+  margin-bottom: 16px;
+}
+
+/* 表格加载状态 */
+.table-loading {
+  position: relative;
+}
+
+.table-loading::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(255, 255, 255, 0.8);
+  backdrop-filter: blur(2px);
+  z-index: 100;
+}
+
+.table-loading-spinner {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 32px;
+  height: 32px;
+  border: 3px solid var(--primary-color, #409eff);
+  border-radius: 50%;
+  border-top-color: transparent;
+  animation: table-spin 1s linear infinite;
+  z-index: 101;
+}
+
+@keyframes table-spin {
+  to { transform: translate(-50%, -50%) rotate(360deg); }
+}
+
+/* 表格滚动条 */
+.table-container {
+  position: relative;
+  max-height: 400px;
+  overflow: auto;
+}
+
+.table-container::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+.table-container::-webkit-scrollbar-track {
+  background: var(--background-light, #f8f9fa);
+  border-radius: 4px;
+}
+
+.table-container::-webkit-scrollbar-thumb {
+  background: var(--border-color, #dcdfe6);
+  border-radius: 4px;
+}
+
+.table-container::-webkit-scrollbar-thumb:hover {
+  background: var(--text-secondary, #909399);
+}
+
+/* 单元格状态 */
+.table-cell-primary {
+  color: var(--primary-color, #409eff);
+  font-weight: 500;
+}
+
+.table-cell-success {
+  color: var(--success-color, #67c23a);
+  font-weight: 500;
+}
+
+.table-cell-warning {
+  color: var(--warning-color, #e6a23c);
+  font-weight: 500;
+}
+
+.table-cell-danger {
+  color: var(--danger-color, #f56c6c);
+  font-weight: 500;
+}
+
+.table-cell-info {
+  color: var(--info-color, #909399);
+  font-weight: 500;
+}
+
+/* 单元格对齐 */
+.table-text-left th,
+.table-text-left td {
+  text-align: left;
+}
+
+.table-text-center th,
+.table-text-center td {
+  text-align: center;
+}
+
+.table-text-right th,
+.table-text-right td {
+  text-align: right;
+}
+
+/* 响应式表格 */
+@media (max-width: 768px) {
+  .table-responsive {
+    font-size: 14px;
+  }
+  
+  .table th,
+  .table td {
+    padding: 8px 12px;
+  }
+  
+  .table-toolbar {
+    flex-direction: column;
+    gap: 12px;
+    align-items: stretch;
+  }
+  
+  .table-toolbar-left,
+  .table-toolbar-right {
+    justify-content: center;
+  }
+}
