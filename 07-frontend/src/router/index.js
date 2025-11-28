@@ -1,5 +1,13 @@
 import { createRouter, createWebHistory } from 'vue-router';
 import Layout from '@/layout/index.vue';
+// 导入模块路由
+import humanResourcesRouter from './modules/human-resources.js';
+import systemRouter from './modules/system.js';
+import systemMenuRouter from './modules/systemMenu.js';
+import qualityManagementRouter from './modules/quality-management.js';
+import financeRouter from './modules/finance.js';
+import salesRouter from './modules/sales.js';
+import purchaseRouter from './modules/purchase.js';
 
 const routes = [
   {
@@ -19,6 +27,19 @@ const routes = [
     component: () => import('@/pages/system/Dashboard.vue'),
     meta: { title: '首页' }
   },
+  // 质量管理路由
+  qualityManagementRouter,
+  // 人力资源路由
+  humanResourcesRouter,
+  // 系统管理路由
+  systemRouter,
+  systemMenuRouter,
+  // 财务管理路由
+  financeRouter,
+  // 销售管理路由
+  salesRouter,
+  // 采购管理路由
+  purchaseRouter,
   // 回厂管理相关路由
   {
     path: '/receipt',

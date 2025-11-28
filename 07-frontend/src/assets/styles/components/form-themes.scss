@@ -1,0 +1,574 @@
+/* 表单主题样式 */
+
+/* 基础表单样式 */
+.form-group {
+  margin-bottom: 20px;
+}
+
+.form-label {
+  display: block;
+  margin-bottom: 8px;
+  font-weight: 500;
+  color: var(--text-primary, #303133);
+  font-size: var(--font-size, 14px);
+}
+
+.form-label.required::after {
+  content: '*';
+  color: var(--danger-color, #f56c6c);
+  margin-left: 4px;
+}
+
+.form-label.optional {
+  color: var(--text-secondary, #909399);
+  font-weight: normal;
+  font-size: 12px;
+  margin-left: 8px;
+}
+
+.form-help {
+  margin-top: 4px;
+  font-size: 12px;
+  color: var(--text-secondary, #909399);
+  line-height: 1.4;
+}
+
+.form-error {
+  margin-top: 4px;
+  font-size: 12px;
+  color: var(--danger-color, #f56c6c);
+  line-height: 1.4;
+}
+
+.form-success {
+  margin-top: 4px;
+  font-size: 12px;
+  color: var(--success-color, #67c23a);
+  line-height: 1.4;
+}
+
+.form-warning {
+  margin-top: 4px;
+  font-size: 12px;
+  color: var(--warning-color, #e6a23c);
+  line-height: 1.4;
+}
+
+/* 输入框主题 */
+.form-input {
+  width: 100%;
+  padding: 10px 16px;
+  border: 1px solid var(--border-color, #dcdfe6);
+  border-radius: var(--border-radius, 6px);
+  background-color: var(--background-color, #ffffff);
+  color: var(--text-primary, #303133);
+  font-size: var(--font-size, 14px);
+  font-family: var(--font-family, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif);
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  outline: none;
+  box-sizing: border-box;
+}
+
+.form-input:focus {
+  border-color: var(--primary-color, #409eff);
+  box-shadow: 0 0 0 3px rgba(64, 158, 255, 0.1);
+  transform: translateY(-1px);
+}
+
+.form-input::placeholder {
+  color: var(--text-placeholder, #c0c4cc);
+  opacity: 1;
+}
+
+.form-input:disabled {
+  background-color: var(--background-light, #f5f7fa);
+  border-color: var(--border-extra-light, #f2f6fc);
+  color: var(--text-disabled, #c0c4cc);
+  cursor: not-allowed;
+}
+
+.form-input.error {
+  border-color: var(--danger-color, #f56c6c);
+  box-shadow: 0 0 0 3px rgba(245, 108, 108, 0.1);
+}
+
+.form-input.success {
+  border-color: var(--success-color, #67c23a);
+  box-shadow: 0 0 0 3px rgba(103, 194, 58, 0.1);
+}
+
+.form-input.warning {
+  border-color: var(--warning-color, #e6a23c);
+  box-shadow: 0 0 0 3px rgba(230, 162, 60, 0.1);
+}
+
+/* 输入框尺寸 */
+.form-input-sm {
+  padding: 6px 12px;
+  font-size: 12px;
+  border-radius: 4px;
+}
+
+.form-input-lg {
+  padding: 14px 20px;
+  font-size: 16px;
+  border-radius: 8px;
+}
+
+/* 输入框类型 */
+.form-input-rounded {
+  border-radius: 20px;
+}
+
+.form-input-square {
+  border-radius: 0;
+}
+
+.form-input-underline {
+  border: none;
+  border-bottom: 2px solid var(--border-color, #dcdfe6);
+  border-radius: 0;
+  padding-left: 0;
+  padding-right: 0;
+  background: transparent;
+}
+
+.form-input-underline:focus {
+  border-bottom-color: var(--primary-color, #409eff);
+  box-shadow: none;
+}
+
+/* 文本域 */
+.form-textarea {
+  width: 100%;
+  min-height: 100px;
+  padding: 10px 16px;
+  border: 1px solid var(--border-color, #dcdfe6);
+  border-radius: var(--border-radius, 6px);
+  background-color: var(--background-color, #ffffff);
+  color: var(--text-primary, #303133);
+  font-size: var(--font-size, 14px);
+  font-family: var(--font-family, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif);
+  resize: vertical;
+  transition: all 0.3s ease;
+  outline: none;
+  box-sizing: border-box;
+}
+
+.form-textarea:focus {
+  border-color: var(--primary-color, #409eff);
+  box-shadow: 0 0 0 3px rgba(64, 158, 255, 0.1);
+}
+
+.form-textarea.auto-resize {
+  resize: none;
+  overflow: hidden;
+}
+
+.form-textarea.with-counter {
+  position: relative;
+}
+
+.form-textarea-counter {
+  position: absolute;
+  bottom: 6px;
+  right: 12px;
+  font-size: 12px;
+  color: var(--text-secondary, #909399);
+  background: var(--background-color, #ffffff);
+  padding: 2px 6px;
+  border-radius: 3px;
+}
+
+/* 选择框 */
+.form-select {
+  width: 100%;
+  padding: 10px 36px 10px 16px;
+  border: 1px solid var(--border-color, #dcdfe6);
+  border-radius: var(--border-radius, 6px);
+  background-color: var(--background-color, #ffffff);
+  color: var(--text-primary, #303133);
+  font-size: var(--font-size, 14px);
+  font-family: var(--font-family, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif);
+  appearance: none;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  outline: none;
+  box-sizing: border-box;
+  position: relative;
+}
+
+.form-select:focus {
+  border-color: var(--primary-color, #409eff);
+  box-shadow: 0 0 0 3px rgba(64, 158, 255, 0.1);
+}
+
+.form-select:disabled {
+  background-color: var(--background-light, #f5f7fa);
+  border-color: var(--border-extra-light, #f2f6fc);
+  color: var(--text-disabled, #c0c4cc);
+  cursor: not-allowed;
+}
+
+.form-select-wrapper {
+  position: relative;
+}
+
+.form-select-wrapper::after {
+  content: '▼';
+  position: absolute;
+  right: 16px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: var(--text-secondary, #909399);
+  pointer-events: none;
+  transition: transform 0.3s ease;
+}
+
+.form-select:focus + .form-select-wrapper::after {
+  transform: translateY(-50%) rotate(180deg);
+}
+
+/* 多选框 */
+.form-checkbox {
+  position: relative;
+  display: inline-block;
+  cursor: pointer;
+  user-select: none;
+}
+
+.form-checkbox input {
+  position: absolute;
+  opacity: 0;
+  cursor: pointer;
+}
+
+.form-checkbox-custom {
+  width: 18px;
+  height: 18px;
+  border: 2px solid var(--border-color, #dcdfe6);
+  border-radius: var(--border-radius, 4px);
+  background-color: var(--background-color, #ffffff);
+  transition: all 0.3s ease;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.form-checkbox input:checked ~ .form-checkbox-custom {
+  background-color: var(--primary-color, #409eff);
+  border-color: var(--primary-color, #409eff);
+}
+
+.form-checkbox input:checked ~ .form-checkbox-custom::after {
+  content: '✓';
+  color: #ffffff;
+  font-size: 12px;
+  font-weight: bold;
+}
+
+.form-checkbox input:disabled ~ .form-checkbox-custom {
+  background-color: var(--background-light, #f5f7fa);
+  border-color: var(--border-extra-light, #f2f6fc);
+  cursor: not-allowed;
+}
+
+/* 单选框 */
+.form-radio {
+  position: relative;
+  display: inline-block;
+  cursor: pointer;
+  user-select: none;
+}
+
+.form-radio input {
+  position: absolute;
+  opacity: 0;
+  cursor: pointer;
+}
+
+.form-radio-custom {
+  width: 18px;
+  height: 18px;
+  border: 2px solid var(--border-color, #dcdfe6);
+  border-radius: 50%;
+  background-color: var(--background-color, #ffffff);
+  transition: all 0.3s ease;
+  display: inline-block;
+  position: relative;
+}
+
+.form-radio input:checked ~ .form-radio-custom {
+  background-color: var(--primary-color, #409eff);
+  border-color: var(--primary-color, #409eff);
+}
+
+.form-radio input:checked ~ .form-radio-custom::after {
+  content: '';
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background-color: #ffffff;
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+}
+
+.form-radio input:disabled ~ .form-radio-custom {
+  background-color: var(--background-light, #f5f7fa);
+  border-color: var(--border-extra-light, #f2f6fc);
+  cursor: not-allowed;
+}
+
+/* 开关 */
+.form-switch {
+  position: relative;
+  display: inline-block;
+  width: 48px;
+  height: 24px;
+  cursor: pointer;
+}
+
+.form-switch input {
+  opacity: 0;
+  width: 0;
+  height: 0;
+}
+
+.form-switch-slider {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: var(--border-color, #dcdfe6);
+  transition: 0.3s ease;
+  border-radius: 24px;
+}
+
+.form-switch-slider:before {
+  position: absolute;
+  content: "";
+  height: 18px;
+  width: 18px;
+  left: 3px;
+  bottom: 3px;
+  background-color: #ffffff;
+  transition: 0.3s ease;
+  border-radius: 50%;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+}
+
+.form-switch input:checked + .form-switch-slider {
+  background-color: var(--primary-color, #409eff);
+}
+
+.form-switch input:checked + .form-switch-slider:before {
+  transform: translateX(24px);
+}
+
+.form-switch input:disabled + .form-switch-slider {
+  background-color: var(--border-extra-light, #f2f6fc);
+  cursor: not-allowed;
+}
+
+/* 日期选择器 */
+.form-date {
+  width: 100%;
+  padding: 10px 16px;
+  border: 1px solid var(--border-color, #dcdfe6);
+  border-radius: var(--border-radius, 6px);
+  background-color: var(--background-color, #ffffff);
+  color: var(--text-primary, #303133);
+  font-size: var(--font-size, 14px);
+  font-family: var(--font-family, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif);
+  cursor: pointer;
+  transition: all 0.3s ease;
+  outline: none;
+  box-sizing: border-box;
+}
+
+.form-date:focus {
+  border-color: var(--primary-color, #409eff);
+  box-shadow: 0 0 0 3px rgba(64, 158, 255, 0.1);
+}
+
+/* 范围滑块 */
+.form-range {
+  width: 100%;
+  height: 6px;
+  border-radius: 3px;
+  background: var(--border-color, #dcdfe6);
+  outline: none;
+  cursor: pointer;
+  -webkit-appearance: none;
+}
+
+.form-range::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: var(--primary-color, #409eff);
+  cursor: pointer;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+  transition: all 0.3s ease;
+}
+
+.form-range::-webkit-slider-thumb:hover {
+  transform: scale(1.2);
+}
+
+.form-range::-moz-range-thumb {
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: var(--primary-color, #409eff);
+  cursor: pointer;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+  transition: all 0.3s ease;
+  border: none;
+}
+
+/* 文件上传 */
+.form-file {
+  position: relative;
+  display: inline-block;
+  cursor: pointer;
+  width: 100%;
+}
+
+.form-file input[type="file"] {
+  position: absolute;
+  left: -9999px;
+}
+
+.form-file-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 10px 20px;
+  border: 1px solid var(--primary-color, #409eff);
+  border-radius: var(--border-radius, 6px);
+  background-color: var(--background-color, #ffffff);
+  color: var(--primary-color, #409eff);
+  font-size: var(--font-size, 14px);
+  cursor: pointer;
+  transition: all 0.3s ease;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.form-file-button:hover {
+  background-color: var(--primary-color, #409eff);
+  color: #ffffff;
+}
+
+/* 表单布局 */
+.form-horizontal .form-group {
+  display: flex;
+  align-items: flex-start;
+  margin-bottom: 20px;
+}
+
+.form-horizontal .form-label {
+  flex: 0 0 120px;
+  margin-right: 16px;
+  margin-bottom: 0;
+  padding-top: 10px;
+}
+
+.form-horizontal .form-controls {
+  flex: 1;
+  min-width: 0;
+}
+
+.form-inline .form-group {
+  display: inline-flex;
+  align-items: center;
+  margin-right: 16px;
+  margin-bottom: 0;
+}
+
+.form-inline .form-label {
+  margin-right: 8px;
+  margin-bottom: 0;
+}
+
+.form-inline .form-controls {
+  display: inline-block;
+}
+
+/* 表单验证状态 */
+.form-group.has-error .form-input,
+.form-group.has-error .form-select,
+.form-group.has-error .form-textarea {
+  border-color: var(--danger-color, #f56c6c);
+  box-shadow: 0 0 0 3px rgba(245, 108, 108, 0.1);
+}
+
+.form-group.has-success .form-input,
+.form-group.has-success .form-select,
+.form-group.has-success .form-textarea {
+  border-color: var(--success-color, #67c23a);
+  box-shadow: 0 0 0 3px rgba(103, 194, 58, 0.1);
+}
+
+.form-group.has-warning .form-input,
+.form-group.has-warning .form-select,
+.form-group.has-warning .form-textarea {
+  border-color: var(--warning-color, #e6a23c);
+  box-shadow: 0 0 0 3px rgba(230, 162, 60, 0.1);
+}
+
+/* 表单聚焦状态 */
+.form-group.focused .form-input,
+.form-group.focused .form-select,
+.form-group.focused .form-textarea {
+  border-color: var(--primary-color, #409eff);
+  box-shadow: 0 0 0 3px rgba(64, 158, 255, 0.1);
+}
+
+/* 表单禁用状态 */
+.form-group.disabled .form-input,
+.form-group.disabled .form-select,
+.form-group.disabled .form-textarea,
+.form-group.disabled .form-checkbox,
+.form-group.disabled .form-radio,
+.form-group.disabled .form-switch {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+/* 响应式表单 */
+@media (max-width: 768px) {
+  .form-horizontal .form-group {
+    flex-direction: column;
+  }
+  
+  .form-horizontal .form-label {
+    flex: none;
+    margin-right: 0;
+    margin-bottom: 8px;
+    padding-top: 0;
+  }
+  
+  .form-horizontal .form-controls {
+    width: 100%;
+  }
+  
+  .form-inline .form-group {
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    margin-right: 0;
+    margin-bottom: 16px;
+  }
+  
+  .form-inline .form-label {
+    margin-right: 0;
+    margin-bottom: 8px;
+  }
+}

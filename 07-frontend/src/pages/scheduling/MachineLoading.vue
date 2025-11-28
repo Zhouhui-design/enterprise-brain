@@ -1,26 +1,25 @@
 <template>
   <div class="machine-loading">
+    <!-- 页面标题和操作按钮 -->
     <div class="page-header">
       <h1>设备负载管理</h1>
       <div class="header-actions">
         <el-button type="primary" @click="handleLoadBalance">负载均衡</el-button>
-        <el-button type="info" @click="handleExport">导出报表</el-button>
+        <el-button @click="handleExportReport">导出报表</el-button>
       </div>
     </div>
 
-    <!-- 搜索筛选区域 -->
-    <el-card shadow="never" class="search-card">
-      <el-form :inline="true" :model="searchForm" class="search-form">
+    <!-- 搜索和筛选区域 -->
+    <el-card class="search-card">
+      <el-form :inline="true" class="search-form" :model="searchForm">
         <el-form-item label="车间">
-          <el-select v-model="searchForm.workshopId" placeholder="请选择车间">
-            <el-option label="全部" value=""></el-option>
-            <el-option v-for="workshop in workshops" :key="workshop.id" :label="workshop.name" :value="workshop.id"></el-option>
+          <el-select v-model="searchForm.workshop" placeholder="请选择车间">
+            <el-option v-for="workshop in workshops" :key="workshop.value" :label="workshop.label" :value="workshop.value" />
           </el-select>
         </el-form-item>
         <el-form-item label="设备类型">
           <el-select v-model="searchForm.machineType" placeholder="请选择设备类型">
-            <el-option label="全部" value=""></el-option>
-            <el-option v-for="type in machineTypes" :key="type.value" :label="type.label" :value="type.value"></el-option>
+            <el-option v-for="type in machineTypes" :key="type.value" :label="type.label" :value="type.value" />
           </el-select>
         </el-form-item>
         <el-form-item label="时间范围">
@@ -30,660 +29,785 @@
             range-separator="至"
             start-placeholder="开始日期"
             end-placeholder="结束日期"
-            value-format="yyyy-MM-dd"
-          ></el-date-picker>
+          />
         </el-form-item>
         <el-form-item>
-          <el-button type="primary" @click="handleSearch">
-            <i class="el-icon-search"></i> 查询
-          </el-button>
-          <el-button @click="handleReset">
-            <i class="el-icon-refresh"></i> 重置
-          </el-button>
+          <el-button type="primary" @click="handleQuery">查询</el-button>
+          <el-button @click="handleReset">重置</el-button>
         </el-form-item>
       </el-form>
     </el-card>
 
-    <el-row :gutter="20">
-      <!-- 设备负载概览 -->
-      <el-col :span="8">
-        <el-card shadow="never" class="overview-card">
-          <div slot="header" class="card-header">
-            <span>负载概览</span>
+    <!-- 负载概览卡片 -->
+    <el-card class="overview-card">
+      <div class="card-header">
+        <h3>负载概览</h3>
+      </div>
+      <div class="overview-stats">
+        <div class="stat-item">
+          <div class="stat-label">平均负载率</div>
+          <div class="stat-value">{{ loadStats.avgLoadRate }}%</div>
+        </div>
+        <div class="stat-item">
+          <div class="stat-label">高负载设备</div>
+          <div class="stat-value high-load">{{ loadStats.highLoadCount }} 台</div>
+        </div>
+        <div class="stat-item">
+          <div class="stat-label">低负载设备</div>
+          <div class="stat-value low-load">{{ loadStats.lowLoadCount }} 台</div>
+        </div>
+        <div class="stat-item">
+          <div class="stat-label">设备总数</div>
+          <div class="stat-value">{{ loadStats.totalCount }} 台</div>
+        </div>
+      </div>
+      <div class="load-distribution">
+        <h4>负载分布</h4>
+        <div class="distribution-bar">
+          <div 
+            class="distribution-segment high" 
+            :style="{ width: loadDistribution.high + '%' }"
+          ></div>
+          <div 
+            class="distribution-segment medium" 
+            :style="{ width: loadDistribution.medium + '%' }"
+          ></div>
+          <div 
+            class="distribution-segment low" 
+            :style="{ width: loadDistribution.low + '%' }"
+          ></div>
+        </div>
+        <div class="distribution-legend">
+          <div class="legend-item">
+            <div class="legend-color high"></div>
+            <span>高负载(>70%)</span>
           </div>
-          <div class="overview-stats">
-            <div class="stat-item">
-              <div class="stat-label">平均负载率</div>
-              <div class="stat-value">{{ avgLoadRate }}%</div>
-            </div>
-            <div class="stat-item">
-              <div class="stat-label">高负载设备</div>
-              <div class="stat-value high-load">{{ highLoadMachines }}</div>
-            </div>
-            <div class="stat-item">
-              <div class="stat-label">低负载设备</div>
-              <div class="stat-value low-load">{{ lowLoadMachines }}</div>
-            </div>
-            <div class="stat-item">
-              <div class="stat-label">设备总数</div>
-              <div class="stat-value">{{ totalMachines }}</div>
-            </div>
+          <div class="legend-item">
+            <div class="legend-color medium"></div>
+            <span>中负载(30%-70%)</span>
           </div>
-          
-          <!-- 负载分布图 -->
-          <div class="load-distribution">
-            <h4>负载分布</h4>
-            <div class="distribution-bar">
-              <div 
-                v-for="range in loadRanges" 
-                :key="range.key"
-                class="distribution-segment"
-                :class="range.key"
-                :style="{ width: range.percentage + '%' }"
-                :title="range.label + ': ' + range.percentage + '%'"
-              ></div>
-            </div>
-            <div class="distribution-legend">
-              <div v-for="range in loadRanges" :key="range.key" class="legend-item">
-                <span class="legend-color" :class="range.key"></span>
-                <span>{{ range.label }}</span>
+          <div class="legend-item">
+            <div class="legend-color low"></div>
+            <span>低负载(<30%)</span>
+          </div>
+        </div>
+      </div>
+    </el-card>
+
+    <!-- 设备状态卡片 -->
+    <el-card class="status-card">
+      <div class="card-header">
+        <h3>设备状态</h3>
+      </div>
+      <div class="status-stats">
+        <div class="status-item" v-for="status in statusStats" :key="status.type">
+          <div :class="['status-circle', status.type]"></div>
+          <div class="status-info">
+            <span class="status-label">{{ status.label }}</span>
+            <span class="status-count">{{ status.count }} 台</span>
+          </div>
+        </div>
+      </div>
+    </el-card>
+
+    <!-- 负载详情区域 -->
+    <el-card class="load-detail-card">
+      <div class="card-header">
+        <h3>设备负载详情</h3>
+        <div>
+          <el-radio-group v-model="viewMode" size="small">
+            <el-radio-button label="list">列表视图</el-radio-button>
+            <el-radio-button label="chart">图表视图</el-radio-button>
+          </el-radio-group>
+        </div>
+      </div>
+
+      <!-- 列表视图 -->
+      <div v-if="viewMode === 'list'" class="list-view">
+        <el-table :data="machineData" style="width: 100%">
+          <el-table-column prop="machineCode" label="设备编号" width="120" />
+          <el-table-column prop="machineName" label="设备名称" width="180" />
+          <el-table-column prop="machineType" label="设备类型" width="120" />
+          <el-table-column prop="status" label="状态" width="100">
+            <template #default="scope">
+              <el-tag :type="getStatusType(scope.row.status)">
+                {{ getStatusText(scope.row.status) }}
+              </el-tag>
+            </template>
+          </el-table-column>
+          <el-table-column prop="loadRate" label="负载率" width="180">
+            <template #default="scope">
+              <div>
+                <el-progress 
+                  :percentage="scope.row.loadRate" 
+                  :status="getLoadStatus(scope.row.loadRate)"
+                  :text-inside="true"
+                  :stroke-width="20"
+                />
               </div>
-            </div>
-          </div>
-        </el-card>
+            </template>
+          </el-table-column>
+          <el-table-column prop="taskCount" label="当前任务数" width="120" />
+          <el-table-column prop="workshop" label="所属车间" width="120" />
+          <el-table-column label="操作" width="180" fixed="right">
+            <template #default="scope">
+              <el-button type="primary" size="small" @click="handleMachineDetail(scope.row)">详情</el-button>
+              <el-button size="small" @click="handleTaskAssign(scope.row)">任务分配</el-button>
+            </template>
+          </el-table-column>
+        </el-table>
+        <div class="pagination">
+          <el-pagination
+            v-model:current-page="currentPage"
+            v-model:page-size="pageSize"
+            :page-sizes="[10, 20, 50, 100]"
+            layout="total, sizes, prev, pager, next, jumper"
+            :total="total"
+            @size-change="handleSizeChange"
+            @current-change="handleCurrentChange"
+          />
+        </div>
+      </div>
 
-        <!-- 设备状态 -->
-        <el-card shadow="never" class="status-card">
-          <div slot="header" class="card-header">
-            <span>设备状态</span>
-          </div>
-          <div class="status-stats">
-            <div class="status-item">
-              <div class="status-circle running"></div>
-              <div class="status-info">
-                <div class="status-label">运行中</div>
-                <div class="status-count">{{ statusCounts.running }}</div>
-              </div>
-            </div>
-            <div class="status-item">
-              <div class="status-circle idle"></div>
-              <div class="status-info">
-                <div class="status-label">空闲</div>
-                <div class="status-count">{{ statusCounts.idle }}</div>
-              </div>
-            </div>
-            <div class="status-item">
-              <div class="status-circle maintenance"></div>
-              <div class="status-info">
-                <div class="status-label">维护中</div>
-                <div class="status-count">{{ statusCounts.maintenance }}</div>
-              </div>
-            </div>
-            <div class="status-item">
-              <div class="status-circle fault"></div>
-              <div class="status-info">
-                <div class="status-label">故障</div>
-                <div class="status-count">{{ statusCounts.fault }}</div>
-              </div>
-            </div>
-          </div>
-        </el-card>
-      </el-col>
+      <!-- 图表视图 -->
+      <div v-else-if="viewMode === 'chart'" class="chart-view">
+        <div class="chart-placeholder">
+          <p>设备负载分布图（此处为图表占位）</p>
+        </div>
+      </div>
+    </el-card>
 
-      <!-- 设备负载详情 -->
-      <el-col :span="16">
-        <el-card shadow="never" class="load-detail-card">
-          <div slot="header" class="card-header">
-            <span>设备负载详情</span>
-            <div class="header-actions">
-              <el-select v-model="viewMode" placeholder="视图模式" size="small">
-                <el-option label="列表视图" value="list"></el-option>
-                <el-option label="图表视图" value="chart"></el-option>
-              </el-select>
-            </div>
-          </div>
-
-          <!-- 列表视图 -->
-          <div v-if="viewMode === 'list'" class="list-view">
-            <el-table 
-              :data="machinesData" 
-              style="width: 100%"
-              border
-              @selection-change="handleSelectionChange"
-            >
-              <el-table-column type="selection" width="55"></el-table-column>
-              <el-table-column prop="machineCode" label="设备编号" width="120"></el-table-column>
-              <el-table-column prop="machineName" label="设备名称" width="150"></el-table-column>
-              <el-table-column prop="machineType" label="设备类型" width="120"></el-table-column>
-              <el-table-column prop="workshopName" label="所属车间" width="120"></el-table-column>
-              <el-table-column prop="status" label="设备状态" width="100">
-                <template slot-scope="scope">
-                  <el-tag :type="getStatusType(scope.row.status)">{{ getStatusText(scope.row.status) }}</el-tag>
-                </template>
-              </el-table-column>
-              <el-table-column prop="loadRate" label="当前负载率" width="150">
-                <template slot-scope="scope">
-                  <el-progress 
-                    :percentage="scope.row.loadRate" 
-                    :format="percentageFormat"
-                    :status="getLoadStatus(scope.row.loadRate)"
-                  ></el-progress>
-                </template>
-              </el-table-column>
-              <el-table-column prop="taskCount" label="任务数" width="100" align="right"></el-table-column>
-              <el-table-column prop="availableTime" label="可用时间(小时)" width="120" align="right"></el-table-column>
-              <el-table-column label="操作" width="150" fixed="right">
-                <template slot-scope="scope">
-                  <el-button size="small" @click="handleMachineDetail(scope.row)">详情</el-button>
-                  <el-button type="primary" size="small" @click="handleTaskAssign(scope.row)">任务分配</el-button>
-                </template>
-              </el-table-column>
-            </el-table>
-
-            <!-- 分页 -->
-            <div class="pagination">
-              <el-pagination
-                background
-                layout="prev, pager, next, jumper, ->, total"
-                :total="total"
-                :page-size="pageSize"
-                :current-page="currentPage"
-                @current-change="handleCurrentChange"
-                @size-change="handleSizeChange"
-              ></el-pagination>
-            </div>
-          </div>
-
-          <!-- 图表视图 -->
-          <div v-else class="chart-view">
-            <div class="chart-placeholder">
-              <el-empty description="设备负载分布图表" style="margin: 60px 0;"></el-empty>
-            </div>
-          </div>
-        </el-card>
-
-        <!-- 负载预警 -->
-        <el-card shadow="never" class="warning-card">
-          <div slot="header" class="card-header">
-            <span>负载预警</span>
-          </div>
-          <el-alert
-            v-for="alert in loadAlerts" 
-            :key="alert.id"
-            :title="alert.title"
-            :description="alert.description"
-            :type="alert.type"
-            show-icon
-            :closable="false"
-            style="margin-bottom: 10px;"
-          ></el-alert>
-        </el-card>
-      </el-col>
-    </el-row>
+    <!-- 负载预警区域 -->
+    <el-card class="warning-card" v-if="loadWarnings.length > 0">
+      <div class="card-header">
+        <h3>负载预警</h3>
+      </div>
+      <el-alert
+        v-for="warning in loadWarnings"
+        :key="warning.id"
+        :title="warning.message"
+        :type="warning.type === 'high' ? 'warning' : 'info'"
+        :description="warning.detail"
+        show-icon
+        :closable="false"
+      />
+    </el-card>
 
     <!-- 任务分配对话框 -->
     <el-dialog
+      v-model="assignDialogVisible"
       title="任务分配"
-      :visible.sync="assignDialogVisible"
       width="800px"
-      @close="handleAssignDialogClose"
+      :before-close="handleAssignDialogClose"
     >
-      <div v-if="selectedMachine.id">
-        <div class="dialog-section">
-          <h4>设备信息</h4>
-          <el-descriptions :column="2" border>
-            <el-descriptions-item label="设备编号">{{ selectedMachine.machineCode }}</el-descriptions-item>
-            <el-descriptions-item label="设备名称">{{ selectedMachine.machineName }}</el-descriptions-item>
-            <el-descriptions-item label="当前负载率">{{ selectedMachine.loadRate }}%</el-descriptions-item>
-            <el-descriptions-item label="可用时间">{{ selectedMachine.availableTime }}小时</el-descriptions-item>
+      <div class="dialog-section">
+        <h4>设备信息</h4>
+        <div class="machine-detail">
+          <el-descriptions :column="1" :border="true">
+            <el-descriptions-item label="设备编号">{{ selectedMachine?.machineCode }}</el-descriptions-item>
+            <el-descriptions-item label="设备名称">{{ selectedMachine?.machineName }}</el-descriptions-item>
+            <el-descriptions-item label="当前负载率">{{ selectedMachine?.loadRate }}%</el-descriptions-item>
+            <el-descriptions-item label="当前任务数">{{ selectedMachine?.taskCount }}个</el-descriptions-item>
           </el-descriptions>
         </div>
-
-        <div class="dialog-section">
-          <h4>待分配任务</h4>
-          <el-table 
-            :data="availableTasks" 
-            style="width: 100%"
-            border
-            @selection-change="handleTaskSelectionChange"
-          >
-            <el-table-column type="selection" width="55"></el-table-column>
-            <el-table-column prop="taskCode" label="任务编号" width="120"></el-table-column>
-            <el-table-column prop="productName" label="产品名称" width="120"></el-table-column>
-            <el-table-column prop="requiredTime" label="所需时间(小时)" width="120" align="right"></el-table-column>
-            <el-table-column prop="priority" label="优先级" width="100">
-              <template slot-scope="scope">
-                <el-tag :type="getPriorityType(scope.row.priority)">{{ getPriorityText(scope.row.priority) }}</el-tag>
-              </template>
-            </el-table-column>
-            <el-table-column prop="deadline" label="截止日期" width="120"></el-table-column>
-          </el-table>
+      </div>
+      <div class="dialog-section">
+        <h4>待分配任务</h4>
+        <el-table :data="availableTasks" style="width: 100%" @selection-change="handleTaskSelectionChange">
+          <el-table-column type="selection" width="55" />
+          <el-table-column prop="taskCode" label="任务编号" width="120" />
+          <el-table-column prop="taskName" label="任务名称" width="180" />
+          <el-table-column prop="priority" label="优先级" width="100">
+            <template #default="scope">
+              <el-tag :type="getPriorityType(scope.row.priority)">
+                {{ getPriorityText(scope.row.priority) }}
+              </el-tag>
+            </template>
+          </el-table-column>
+          <el-table-column prop="estimatedHours" label="预计工时(h)" width="120" />
+        </el-table>
+      </div>
+      <template #footer>
+        <div class="dialog-footer">
+          <el-button @click="handleAssignDialogClose">取消</el-button>
+          <el-button type="primary" @click="handleConfirmAssign">确认分配</el-button>
         </div>
-      </div>
-
-      <div slot="footer" class="dialog-footer">
-        <el-button @click="handleAssignDialogClose">取消</el-button>
-        <el-button type="primary" @click="handleConfirmAssign">确认分配</el-button>
-      </div>
+      </template>
     </el-dialog>
 
     <!-- 设备详情对话框 -->
     <el-dialog
+      v-model="detailDialogVisible"
       title="设备详情"
-      :visible.sync="detailDialogVisible"
-      width="700px"
-      @close="handleDetailDialogClose"
+      width="800px"
+      :before-close="handleDetailDialogClose"
     >
-      <div v-if="selectedMachine.id" class="machine-detail">
-        <el-tabs v-model="detailActiveTab">
-          <el-tab-pane label="基本信息">
-            <el-descriptions :column="2" border>
-              <el-descriptions-item label="设备编号">{{ selectedMachine.machineCode }}</el-descriptions-item>
-              <el-descriptions-item label="设备名称">{{ selectedMachine.machineName }}</el-descriptions-item>
-              <el-descriptions-item label="设备类型">{{ selectedMachine.machineType }}</el-descriptions-item>
-              <el-descriptions-item label="所属车间">{{ selectedMachine.workshopName }}</el-descriptions-item>
-              <el-descriptions-item label="设备状态">{{ getStatusText(selectedMachine.status) }}</el-descriptions-item>
-              <el-descriptions-item label="当前负载率">{{ selectedMachine.loadRate }}%</el-descriptions-item>
-              <el-descriptions-item label="额定产能">{{ selectedMachine.capacity }}/小时</el-descriptions-item>
-              <el-descriptions-item label="可用时间">{{ selectedMachine.availableTime }}小时</el-descriptions-item>
-              <el-descriptions-item label="负责人">{{ selectedMachine.manager }}</el-descriptions-item>
-              <el-descriptions-item label="使用年限">{{ selectedMachine.usageYears }}年</el-descriptions-item>
+      <el-tabs v-model="activeDetailTab">
+        <el-tab-pane label="基本信息" name="basic">
+          <div class="dialog-section">
+            <el-descriptions :column="1" :border="true">
+              <el-descriptions-item label="设备编号">{{ selectedMachine?.machineCode }}</el-descriptions-item>
+              <el-descriptions-item label="设备名称">{{ selectedMachine?.machineName }}</el-descriptions-item>
+              <el-descriptions-item label="设备类型">{{ selectedMachine?.machineType }}</el-descriptions-item>
+              <el-descriptions-item label="所属车间">{{ selectedMachine?.workshop }}</el-descriptions-item>
+              <el-descriptions-item label="设备状态">{{ getStatusText(selectedMachine?.status) }}</el-descriptions-item>
+              <el-descriptions-item label="当前负载率">{{ selectedMachine?.loadRate }}%</el-descriptions-item>
+              <el-descriptions-item label="当前任务数">{{ selectedMachine?.taskCount }}个</el-descriptions-item>
             </el-descriptions>
-          </el-tab-pane>
-          <el-tab-pane label="当前任务">
-            <el-table :data="selectedMachine.currentTasks" style="width: 100%" border>
-              <el-table-column prop="taskCode" label="任务编号" width="120"></el-table-column>
-              <el-table-column prop="productName" label="产品名称" width="120"></el-table-column>
-              <el-table-column prop="startTime" label="开始时间" width="150"></el-table-column>
-              <el-table-column prop="endTime" label="结束时间" width="150"></el-table-column>
-              <el-table-column prop="progress" label="进度" width="100" align="right">
-                <template slot-scope="scope">
-                  {{ scope.row.progress }}%
+          </div>
+        </el-tab-pane>
+        <el-tab-pane label="当前任务" name="tasks">
+          <div class="dialog-section">
+            <el-table :data="selectedMachineTasks" style="width: 100%">
+              <el-table-column prop="taskCode" label="任务编号" width="120" />
+              <el-table-column prop="taskName" label="任务名称" width="180" />
+              <el-table-column prop="priority" label="优先级" width="100">
+                <template #default="scope">
+                  <el-tag :type="getPriorityType(scope.row.priority)">
+                    {{ getPriorityText(scope.row.priority) }}
+                  </el-tag>
+                </template>
+              </el-table-column>
+              <el-table-column prop="startTime" label="开始时间" width="180" />
+              <el-table-column prop="endTime" label="结束时间" width="180" />
+              <el-table-column prop="progress" label="进度" width="180">
+                <template #default="scope">
+                  <el-progress 
+                    :percentage="scope.row.progress" 
+                    :text-inside="true"
+                    :stroke-width="20"
+                  />
                 </template>
               </el-table-column>
             </el-table>
-          </el-tab-pane>
-          <el-tab-pane label="负载趋势">
+          </div>
+        </el-tab-pane>
+        <el-tab-pane label="负载趋势" name="trend">
+          <div class="dialog-section">
             <div class="chart-placeholder">
-              <el-empty description="负载趋势图表" style="margin: 40px 0;"></el-empty>
+              <p>负载趋势图（此处为图表占位）</p>
             </div>
-          </el-tab-pane>
-        </el-tabs>
-      </div>
-
-      <div slot="footer" class="dialog-footer">
-        <el-button @click="handleDetailDialogClose">关闭</el-button>
-      </div>
+          </div>
+        </el-tab-pane>
+      </el-tabs>
+      <template #footer>
+        <div class="dialog-footer">
+          <el-button @click="handleDetailDialogClose">关闭</el-button>
+        </div>
+      </template>
     </el-dialog>
   </div>
 </template>
 
-<script>
-export default {
-  name: 'MachineLoading',
-  data() {
-    return {
-      // 搜索表单
-      searchForm: {
-        workshopId: '',
-        machineType: '',
-        dateRange: []
-      },
-      // 车间列表
-      workshops: [
-        { id: 1, name: '1号车间' },
-        { id: 2, name: '2号车间' },
-        { id: 3, name: '3号车间' }
-      ],
-      // 设备类型
-      machineTypes: [
-        { label: '车床', value: 'lathe' },
-        { label: '铣床', value: 'milling' },
-        { label: '钻床', value: 'drilling' },
-        { label: '磨床', value: 'grinding' },
-        { label: '冲压机', value: 'punching' }
-      ],
-      // 设备数据
-      machinesData: [],
-      total: 0,
-      currentPage: 1,
-      pageSize: 10,
-      selectedRows: [],
-      // 视图模式
-      viewMode: 'list',
-      // 负载概览
-      avgLoadRate: 65,
-      highLoadMachines: 3,
-      lowLoadMachines: 2,
-      totalMachines: 10,
-      // 负载分布
-      loadRanges: [
-        { key: 'high', label: '高负载(>80%)', percentage: 30 },
-        { key: 'medium', label: '中负载(50%-80%)', percentage: 45 },
-        { key: 'low', label: '低负载(<50%)', percentage: 25 }
-      ],
-      // 状态统计
-      statusCounts: {
-        running: 7,
-        idle: 2,
-        maintenance: 1,
-        fault: 0
-      },
-      // 负载预警
-      loadAlerts: [
-        {
-          id: 1,
-          title: '数控车床A负载过高',
-          description: '当前负载率95%，建议转移部分任务',
-          type: 'warning'
-        },
-        {
-          id: 2,
-          title: '铣床B即将达到饱和',
-          description: '当前负载率85%，请注意监控',
-          type: 'warning'
-        }
-      ],
-      // 对话框状态
-      assignDialogVisible: false,
-      detailDialogVisible: false,
-      selectedMachine: {},
-      detailActiveTab: '0',
-      // 任务分配
-      availableTasks: [],
-      selectedTasks: []
+<script setup lang="ts">
+import { ref, reactive, onMounted } from 'vue'
+import { ElMessage, ElConfirm } from 'element-plus'
+
+// 类型定义
+interface SearchForm {
+  workshop: string
+  machineType: string
+  dateRange: [string, string] | null
+}
+
+interface Workshop {
+  value: string
+  label: string
+}
+
+interface MachineType {
+  value: string
+  label: string
+}
+
+interface Machine {
+  id: string
+  machineCode: string
+  machineName: string
+  machineType: string
+  status: 'running' | 'idle' | 'maintenance' | 'fault'
+  loadRate: number
+  taskCount: number
+  workshop: string
+}
+
+interface Task {
+  id: string
+  taskCode: string
+  taskName: string
+  priority: 'low' | 'medium' | 'high' | 'urgent'
+  estimatedHours: number
+}
+
+interface MachineTask {
+  taskCode: string
+  taskName: string
+  priority: 'low' | 'medium' | 'high' | 'urgent'
+  startTime: string
+  endTime: string
+  progress: number
+}
+
+interface LoadStat {
+  avgLoadRate: number
+  highLoadCount: number
+  lowLoadCount: number
+  totalCount: number
+}
+
+interface LoadDistribution {
+  high: number
+  medium: number
+  low: number
+}
+
+interface StatusStat {
+  type: string
+  label: string
+  count: number
+}
+
+interface LoadWarning {
+  id: string
+  message: string
+  detail: string
+  type: 'high' | 'low'
+}
+
+// 响应式数据
+const searchForm = reactive<SearchForm>({
+  workshop: '',
+  machineType: '',
+  dateRange: null
+})
+
+const workshops = ref<Workshop[]>([])
+const machineTypes = ref<MachineType[]>([])
+const machineData = ref<Machine[]>([])
+const currentPage = ref(1)
+const pageSize = ref(10)
+const total = ref(0)
+const viewMode = ref<'list' | 'chart'>('list')
+
+// 负载统计
+const loadStats = reactive<LoadStat>({
+  avgLoadRate: 0,
+  highLoadCount: 0,
+  lowLoadCount: 0,
+  totalCount: 0
+})
+
+// 负载分布
+const loadDistribution = reactive<LoadDistribution>({
+  high: 0,
+  medium: 0,
+  low: 0
+})
+
+// 状态统计
+const statusStats = ref<StatusStat[]>([])
+
+// 负载预警
+const loadWarnings = ref<LoadWarning[]>([])
+
+// 对话框状态
+const assignDialogVisible = ref(false)
+const detailDialogVisible = ref(false)
+const selectedMachine = ref<Machine | null>(null)
+const availableTasks = ref<Task[]>([])
+const selectedTasks = ref<Task[]>([])
+const selectedMachineTasks = ref<MachineTask[]>([])
+const activeDetailTab = ref('basic')
+
+// 获取模拟设备数据
+const getMockMachineData = (): Machine[] => {
+  return [
+    {
+      id: '1',
+      machineCode: 'M001',
+      machineName: 'CNC加工中心A',
+      machineType: '加工中心',
+      status: 'running',
+      loadRate: 85,
+      taskCount: 6,
+      workshop: '第一车间'
+    },
+    {
+      id: '2',
+      machineCode: 'M002',
+      machineName: 'CNC加工中心B',
+      machineType: '加工中心',
+      status: 'running',
+      loadRate: 65,
+      taskCount: 4,
+      workshop: '第一车间'
+    },
+    {
+      id: '3',
+      machineCode: 'M003',
+      machineName: '车床C',
+      machineType: '车床',
+      status: 'idle',
+      loadRate: 25,
+      taskCount: 1,
+      workshop: '第二车间'
+    },
+    {
+      id: '4',
+      machineCode: 'M004',
+      machineName: '铣床D',
+      machineType: '铣床',
+      status: 'maintenance',
+      loadRate: 0,
+      taskCount: 0,
+      workshop: '第二车间'
+    },
+    {
+      id: '5',
+      machineCode: 'M005',
+      machineName: '磨床E',
+      machineType: '磨床',
+      status: 'fault',
+      loadRate: 0,
+      taskCount: 0,
+      workshop: '第三车间'
     }
-  },
-  created() {
-    this.loadData()
-    this.loadAvailableTasks()
-  },
-  methods: {
-    // 加载数据
-    loadData() {
-      // 模拟API调用
-      setTimeout(() => {
-        this.machinesData = this.getMockMachinesData()
-        this.total = this.machinesData.length
-      }, 300)
-    },
+  ]
+}
 
-    // 获取模拟设备数据
-    getMockMachinesData() {
-      return [
-        {
-          id: 1,
-          machineCode: 'MC001',
-          machineName: '数控车床A',
-          machineType: '车床',
-          workshopId: 1,
-          workshopName: '1号车间',
-          status: 'running',
-          loadRate: 95,
-          taskCount: 8,
-          availableTime: 2,
-          capacity: 100,
-          manager: '张三',
-          usageYears: 3,
-          currentTasks: [
-            { taskCode: 'TSK001', productName: '产品A', startTime: '2023-07-15 08:00', endTime: '2023-07-15 12:00', progress: 100 },
-            { taskCode: 'TSK002', productName: '产品B', startTime: '2023-07-15 13:00', endTime: '2023-07-15 17:00', progress: 80 }
-          ]
-        },
-        {
-          id: 2,
-          machineCode: 'MC002',
-          machineName: '数控车床B',
-          machineType: '车床',
-          workshopId: 1,
-          workshopName: '1号车间',
-          status: 'running',
-          loadRate: 75,
-          taskCount: 5,
-          availableTime: 8,
-          capacity: 100,
-          manager: '张三',
-          usageYears: 2,
-          currentTasks: []
-        },
-        {
-          id: 3,
-          machineCode: 'MC003',
-          machineName: '铣床A',
-          machineType: '铣床',
-          workshopId: 2,
-          workshopName: '2号车间',
-          status: 'running',
-          loadRate: 65,
-          taskCount: 4,
-          availableTime: 12,
-          capacity: 80,
-          manager: '李四',
-          usageYears: 4,
-          currentTasks: []
-        },
-        {
-          id: 4,
-          machineCode: 'MC004',
-          machineName: '铣床B',
-          machineType: '铣床',
-          workshopId: 2,
-          workshopName: '2号车间',
-          status: 'running',
-          loadRate: 85,
-          taskCount: 6,
-          availableTime: 4,
-          capacity: 80,
-          manager: '李四',
-          usageYears: 3,
-          currentTasks: []
-        },
-        {
-          id: 5,
-          machineCode: 'MC005',
-          machineName: '钻床A',
-          machineType: '钻床',
-          workshopId: 3,
-          workshopName: '3号车间',
-          status: 'idle',
-          loadRate: 30,
-          taskCount: 2,
-          availableTime: 20,
-          capacity: 60,
-          manager: '王五',
-          usageYears: 1,
-          currentTasks: []
-        },
-        {
-          id: 6,
-          machineCode: 'MC006',
-          machineName: '磨床A',
-          machineType: '磨床',
-          workshopId: 3,
-          workshopName: '3号车间',
-          status: 'maintenance',
-          loadRate: 0,
-          taskCount: 0,
-          availableTime: 0,
-          capacity: 50,
-          manager: '王五',
-          usageYears: 5,
-          currentTasks: []
-        }
-      ]
-    },
-
-    // 加载可用任务
-    loadAvailableTasks() {
-      this.availableTasks = [
-        { id: 1, taskCode: 'TSK010', productName: '产品C', requiredTime: 4, priority: 'high', deadline: '2023-07-20' },
-        { id: 2, taskCode: 'TSK011', productName: '产品D', requiredTime: 6, priority: 'medium', deadline: '2023-07-22' },
-        { id: 3, taskCode: 'TSK012', productName: '产品E', requiredTime: 3, priority: 'low', deadline: '2023-07-25' },
-        { id: 4, taskCode: 'TSK013', productName: '产品F', requiredTime: 8, priority: 'urgent', deadline: '2023-07-18' }
-      ]
-    },
-
-    // 查询
-    handleSearch() {
-      this.currentPage = 1
-      this.loadData()
-    },
-
-    // 重置
-    handleReset() {
-      this.searchForm = {
-        workshopId: '',
-        machineType: '',
-        dateRange: []
-      }
-      this.loadData()
-    },
-
-    // 负载均衡
-    handleLoadBalance() {
-      this.$confirm('确定要进行负载均衡吗？', '提示', {
-        confirmButtonText: '确定',
-        cancelButtonText: '取消',
-        type: 'warning'
-      }).then(() => {
-        // 模拟均衡操作
-        setTimeout(() => {
-          this.$message({ type: 'success', message: '负载均衡完成' })
-          this.loadData()
-        }, 800)
-      }).catch(() => {
-        // 取消操作
-      })
-    },
-
-    // 导出报表
-    handleExport() {
-      this.$message({ type: 'success', message: '报表导出成功' })
-    },
-
-    // 设备详情
-    handleMachineDetail(machine) {
-      this.selectedMachine = { ...machine }
-      this.detailDialogVisible = true
-    },
-
-    // 任务分配
-    handleTaskAssign(machine) {
-      this.selectedMachine = { ...machine }
-      this.selectedTasks = []
-      this.assignDialogVisible = true
-    },
-
-    // 确认分配
-    handleConfirmAssign() {
-      if (this.selectedTasks.length === 0) {
-        this.$message.warning('请选择要分配的任务')
-        return
-      }
-      this.$confirm(`确定要将选中的 ${this.selectedTasks.length} 个任务分配给 ${this.selectedMachine.machineName} 吗？`, '提示', {
-        confirmButtonText: '确定',
-        cancelButtonText: '取消',
-        type: 'warning'
-      }).then(() => {
-        // 模拟分配操作
-        this.$message({ type: 'success', message: '任务分配成功' })
-        this.assignDialogVisible = false
-        this.loadData()
-      }).catch(() => {
-        // 取消操作
-      })
-    },
-
-    // 处理选择变化
-    handleSelectionChange(selection) {
-      this.selectedRows = selection
-    },
-
-    // 处理任务选择变化
-    handleTaskSelectionChange(selection) {
-      this.selectedTasks = selection
-    },
-
-    // 处理页码变化
-    handleCurrentChange(val) {
-      this.currentPage = val
-      this.loadData()
-    },
-
-    // 处理每页条数变化
-    handleSizeChange(val) {
-      this.pageSize = val
-      this.currentPage = 1
-      this.loadData()
-    },
-
-    // 关闭分配对话框
-    handleAssignDialogClose() {
-      this.assignDialogVisible = false
-    },
-
-    // 关闭详情对话框
-    handleDetailDialogClose() {
-      this.detailDialogVisible = false
-    },
-
-    // 获取状态文本
-    getStatusText(status) {
-      const statusMap = {
-        'running': '运行中',
-        'idle': '空闲',
-        'maintenance': '维护中',
-        'fault': '故障'
-      }
-      return statusMap[status] || status
-    },
-
-    // 获取状态类型
-    getStatusType(status) {
-      const typeMap = {
-        'running': 'success',
-        'idle': 'info',
-        'maintenance': 'warning',
-        'fault': 'danger'
-      }
-      return typeMap[status] || 'default'
-    },
-
-    // 获取负载状态
-    getLoadStatus(loadRate) {
-      if (loadRate >= 90) return 'exception'
-      if (loadRate >= 70) return 'warning'
-      return ''
-    },
-
-    // 获取优先级文本
-    getPriorityText(priority) {
-      const priorityMap = {
-        'low': '低',
-        'medium': '中',
-        'high': '高',
-        'urgent': '紧急'
-      }
-      return priorityMap[priority] || priority
-    },
-
-    // 获取优先级类型
-    getPriorityType(priority) {
-      const typeMap = {
-        'low': 'info',
-        'medium': 'primary',
-        'high': 'warning',
-        'urgent': 'danger'
-      }
-      return typeMap[priority] || 'default'
-    },
-
-    // 百分比格式化
-    percentageFormat(percentage) {
-      return `${percentage}%`
-    }
+// 加载数据
+const loadData = async () => {
+  try {
+    // 模拟API请求
+    await new Promise(resolve => setTimeout(resolve, 300))
+    
+    // 使用模拟数据
+    const data = getMockMachineData()
+    
+    // 计算分页
+    const start = (currentPage.value - 1) * pageSize.value
+    const end = start + pageSize.value
+    machineData.value = data.slice(start, end)
+    total.value = data.length
+    
+    // 更新统计数据
+    updateStats(data)
+  } catch (error) {
+    ElMessage.error('加载数据失败')
+    console.error('加载设备数据失败:', error)
   }
 }
+
+// 更新统计数据
+const updateStats = (data: Machine[]) => {
+  // 计算负载统计
+  const totalMachines = data.length
+  let totalLoadRate = 0
+  let highLoadCount = 0
+  let lowLoadCount = 0
+  
+  data.forEach(machine => {
+    totalLoadRate += machine.loadRate
+    if (machine.loadRate >= 70) {
+      highLoadCount++
+    } else if (machine.loadRate < 30) {
+      lowLoadCount++
+    }
+  })
+  
+  loadStats.avgLoadRate = totalMachines > 0 ? Math.round(totalLoadRate / totalMachines) : 0
+  loadStats.highLoadCount = highLoadCount
+  loadStats.lowLoadCount = lowLoadCount
+  loadStats.totalCount = totalMachines
+  
+  // 计算负载分布
+  const mediumLoadCount = totalMachines - highLoadCount - lowLoadCount
+  loadDistribution.high = totalMachines > 0 ? Math.round((highLoadCount / totalMachines) * 100) : 0
+  loadDistribution.medium = totalMachines > 0 ? Math.round((mediumLoadCount / totalMachines) * 100) : 0
+  loadDistribution.low = totalMachines > 0 ? Math.round((lowLoadCount / totalMachines) * 100) : 0
+  
+  // 计算状态统计
+  const statusMap: Record<string, number> = {
+    'running': 0,
+    'idle': 0,
+    'maintenance': 0,
+    'fault': 0
+  }
+  
+  data.forEach(machine => {
+    if (statusMap.hasOwnProperty(machine.status)) {
+      statusMap[machine.status]++
+    }
+  })
+  
+  statusStats.value = [
+    { type: 'running', label: '运行中', count: statusMap.running },
+    { type: 'idle', label: '空闲', count: statusMap.idle },
+    { type: 'maintenance', label: '维护中', count: statusMap.maintenance },
+    { type: 'fault', label: '故障', count: statusMap.fault }
+  ]
+  
+  // 生成负载预警
+  loadWarnings.value = data
+    .filter(machine => machine.loadRate >= 90 || machine.loadRate <= 10)
+    .map((machine, index) => ({
+      id: `warning-${index}`,
+      message: machine.loadRate >= 90 ? `设备${machine.machineName}负载过高` : `设备${machine.machineName}负载过低`,
+      detail: `当前负载率: ${machine.loadRate}%`,
+      type: machine.loadRate >= 90 ? 'high' : 'low'
+    }))
+}
+
+// 加载可用任务
+const loadAvailableTasks = async () => {
+  try {
+    // 模拟API请求
+    await new Promise(resolve => setTimeout(resolve, 300))
+    
+    // 使用模拟数据
+    availableTasks.value = [
+      {
+        id: 'T001',
+        taskCode: 'Task-001',
+        taskName: '零件加工任务A',
+        priority: 'high',
+        estimatedHours: 4
+      },
+      {
+        id: 'T002',
+        taskCode: 'Task-002',
+        taskName: '零件加工任务B',
+        priority: 'medium',
+        estimatedHours: 6
+      },
+      {
+        id: 'T003',
+        taskCode: 'Task-003',
+        taskName: '零件加工任务C',
+        priority: 'urgent',
+        estimatedHours: 3
+      },
+      {
+        id: 'T004',
+        taskCode: 'Task-004',
+        taskName: '零件加工任务D',
+        priority: 'low',
+        estimatedHours: 8
+      }
+    ]
+  } catch (error) {
+    ElMessage.error('加载任务数据失败')
+    console.error('加载可用任务失败:', error)
+  }
+}
+
+// 查询
+const handleQuery = () => {
+  currentPage.value = 1
+  loadData()
+}
+
+// 重置
+const handleReset = () => {
+  searchForm.workshop = ''
+  searchForm.machineType = ''
+  searchForm.dateRange = null
+  currentPage.value = 1
+  loadData()
+}
+
+// 负载均衡
+const handleLoadBalance = async () => {
+  try {
+    await ElConfirm('确认执行负载均衡操作吗？', '提示', {
+      confirmButtonText: '确定',
+      cancelButtonText: '取消',
+      type: 'warning'
+    })
+    
+    // 模拟API请求
+    await new Promise(resolve => setTimeout(resolve, 1000))
+    
+    ElMessage.success('负载均衡操作已执行')
+    // 重新加载数据
+    loadData()
+  } catch (error) {
+    // 用户取消操作
+    console.log('用户取消负载均衡操作')
+  }
+}
+
+// 导出报表
+const handleExportReport = async () => {
+  try {
+    // 模拟API请求
+    await new Promise(resolve => setTimeout(resolve, 1000))
+    
+    ElMessage.success('报表导出成功')
+  } catch (error) {
+    ElMessage.error('报表导出失败')
+    console.error('导出报表失败:', error)
+  }
+}
+
+// 设备详情
+const handleMachineDetail = (machine: Machine) => {
+  selectedMachine.value = { ...machine }
+  
+  // 模拟获取设备任务数据
+  selectedMachineTasks.value = [
+    {
+      taskCode: 'Task-001',
+      taskName: '零件加工任务A',
+      priority: 'high',
+      startTime: '2023-07-01 08:00',
+      endTime: '2023-07-01 12:00',
+      progress: 75
+    },
+    {
+      taskCode: 'Task-002',
+      taskName: '零件加工任务B',
+      priority: 'medium',
+      startTime: '2023-07-01 14:00',
+      endTime: '2023-07-01 17:00',
+      progress: 25
+    }
+  ]
+  
+  detailDialogVisible.value = true
+}
+
+// 任务分配
+const handleTaskAssign = (machine: Machine) => {
+  selectedMachine.value = { ...machine }
+  loadAvailableTasks()
+  selectedTasks.value = []
+  assignDialogVisible.value = true
+}
+
+// 确认分配
+const handleConfirmAssign = async () => {
+  if (selectedTasks.value.length === 0) {
+    ElMessage.warning('请选择要分配的任务')
+    return
+  }
+  
+  try {
+    // 模拟API请求
+    await new Promise(resolve => setTimeout(resolve, 1000))
+    
+    ElMessage.success('任务分配成功')
+    handleAssignDialogClose()
+    // 重新加载数据
+    loadData()
+  } catch (error) {
+    ElMessage.error('任务分配失败')
+    console.error('分配任务失败:', error)
+  }
+}
+
+// 处理任务选择变化
+const handleTaskSelectionChange = (selection: Task[]) => {
+  selectedTasks.value = selection
+}
+
+// 处理页码变化
+const handleCurrentChange = (val: number) => {
+  currentPage.value = val
+  loadData()
+}
+
+// 处理每页条数变化
+const handleSizeChange = (val: number) => {
+  pageSize.value = val
+  currentPage.value = 1
+  loadData()
+}
+
+// 关闭分配对话框
+const handleAssignDialogClose = () => {
+  assignDialogVisible.value = false
+}
+
+// 关闭详情对话框
+const handleDetailDialogClose = () => {
+  detailDialogVisible.value = false
+}
+
+// 获取状态文本
+const getStatusText = (status?: string): string => {
+  if (!status) return ''
+  const statusMap: Record<string, string> = {
+    'running': '运行中',
+    'idle': '空闲',
+    'maintenance': '维护中',
+    'fault': '故障'
+  }
+  return statusMap[status] || status
+}
+
+// 获取状态类型
+const getStatusType = (status?: string): string => {
+  if (!status) return 'default'
+  const typeMap: Record<string, string> = {
+    'running': 'success',
+    'idle': 'info',
+    'maintenance': 'warning',
+    'fault': 'danger'
+  }
+  return typeMap[status] || 'default'
+}
+
+// 获取负载状态
+const getLoadStatus = (loadRate?: number): string => {
+  if (loadRate === undefined) return ''
+  if (loadRate >= 90) return 'exception'
+  if (loadRate >= 70) return 'warning'
+  return ''
+}
+
+// 获取优先级文本
+const getPriorityText = (priority?: string): string => {
+  if (!priority) return ''
+  const priorityMap: Record<string, string> = {
+    'low': '低',
+    'medium': '中',
+    'high': '高',
+    'urgent': '紧急'
+  }
+  return priorityMap[priority] || priority
+}
+
+// 获取优先级类型
+const getPriorityType = (priority?: string): string => {
+  if (!priority) return 'default'
+  const typeMap: Record<string, string> = {
+    'low': 'info',
+    'medium': 'primary',
+    'high': 'warning',
+    'urgent': 'danger'
+  }
+  return typeMap[priority] || 'default'
+}
+
+// 组件挂载时加载数据
+onMounted(() => {
+  // 初始化车间和设备类型选项
+  workshops.value = [
+    { value: 'workshop1', label: '第一车间' },
+    { value: 'workshop2', label: '第二车间' },
+    { value: 'workshop3', label: '第三车间' }
+  ]
+  
+  machineTypes.value = [
+    { value: 'cnc', label: '加工中心' },
+    { value: 'lathe', label: '车床' },
+    { value: 'miller', label: '铣床' },
+    { value: 'grinder', label: '磨床' }
+  ]
+  
+  loadData()
+})
 </script>
 
 <style scoped>
