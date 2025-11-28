@@ -11,7 +11,7 @@
           <el-card class="stat-card" shadow="hover">
             <div class="stat-content">
               <div class="stat-icon">
-                <el-icon><el-icon-document /></el-icon>
+                <el-icon><Document /></el-icon>
               </div>
               <div class="stat-info">
                 <div class="stat-value">{{ 156 }}</div>
@@ -24,7 +24,7 @@
           <el-card class="stat-card" shadow="hover">
             <div class="stat-content">
               <div class="stat-icon primary">
-                <el-icon><el-icon-box /></el-icon>
+                <el-icon><Box /></el-icon>
               </div>
               <div class="stat-info">
                 <div class="stat-value">{{ 42 }}</div>
@@ -37,7 +37,7 @@
           <el-card class="stat-card" shadow="hover">
             <div class="stat-content">
               <div class="stat-icon success">
-                <el-icon><el-icon-upload /></el-icon>
+                <el-icon><Upload /></el-icon>
               </div>
               <div class="stat-info">
                 <div class="stat-value">{{ 38 }}</div>
@@ -50,7 +50,7 @@
           <el-card class="stat-card" shadow="hover">
             <div class="stat-content">
               <div class="stat-icon warning">
-                <el-icon><el-icon-s-grid /></el-icon>
+                <el-icon><Grid /></el-icon>
               </div>
               <div class="stat-info">
                 <div class="stat-value">{{ 256 }}</div>
@@ -107,8 +107,21 @@
 </template>
 
 <script>
+import { Document, Box, Upload, Grid, Download, SwitchButton, Postcard, Check, Edit } from '@element-plus/icons-vue'
+
 export default {
   name: 'Dashboard',
+  components: {
+    Document,
+    Box,
+    Upload,
+    Grid,
+    Download,
+    SwitchButton,
+    Postcard,
+    Check,
+    Edit
+  },
   data() {
     return {
       recentActivities: [
@@ -119,14 +132,14 @@ export default {
         { time: '08:30', content: '库存盘点计划ICP20240523已发布' }
       ],
       quickAccessItems: [
-        { label: '入库管理', path: '/warehouse/in', icon: 'el-icon-download', iconClass: 'primary' },
-        { label: '出库管理', path: '/warehouse/out', icon: 'el-icon-upload', iconClass: 'success' },
-        { label: '库存转移', path: '/warehouse/stock-transfer', icon: 'el-icon-switch-button', iconClass: 'warning' },
-        { label: '库存盘点', path: '/warehouse/inventory-count', icon: 'el-icon-s-finance', iconClass: 'info' },
-        { label: '库位管理', path: '/warehouse/location-management', icon: 'el-icon-s-grid', iconClass: 'danger' },
-        { label: '回厂管理', path: '/receipt/list', icon: 'el-icon-box', iconClass: 'primary' },
-        { label: '质量检验', path: '/receipt/quality-check', icon: 'el-icon-check', iconClass: 'success' },
-        { label: '检验表单', path: '/receipt/inspection-form', icon: 'el-icon-edit', iconClass: 'info' }
+        { label: '入库管理', path: '/warehouse/in', icon: 'Download', iconClass: 'primary' },
+        { label: '出库管理', path: '/warehouse/out', icon: 'Upload', iconClass: 'success' },
+        { label: '库存转移', path: '/warehouse/stock-transfer', icon: 'SwitchButton', iconClass: 'warning' },
+        { label: '库存盘点', path: '/warehouse/inventory-count', icon: 'Postcard', iconClass: 'info' },
+        { label: '库位管理', path: '/warehouse/location-management', icon: 'Grid', iconClass: 'danger' },
+        { label: '回厂管理', path: '/receipt/list', icon: 'Box', iconClass: 'primary' },
+        { label: '质量检验', path: '/receipt/quality-check', icon: 'Check', iconClass: 'success' },
+        { label: '检验表单', path: '/receipt/inspection-form', icon: 'Edit', iconClass: 'info' }
       ]
     }
   },
