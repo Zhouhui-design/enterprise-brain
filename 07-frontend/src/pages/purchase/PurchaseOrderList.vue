@@ -189,6 +189,9 @@
 </template>
 
 <script>
+import * as purchaseApi from '@/api/purchase'
+import { mockPurchaseOrders } from '@/utils/mockData'; // 导入模拟数据作为备份
+
 export default {
   name: 'PurchaseOrderList',
   data() {
@@ -232,25 +235,47 @@ export default {
       this.loadOrderList()
     },
     // 加载供应商列表
-    loadSuppliers() {
-      // 模拟数据，实际应该从API获取
-      this.suppliers = [
-        { id: 1, name: '供应商A', contactPerson: '张三', contactPhone: '13800138001' },
-        { id: 2, name: '供应商B', contactPerson: '李四', contactPhone: '13800138002' },
-        { id: 3, name: '供应商C', contactPerson: '王五', contactPhone: '13800138003' },
-        { id: 4, name: '供应商D', contactPerson: '赵六', contactPhone: '13800138004' }
-      ]
+    async loadSuppliers() {
+      try {
+        const response = await purchaseApi.getSuppliers()
+        this.suppliers = response.data || []
+      } catch (error) {
+        console.error('获取供应商列表失败:', error)
+        // 使用模拟数据作为备份
+        this.suppliers = [
+          { id: 1, name: '供应商A', contactPerson: '张三', contactPhone: '13800138001' },
+          { id: 2, name: '供应商B', contactPerson: '李四', contactPhone: '13800138002' },
+          { id: 3, name: '供应商C', contactPerson: '王五', contactPhone: '13800138003' },
+          { id: 4, name: '供应商D', contactPerson: '赵六', contactPhone: '13800138004' }
+        ]
+      }
     },
     // 加载采购订单列表
-    loadOrderList() {
+    async loadOrderList() {
       this.loading = true
-      // 模拟API请求
-      setTimeout(() => {
-        // 模拟数据
-        this.orderList = this.generateMockData()
+      try {
+        const params = {
+          ...this.searchForm,
+          pageNum: this.currentPage,
+          pageSize: this.pageSize
+        }
+        if (this.dateRange && this.dateRange.length === 2) {
+          params.startDate = this.dateRange[0]
+          params.endDate = this.dateRange[1]
+        }
+        
+        const response = await purchaseApi.getPurchaseOrders(params)
+        this.orderList = response.data || []
+        this.total = response.total || 0
+      } catch (error) {
+        console.error('获取采购订单列表失败:', error)
+        // 使用模拟数据作为备份
+        this.orderList = mockPurchaseOrders || this.generateMockData()
         this.total = this.orderList.length
+        this.$message.error('加载数据失败，已使用本地数据')
+      } finally {
         this.loading = false
-      }, 500)
+      }
     },
     // 生成模拟数据
     generateMockData() {
@@ -366,29 +391,46 @@ export default {
     },
     // 新建采购订单
     handleCreateOrder() {
-      // 跳转到创建页面，实际应该使用路由跳转
-      this.$message.info('跳转到创建采购订单页面')
+      this.$router.push('/purchase/create-order')
     },
     // 编辑采购订单
     handleEditOrder(row) {
-      this.$message.info(`编辑采购订单：${row.orderNo}`)
+      this.$router.push(`/purchase/edit-order/${row.id}`)
     },
     // 查看详情
-    handleViewDetails(row) {
-      this.currentOrder = { ...row }
-      this.detailDialogVisible = true
+    async handleViewDetails(row) {
+      try {
+        const response = await purchaseApi.getPurchaseOrderDetail(row.id)
+        this.currentOrder = response.data || { ...row }
+      } catch (error) {
+        console.error('获取订单详情失败:', error)
+        // 使用本地数据作为备份
+        this.currentOrder = { ...row }
+        this.$message.warning('获取详细数据失败，已使用本地数据')
+      } finally {
+        this.detailDialogVisible = true
+      }
     },
     // 取消订单
     handleCancelOrder(row) {
       this.confirmDialogTitle = '取消订单确认'
       this.confirmDialogMessage = `确定要取消采购订单 ${row.orderNo} 吗？`
-      this.confirmAction = () => {
-        // 模拟取消订单
-        setTimeout(() => {
+      this.confirmAction = async () => {
+        try {
+          await purchaseApi.cancelPurchaseOrder(row.id)
           this.$message.success('订单已取消')
           this.loadOrderList()
-        }, 500)
-        this.confirmDialogVisible = false
+        } catch (error) {
+          console.error('取消订单失败:', error)
+          this.$message.error('取消订单失败，请稍后重试')
+          // 本地模拟状态更新作为降级方案
+          const index = this.orderList.findIndex(item => item.id === row.id)
+          if (index !== -1) {
+            this.orderList[index].status = 'CANCELLED'
+          }
+        } finally {
+          this.confirmDialogVisible = false
+        }
       }
       this.confirmDialogVisible = true
     },
@@ -396,13 +438,22 @@ export default {
     handleCompleteOrder(row) {
       this.confirmDialogTitle = '完成订单确认'
       this.confirmDialogMessage = `确定要将采购订单 ${row.orderNo} 标记为完成吗？`
-      this.confirmAction = () => {
-        // 模拟完成订单
-        setTimeout(() => {
+      this.confirmAction = async () => {
+        try {
+          await purchaseApi.completePurchaseOrder(row.id)
           this.$message.success('订单已完成')
           this.loadOrderList()
-        }, 500)
-        this.confirmDialogVisible = false
+        } catch (error) {
+          console.error('完成订单失败:', error)
+          this.$message.error('完成订单失败，请稍后重试')
+          // 本地模拟状态更新作为降级方案
+          const index = this.orderList.findIndex(item => item.id === row.id)
+          if (index !== -1) {
+            this.orderList[index].status = 'COMPLETED'
+          }
+        } finally {
+          this.confirmDialogVisible = false
+        }
       }
       this.confirmDialogVisible = true
     },
@@ -420,6 +471,23 @@ export default {
     handleConfirmAction() {
       if (this.confirmAction) {
         this.confirmAction()
+      }
+    },
+    // 导出数据
+    async handleExportData() {
+      try {
+        const params = {
+          ...this.searchForm
+        }
+        if (this.dateRange && this.dateRange.length === 2) {
+          params.startDate = this.dateRange[0]
+          params.endDate = this.dateRange[1]
+        }
+        await purchaseApi.exportPurchaseOrders(params)
+        this.$message.success('数据导出成功')
+      } catch (error) {
+        console.error('导出数据失败:', error)
+        this.$message.error('导出数据失败，请稍后重试')
       }
     }
   }

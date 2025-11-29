@@ -448,6 +448,7 @@ import { ElMessage } from 'element-plus'
 import { 
   ArrowLeft, InfoFilled, Phone, Location, Money, Document, Plus
 } from '@element-plus/icons-vue'
+import { supplierApi } from '@/api/purchase/supplier'
 
 const router = useRouter()
 const formRef = ref()
@@ -600,12 +601,18 @@ const handleBack = () => {
 const handleSaveDraft = async () => {
   saving.value = true
   try {
-    // 这里调用保存草稿API
-    await new Promise(resolve => setTimeout(resolve, 1000))
+    // 调用保存草稿API
+    await supplierApi.saveSupplierDraft(formData)
+    
     ElMessage.success('草稿保存成功')
     router.push('/purchase/suppliers/list')
   } catch (error) {
-    ElMessage.error('保存失败')
+    console.error('保存草稿失败:', error)
+    ElMessage.error('保存失败，请重试')
+    
+    // 本地备份表单数据作为降级方案
+    localStorage.setItem('supplier_draft', JSON.stringify(formData))
+    console.log('表单数据已保存到本地存储作为备份')
   } finally {
     saving.value = false
   }
@@ -616,61 +623,109 @@ const handleSubmit = async () => {
     await formRef.value.validate()
     
     submitting.value = true
-    // 这里调用提交API
-    await new Promise(resolve => setTimeout(resolve, 1000))
+    // 更新状态为提交中
+    formData.status = 'pending'
+    
+    // 调用提交API
+    await supplierApi.submitSupplier(formData)
     
     ElMessage.success('提交成功，等待审核')
     router.push('/purchase/suppliers/list')
   } catch (error) {
     if (error !== false) {
-      ElMessage.error('提交失败')
+      console.error('提交供应商失败:', error)
+      ElMessage.error('提交失败，请重试')
     }
   } finally {
     submitting.value = false
   }
 }
 
-const loadProvinces = async () => {
-  // 模拟省份数据
-  provinces.value = [
-    { label: '北京市', value: 'beijing' },
-    { label: '上海市', value: 'shanghai' },
-    { label: '广东省', value: 'guangdong' },
-    { label: '浙江省', value: 'zhejiang' },
-    { label: '江苏省', value: 'jiangsu' }
+// 模拟省市区数据 - 用于API调用失败时的降级方案
+const mockProvinces = [
+  { label: '北京市', value: 'beijing' },
+  { label: '上海市', value: 'shanghai' },
+  { label: '广东省', value: 'guangdong' },
+  { label: '浙江省', value: 'zhejiang' },
+  { label: '江苏省', value: 'jiangsu' }
+]
+
+const mockCityMap = {
+  beijing: [
+    { label: '北京市', value: 'beijing' }
+  ],
+  guangdong: [
+    { label: '广州市', value: 'guangzhou' },
+    { label: '深圳市', value: 'shenzhen' },
+    { label: '珠海市', value: 'zhuhai' }
   ]
 }
 
-const loadCities = async (province) => {
-  // 模拟城市数据
-  const cityMap = {
-    beijing: [
-      { label: '北京市', value: 'beijing' }
-    ],
-    guangdong: [
-      { label: '广州市', value: 'guangzhou' },
-      { label: '深圳市', value: 'shenzhen' },
-      { label: '珠海市', value: 'zhuhai' }
-    ]
+const mockDistrictMap = {
+  beijing: [
+    { label: '朝阳区', value: 'chaoyang' },
+    { label: '海淀区', value: 'haidian' },
+    { label: '东城区', value: 'dongcheng' }
+  ],
+  guangzhou: [
+    { label: '天河区', value: 'tianhe' },
+    { label: '越秀区', value: 'yuexiu' },
+    { label: '海珠区', value: 'haizhu' }
+  ]
+}
+
+const loadProvinces = async () => {
+  try {
+    // 调用获取省份API
+    const response = await supplierApi.getProvinces()
+    
+    if (response && response.data && Array.isArray(response.data)) {
+      provinces.value = response.data
+    } else {
+      console.warn('省份API返回数据格式异常，使用模拟数据')
+      provinces.value = [...mockProvinces]
+    }
+  } catch (error) {
+    console.error('获取省份数据失败:', error)
+    // 使用模拟数据作为降级方案
+    provinces.value = [...mockProvinces]
   }
-  cities.value = cityMap[province] || []
+}
+
+const loadCities = async (province) => {
+  try {
+    // 调用获取城市API
+    const response = await supplierApi.getCities(province)
+    
+    if (response && response.data && Array.isArray(response.data)) {
+      cities.value = response.data
+    } else {
+      console.warn('城市API返回数据格式异常，使用模拟数据')
+      cities.value = mockCityMap[province] || []
+    }
+  } catch (error) {
+    console.error('获取城市数据失败:', error)
+    // 使用模拟数据作为降级方案
+    cities.value = mockCityMap[province] || []
+  }
 }
 
 const loadDistricts = async (city) => {
-  // 模拟区县数据
-  const districtMap = {
-    beijing: [
-      { label: '朝阳区', value: 'chaoyang' },
-      { label: '海淀区', value: 'haidian' },
-      { label: '东城区', value: 'dongcheng' }
-    ],
-    guangzhou: [
-      { label: '天河区', value: 'tianhe' },
-      { label: '越秀区', value: 'yuexiu' },
-      { label: '海珠区', value: 'haizhu' }
-    ]
+  try {
+    // 调用获取区县API
+    const response = await supplierApi.getDistricts(city)
+    
+    if (response && response.data && Array.isArray(response.data)) {
+      districts.value = response.data
+    } else {
+      console.warn('区县API返回数据格式异常，使用模拟数据')
+      districts.value = mockDistrictMap[city] || []
+    }
+  } catch (error) {
+    console.error('获取区县数据失败:', error)
+    // 使用模拟数据作为降级方案
+    districts.value = mockDistrictMap[city] || []
   }
-  districts.value = districtMap[city] || []
 }
 
 onMounted(() => {

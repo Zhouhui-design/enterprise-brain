@@ -203,6 +203,9 @@
 </template>
 
 <script>
+import * as purchaseApi from '@/api/purchase'
+import { mockSuppliers } from '@/utils/mockData'; // 导入模拟数据作为备份
+
 export default {
   name: 'PurchaseOrderCreate',
   props: {
@@ -273,20 +276,34 @@ export default {
       }
     },
     // 加载供应商列表
-    loadSuppliers() {
-      // 模拟数据，实际应该从API获取
-      this.suppliers = [
-        { id: 1, name: '供应商A', contactPerson: '张三', contactPhone: '13800138001' },
-        { id: 2, name: '供应商B', contactPerson: '李四', contactPhone: '13800138002' },
-        { id: 3, name: '供应商C', contactPerson: '王五', contactPhone: '13800138003' },
-        { id: 4, name: '供应商D', contactPerson: '赵六', contactPhone: '13800138004' }
-      ]
+    async loadSuppliers() {
+      try {
+        const response = await purchaseApi.getSuppliers()
+        this.suppliers = response.data || []
+        this.$message.success('供应商数据加载成功')
+      } catch (error) {
+        console.error('获取供应商列表失败:', error)
+        // 使用模拟数据作为备份
+        this.suppliers = mockSuppliers || [
+          { id: 1, name: '供应商A', contactPerson: '张三', contactPhone: '13800138001' },
+          { id: 2, name: '供应商B', contactPerson: '李四', contactPhone: '13800138002' },
+          { id: 3, name: '供应商C', contactPerson: '王五', contactPhone: '13800138003' },
+          { id: 4, name: '供应商D', contactPerson: '赵六', contactPhone: '13800138004' }
+        ]
+        this.$message.warning('加载供应商数据失败，已使用本地数据')
+      }
     },
     // 加载订单详情
-    loadOrderDetail() {
-      // 模拟API请求
-      setTimeout(() => {
-        // 模拟订单数据
+    async loadOrderDetail() {
+      try {
+        const response = await purchaseApi.getPurchaseOrderDetail(this.orderId)
+        this.orderForm = response.data || {}
+        // 计算总金额
+        this.calculateTotalAmount()
+      } catch (error) {
+        console.error('获取订单详情失败:', error)
+        this.$message.error('获取订单详情失败，请稍后重试')
+        // 使用模拟数据作为备份
         this.orderForm = {
           id: this.orderId,
           orderNo: `PO${new Date().getFullYear()}${String(this.orderId).padStart(4, '0')}`,
@@ -326,9 +343,8 @@ export default {
             }
           ]
         }
-        // 计算总金额
         this.calculateTotalAmount()
-      }, 500)
+      }
     },
     // 生成订单编号
     generateOrderNo() {
@@ -390,8 +406,22 @@ export default {
       this.confirmDialogVisible = true
     },
     // 导入物料
-    handleImportItems() {
-      this.$message.info('导入物料功能待实现')
+    async handleImportItems() {
+      try {
+        // 这里可以实现文件上传逻辑，然后调用API导入
+        const response = await purchaseApi.importPurchaseOrderItems()
+        if (response.data && response.data.items) {
+          this.orderForm.items.push(...response.data.items)
+          this.calculateTotalAmount()
+          this.$message.success('物料导入成功')
+        } else {
+          this.$message.warning('未导入任何物料数据')
+        }
+      } catch (error) {
+        console.error('导入物料失败:', error)
+        this.$message.error('导入物料失败，请稍后重试')
+        // 可以在这里添加降级方案，例如提示用户手动添加物料
+      }
     },
     // 数量变更处理
     handleQuantityChange(item) {
@@ -419,8 +449,8 @@ export default {
       return `¥${Number(value).toFixed(2)}`
     },
     // 保存订单
-    handleSave(type) {
-      this.$refs.orderFormRef.validate((valid) => {
+    async handleSave(type) {
+      this.$refs.orderFormRef.validate(async (valid) => {
         if (valid) {
           // 验证物料明细
           if (this.orderForm.items.length === 0) {
@@ -449,13 +479,40 @@ export default {
             }
           }
           
-          // 模拟保存
-          setTimeout(() => {
+          try {
+            const saveData = {
+              ...this.orderForm,
+              status: type === 'draft' ? 'DRAFT' : 'PENDING'
+            }
+            
+            let response
+            if (this.isEdit) {
+              response = await purchaseApi.updatePurchaseOrder(saveData)
+            } else {
+              response = await purchaseApi.createPurchaseOrder(saveData)
+            }
+            
             const actionText = type === 'draft' ? '保存草稿' : '提交订单'
             this.$message.success(`${actionText}成功`)
             // 跳转到列表页面
-            this.handleCancel()
-          }, 500)
+            this.$router.push('/purchase/order-list')
+          } catch (error) {
+            console.error('保存订单失败:', error)
+            this.$message.error('保存订单失败，请稍后重试')
+            
+            // 询问用户是否保存到本地作为备份
+            this.$confirm('是否将当前订单数据保存到本地作为备份？', '提示', {
+              confirmButtonText: '确定',
+              cancelButtonText: '取消',
+              type: 'warning'
+            }).then(() => {
+              // 这里可以添加保存到本地存储的逻辑
+              localStorage.setItem('draftPurchaseOrder', JSON.stringify(this.orderForm))
+              this.$message.success('订单数据已保存到本地')
+            }).catch(() => {
+              // 用户取消保存到本地
+            })
+          }
         } else {
           this.$message.error('请检查表单填写是否正确')
           return false
@@ -469,8 +526,7 @@ export default {
         cancelButtonText: '取消',
         type: 'warning'
       }).then(() => {
-        // 实际应该使用路由返回
-        this.$message.info('已返回列表页面')
+        this.$router.push('/purchase/order-list')
       })
     },
     // 处理确认操作

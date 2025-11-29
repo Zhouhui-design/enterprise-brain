@@ -181,6 +181,9 @@
 </template>
 
 <script>
+import * as purchaseApi from '@/api/purchase'
+import { mockPurchaseOrders } from '@/utils/mockData'; // 导入模拟数据作为备份
+
 export default {
   name: 'PurchaseOrderApprove',
   data() {
@@ -225,15 +228,36 @@ export default {
   },
   methods: {
     // 加载待审批订单列表
-    loadOrderList() {
+    async loadOrderList() {
       this.loading = true
-      // 模拟API请求
-      setTimeout(() => {
-        // 模拟数据
-        this.orderList = this.generateMockData()
+      try {
+        // 构建查询参数
+        const params = {
+          pageNum: this.currentPage,
+          pageSize: this.pageSize,
+          orderNo: this.searchForm.orderNo,
+          supplierName: this.searchForm.supplierName,
+          creator: this.searchForm.creator
+        }
+        
+        // 添加日期范围过滤
+        if (this.dateRange && this.dateRange.length === 2) {
+          params.startDate = this.dateRange[0]
+          params.endDate = this.dateRange[1]
+        }
+        
+        const response = await purchaseApi.getPurchaseOrdersToApprove(params)
+        this.orderList = response.data || []
+        this.total = response.total || 0
+      } catch (error) {
+        console.error('获取待审批订单列表失败:', error)
+        // 使用模拟数据作为备份
+        this.orderList = mockPurchaseOrders || this.generateMockData()
         this.total = this.orderList.length
+        this.$message.error('加载数据失败，已使用本地数据')
+      } finally {
         this.loading = false
-      }, 500)
+      }
     },
     // 生成模拟数据
     generateMockData() {
@@ -345,9 +369,18 @@ export default {
       this.selectedRows = selection
     },
     // 查看详情
-    handleViewDetails(row) {
-      this.currentOrder = { ...row }
-      this.detailDialogVisible = true
+    async handleViewDetails(row) {
+      try {
+        const response = await purchaseApi.getPurchaseOrderDetail(row.id)
+        this.currentOrder = response.data || { ...row }
+        this.detailDialogVisible = true
+      } catch (error) {
+        console.error('获取订单详情失败:', error)
+        this.$message.error('获取订单详情失败，显示本地数据')
+        // 使用当前行数据作为备份
+        this.currentOrder = { ...row }
+        this.detailDialogVisible = true
+      }
     },
     // 审批订单
     handleApprove(row) {
@@ -360,7 +393,7 @@ export default {
       this.approveDialogVisible = true
     },
     // 提交审批
-    handleSubmitApproval() {
+    async handleSubmitApproval() {
       if (!this.approveForm.result) {
         this.$message.error('请选择审批结果')
         return
@@ -370,13 +403,27 @@ export default {
         return
       }
       
-      // 模拟提交审批
-      setTimeout(() => {
+      try {
+        await purchaseApi.approvePurchaseOrder({
+          orderId: this.approveForm.orderId,
+          result: this.approveForm.result,
+          comments: this.approveForm.comments
+        })
         this.$message.success('审批提交成功')
         this.approveDialogVisible = false
         this.loadOrderList()
-      }, 500)
-    },
+      } catch (error) {
+        console.error('提交审批失败:', error)
+        this.$message.error('提交审批失败，请稍后重试')
+        // 本地乐观更新作为降级方案
+        const index = this.orderList.findIndex(item => item.id === this.approveForm.orderId)
+        if (index !== -1) {
+          this.orderList.splice(index, 1)
+          this.total--
+          this.approveDialogVisible = false
+        }
+      }
+    }
     // 关闭详情对话框
     handleCloseDetailDialog() {
       this.detailDialogVisible = false
