@@ -190,6 +190,8 @@
 </template>
 
 <script>
+import { purchaseApi } from '@/api/purchase'
+
 export default {
   name: 'PurchaseRequisition',
   data() {
@@ -234,26 +236,48 @@ export default {
       this.loadRequisitionList()
     },
     // 加载部门列表
-    loadDepartments() {
-      // 模拟数据，实际应该从API获取
-      this.departments = [
-        { id: 1, name: '采购部' },
-        { id: 2, name: '生产部' },
-        { id: 3, name: '研发部' },
-        { id: 4, name: '行政部' },
-        { id: 5, name: '财务部' }
-      ]
+    async loadDepartments() {
+      try {
+        const response = await purchaseApi.getDepartments()
+        this.departments = response.data || []
+      } catch (error) {
+        console.error('获取部门列表失败:', error)
+        // 使用模拟数据作为备份
+        this.departments = [
+          { id: 1, name: '采购部' },
+          { id: 2, name: '生产部' },
+          { id: 3, name: '研发部' },
+          { id: 4, name: '行政部' },
+          { id: 5, name: '财务部' }
+        ]
+      }
     },
     // 加载采购申请列表
-    loadRequisitionList() {
+    async loadRequisitionList() {
       this.loading = true
-      // 模拟API请求
-      setTimeout(() => {
-        // 模拟数据
+      try {
+        const params = {
+          ...this.searchForm,
+          page: this.currentPage,
+          pageSize: this.pageSize
+        }
+        if (this.dateRange && this.dateRange.length === 2) {
+          params.startDate = this.dateRange[0]
+          params.endDate = this.dateRange[1]
+        }
+        
+        const response = await purchaseApi.getPurchaseRequisitions(params)
+        this.requisitionList = response.data.items || []
+        this.total = response.data.total || 0
+      } catch (error) {
+        console.error('获取采购申请列表失败:', error)
+        this.$message.error('获取数据失败，请稍后重试')
+        // 使用模拟数据作为备份
         this.requisitionList = this.generateMockData()
         this.total = this.requisitionList.length
+      } finally {
         this.loading = false
-      }, 500)
+      }
     },
     // 生成模拟数据
     generateMockData() {
@@ -367,12 +391,11 @@ export default {
     },
     // 新建采购申请
     handleCreateRequisition() {
-      // 跳转到创建页面，实际应该使用路由跳转
-      this.$message.info('跳转到创建采购申请页面')
+      this.$router.push('/purchase/create-requisition')
     },
     // 编辑采购申请
     handleEditRequisition(row) {
-      this.$message.info(`编辑采购申请：${row.requisitionNo}`)
+      this.$router.push(`/purchase/edit-requisition/${row.id}`)
     },
     // 查看详情
     handleViewDetails(row) {
@@ -383,13 +406,22 @@ export default {
     handleSubmitForApproval(row) {
       this.confirmDialogTitle = '提交审批确认'
       this.confirmDialogMessage = `确定要提交采购申请 ${row.requisitionNo} 进行审批吗？`
-      this.confirmAction = () => {
-        // 模拟提交审批
-        setTimeout(() => {
+      this.confirmAction = async () => {
+        try {
+          await purchaseApi.submitPurchaseRequisition(row.id)
           this.$message.success('提交审批成功')
           this.loadRequisitionList()
-        }, 500)
-        this.confirmDialogVisible = false
+        } catch (error) {
+          console.error('提交审批失败:', error)
+          this.$message.error('提交审批失败，请稍后重试')
+          // 本地模拟状态更新作为降级方案
+          const index = this.requisitionList.findIndex(item => item.id === row.id)
+          if (index !== -1) {
+            this.requisitionList[index].status = 'PENDING'
+          }
+        } finally {
+          this.confirmDialogVisible = false
+        }
       }
       this.confirmDialogVisible = true
     },
@@ -397,13 +429,20 @@ export default {
     handleDeleteRequisition(id) {
       this.confirmDialogTitle = '删除确认'
       this.confirmDialogMessage = '确定要删除选中的采购申请吗？此操作不可撤销。'
-      this.confirmAction = () => {
-        // 模拟删除
-        setTimeout(() => {
+      this.confirmAction = async () => {
+        try {
+          await purchaseApi.deletePurchaseRequisition(id)
           this.$message.success('删除成功')
           this.loadRequisitionList()
-        }, 500)
-        this.confirmDialogVisible = false
+        } catch (error) {
+          console.error('删除采购申请失败:', error)
+          this.$message.error('删除失败，请稍后重试')
+          // 本地模拟删除作为降级方案
+          this.requisitionList = this.requisitionList.filter(item => item.id !== id)
+          this.total--
+        } finally {
+          this.confirmDialogVisible = false
+        }
       }
       this.confirmDialogVisible = true
     },

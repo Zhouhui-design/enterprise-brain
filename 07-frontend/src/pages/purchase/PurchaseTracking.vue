@@ -477,6 +477,8 @@
 </template>
 
 <script>
+import { purchaseApi } from '@/api/purchase'
+
 export default {
   name: 'PurchaseTracking',
   data() {
@@ -539,26 +541,59 @@ export default {
       this.loadTrackingList()
     },
     // 加载供应商列表
-    loadSuppliers() {
-      // 模拟数据
-      this.suppliers = [
-        { id: 1, name: '供应商A' },
-        { id: 2, name: '供应商B' },
-        { id: 3, name: '供应商C' },
-        { id: 4, name: '供应商D' }
-      ]
+    async loadSuppliers() {
+      try {
+        const response = await purchaseApi.getSuppliers()
+        this.suppliers = response.data || []
+      } catch (error) {
+        console.error('获取供应商列表失败:', error)
+        // 使用模拟数据作为备份
+        this.suppliers = [
+          { id: 1, name: '供应商A' },
+          { id: 2, name: '供应商B' },
+          { id: 3, name: '供应商C' },
+          { id: 4, name: '供应商D' }
+        ]
+      }
     },
     // 加载采购跟踪列表
-    loadTrackingList() {
+    async loadTrackingList() {
       this.loading = true
-      // 模拟API请求
-      setTimeout(() => {
+      try {
+        // 构建查询参数
+        const params = {
+          page: this.currentPage,
+          pageSize: this.pageSize,
+          orderNo: this.searchForm.orderNo,
+          itemKeyword: this.searchForm.itemKeyword,
+          supplierId: this.searchForm.supplierId,
+          deliveryStatus: this.searchForm.deliveryStatus
+        }
+        
+        // 添加日期范围过滤
+        if (this.startDate) {
+          params.startDate = this.startDate
+        }
+        if (this.endDate) {
+          params.endDate = this.endDate
+        }
+        
+        const response = await purchaseApi.getPurchaseTrackingList(params)
+        const data = response.data.list || []
+        this.trackingList = data
+        this.total = response.data.total || 0
+        this.calculateStats(data)
+      } catch (error) {
+        console.error('获取采购跟踪列表失败:', error)
+        this.$message.error('获取数据失败，请稍后重试')
+        // 使用模拟数据作为备份
         const data = this.generateMockData()
         this.trackingList = data
         this.total = data.length
         this.calculateStats(data)
+      } finally {
         this.loading = false
-      }, 500)
+      }
     },
     // 生成模拟数据
     generateMockData() {
@@ -697,9 +732,18 @@ export default {
       this.loadTrackingList()
     },
     // 查看详情
-    handleViewDetails(row) {
-      this.currentTracking = { ...row }
-      this.detailDialogVisible = true
+    async handleViewDetails(row) {
+      try {
+        const response = await purchaseApi.getPurchaseTrackingDetail(row.id)
+        this.currentTracking = response.data || { ...row }
+        this.detailDialogVisible = true
+      } catch (error) {
+        console.error('获取跟踪详情失败:', error)
+        this.$message.error('获取详情失败，显示本地数据')
+        // 使用当前行数据作为备份
+        this.currentTracking = { ...row }
+        this.detailDialogVisible = true
+      }
     },
     // 添加跟踪记录
     handleAddTrackingNote(row) {
@@ -723,22 +767,40 @@ export default {
       this.trackingForm.fileList = fileList.slice(-3)
     },
     // 提交跟踪记录
-    handleSubmitTrackingNote() {
+    async handleSubmitTrackingNote() {
       if (!this.trackingForm.content) {
         this.$message.error('请输入跟踪内容')
         return
       }
       
-      // 模拟提交
-      setTimeout(() => {
+      try {
+        // 准备提交数据
+        const submitData = {
+          orderId: this.trackingForm.orderId,
+          itemId: this.trackingForm.itemId,
+          content: this.trackingForm.content,
+          latestDeliveryDate: this.trackingForm.latestDeliveryDate
+          // 文件上传可以在实际项目中实现
+        }
+        
+        await purchaseApi.addPurchaseTrackingNote(submitData)
         this.$message.success('跟踪记录添加成功')
         this.trackingDialogVisible = false
         this.loadTrackingList()
-      }, 500)
+      } catch (error) {
+        console.error('提交跟踪记录失败:', error)
+        this.$message.error('提交失败，请稍后重试')
+      }
     },
     // 下载附件
-    handleDownloadAttachment(attachment) {
-      this.$message.info(`下载附件：${attachment.name}`)
+    async handleDownloadAttachment(attachment) {
+      try {
+        await purchaseApi.downloadAttachment(attachment.id)
+        this.$message.success(`开始下载附件：${attachment.name}`)
+      } catch (error) {
+        console.error('下载附件失败:', error)
+        this.$message.error('下载附件失败，请稍后重试')
+      }
     },
     // 关闭详情对话框
     handleCloseDetailDialog() {
@@ -762,6 +824,32 @@ export default {
     handleConfirmAction() {
       if (this.confirmAction) {
         this.confirmAction()
+      }
+    },
+    // 导出
+    async handleExport() {
+      try {
+        await purchaseApi.exportPurchaseTracking(this.searchForm)
+        this.$message.success('导出成功')
+      } catch (error) {
+        console.error('导出失败:', error)
+        this.$message.error('导出失败，请稍后重试')
+      }
+    },
+    // 批量跟踪
+    async handleBatchTracking() {
+      if (this.selectedRows.length === 0) {
+        this.$message.warning('请选择需要跟踪的记录')
+        return
+      }
+      
+      try {
+        // 这里可以打开一个批量跟踪对话框，让用户输入共同的跟踪内容
+        this.$message.info('批量跟踪功能待实现')
+        // 实际实现时可以调用API：await purchaseApi.batchAddTrackingNotes({ ids: this.selectedRows, content: content })
+      } catch (error) {
+        console.error('批量跟踪失败:', error)
+        this.$message.error('批量跟踪失败，请稍后重试')
       }
     }
   }

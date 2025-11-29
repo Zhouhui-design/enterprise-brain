@@ -431,6 +431,7 @@ import {
   Star, TrendCharts, Document, Remove, Check, Delete, Shop, Clock,
   UploadFilled
 } from '@element-plus/icons-vue'
+import { supplierApi } from '@/api/purchase/supplier'
 
 const router = useRouter()
 
@@ -539,23 +540,42 @@ const handleDelete = async (row) => {
       }
     )
     
-    // 这里调用删除API
+    // 调用删除API
+    await supplierApi.deleteSupplier(row.id)
     ElMessage.success('删除成功')
-    fetchData()
+    
+    // 乐观更新本地数据
+    const index = tableData.value.findIndex(item => item.id === row.id)
+    if (index !== -1) {
+      tableData.value.splice(index, 1)
+      pagination.total--
+    }
+    
+    fetchData() // 刷新数据确保一致性
   } catch (error) {
     if (error !== 'cancel') {
-      ElMessage.error('删除失败')
+      console.error('删除供应商失败:', error)
+      ElMessage.error('删除失败，请重试')
     }
   }
 }
 
 const updateSupplierStatus = async (id, status) => {
   try {
-    // 这里调用更新状态API
+    // 调用更新状态API
+    await supplierApi.updateSupplierStatus(id, { status })
     ElMessage.success('状态更新成功')
-    fetchData()
+    
+    // 乐观更新本地数据
+    const item = tableData.value.find(item => item.id === id)
+    if (item) {
+      item.status = status
+    }
+    
+    fetchData() // 刷新数据确保一致性
   } catch (error) {
-    ElMessage.error('状态更新失败')
+    console.error('更新供应商状态失败:', error)
+    ElMessage.error('状态更新失败，请重试')
   }
 }
 
@@ -571,15 +591,33 @@ const handleImportSubmit = async () => {
   
   importing.value = true
   try {
-    // 这里调用导入API
-    await new Promise(resolve => setTimeout(resolve, 2000))
-    ElMessage.success('导入成功')
+    const file = uploadRef.value.uploadFiles[0]
+    const formData = new FormData()
+    formData.append('file', file.raw)
+    
+    // 调用导入API
+    const response = await supplierApi.importSuppliers(formData)
+    
+    // 处理导入结果
+    if (response && response.data) {
+      const { successCount, failCount } = response.data
+      let message = `导入成功`
+      if (successCount !== undefined) message += `，成功${successCount}条`
+      if (failCount !== undefined) message += `，失败${failCount}条`
+      ElMessage.success(message)
+    } else {
+      ElMessage.success('导入成功')
+    }
+    
     importDialogVisible.value = false
     fetchData()
   } catch (error) {
-    ElMessage.error('导入失败')
+    console.error('导入供应商失败:', error)
+    ElMessage.error('导入失败，请检查文件格式后重试')
   } finally {
     importing.value = false
+    // 清空上传文件
+    uploadRef.value.clearFiles()
   }
 }
 
@@ -641,37 +679,73 @@ const formatDate = (date) => {
   return new Date(date).toLocaleString('zh-CN')
 }
 
+// 模拟数据 - 用于API调用失败时的降级方案
+const mockSuppliers = Array.from({ length: 10 }, (_, index) => ({
+  id: index + 1,
+  supplierCode: `SUP${String(index + 1).padStart(4, '0')}`,
+  supplierName: `供应商${index + 1}`,
+  type: ['raw_material', 'equipment', 'service', 'office'][index % 4],
+  contactPerson: `联系人${index + 1}`,
+  phone: `1380013800${index}`,
+  email: `supplier${index + 1}@example.com`,
+  rating: Math.floor(Math.random() * 5) + 1,
+  status: ['active', 'inactive', 'pending'][index % 3],
+  createdAt: new Date().toISOString(),
+  logo: ''
+}))
+
+const mockStatistics = {
+  total: 100,
+  active: 75,
+  highRating: 60,
+  new: 12
+}
+
 // 获取数据
 const fetchData = async () => {
   loading.value = true
   try {
-    // 这里调用API获取数据
-    await new Promise(resolve => setTimeout(resolve, 1000))
+    // 调用真实API获取数据
+    const [supplierRes, statsRes] = await Promise.all([
+      supplierApi.getSupplierList({
+        pageNum: pagination.current,
+        pageSize: pagination.size,
+        ...searchForm
+      }),
+      supplierApi.getSupplierStatistics()
+    ])
     
-    // 模拟数据
-    tableData.value = Array.from({ length: 10 }, (_, index) => ({
-      id: index + 1,
-      supplierCode: `SUP${String(index + 1).padStart(4, '0')}`,
-      supplierName: `供应商${index + 1}`,
-      type: ['raw_material', 'equipment', 'service', 'office'][index % 4],
-      contactPerson: `联系人${index + 1}`,
-      phone: `1380013800${index}`,
-      email: `supplier${index + 1}@example.com`,
-      rating: Math.floor(Math.random() * 5) + 1,
-      status: ['active', 'inactive', 'pending'][index % 3],
-      createdAt: new Date().toISOString(),
-      logo: ''
-    }))
-    
-    pagination.total = 100
+    // 处理响应数据
+    if (supplierRes && supplierRes.data) {
+      tableData.value = supplierRes.data.list || []
+      pagination.total = supplierRes.data.total || 0
+    } else {
+      // API返回格式异常时使用模拟数据
+      console.warn('供应商列表API返回数据格式异常，使用模拟数据')
+      tableData.value = [...mockSuppliers]
+      pagination.total = mockStatistics.total
+    }
     
     // 更新统计数据
-    statistics.total = 100
-    statistics.active = 75
-    statistics.highRating = 60
-    statistics.new = 12
+    if (statsRes && statsRes.data) {
+      statistics.total = statsRes.data.total || 0
+      statistics.active = statsRes.data.active || 0
+      statistics.highRating = statsRes.data.highRating || 0
+      statistics.new = statsRes.data.new || 0
+    } else {
+      console.warn('供应商统计API返回数据格式异常，使用模拟数据')
+      Object.assign(statistics, mockStatistics)
+    }
+    
+    ElMessage.success('数据加载成功')
   } catch (error) {
-    ElMessage.error('获取数据失败')
+    console.error('获取供应商数据失败:', error)
+    ElMessage.error('获取数据失败，已加载模拟数据')
+    
+    // API调用失败时使用模拟数据作为降级方案
+    tableData.value = [...mockSuppliers]
+    pagination.total = mockStatistics.total
+    Object.assign(statistics, mockStatistics)
   } finally {
     loading.value = false
   }

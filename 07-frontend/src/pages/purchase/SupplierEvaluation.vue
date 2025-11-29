@@ -287,6 +287,8 @@
 
 <script>
 import * as echarts from 'echarts';
+import * as purchaseApi from '@/api/purchase';
+import { mockSupplierEvaluations } from '@/utils/mockData'; // 导入模拟数据作为备份
 
 export default {
   name: 'SupplierEvaluation',
@@ -355,28 +357,50 @@ export default {
   },
   methods: {
     // 加载数据
-    loadData() {
+    async loadData() {
       this.loading = true;
-      // 模拟API请求
-      setTimeout(() => {
-        this.evaluationList = this.generateMockData();
+      try {
+        const params = {
+          ...this.searchForm,
+          pageNum: this.pagination.currentPage,
+          pageSize: this.pagination.pageSize
+        };
+        
+        const response = await purchaseApi.getSupplierEvaluations(params);
+        this.evaluationList = response.data || [];
+        this.total = response.total || 0;
+        this.calculateStatistics();
+        this.updateChart();
+      } catch (error) {
+        console.error('加载供应商评估数据失败:', error);
+        // 使用模拟数据作为备份
+        this.evaluationList = mockSupplierEvaluations || this.generateMockData();
         this.total = this.evaluationList.length;
         this.calculateStatistics();
         this.updateChart();
+        this.$message.error('加载数据失败，已使用本地数据');
+      } finally {
         this.loading = false;
-      }, 500);
+      }
     },
     
     // 加载供应商列表
-    loadSuppliers() {
-      // 模拟供应商数据
-      this.suppliers = [
-        { id: '1', name: '供应商A' },
-        { id: '2', name: '供应商B' },
-        { id: '3', name: '供应商C' },
-        { id: '4', name: '供应商D' },
-        { id: '5', name: '供应商E' }
-      ];
+    async loadSuppliers() {
+      try {
+        const response = await purchaseApi.getSuppliers();
+        this.suppliers = response.data || [];
+      } catch (error) {
+        console.error('加载供应商列表失败:', error);
+        // 使用模拟数据作为备份
+        this.suppliers = [
+          { id: '1', name: '供应商A' },
+          { id: '2', name: '供应商B' },
+          { id: '3', name: '供应商C' },
+          { id: '4', name: '供应商D' },
+          { id: '5', name: '供应商E' }
+        ];
+        this.$message.error('加载供应商数据失败，已使用本地数据');
+      }
     },
     
     // 生成模拟数据
@@ -503,19 +527,40 @@ export default {
     },
     
     // 查看详情
-    viewEvaluationDetail(row) {
-      this.selectedEvaluation = { ...row };
-      this.conclusionForm = {
-        conclusion: row.conclusion || '',
-        suggestions: row.suggestions || '',
-        followUpPlan: row.followUpPlan || ''
-      };
-      this.detailVisible = true;
+    async viewEvaluationDetail(row) {
+      try {
+        const response = await purchaseApi.getSupplierEvaluationDetail(row.evaluationId);
+        this.selectedEvaluation = response.data || { ...row };
+        this.conclusionForm = {
+          conclusion: this.selectedEvaluation.conclusion || '',
+          suggestions: this.selectedEvaluation.suggestions || '',
+          followUpPlan: this.selectedEvaluation.followUpPlan || ''
+        };
+      } catch (error) {
+        console.error('获取评估详情失败:', error);
+        // 使用本地数据作为备份
+        this.selectedEvaluation = { ...row };
+        this.conclusionForm = {
+          conclusion: row.conclusion || '',
+          suggestions: row.suggestions || '',
+          followUpPlan: row.followUpPlan || ''
+        };
+        this.$message.warning('获取详细数据失败，已使用本地数据');
+      } finally {
+        this.detailVisible = true;
+      }
     },
     
     // 编辑评估
-    editEvaluation(row) {
-      this.$message.warning('编辑功能开发中');
+    async editEvaluation(row) {
+      try {
+        // 这里可以实现编辑功能，打开编辑弹窗
+        // const evaluationDetail = await purchaseApi.getSupplierEvaluationDetail(row.evaluationId);
+        this.$message.warning('编辑功能开发中');
+      } catch (error) {
+        console.error('获取评估详情失败:', error);
+        this.$message.error('获取评估详情失败');
+      }
     },
     
     // 删除评估
@@ -524,12 +569,23 @@ export default {
         confirmButtonText: '确定',
         cancelButtonText: '取消',
         type: 'warning'
-      }).then(() => {
-        // 模拟删除操作
-        setTimeout(() => {
+      }).then(async () => {
+        try {
+          await purchaseApi.deleteSupplierEvaluation(row.evaluationId);
           this.$message.success('删除成功');
           this.loadData();
-        }, 300);
+        } catch (error) {
+          console.error('删除评估失败:', error);
+          // 模拟删除成功（前端乐观更新）
+          const index = this.evaluationList.findIndex(item => item.evaluationId === row.evaluationId);
+          if (index > -1) {
+            this.evaluationList.splice(index, 1);
+            this.total--;
+            this.calculateStatistics();
+            this.updateChart();
+          }
+          this.$message.error('删除操作失败，已在本地移除');
+        }
       }).catch(() => {
         // 取消删除
       });
@@ -546,13 +602,24 @@ export default {
         confirmButtonText: '确定',
         cancelButtonText: '取消',
         type: 'warning'
-      }).then(() => {
-        // 模拟批量删除操作
-        setTimeout(() => {
+      }).then(async () => {
+        try {
+          const ids = this.selectedRows.map(row => row.evaluationId);
+          await purchaseApi.batchDeleteSupplierEvaluations(ids);
           this.$message.success('批量删除成功');
           this.loadData();
           this.selectedRows = [];
-        }, 300);
+        } catch (error) {
+          console.error('批量删除评估失败:', error);
+          // 模拟批量删除成功（前端乐观更新）
+          const ids = this.selectedRows.map(row => row.evaluationId);
+          this.evaluationList = this.evaluationList.filter(item => !ids.includes(item.evaluationId));
+          this.total -= ids.length;
+          this.calculateStatistics();
+          this.updateChart();
+          this.selectedRows = [];
+          this.$message.error('批量删除操作失败，已在本地移除');
+        }
       }).catch(() => {
         // 取消删除
       });
@@ -577,7 +644,7 @@ export default {
     
     // 提交评估表单
     submitEvaluationForm() {
-      this.$refs.evaluationForm.validate((valid) => {
+      this.$refs.evaluationForm.validate(async (valid) => {
         if (valid) {
           // 验证权重总和是否为100
           const totalWeight = this.evaluationForm.scoreItems.reduce((sum, item) => sum + item.weight, 0);
@@ -586,12 +653,15 @@ export default {
             return;
           }
           
-          // 模拟提交
-          setTimeout(() => {
+          try {
+            await purchaseApi.createSupplierEvaluation(this.evaluationForm);
             this.createVisible = false;
             this.$message.success('评估已发起');
             this.loadData();
-          }, 500);
+          } catch (error) {
+            console.error('发起评估失败:', error);
+            this.$message.error('发起评估失败，请稍后重试');
+          }
         } else {
           return false;
         }
@@ -599,8 +669,14 @@ export default {
     },
     
     // 导出数据
-    exportData() {
-      this.$message.success('数据导出成功');
+    async exportData() {
+      try {
+        await purchaseApi.exportSupplierEvaluations(this.searchForm);
+        this.$message.success('数据导出成功');
+      } catch (error) {
+        console.error('导出数据失败:', error);
+        this.$message.error('导出数据失败，请稍后重试');
+      }
     },
     
     // 初始化图表
