@@ -1,7 +1,7 @@
 <template>
   <div class="payment-follow-up">
     <el-breadcrumb separator="/">
-      <el-breadcrumb-item :to="{ path: '/' }">首页</el-breadcrumb-item>
+      <el-breadcrumb-item :to="{ path: '/dashboard' }">首页</el-breadcrumb-item>
       <el-breadcrumb-item>财务管理</el-breadcrumb-item>
       <el-breadcrumb-item>尾款跟催</el-breadcrumb-item>
     </el-breadcrumb>

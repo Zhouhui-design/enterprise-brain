@@ -2,7 +2,7 @@
   <div class="common-finance-template">
     <!-- 面包屑导航 -->
     <el-breadcrumb separator="/" class="breadcrumb">
-      <el-breadcrumb-item :to="{ path: '/' }">首页</el-breadcrumb-item>
+      <el-breadcrumb-item :to="{ path: '/dashboard' }">首页</el-breadcrumb-item>
       <el-breadcrumb-item>财务管理</el-breadcrumb-item>
       <el-breadcrumb-item>{{ pageTitle }}</el-breadcrumb-item>
     </el-breadcrumb>
