@@ -1,0 +1,520 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>企业大脑系统 - 登录</title>
+  <style>
+    /* 全局样式重置 */
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+    
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+      min-height: 100vh;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      padding: 20px;
+    }
+    
+    /* 登录容器样式 */
+    .login-container {
+      width: 100%;
+      max-width: 400px;
+      background-color: #fff;
+      border-radius: 12px;
+      box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+      padding: 40px;
+    }
+    
+    .login-title {
+      font-size: 28px;
+      font-weight: bold;
+      color: #303133;
+      margin-bottom: 8px;
+      text-align: center;
+    }
+    
+    .login-subtitle {
+      font-size: 16px;
+      color: #606266;
+      margin-bottom: 30px;
+      text-align: center;
+    }
+    
+    .login-form {
+      display: flex;
+      flex-direction: column;
+    }
+    
+    .form-group {
+      margin-bottom: 20px;
+    }
+    
+    .form-group label {
+      display: block;
+      margin-bottom: 8px;
+      font-weight: 500;
+      color: #606266;
+    }
+    
+    .form-group input {
+      width: 100%;
+      padding: 12px 16px;
+      border: 1px solid #dcdfe6;
+      border-radius: 4px;
+      font-size: 16px;
+      transition: border-color 0.3s;
+    }
+    
+    .form-group input:focus {
+      outline: none;
+      border-color: #409EFF;
+    }
+    
+    .login-button {
+      background-color: #409EFF;
+      color: white;
+      border: none;
+      padding: 12px;
+      border-radius: 4px;
+      font-size: 16px;
+      font-weight: 500;
+      cursor: pointer;
+      transition: background-color 0.3s;
+      margin-top: 10px;
+    }
+    
+    .login-button:hover {
+      background-color: #66b1ff;
+    }
+    
+    .login-button:active {
+      background-color: #3a8ee6;
+    }
+    
+    .login-footer {
+      text-align: center;
+      margin-top: 20px;
+    }
+    
+    .login-info {
+      font-size: 14px;
+      color: #909399;
+    }
+    
+    /* Dashboard 样式 */
+    .dashboard-container {
+      display: none;
+      width: 100%;
+      max-width: 1200px;
+      background-color: #fff;
+      border-radius: 12px;
+      box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+      padding: 40px;
+      min-height: 600px;
+    }
+    
+    .dashboard-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 30px;
+    }
+    
+    .dashboard-header h1 {
+      font-size: 28px;
+      color: #303133;
+    }
+    
+    .logout-button {
+      background-color: #409EFF;
+      color: white;
+      border: none;
+      padding: 8px 16px;
+      border-radius: 4px;
+      font-size: 14px;
+      cursor: pointer;
+      transition: background-color 0.3s;
+    }
+    
+    .logout-button:hover {
+      background-color: #66b1ff;
+    }
+    
+    .welcome-section {
+      background-color: #f5f7fa;
+      padding: 20px;
+      border-radius: 8px;
+      margin-bottom: 30px;
+    }
+    
+    .department-section {
+      margin-bottom: 30px;
+    }
+    
+    .department-section h2 {
+      font-size: 20px;
+      color: #303133;
+      margin-bottom: 20px;
+    }
+    
+    .department-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+      gap: 20px;
+    }
+    
+    .department-item {
+      background-color: #f5f7fa;
+      padding: 30px 20px;
+      border-radius: 8px;
+      text-align: center;
+      cursor: pointer;
+      transition: transform 0.3s, box-shadow 0.3s;
+    }
+    
+    .department-item:hover {
+      transform: translateY(-5px);
+      box-shadow: 0 4px 16px rgba(0, 0, 0, 0.1);
+    }
+    
+    .dept-icon {
+      width: 70px;
+      height: 70px;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: white;
+      font-size: 24px;
+      font-weight: bold;
+      margin: 0 auto 15px;
+    }
+    
+    .dept-name {
+      font-size: 18px;
+      font-weight: bold;
+      color: #303133;
+      margin-bottom: 8px;
+    }
+    
+    .dept-desc {
+      font-size: 14px;
+      color: #909399;
+    }
+    
+    .stats-section {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+      gap: 20px;
+    }
+    
+    .stat-card {
+      background-color: #f5f7fa;
+      padding: 30px 20px;
+      border-radius: 8px;
+      text-align: center;
+    }
+    
+    .stat-number {
+      font-size: 36px;
+      font-weight: bold;
+      color: #409EFF;
+      margin-bottom: 10px;
+    }
+    
+    .stat-label {
+      font-size: 16px;
+      color: #606266;
+    }
+    
+    /* 响应式设计 */
+    @media (max-width: 768px) {
+      .login-container,
+      .dashboard-container {
+        padding: 30px 20px;
+        margin: 10px;
+      }
+      
+      .login-title,
+      .dashboard-header h1 {
+        font-size: 24px;
+      }
+      
+      .login-subtitle {
+        font-size: 14px;
+      }
+      
+      .department-grid,
+      .stats-section {
+        grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+        gap: 15px;
+      }
+      
+      .department-item {
+        padding: 20px 15px;
+      }
+      
+      .dept-icon {
+        width: 60px;
+        height: 60px;
+        font-size: 20px;
+      }
+      
+      .dept-name {
+        font-size: 16px;
+      }
+    }
+    
+    .notification {
+      position: fixed;
+      top: 20px;
+      right: 20px;
+      padding: 15px 20px;
+      border-radius: 4px;
+      color: white;
+      font-size: 14px;
+      z-index: 1000;
+      opacity: 0;
+      transition: opacity 0.3s;
+    }
+    
+    .notification.show {
+      opacity: 1;
+    }
+    
+    .notification.success {
+      background-color: #67c23a;
+    }
+    
+    .notification.error {
+      background-color: #f56c6c;
+    }
+    
+    .notification.warning {
+      background-color: #e6a23c;
+    }
+  </style>
+</head>
+<body>
+  <!-- 登录页面 -->
+  <div id="loginPage" class="login-container">
+    <h2 class="login-title">企业大脑系统</h2>
+    <div class="login-subtitle">登录您的账户</div>
+    
+    <form id="loginForm" class="login-form" onsubmit="handleLogin(event)">
+      <div class="form-group">
+        <label for="username">用户名</label>
+        <input 
+          type="text" 
+          id="username" 
+          placeholder="请输入用户名"
+          required
+        >
+      </div>
+      
+      <div class="form-group">
+        <label for="password">密码</label>
+        <input 
+          type="password" 
+          id="password" 
+          placeholder="请输入密码"
+          required
+        >
+      </div>
+      
+      <button type="submit" id="loginButton" class="login-button">
+        登录
+      </button>
+    </form>
+    
+    <div class="login-footer">
+      <div class="login-info">
+        <span>提示：默认用户名/密码为 admin/password</span>
+      </div>
+    </div>
+  </div>
+  
+  <!-- Dashboard 页面 -->
+  <div id="dashboardPage" class="dashboard-container">
+    <div class="dashboard-header">
+      <h1>欢迎使用系统</h1>
+      <button id="logoutButton" class="logout-button" onclick="handleLogout()">
+        退出登录
+      </button>
+    </div>
+    
+    <div class="welcome-section">
+      <p>尊敬的管理员，您已成功登录系统！</p>
+      <p>请选择下方部门进入对应的工作台。</p>
+    </div>
+    
+    <div class="department-section">
+      <h2>部门工作台</h2>
+      <div class="department-grid">
+        <div class="department-item" onclick="navigateToDepartment('人事部')">
+          <div class="dept-icon" style="background-color: #409EFF;">人</div>
+          <div class="dept-name">人事部</div>
+          <div class="dept-desc">HR工作台</div>
+        </div>
+        
+        <div class="department-item" onclick="navigateToDepartment('智脑')">
+          <div class="dept-icon" style="background-color: #9C27B0;">智</div>
+          <div class="dept-name">智脑</div>
+          <div class="dept-desc">AI智能工作台</div>
+        </div>
+        
+        <div class="department-item" onclick="navigateToDepartment('技术')">
+          <div class="dept-icon" style="background-color: #00BCD4;">技</div>
+          <div class="dept-name">技术部</div>
+          <div class="dept-desc">R&D工作台</div>
+        </div>
+        
+        <div class="department-item" onclick="navigateToDepartment('绩效')">
+          <div class="dept-icon" style="background-color: #FF9800;">绩</div>
+          <div class="dept-name">绩效</div>
+          <div class="dept-desc">KPI管理工作台</div>
+        </div>
+        
+        <div class="department-item" onclick="navigateToDepartment('销售')">
+          <div class="dept-icon" style="background-color: #4CAF50;">销</div>
+          <div class="dept-name">销售部</div>
+          <div class="dept-desc">销售管理工作台</div>
+        </div>
+        
+        <div class="department-item" onclick="navigateToDepartment('品保')">
+          <div class="dept-icon" style="background-color: #F44336;">品</div>
+          <div class="dept-name">品保部</div>
+          <div class="dept-desc">质量管理工作台</div>
+        </div>
+      </div>
+    </div>
+    
+    <div class="stats-section">
+      <div class="stat-card">
+        <div class="stat-number">100+</div>
+        <div class="stat-label">用户数量</div>
+      </div>
+      
+      <div class="stat-card">
+        <div class="stat-number">500+</div>
+        <div class="stat-label">数据记录</div>
+      </div>
+      
+      <div class="stat-card">
+        <div class="stat-number">99.9%</div>
+        <div class="stat-label">系统可用性</div>
+      </div>
+    </div>
+  </div>
+  
+  <!-- 通知提示 -->
+  <div id="notification" class="notification"></div>
+  
+  <script>
+    // 页面元素
+    const loginPage = document.getElementById('loginPage');
+    const dashboardPage = document.getElementById('dashboardPage');
+    const loginForm = document.getElementById('loginForm');
+    const usernameInput = document.getElementById('username');
+    const passwordInput = document.getElementById('password');
+    const loginButton = document.getElementById('loginButton');
+    const logoutButton = document.getElementById('logoutButton');
+    const notification = document.getElementById('notification');
+    
+    // 检查登录状态
+    window.onload = function() {
+      if (localStorage.getItem('token')) {
+        showDashboard();
+      }
+    };
+    
+    // 登录处理
+    function handleLogin(event) {
+      event.preventDefault();
+      
+      const username = usernameInput.value;
+      const password = passwordInput.value;
+      
+      if (!username) {
+        showNotification('请输入用户名', 'warning');
+        return;
+      }
+      
+      if (!password) {
+        showNotification('请输入密码', 'warning');
+        return;
+      }
+      
+      // 禁用登录按钮
+      loginButton.disabled = true;
+      loginButton.textContent = '登录中...';
+      
+      // 模拟登录延迟
+      setTimeout(() => {
+        // 验证用户名密码
+        if (username === 'admin' && password === 'password') {
+          // 存储登录信息
+          localStorage.setItem('token', 'mock-token-' + Date.now());
+          localStorage.setItem('userInfo', JSON.stringify({
+            username: username,
+            roles: ['admin']
+          }));
+          
+          // 显示Dashboard
+          showDashboard();
+          showNotification('登录成功', 'success');
+        } else {
+          showNotification('用户名或密码错误', 'error');
+        }
+        
+        // 恢复登录按钮
+        loginButton.disabled = false;
+        loginButton.textContent = '登录';
+      }, 1000);
+    }
+    
+    // 退出登录
+    function handleLogout() {
+      // 清除登录信息
+      localStorage.removeItem('token');
+      localStorage.removeItem('userInfo');
+      
+      // 显示登录页面
+      loginPage.style.display = 'block';
+      dashboardPage.style.display = 'none';
+      
+      showNotification('已成功退出登录', 'success');
+    }
+    
+    // 显示Dashboard
+    function showDashboard() {
+      loginPage.style.display = 'none';
+      dashboardPage.style.display = 'block';
+    }
+    
+    // 导航到部门
+    function navigateToDepartment(deptName) {
+      showNotification(`即将跳转到${deptName}工作台`, 'success');
+      // 这里可以添加实际的导航逻辑
+    }
+    
+    // 显示通知
+    function showNotification(message, type) {
+      notification.textContent = message;
+      notification.className = `notification ${type} show`;
+      
+      // 3秒后自动隐藏
+      setTimeout(() => {
+        notification.className = 'notification';
+      }, 3000);
+    }
+  </script>
+</body>
+</html>
