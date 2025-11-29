@@ -24,9 +24,54 @@ const routes = [
   },
   {
     path: '/dashboard',
-    name: 'Dashboard',
-    component: () => import('@/pages/after-sales/Dashboard.vue'),
-    meta: { title: '首页' }
+    component: Layout,
+    redirect: '/dashboard/home',
+    meta: { title: '首页' },
+    children: [
+      {
+        path: 'home',
+        name: 'Dashboard',
+        component: () => import('@/pages/after-sales/Dashboard.vue'),
+        meta: { title: '首页' }
+      },
+      // 部门工作台路由
+      {
+        path: 'hr',
+        name: 'HRDashboard',
+        component: () => import('@/pages/dashboard/HRDashboard.vue'),
+        meta: { title: '人事部工作台' }
+      },
+      {
+        path: 'ai',
+        name: 'AIDashboard',
+        component: () => import('@/pages/dashboard/AIDashboard.vue'),
+        meta: { title: '智脑工作台' }
+      },
+      {
+        path: 'rd',
+        name: 'RDDashboard',
+        component: () => import('@/pages/dashboard/RDDashboard.vue'),
+        meta: { title: '技术/研发/设计工作台' }
+      },
+      {
+        path: 'kpi',
+        name: 'KPIDashboard',
+        component: () => import('@/pages/dashboard/KPIDashboard.vue'),
+        meta: { title: '绩效管理工作台' }
+      },
+      {
+        path: 'sales',
+        name: 'SalesDashboard',
+        component: () => import('@/pages/dashboard/SalesDashboard.vue'),
+        meta: { title: '销售部工作台' }
+      },
+      {
+        path: 'quality',
+        name: 'QualityDashboard',
+        component: () => import('@/pages/dashboard/QualityDashboard.vue'),
+        meta: { title: '品保部工作台' }
+      }
+    ]
   },
   // 质量管理路由
   qualityManagementRouter,
@@ -136,7 +181,7 @@ router.beforeEach((to, from, next) => {
   if (to.path === '/auth/login') {
     // 如果已经登录，直接跳转到首页
     if (isLoggedIn) {
-      next({ path: '/dashboard' });
+      next({ path: '/dashboard/home' });
     } else {
       next();
     }

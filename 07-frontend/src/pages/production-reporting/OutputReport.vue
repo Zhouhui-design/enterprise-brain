@@ -3,7 +3,7 @@
     <!-- 页面标题和面包屑 -->
     <div class="page-header">
       <el-breadcrumb separator="/">
-        <el-breadcrumb-item :to="{ path: '/' }">首页</el-breadcrumb-item>
+        <el-breadcrumb-item :to="{ path: '/dashboard' }">首页</el-breadcrumb-item>
         <el-breadcrumb-item :to="{ path: '/production-reporting' }">生产报工</el-breadcrumb-item>
         <el-breadcrumb-item>产量报工</el-breadcrumb-item>
       </el-breadcrumb>

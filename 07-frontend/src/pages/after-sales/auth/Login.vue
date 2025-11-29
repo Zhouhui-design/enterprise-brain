@@ -16,22 +16,28 @@
           <el-input
             v-model="loginForm.username"
             placeholder="请输入用户名"
-            prefix-icon="User"
             type="text"
             clearable
             @keyup.enter="handleLogin"
-          ></el-input>
+          >
+            <template #prefix>
+              <el-icon><User /></el-icon>
+            </template>
+          </el-input>
         </el-form-item>
         
         <el-form-item label="密码" prop="password">
           <el-input
             v-model="loginForm.password"
             placeholder="请输入密码"
-            prefix-icon="Lock"
             type="password"
             show-password
             @keyup.enter="handleLogin"
-          ></el-input>
+          >
+            <template #prefix>
+              <el-icon><Lock /></el-icon>
+            </template>
+          </el-input>
         </el-form-item>
         
         <el-form-item>
@@ -60,9 +66,14 @@
 import { ref, reactive } from 'vue';
 import { ElMessage } from 'element-plus';
 import { useRouter } from 'vue-router';
+import { User, Lock } from '@element-plus/icons-vue';
 
 export default {
   name: 'Login',
+  components: {
+    User,
+    Lock
+  },
   setup() {
     const router = useRouter();
     const loginFormRef = ref(null);
@@ -102,7 +113,7 @@ export default {
           }));
           
           // 获取重定向地址，如果没有则跳转到dashboard
-          const redirect = router.currentRoute.value.query.redirect || '/dashboard';
+          const redirect = router.currentRoute.value.query.redirect || '/dashboard/home';
           router.push(redirect);
           ElMessage.success('登录成功');
         } else {

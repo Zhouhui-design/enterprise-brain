@@ -1,7 +1,7 @@
 <template>
   <div class="financial-report">
     <el-breadcrumb separator="/">
-      <el-breadcrumb-item :to="{ path: '/' }">首页</el-breadcrumb-item>
+      <el-breadcrumb-item :to="{ path: '/dashboard' }">首页</el-breadcrumb-item>
       <el-breadcrumb-item>财务管理</el-breadcrumb-item>
       <el-breadcrumb-item>财务报表</el-breadcrumb-item>
     </el-breadcrumb>
