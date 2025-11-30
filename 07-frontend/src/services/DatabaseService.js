@@ -5,7 +5,7 @@
 class DatabaseService {
   constructor() {
     this.dbName = 'EnterpriseBrainDB';
-    this.version = 1;
+    this.version = 2; // 增加版本号以确保数据库结构更新
     this.db = null;
   }
 
@@ -23,6 +23,10 @@ class DatabaseService {
 
       request.onsuccess = (event) => {
         this.db = event.target.result;
+        
+        // 确保所有必要的对象存储都存在
+        this.ensureObjectStores();
+        
         console.log('数据库初始化成功');
         resolve(this.db);
       };
@@ -69,6 +73,71 @@ class DatabaseService {
   }
 
   /**
+   * 确保所有必要的对象存储都存在
+   */
+  ensureObjectStores() {
+    if (!this.db) return;
+
+    // 检查并创建物料库对象存储
+    if (!this.db.objectStoreNames.contains('materials')) {
+      try {
+        const materialStore = this.db.createObjectStore('materials', { keyPath: 'id' });
+        materialStore.createIndex('materialCode', 'materialCode', { unique: true });
+        materialStore.createIndex('materialName', 'materialName', { unique: false });
+        materialStore.createIndex('createTime', 'createTime', { unique: false });
+        console.log('物料库对象存储创建成功');
+      } catch (error) {
+        console.warn('物料库对象存储创建失败:', error);
+      }
+    }
+
+    // 检查并创建BOM对象存储
+    if (!this.db.objectStoreNames.contains('boms')) {
+      try {
+        const bomStore = this.db.createObjectStore('boms', { keyPath: 'id' });
+        bomStore.createIndex('bomCode', 'bomCode', { unique: true });
+        bomStore.createIndex('productName', 'productName', { unique: false });
+        console.log('BOM对象存储创建成功');
+      } catch (error) {
+        console.warn('BOM对象存储创建失败:', error);
+      }
+    }
+
+    // 检查并创建生产BOM对象存储
+    if (!this.db.objectStoreNames.contains('productionBoms')) {
+      try {
+        const productionBomStore = this.db.createObjectStore('productionBoms', { keyPath: 'id' });
+        productionBomStore.createIndex('bomCode', 'bomCode', { unique: true });
+        console.log('生产BOM对象存储创建成功');
+      } catch (error) {
+        console.warn('生产BOM对象存储创建失败:', error);
+      }
+    }
+
+    // 检查并创建销售BOM对象存储
+    if (!this.db.objectStoreNames.contains('salesBoms')) {
+      try {
+        const salesBomStore = this.db.createObjectStore('salesBoms', { keyPath: 'id' });
+        salesBomStore.createIndex('bomCode', 'bomCode', { unique: true });
+        console.log('销售BOM对象存储创建成功');
+      } catch (error) {
+        console.warn('销售BOM对象存储创建失败:', error);
+      }
+    }
+
+    // 检查并创建设计BOM对象存储
+    if (!this.db.objectStoreNames.contains('designBoms')) {
+      try {
+        const designBomStore = this.db.createObjectStore('designBoms', { keyPath: 'id' });
+        designBomStore.createIndex('bomCode', 'bomCode', { unique: true });
+        console.log('设计BOM对象存储创建成功');
+      } catch (error) {
+        console.warn('设计BOM对象存储创建失败:', error);
+      }
+    }
+  }
+
+  /**
    * 获取对象存储
    * @param {string} storeName - 存储名称
    * @param {string} mode - 模式 ('readonly' | 'readwrite')
@@ -86,12 +155,15 @@ class DatabaseService {
    */
   async saveMaterial(material) {
     return new Promise((resolve, reject) => {
+      // 克隆物料数据以避免Proxy对象问题
+      const materialToSave = JSON.parse(JSON.stringify(material));
+      
       const store = this.getObjectStore('materials', 'readwrite');
-      const request = store.put(material);
+      const request = store.put(materialToSave);
 
       request.onsuccess = () => {
-        console.log('物料保存成功:', material.id);
-        resolve(material);
+        console.log('物料保存成功:', materialToSave.id);
+        resolve(materialToSave);
       };
 
       request.onerror = (event) => {
@@ -108,16 +180,19 @@ class DatabaseService {
    */
   async saveMaterials(materials) {
     return new Promise((resolve, reject) => {
+      // 克隆物料数据以避免Proxy对象问题
+      const materialsToSave = JSON.parse(JSON.stringify(materials));
+      
       const store = this.getObjectStore('materials', 'readwrite');
       let successCount = 0;
       let errorCount = 0;
 
-      materials.forEach((material, index) => {
+      materialsToSave.forEach((material, index) => {
         const request = store.put(material);
         
         request.onsuccess = () => {
           successCount++;
-          if (successCount + errorCount === materials.length) {
+          if (successCount + errorCount === materialsToSave.length) {
             if (errorCount === 0) {
               console.log(`批量保存物料成功，共${successCount}条`);
               resolve({ successCount, errorCount });
@@ -131,8 +206,8 @@ class DatabaseService {
         request.onerror = (event) => {
           errorCount++;
           console.error(`物料保存失败 (${material.id}):`, event.target.error);
-          if (successCount + errorCount === materials.length) {
-            if (errorCount === materials.length) {
+          if (successCount + errorCount === materialsToSave.length) {
+            if (errorCount === materialsToSave.length) {
               reject(new Error('所有物料保存失败'));
             } else {
               resolve({ successCount, errorCount });
@@ -261,12 +336,15 @@ class DatabaseService {
    */
   async saveBom(bom, bomType = 'boms') {
     return new Promise((resolve, reject) => {
+      // 克隆BOM数据以避免Proxy对象问题
+      const bomToSave = JSON.parse(JSON.stringify(bom));
+      
       const store = this.getObjectStore(bomType, 'readwrite');
-      const request = store.put(bom);
+      const request = store.put(bomToSave);
 
       request.onsuccess = () => {
-        console.log('BOM保存成功:', bom.id);
-        resolve(bom);
+        console.log('BOM保存成功:', bomToSave.id);
+        resolve(bomToSave);
       };
 
       request.onerror = (event) => {

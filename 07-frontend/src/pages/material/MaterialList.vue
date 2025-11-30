@@ -609,9 +609,11 @@ const handleImportConfirm = async () => {
     // 规则3: 导入表格没有的，系统表格有 = 保留系统表格的数据（已自动满足）
     
     // 保存到数据库
-    await databaseService.saveMaterials(tableData.value)
+    // 克隆数据以避免Proxy对象问题
+    const materialsToSave = JSON.parse(JSON.stringify(tableData.value))
+    await databaseService.saveMaterials(materialsToSave)
     // 更新下一个物料ID
-    const maxId = tableData.value.length > 0 ? Math.max(...tableData.value.map(m => m.id)) : 0
+    const maxId = materialsToSave.length > 0 ? Math.max(...materialsToSave.map(m => m.id)) : 0
     nextMaterialId.value = maxId + 1
     
     ElMessage.success(`导入成功！新增 ${addedCount} 条，更新 ${updatedCount} 条`)
