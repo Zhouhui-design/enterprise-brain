@@ -3,7 +3,6 @@
     <!-- 页面头部 -->
     <div class="page-header">
       <div class="header-left">
-<<<<<<< HEAD
         <el-button @click="handleBack" type="text">
           <el-icon><ArrowLeft /></el-icon>
           返回
@@ -269,7 +268,6 @@
             type="textarea"
             :rows="4"
             placeholder="请输入进度备注信息"
-=======
         <h2>生产进度</h2>
         <el-breadcrumb separator="/">
           <el-breadcrumb-item :to="{ path: '/dashboard' }">首页</el-breadcrumb-item>
@@ -499,9 +497,7 @@
       </el-form>
       <template #footer>
         <el-button @click="progressDialogVisible = false">取消</el-button>
-<<<<<<< HEAD
         <el-button type="primary" @click="handleSubmitProgress">提交</el-button>
-=======
         <el-button type="primary" @click="submitProgressUpdate" :loading="updating">
           提交
         </el-button>
@@ -511,7 +507,6 @@
   </div>
 </template>
 
-<<<<<<< HEAD
 <script setup lang="ts">
 import { ref, reactive, computed, onMounted } from 'vue'
 import { ArrowLeft, EditPen, Refresh, Download, Document, Timer, Check, TrendCharts } from '@element-plus/icons-vue'
@@ -945,7 +940,6 @@ const handleUpdateProgress = (order: OrderProgress) => {
       { id: 'proc3', name: '功能测试' },
       { id: 'proc4', name: '包装入库' }
     ]
-=======
 <script setup>
 import { ref, reactive, onMounted, computed } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
@@ -1020,7 +1014,6 @@ const handleUpdateProcessProgress = (process) => {
   progressDialogVisible.value = true
 }
 
-<<<<<<< HEAD
 // 处理报表进度
 const handleReportProgress = () => {
   // 这里可以跳转到通用的进度上报页面
@@ -1204,7 +1197,6 @@ onMounted(() => {
   margin-top: 8px;
   font-size: 12px;
   color: #909399;
-=======
 const handleAddLog = () => {
   ElMessage.info('添加日志功能开发中...')
 }

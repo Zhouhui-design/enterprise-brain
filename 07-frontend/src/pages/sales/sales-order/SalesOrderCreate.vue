@@ -1,686 +1,665 @@
 <template>
   <div class="sales-order-create">
-    <!-- 页面头部 -->
-    <div class="page-header">
-      <div class="header-content">
-        <div class="header-icon">
-          <svg viewBox="0 0 24 24" fill="none">
-            <path d="M12 2L2 7v10c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V7l-9-5z" fill="#4CAF50"/>
-          </svg>
-        </div>
-        <div class="header-info">
-          <h1>新建销售订单</h1>
-          <p>创建新的销售订单，填写客户信息和产品明细</p>
-        </div>
-      </div>
-      <div class="header-actions">
-        <el-button @click="saveDraft" :loading="saving">
-          <svg viewBox="0 0 24 24" width="16" height="16">
-            <path d="M17 3H5a2 2 0 00-2 2v14a2 2 0 002 2h14c1.1 0 2-.9 2-2V7l-4-4z" stroke="currentColor" stroke-width="2" fill="none"/>
-            <path d="M9 13l2 2 4-4" stroke="currentColor" stroke-width="2"/>
-          </svg>
-          保存草稿
-        </el-button>
-        <el-button type="primary" @click="submitOrder" :loading="submitting">
-          <svg viewBox="0 0 24 24" width="16" height="16">
-            <path d="M9 11l3 3L22 4" stroke="currentColor" stroke-width="2" fill="none"/>
-            <path d="M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11" stroke="currentColor" stroke-width="2"/>
-          </svg>
-          提交订单
-        </el-button>
-      </div>
-    </div>
-
-    <!-- 订单信息表单 -->
-    <el-form
-      ref="orderFormRef"
-      :model="orderForm"
-      :rules="orderRules"
-      label-width="120px"
-      class="order-form"
-    >
-      <!-- 基本信息 -->
-      <div class="form-section">
-        <h2 class="section-title">
-          <svg viewBox="0 0 24 24" width="20" height="20">
-            <circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="2" fill="none"/>
-            <path d="M12 6v6l4 2" stroke="currentColor" stroke-width="2"/>
-          </svg>
-          基本信息
-        </h2>
-        <div class="form-grid">
-          <el-form-item label="订单编号" prop="orderNumber">
-            <el-input v-model="orderForm.orderNumber" disabled placeholder="系统自动生成">
-              <template #prefix>
-                <svg viewBox="0 0 24 24" width="16" height="16">
-                  <path d="M9 2L3 7v9a2 2 0 002 2h4v5l3-3 3 3v-5h4a2 2 0 002-2V7l-6-5H9z" stroke="currentColor" stroke-width="2" fill="none"/>
-                </svg>
-              </template>
-            </el-input>
-          </el-form-item>
-          
-          <el-form-item label="订单类型" prop="orderType">
-            <el-select v-model="orderForm.orderType" placeholder="请选择订单类型">
-              <el-option label="标准订单" value="standard" />
-              <el-option label="加急订单" value="urgent" />
-              <el-option label="样品订单" value="sample" />
-              <el-option label="定制订单" value="custom" />
-            </el-select>
-          </el-form-item>
-          
-          <el-form-item label="优先级" prop="priority">
-            <el-radio-group v-model="orderForm.priority">
-              <el-radio-button label="low">低</el-radio-button>
-              <el-radio-button label="medium">中</el-radio-button>
-              <el-radio-button label="high">高</el-radio-button>
-              <el-radio-button label="urgent">紧急</el-radio-button>
-            </el-radio-group>
-          </el-form-item>
-          
-          <el-form-item label="销售人员" prop="salesPerson">
-            <el-select v-model="orderForm.salesPerson" placeholder="请选择销售人员">
-              <el-option 
-                v-for="person in salesPersons" 
-                :key="person.id"
-                :label="person.name" 
-                :value="person.id"
-              >
-                <div class="sales-person-option">
-                  <span class="person-name">{{ person.name }}</span>
-                  <span class="person-info">{{ person.department }} • {{ person.level }}</span>
-                </div>
-              </el-option>
-            </el-select>
-          </el-form-item>
-        </div>
-      </div>
-
-      <!-- 客户选择 -->
-      <div class="form-section">
-        <h2 class="section-title">
-          <svg viewBox="0 0 24 24" width="20" height="20">
-            <path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2M12 11a4 4 0 100-8 4 4 0 000 8z" stroke="currentColor" stroke-width="2" fill="none"/>
-          </svg>
-          客户信息
-        </h2>
-        <CustomerSelector 
-          v-model:selectedCustomer="orderForm.customer"
-          @customer-selected="handleCustomerSelected"
-        />
-      </div>
-
-      <!-- 产品选择 -->
-      <div class="form-section">
-        <h2 class="section-title">
-          <svg viewBox="0 0 24 24" width="20" height="20">
-            <path d="M21 16V8a2 2 0 00-1-1.73l-7-4a2 2 0 00-2 0l-7 4A2 2 0 003 8v8a2 2 0 001 1.73l7 4a2 2 0 002 0l7-4A2 2 0 0021 16z" stroke="currentColor" stroke-width="2" fill="none"/>
-          </svg>
-          产品明细
-        </h2>
-        <ProductSelector 
-          v-model:selectedProducts="orderForm.products"
-          @products-updated="handleProductsUpdated"
-        />
-        
-        <!-- 产品项编辑器 -->
-        <div v-if="orderForm.products.length > 0" class="items-editor-section">
-          <h3>产品项详细设置</h3>
-          <OrderItemsEditor 
-            v-model:items="orderForm.productItems"
-            :products="orderForm.products"
-            @items-updated="handleItemsUpdated"
-          />
-        </div>
-      </div>
-
-      <!-- 价格计算 -->
-      <div class="form-section">
-        <h2 class="section-title">
-          <svg viewBox="0 0 24 24" width="20" height="20">
-            <path d="M12 2L2 7v10c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V7l-9-5z" stroke="currentColor" stroke-width="2" fill="none"/>
-          </svg>
-          价格计算
-        </h2>
-        <PriceCalculator 
-          v-model:products="orderForm.productItems"
-          v-model:totals="orderForm.priceTotals"
-          @price-calculated="handlePriceCalculated"
-        />
-      </div>
-
-      <!-- 交付安排 -->
-      <div class="form-section">
-        <h2 class="section-title">
-          <svg viewBox="0 0 24 24" width="20" height="20">
-            <path d="M21 16V8a2 2 0 00-1-1.73l-7-4a2 2 0 00-2 0l-7 4A2 2 0 003 8v8a2 2 0 001 1.73l7 4a2 2 0 002 0l7-4A2 2 0 0021 16z" stroke="currentColor" stroke-width="2" fill="none"/>
-          </svg>
-          交付安排
-        </h2>
-        <DeliverySchedule 
-          v-model:schedule="orderForm.deliverySchedule"
-          @schedule-updated="handleScheduleUpdated"
-        />
-      </div>
-
-      <!-- 付款条款 -->
-      <div class="form-section">
-        <h2 class="section-title">
-          <svg viewBox="0 0 24 24" width="20" height="20">
-            <path d="M3 6h18M8 12h8m-5 6h2" stroke="currentColor" stroke-width="2"/>
-          </svg>
-          付款条款
-        </h2>
-        <PaymentTerms 
-          v-model:terms="orderForm.paymentTerms"
-          @terms-updated="handleTermsUpdated"
-        />
-      </div>
-
-      <!-- 备注信息 -->
-      <div class="form-section">
-        <h2 class="section-title">
-          <svg viewBox="0 0 24 24" width="20" height="20">
-            <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8l-6-6z" stroke="currentColor" stroke-width="2" fill="none"/>
-            <path d="M14 2v6h6" stroke="currentColor" stroke-width="2"/>
-          </svg>
-          备注信息
-        </h2>
-        <div class="form-grid">
-          <el-form-item label="内部备注" prop="internalNotes">
-            <el-input
-              v-model="orderForm.internalNotes"
-              type="textarea"
-              :rows="3"
-              placeholder="请输入内部备注信息..."
-            />
-          </el-form-item>
-          
-          <el-form-item label="客户备注" prop="customerNotes">
-            <el-input
-              v-model="orderForm.customerNotes"
-              type="textarea"
-              :rows="3"
-              placeholder="请输入客户备注信息..."
-            />
-          </el-form-item>
-          
-          <el-form-item label="特殊要求" prop="specialRequirements">
-            <el-input
-              v-model="orderForm.specialRequirements"
-              type="textarea"
-              :rows="3"
-              placeholder="请输入特殊要求..."
-            />
-          </el-form-item>
-          
-          <el-form-item label="附件" prop="attachments">
-            <el-upload
-              v-model:file-list="orderForm.attachments"
-              action="/api/upload"
-              multiple
-              :limit="5"
-              :on-success="handleUploadSuccess"
-              :on-error="handleUploadError"
-            >
-              <el-button type="primary" text>
-                <svg viewBox="0 0 24 24" width="16" height="16">
-                  <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M7 10l5 5 5-5M12 15V3" stroke="currentColor" stroke-width="2"/>
-                </svg>
-                上传附件
-              </el-button>
-              <template #tip>
-                <div class="el-upload__tip">
-                  支持JPG/PNG/PDF/DOCX格式，单个文件不超过10MB
+    <!-- 顶部标签页导航 -->
+    <el-tabs v-model="activeTab" type="card" class="order-tabs">
+      <el-tab-pane label="订单详情" name="orderDetail">
+        <el-scrollbar height="600px">
+          <div class="form-section-grid">
+            <!-- 基本信息 -->
+            <el-card shadow="hover" class="section-card">
+              <template #header>
+                <div class="card-header">
+                  <el-icon><Document /></el-icon>
+                  <span>基本信息</span>
                 </div>
               </template>
-            </el-upload>
-          </el-form-item>
-        </div>
-      </div>
-    </el-form>
+              <el-form :model="formData" label-width="140px" class="compact-form">
+                <el-form-item label="内部订单编号">
+                  <el-input v-model="formData.internalOrderNo" placeholder="自动生成" disabled />
+                </el-form-item>
+                <el-form-item label="客户订单编号">
+                  <el-input v-model="formData.customerOrderNo" placeholder="请输入客户订单编号" />
+                </el-form-item>
+                <el-form-item label="客户名称">
+                  <el-select 
+                    v-model="formData.customerName" 
+                    placeholder="请选择客户" 
+                    filterable
+                    style="width: 100%;"
+                    @change="handleCustomerChange"
+                  >
+                    <el-option
+                      v-for="customer in customerList"
+                      :key="customer.id"
+                      :label="customer.customerName"
+                      :value="customer.customerName"
+                    >
+                      <span style="float: left">{{ customer.customerName }}</span>
+                      <span style="float: right; color: var(--el-text-color-secondary); font-size: 13px">
+                        {{ customer.customerCode }}
+                      </span>
+                    </el-option>
+                  </el-select>
+                </el-form-item>
+                <el-form-item label="销售员">
+                  <el-select v-model="formData.salesperson" placeholder="请选择销售员">
+                    <el-option label="张三" value="张三" />
+                    <el-option label="李四" value="李四" />
+                  </el-select>
+                </el-form-item>
+                <el-form-item label="报价单号">
+                  <el-input v-model="formData.quotationNo" placeholder="请输入报价单号" />
+                </el-form-item>
+                <el-form-item label="订单类型">
+                  <el-select v-model="formData.orderType" placeholder="请选择订单类型">
+                    <el-option label="标准订单" value="标准订单" />
+                    <el-option label="定制订单" value="定制订单" />
+                    <el-option label="样品订单" value="样品订单" />
+                  </el-select>
+                </el-form-item>
+              </el-form>
+            </el-card>
 
-    <!-- 订单预览 -->
-    <div class="preview-section">
-      <h2 class="section-title">
-        <svg viewBox="0 0 24 24" width="20" height="20">
-          <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" stroke="currentColor" stroke-width="2" fill="none"/>
-          <circle cx="12" cy="12" r="3" stroke="currentColor" stroke-width="2" fill="none"/>
-        </svg>
-        订单预览
-      </h2>
-      <div class="preview-content">
-        <div class="preview-summary">
-          <div class="summary-item">
-            <span class="label">客户名称：</span>
-            <span class="value">{{ orderForm.customer?.name || '未选择' }}</span>
+            <!-- 时间信息 -->
+            <el-card shadow="hover" class="section-card">
+              <template #header>
+                <div class="card-header">
+                  <el-icon><Calendar /></el-icon>
+                  <span>时间信息</span>
+                </div>
+              </template>
+              <el-form :model="formData" label-width="140px" class="compact-form">
+                <el-form-item label="下单时间">
+                  <el-date-picker v-model="formData.orderTime" type="datetime" placeholder="选择下单时间" style="width: 100%;" />
+                </el-form-item>
+                <el-form-item label="承诺交期">
+                  <el-date-picker v-model="formData.promisedDelivery" type="date" placeholder="选择承诺交期" style="width: 100%;" />
+                </el-form-item>
+                <el-form-item label="客户交期">
+                  <el-date-picker v-model="formData.customerDelivery" type="date" placeholder="选择客户交期" style="width: 100%;" />
+                </el-form-item>
+                <el-form-item label="预计完成日期">
+                  <el-date-picker v-model="formData.estimatedCompletionDate" type="date" placeholder="选择预计完成日期" style="width: 100%;" />
+                </el-form-item>
+              </el-form>
+            </el-card>
+
+            <!-- 销售部门信息 -->
+            <el-card shadow="hover" class="section-card">
+              <template #header>
+                <div class="card-header">
+                  <el-icon><OfficeBuilding /></el-icon>
+                  <span>部门信息</span>
+                </div>
+              </template>
+              <el-form :model="formData" label-width="140px" class="compact-form">
+                <el-form-item label="销售部门">
+                  <el-select v-model="formData.salesDepartment" placeholder="请选择销售部门">
+                    <el-option label="华东区" value="华东区" />
+                    <el-option label="华南区" value="华南区" />
+                    <el-option label="华北区" value="华北区" />
+                  </el-select>
+                </el-form-item>
+                <el-form-item label="送货方式">
+                  <el-select v-model="formData.deliveryMethod" placeholder="请选择送货方式">
+                    <el-option label="快递" value="快递" />
+                    <el-option label="物流" value="物流" />
+                    <el-option label="自提" value="自提" />
+                  </el-select>
+                </el-form-item>
+                <el-form-item label="销售退货单号">
+                  <el-input v-model="formData.returnOrderNo" placeholder="如有退货单号请输入" />
+                </el-form-item>
+              </el-form>
+            </el-card>
+
+            <!-- 金额信息 -->
+            <el-card shadow="hover" class="section-card">
+              <template #header>
+                <div class="card-header">
+                  <el-icon><Money /></el-icon>
+                  <span>金额信息</span>
+                </div>
+              </template>
+              <el-form :model="formData" label-width="140px" class="compact-form">
+                <el-form-item label="订单币种">
+                  <el-select v-model="formData.orderCurrency" placeholder="请选择币种">
+                    <el-option label="CNY" value="CNY" />
+                    <el-option label="USD" value="USD" />
+                    <el-option label="EUR" value="EUR" />
+                  </el-select>
+                </el-form-item>
+                <el-form-item label="当前汇率">
+                  <el-input-number v-model="formData.currentExchangeRate" :precision="4" :step="0.0001" :min="0" style="width: 100%;" />
+                </el-form-item>
+                <el-form-item label="税率">
+                  <el-select v-model="formData.taxRate" placeholder="请选择税率">
+                    <el-option label="13%" value="13%" />
+                    <el-option label="9%" value="9%" />
+                    <el-option label="6%" value="6%" />
+                  </el-select>
+                </el-form-item>
+                <el-form-item label="手续费/其他费用">
+                  <el-input-number v-model="formData.fees" :precision="2" :min="0" style="width: 100%;" />
+                </el-form-item>
+              </el-form>
+            </el-card>
+
+            <!-- 附件说明 -->
+            <el-card shadow="hover" class="section-card full-width">
+              <template #header>
+                <div class="card-header">
+                  <el-icon><Paperclip /></el-icon>
+                  <span>附件与说明</span>
+                </div>
+              </template>
+              <el-form :model="formData" label-width="140px">
+                <el-row :gutter="20">
+                  <el-col :span="12">
+                    <el-form-item label="订单附件">
+                      <el-upload
+                        class="upload-demo"
+                        action="#"
+                        :auto-upload="false"
+                      >
+                        <el-button size="small" type="primary">点击上传</el-button>
+                      </el-upload>
+                    </el-form-item>
+                  </el-col>
+                  <el-col :span="12">
+                    <el-form-item label="包装附件">
+                      <el-upload
+                        class="upload-demo"
+                        action="#"
+                        :auto-upload="false"
+                      >
+                        <el-button size="small" type="primary">点击上传</el-button>
+                      </el-upload>
+                    </el-form-item>
+                  </el-col>
+                </el-row>
+                <el-form-item label="订单说明">
+                  <el-input v-model="formData.orderNotes" type="textarea" :rows="3" placeholder="请输入订单说明" />
+                </el-form-item>
+              </el-form>
+            </el-card>
+
+            <!-- 包装信息 -->
+            <el-card shadow="hover" class="section-card full-width">
+              <template #header>
+                <div class="card-header">
+                  <el-icon><Box /></el-icon>
+                  <span>包装信息</span>
+                </div>
+              </template>
+              <el-form :model="formData" label-width="140px">
+                <el-row :gutter="20">
+                  <el-col :span="12">
+                    <el-form-item label="包装方式">
+                      <el-select v-model="formData.packagingMethod" placeholder="请选择包装方式" style="width: 100%;">
+                        <el-option label="纸箱" value="纸箱" />
+                        <el-option label="木箱" value="木箱" />
+                        <el-option label="托盘" value="托盘" />
+                      </el-select>
+                    </el-form-item>
+                  </el-col>
+                  <el-col :span="12">
+                    <el-form-item label="包装需求描述">
+                      <el-input v-model="formData.packagingRequirements" placeholder="请输入包装需求" />
+                    </el-form-item>
+                  </el-col>
+                </el-row>
+              </el-form>
+            </el-card>
+
+            <!-- 收货信息 -->
+            <el-card shadow="hover" class="section-card full-width">
+              <template #header>
+                <div class="card-header">
+                  <el-icon><Location /></el-icon>
+                  <span>收货信息</span>
+                </div>
+              </template>
+              <el-form :model="formData" label-width="140px">
+                <el-row :gutter="20">
+                  <el-col :span="12">
+                    <el-form-item label="收货人">
+                      <el-input v-model="formData.consignee" placeholder="请输入收货人" />
+                    </el-form-item>
+                    <el-form-item label="收货地址">
+                      <el-input v-model="formData.deliveryAddress" type="textarea" :rows="2" placeholder="请输入收货地址" />
+                    </el-form-item>
+                  </el-col>
+                  <el-col :span="12">
+                    <el-form-item label="账单收件人">
+                      <el-input v-model="formData.billRecipient" placeholder="请输入账单收件人" />
+                    </el-form-item>
+                    <el-form-item label="账单收件地址">
+                      <el-input v-model="formData.billAddress" type="textarea" :rows="2" placeholder="请输入账单收件地址" />
+                    </el-form-item>
+                  </el-col>
+                </el-row>
+              </el-form>
+            </el-card>
+
+            <!-- 产品信息 -->
+            <el-card shadow="hover" class="section-card full-width">
+              <template #header>
+                <div class="card-header">
+                  <el-icon><Goods /></el-icon>
+                  <span>产品信息</span>
+                  <el-button type="primary" size="small" style="margin-left: auto;" @click="addProduct">添加产品</el-button>
+                </div>
+              </template>
+              <el-table :data="formData.products" border stripe>
+                <el-table-column label="产品编号" width="140">
+                  <template #default="{ row }">
+                    <el-input v-model="row.productCode" size="small" />
+                  </template>
+                </el-table-column>
+                <el-table-column label="产品名称" width="150">
+                  <template #default="{ row }">
+                    <el-input v-model="row.productName" size="small" />
+                  </template>
+                </el-table-column>
+                <el-table-column label="产品规格" width="150">
+                  <template #default="{ row }">
+                    <el-input v-model="row.productSpec" size="small" />
+                  </template>
+                </el-table-column>
+                <el-table-column label="产品颜色" width="100">
+                  <template #default="{ row }">
+                    <el-input v-model="row.productColor" size="small" />
+                  </template>
+                </el-table-column>
+                <el-table-column label="产品单位" width="100">
+                  <template #default="{ row }">
+                    <el-input v-model="row.productUnit" size="small" />
+                  </template>
+                </el-table-column>
+                <el-table-column label="订单数量" width="120">
+                  <template #default="{ row }">
+                    <el-input-number v-model="row.orderQuantity" :min="1" size="small" style="width: 100%;" />
+                  </template>
+                </el-table-column>
+                <el-table-column label="单价（未税）" width="120">
+                  <template #default="{ row }">
+                    <el-input-number v-model="row.unitPriceExcludingTax" :precision="2" :min="0" size="small" style="width: 100%;" />
+                  </template>
+                </el-table-column>
+                <el-table-column label="金额（未税）" width="120">
+                  <template #default="{ row }">
+                    {{ (row.orderQuantity * row.unitPriceExcludingTax).toFixed(2) }}
+                  </template>
+                </el-table-column>
+                <el-table-column label="操作" width="80" fixed="right">
+                  <template #default="{ $index }">
+                    <el-button type="danger" size="small" link @click="removeProduct($index)">删除</el-button>
+                  </template>
+                </el-table-column>
+              </el-table>
+            </el-card>
           </div>
-          <div class="summary-item">
-            <span class="label">产品数量：</span>
-            <span class="value">{{ orderForm.productItems.length }} 种</span>
+        </el-scrollbar>
+      </el-tab-pane>
+
+      <el-tab-pane label="生产进度" name="production">
+        <el-scrollbar height="600px">
+          <el-empty description="暂无生产进度信息" />
+        </el-scrollbar>
+      </el-tab-pane>
+
+      <el-tab-pane label="采购进度" name="purchase">
+        <el-scrollbar height="600px">
+          <el-empty description="暂无采购进度信息" />
+        </el-scrollbar>
+      </el-tab-pane>
+
+      <el-tab-pane label="回款进度" name="payment">
+        <el-scrollbar height="600px">
+          <div class="form-section-grid">
+            <el-card shadow="hover" class="section-card full-width">
+              <template #header>
+                <div class="card-header">
+                  <el-icon><Money /></el-icon>
+                  <span>回款信息</span>
+                </div>
+              </template>
+              <el-form :model="formData" label-width="140px">
+                <el-row :gutter="20">
+                  <el-col :span="12">
+                    <el-form-item label="收款方式">
+                      <el-select v-model="formData.paymentMethod" placeholder="请选择收款方式" style="width: 100%;">
+                        <el-option label="银行转账" value="银行转账" />
+                        <el-option label="现金" value="现金" />
+                        <el-option label="支票" value="支票" />
+                      </el-select>
+                    </el-form-item>
+                    <el-form-item label="预收占比">
+                      <el-input v-model="formData.advancePaymentRatio" placeholder="如：30%" />
+                    </el-form-item>
+                    <el-form-item label="应回款总额">
+                      <el-input-number v-model="formData.totalReceivable" :precision="2" :min="0" style="width: 100%;" />
+                    </el-form-item>
+                  </el-col>
+                  <el-col :span="12">
+                    <el-form-item label="回款计划">
+                      <el-input v-model="formData.paymentPlan" placeholder="如：3期" />
+                    </el-form-item>
+                    <el-form-item label="计划回款日期">
+                      <el-date-picker v-model="formData.plannedPaymentDate" type="date" style="width: 100%;" />
+                    </el-form-item>
+                    <el-form-item label="计划回款金额">
+                      <el-input-number v-model="formData.plannedPaymentAmount" :precision="2" :min="0" style="width: 100%;" />
+                    </el-form-item>
+                  </el-col>
+                </el-row>
+              </el-form>
+            </el-card>
           </div>
-          <div class="summary-item">
-            <span class="label">订单总额：</span>
-            <span class="value total-amount">¥{{ formatAmount(orderForm.priceTotals?.final || 0) }}</span>
+        </el-scrollbar>
+      </el-tab-pane>
+
+      <el-tab-pane label="开票进度" name="invoice">
+        <el-scrollbar height="600px">
+          <el-empty description="暂无开票进度信息" />
+        </el-scrollbar>
+      </el-tab-pane>
+
+      <el-tab-pane label="发货进度" name="shipment">
+        <el-scrollbar height="600px">
+          <el-empty description="暂无发货进度信息" />
+        </el-scrollbar>
+      </el-tab-pane>
+
+      <el-tab-pane label="质量问题" name="quality">
+        <el-scrollbar height="600px">
+          <el-empty description="暂无质量问题" />
+        </el-scrollbar>
+      </el-tab-pane>
+
+      <el-tab-pane label="售后相关" name="afterSales">
+        <el-scrollbar height="600px">
+          <div class="form-section-grid">
+            <el-card shadow="hover" class="section-card full-width">
+              <template #header>
+                <div class="card-header">
+                  <el-icon><Service /></el-icon>
+                  <span>售后信息</span>
+                </div>
+              </template>
+              <el-form :model="formData" label-width="140px">
+                <el-form-item label="是否有售后">
+                  <el-radio-group v-model="formData.hasAfterSales">
+                    <el-radio :label="true">是</el-radio>
+                    <el-radio :label="false">否</el-radio>
+                  </el-radio-group>
+                </el-form-item>
+                <el-form-item label="售后订单号" v-if="formData.hasAfterSales">
+                  <el-input v-model="formData.afterSalesOrderNo" placeholder="请输入售后订单号" />
+                </el-form-item>
+                <el-form-item label="售后详情" v-if="formData.hasAfterSales">
+                  <el-input v-model="formData.afterSalesDetails" type="textarea" :rows="4" placeholder="请输入售后详情" />
+                </el-form-item>
+              </el-form>
+            </el-card>
           </div>
-          <div class="summary-item">
-            <span class="label">预计交付：</span>
-            <span class="value">{{ formatDate(orderForm.deliverySchedule?.deliveryDate) || '未设置' }}</span>
-          </div>
-        </div>
-      </div>
+        </el-scrollbar>
+      </el-tab-pane>
+
+      <el-tab-pane label="成本费用" name="cost">
+        <el-scrollbar height="600px">
+          <el-empty description="暂无成本费用信息" />
+        </el-scrollbar>
+      </el-tab-pane>
+
+      <el-tab-pane label="客户信息" name="customer">
+        <el-scrollbar height="600px">
+          <el-empty description="暂无客户详细信息" />
+        </el-scrollbar>
+      </el-tab-pane>
+
+      <el-tab-pane label="合同信息" name="contract">
+        <el-scrollbar height="600px">
+          <el-empty description="暂无合同信息" />
+        </el-scrollbar>
+      </el-tab-pane>
+
+      <el-tab-pane label="其他公函" name="official">
+        <el-scrollbar height="600px">
+          <el-empty description="暂无其他公函" />
+        </el-scrollbar>
+      </el-tab-pane>
+    </el-tabs>
+
+    <!-- 底部按钮 -->
+    <div class="footer-buttons">
+      <el-button @click="handleCancel">取消</el-button>
+      <el-button @click="handleSaveDraft">保存草稿</el-button>
+      <el-button type="primary" @click="handleSubmit">提交订单</el-button>
     </div>
   </div>
 </template>
 
-<script setup lang="ts">
+<script setup>
 import { ref, reactive, onMounted } from 'vue'
-import { useRouter } from 'vue-router'
-import { ElMessage, ElMessageBox } from 'element-plus'
-import type { FormInstance, FormRules } from 'element-plus'
+import { ElMessage } from 'element-plus'
+import { 
+  Document, Calendar, OfficeBuilding, Money, Paperclip, 
+  Box, Location, Goods, Service 
+} from '@element-plus/icons-vue'
 
-// 导入子组件
-import CustomerSelector from './components/CustomerSelector.vue'
-import ProductSelector from './components/ProductSelector.vue'
-import OrderItemsEditor from './components/OrderItemsEditor.vue'
-import PriceCalculator from './components/PriceCalculator.vue'
-import DeliverySchedule from './components/DeliverySchedule.vue'
-import PaymentTerms from './components/PaymentTerms.vue'
+const emit = defineEmits(['success', 'cancel'])
 
-// 接口定义
-interface SalesPerson {
-  id: string
-  name: string
-  department: string
-  level: string
-  email: string
-  phone: string
-}
+const activeTab = ref('orderDetail')
 
-interface Customer {
-  id: string
-  name: string
-  type: string
-  level: string
-  contact: string
-  phone: string
-  email: string
-  address: string
-}
+// 客户列表数据
+const customerList = ref([])
+const selectedCustomer = ref(null)
 
-interface Product {
-  id: string
-  name: string
-  spec: string
-  category: string
-  price: number
-  stock: number
-}
-
-interface OrderForm {
-  orderNumber: string
-  orderType: string
-  priority: string
-  salesPerson: string
-  customer: Customer | null
-  products: Product[]
-  productItems: any[]
-  priceTotals: any
-  deliverySchedule: any
-  paymentTerms: any
-  internalNotes: string
-  customerNotes: string
-  specialRequirements: string
-  attachments: any[]
-}
-
-// 路由
-const router = useRouter()
-
-// 响应式数据
-const orderFormRef = ref<FormInstance>()
-const submitting = ref(false)
-const saving = ref(false)
-
-const salesPersons = ref<SalesPerson[]>([
-  {
-    id: '1',
-    name: '张三',
-    department: '销售一部',
-    level: '高级销售',
-    email: 'zhangsan@company.com',
-    phone: '13800138001'
-  },
-  {
-    id: '2',
-    name: '李四',
-    department: '销售二部',
-    level: '中级销售',
-    email: 'lisi@company.com',
-    phone: '13800138002'
-  }
-])
-
-const orderForm = reactive<OrderForm>({
-  orderNumber: '',
-  orderType: 'standard',
-  priority: 'medium',
-  salesPerson: '',
-  customer: null,
-  products: [],
-  productItems: [],
-  priceTotals: null,
-  deliverySchedule: null,
-  paymentTerms: null,
-  internalNotes: '',
-  customerNotes: '',
-  specialRequirements: '',
-  attachments: []
+// 表单数据
+const formData = reactive({
+  // 基本信息
+  internalOrderNo: '',
+  customerOrderNo: '',
+  customerName: '',
+  salesperson: '',
+  quotationNo: '',
+  orderType: '',
+  
+  // 时间信息
+  orderTime: new Date(),
+  promisedDelivery: '',
+  customerDelivery: '',
+  estimatedCompletionDate: '',
+  
+  // 部门信息
+  salesDepartment: '',
+  deliveryMethod: '',
+  returnOrderNo: '',
+  
+  // 金额信息
+  orderCurrency: 'CNY',
+  currentExchangeRate: 1.0000,
+  taxRate: '13%',
+  fees: 0,
+  
+  // 附件说明
+  orderAttachment: '',
+  packagingAttachment: '',
+  orderNotes: '',
+  
+  // 包装信息
+  packagingMethod: '',
+  packagingRequirements: '',
+  
+  // 收货信息
+  consignee: '',
+  deliveryAddress: '',
+  billRecipient: '',
+  billAddress: '',
+  
+  // 回款信息
+  paymentMethod: '',
+  advancePaymentRatio: '',
+  paymentPlan: '',
+  totalReceivable: 0,
+  plannedPaymentDate: '',
+  plannedPaymentAmount: 0,
+  
+  // 售后信息
+  hasAfterSales: false,
+  afterSalesOrderNo: '',
+  afterSalesDetails: '',
+  
+  // 产品列表
+  products: []
 })
 
-// 表单验证规则
-const orderRules: FormRules = {
-  orderType: [
-    { required: true, message: '请选择订单类型', trigger: 'change' }
-  ],
-  priority: [
-    { required: true, message: '请选择订单优先级', trigger: 'change' }
-  ],
-  salesPerson: [
-    { required: true, message: '请选择销售人员', trigger: 'change' }
-  ]
+// 加载客户数据
+onMounted(() => {
+  const customerData = localStorage.getItem('customerListData')
+  if (customerData) {
+    try {
+      customerList.value = JSON.parse(customerData)
+    } catch (e) {
+      console.error('解析客户数据失败:', e)
+      customerList.value = []
+    }
+  }
+})
+
+// 客户选择变化事件
+const handleCustomerChange = (customerName) => {
+  // 查找选中的客户
+  selectedCustomer.value = customerList.value.find(c => c.customerName === customerName)
+  
+  if (selectedCustomer.value) {
+    // 自动填充客户相关信息
+    formData.consignee = selectedCustomer.value.contactPerson || ''
+    formData.deliveryAddress = selectedCustomer.value.address || ''
+    formData.billRecipient = selectedCustomer.value.contactPerson || ''
+    formData.billAddress = selectedCustomer.value.address || ''
+  }
 }
 
-// 方法
-const generateOrderNumber = () => {
-  const now = new Date()
-  const year = now.getFullYear()
-  const month = String(now.getMonth() + 1).padStart(2, '0')
-  const day = String(now.getDate()).padStart(2, '0')
-  const random = Math.floor(Math.random() * 1000).toString().padStart(3, '0')
-  return `SO${year}${month}${day}${random}`
+// 添加产品
+const addProduct = () => {
+  formData.products.push({
+    productCode: '',
+    productName: '',
+    productSpec: '',
+    productColor: '',
+    productUnit: '个',
+    orderQuantity: 1,
+    unitPriceExcludingTax: 0,
+    productTaxRate: '13%'
+  })
 }
 
-const formatAmount = (amount: number) => {
-  return amount.toLocaleString('zh-CN', { minimumFractionDigits: 2 })
+// 删除产品
+const removeProduct = (index) => {
+  formData.products.splice(index, 1)
 }
 
-const formatDate = (date: Date | string | null) => {
-  if (!date) return ''
-  const d = new Date(date)
-  return d.toLocaleDateString('zh-CN')
-}
-
-// 事件处理
-const handleCustomerSelected = (customer: Customer) => {
-  console.log('客户已选择:', customer)
-}
-
-const handleProductsUpdated = (products: Product[]) => {
-  console.log('产品已更新:', products)
-}
-
-const handleItemsUpdated = (items: any[]) => {
-  console.log('产品项已更新:', items)
-}
-
-const handlePriceCalculated = (totals: any) => {
-  console.log('价格已计算:', totals)
-}
-
-const handleScheduleUpdated = (schedule: any) => {
-  console.log('交付计划已更新:', schedule)
-}
-
-const handleTermsUpdated = (terms: any) => {
-  console.log('付款条款已更新:', terms)
-}
-
-const handleUploadSuccess = (response: any, file: any) => {
-  ElMessage.success(`${file.name} 上传成功`)
-}
-
-const handleUploadError = (error: any, file: any) => {
-  ElMessage.error(`${file.name} 上传失败`)
+// 取消
+const handleCancel = () => {
+  emit('cancel')
 }
 
 // 保存草稿
-const saveDraft = async () => {
-  saving.value = true
-  try {
-    // 这里调用保存草稿API
-    await new Promise(resolve => setTimeout(resolve, 1000))
-    ElMessage.success('草稿保存成功')
-  } catch (error) {
-    ElMessage.error('草稿保存失败')
-  } finally {
-    saving.value = false
-  }
+const handleSaveDraft = () => {
+  ElMessage.success('草稿保存成功')
 }
 
 // 提交订单
-const submitOrder = async () => {
-  if (!orderFormRef.value) return
-  
-  try {
-    await orderFormRef.value.validate()
-    
-    // 验证必填项
-    if (!orderForm.customer) {
-      ElMessage.error('请选择客户')
-      return
-    }
-    
-    if (orderForm.productItems.length === 0) {
-      ElMessage.error('请添加产品明细')
-      return
-    }
-    
-    await ElMessageBox.confirm('确定要提交这个订单吗？', '确认提交', {
-      type: 'warning'
-    })
-    
-    submitting.value = true
-    
-    // 这里调用提交订单API
-    await new Promise(resolve => setTimeout(resolve, 2000))
-    
-    ElMessage.success('订单提交成功')
-    router.push('/sales/sales-order')
-    
-  } catch (error) {
-    if (error !== 'cancel') {
-      ElMessage.error('订单提交失败')
-    }
-  } finally {
-    submitting.value = false
+const handleSubmit = () => {
+  // 验证
+  if (!formData.customerName) {
+    ElMessage.warning('请选择客户')
+    return
   }
+  if (!formData.salesperson) {
+    ElMessage.warning('请选择销售员')
+    return
+  }
+  if (formData.products.length === 0) {
+    ElMessage.warning('请至少添加一个产品')
+    return
+  }
+  
+  // 提交
+  ElMessage.success('订单提交成功')
+  emit('success')
 }
-
-// 初始化
-onMounted(() => {
-  orderForm.orderNumber = generateOrderNumber()
-})
 </script>
 
 <style scoped>
 .sales-order-create {
-  max-width: 1200px;
-  margin: 0 auto;
-  padding: 2rem;
+  width: 100%;
+  height: 100%;
 }
 
-.page-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 2rem;
-  padding-bottom: 1.5rem;
-  border-bottom: 1px solid var(--border-color);
+.order-tabs {
+  height: 100%;
 }
 
-.header-content {
-  display: flex;
-  align-items: center;
-  gap: 1rem;
+.order-tabs :deep(.el-tabs__content) {
+  height: calc(100% - 100px);
 }
 
-.header-icon {
-  width: 48px;
-  height: 48px;
-  background: var(--primary-color);
-  border-radius: 12px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-
-.header-icon svg {
-  width: 24px;
-  height: 24px;
-  fill: white;
-}
-
-.header-info h1 {
-  font-size: 1.5rem;
-  margin: 0;
-  color: var(--text-primary);
-}
-
-.header-info p {
-  margin: 0.5rem 0 0 0;
-  color: var(--text-secondary);
-}
-
-.header-actions {
-  display: flex;
-  gap: 1rem;
-}
-
-.order-form {
-  margin-bottom: 2rem;
-}
-
-.form-section {
-  background: var(--surface-color);
-  border-radius: 12px;
-  padding: 1.5rem;
-  margin-bottom: 1.5rem;
-  box-shadow: var(--shadow-sm);
-}
-
-.section-title {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  font-size: 1.1rem;
-  font-weight: 600;
-  color: var(--text-primary);
-  margin-bottom: 1.5rem;
-  padding-bottom: 0.75rem;
-  border-bottom: 1px solid var(--border-color);
-}
-
-.section-title svg {
-  color: var(--primary-color);
-}
-
-.form-grid {
+.form-section-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
-  gap: 1rem;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 20px;
+  padding: 20px;
 }
 
-.items-editor-section {
-  margin-top: 1.5rem;
-  padding-top: 1.5rem;
-  border-top: 1px solid var(--border-color);
+.section-card {
+  height: fit-content;
 }
 
-.items-editor-section h3 {
-  font-size: 1rem;
-  font-weight: 600;
-  color: var(--text-primary);
-  margin-bottom: 1rem;
+.section-card.full-width {
+  grid-column: 1 / -1;
 }
 
-.sales-person-option {
+.card-header {
   display: flex;
-  flex-direction: column;
-}
-
-.person-name {
-  font-weight: 600;
-  color: var(--text-primary);
-}
-
-.person-info {
-  font-size: 0.9rem;
-  color: var(--text-secondary);
-}
-
-.preview-section {
-  background: var(--surface-color);
-  border-radius: 12px;
-  padding: 1.5rem;
-  box-shadow: var(--shadow-sm);
-  margin-bottom: 2rem;
-}
-
-.preview-content {
-  background: var(--background-color);
-  border-radius: 8px;
-  padding: 1rem;
-}
-
-.preview-summary {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
-  gap: 1rem;
-}
-
-.summary-item {
-  display: flex;
-  justify-content: space-between;
   align-items: center;
-  padding: 0.75rem;
-  background: var(--surface-color);
-  border-radius: 6px;
-  border: 1px solid var(--border-color);
-}
-
-.label {
-  font-weight: 500;
-  color: var(--text-secondary);
-}
-
-.value {
+  gap: 8px;
   font-weight: 600;
-  color: var(--text-primary);
+  font-size: 16px;
 }
 
-.total-amount {
-  font-size: 1.1rem;
-  color: var(--primary-color);
+.card-header .el-icon {
+  font-size: 18px;
+  color: #409EFF;
 }
 
-/* 响应式设计 */
-@media (max-width: 768px) {
-  .sales-order-create {
-    padding: 1rem;
-  }
-  
-  .page-header {
-    flex-direction: column;
-    gap: 1rem;
-    align-items: flex-start;
-  }
-  
-  .form-grid {
+.compact-form .el-form-item {
+  margin-bottom: 18px;
+}
+
+.footer-buttons {
+  position: sticky;
+  bottom: 0;
+  background: white;
+  padding: 15px 20px;
+  border-top: 1px solid #dcdfe6;
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  z-index: 100;
+}
+
+/* 响应式布局 */
+@media (max-width: 1400px) {
+  .form-section-grid {
     grid-template-columns: 1fr;
   }
   
-  .preview-summary {
-    grid-template-columns: 1fr;
+  .section-card.full-width {
+    grid-column: 1;
   }
 }
 </style>

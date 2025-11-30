@@ -96,10 +96,19 @@ export default {
         {
           path: 'list',
           name: 'SalesOrderList',
-          component: () => import('@/pages/sales/orders/SalesOrderList.vue'),
+          component: () => import('@/pages/sales/sales-order/SalesOrderListNew.vue'),
           meta: { 
             title: '订单列表',
             permission: ['sales:orders:list']
+          }
+        },
+        {
+          path: 'customers',
+          name: 'SalesOrderCustomerList',
+          component: () => import('@/pages/sales/customers/CustomerList.vue'),
+          meta: { 
+            title: '客户台账',
+            permission: ['sales:customers:list']
           }
         },
         {

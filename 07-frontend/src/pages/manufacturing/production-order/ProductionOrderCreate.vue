@@ -3,7 +3,6 @@
     <!-- 页面头部 -->
     <div class="page-header">
       <div class="header-left">
-<<<<<<< HEAD
         <el-button @click="handleBack" type="text">
           <el-icon><ArrowLeft /></el-icon>
           返回
@@ -152,7 +151,6 @@
           <el-button @click="handleReset">重置</el-button>
           <el-button @click="handleBack">取消</el-button>
         </el-form-item>
-=======
         <h2>新建生产订单</h2>
         <el-breadcrumb separator="/">
           <el-breadcrumb-item :to="{ path: '/dashboard' }">首页</el-breadcrumb-item>
@@ -608,7 +606,6 @@
     </el-card>
 
     <!-- BOM选择器对话框 -->
-<<<<<<< HEAD
       <el-dialog
         v-model="bomSelectorVisible"
         title="选择BOM"
@@ -695,7 +692,6 @@ const bomSelectorRef = ref()
 // 订单表单数据
 const orderForm = reactive<OrderForm>({
   orderCode: isEdit.value ? '' : generateOrderCode(),
-=======
     <BOMSelector
       v-model="bomSelectorVisible"
       :product-id="formData.productId"
@@ -735,7 +731,6 @@ const formData = reactive({
   productName: '',
   quantity: 1,
   unit: '',
-<<<<<<< HEAD
   priority: 2,
   plannedStartDate: '',
   plannedEndDate: '',
@@ -1019,7 +1014,6 @@ onMounted(async () => {
   font-size: 16px;
   font-weight: 500;
 
-=======
   unitHours: 0,
   productSpecs: '',
   

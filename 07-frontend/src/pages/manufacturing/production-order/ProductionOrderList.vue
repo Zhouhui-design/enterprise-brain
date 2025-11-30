@@ -2,7 +2,6 @@
   <div class="production-order-list">
     <!-- 页面头部 -->
     <div class="page-header">
-<<<<<<< HEAD
       <h1>生产订单管理</h1>
       <div class="header-actions">
         <el-button type="primary" @click="handleCreateOrder">
@@ -15,7 +14,6 @@
         </el-button>
         <el-button @click="handleExport">
           <el-icon><Download /></el-icon>
-=======
       <div class="header-left">
         <h2>生产订单管理</h2>
         <el-breadcrumb separator="/">
@@ -38,7 +36,6 @@
       </div>
     </div>
 
-<<<<<<< HEAD
     <!-- 搜索筛选区域 -->
     <el-card class="search-card">
       <el-form :inline="true" :model="searchForm" label-width="100px">
@@ -61,7 +58,6 @@
         <el-form-item label="创建日期">
           <el-date-picker
             v-model="searchForm.createDate"
-=======
     <!-- 搜索和筛选 -->
     <el-card class="search-card" shadow="never">
       <el-form 
@@ -121,13 +117,11 @@
             range-separator="至"
             start-placeholder="开始日期"
             end-placeholder="结束日期"
-<<<<<<< HEAD
           />
         </el-form-item>
         <el-form-item>
           <el-button type="primary" @click="handleSearch">查询</el-button>
           <el-button @click="handleReset">重置</el-button>
-=======
             format="YYYY-MM-DD"
             value-format="YYYY-MM-DD"
             style="width: 220px"
@@ -145,7 +139,6 @@
       </el-form>
     </el-card>
 
-<<<<<<< HEAD
     <!-- 数据统计卡片 -->
     <div class="stats-cards">
       <el-card class="stat-card">
@@ -215,7 +208,6 @@
             <el-button type="primary" text @click="handleViewOrder(row)">查看</el-button>
             <el-button text @click="handleEditOrder(row)">编辑</el-button>
             <el-button type="danger" text @click="handleDeleteOrder(row.id)">删除</el-button>
-=======
     <!-- 统计卡片 -->
     <div class="stats-cards">
       <el-row :gutter="20">
@@ -450,7 +442,6 @@
         </el-table-column>
       </el-table>
 
-<<<<<<< HEAD
       <!-- 分页 -->
       <div class="pagination">
         <el-pagination
@@ -459,7 +450,6 @@
           :page-sizes="[10, 20, 50, 100]"
           layout="total, sizes, prev, pager, next, jumper"
           :total="pagination.total"
-=======
       <!-- 卡片视图 -->
       <div v-else class="card-view">
         <el-row :gutter="20">
@@ -544,7 +534,6 @@
       </div>
     </el-card>
 
-<<<<<<< HEAD
     <!-- 订单详情对话框 -->
     <el-dialog
       v-model="dialogVisible"
@@ -572,7 +561,6 @@
       </div>
       <template #footer>
         <el-button @click="dialogVisible = false">关闭</el-button>
-=======
     <!-- 导入对话框 -->
     <el-dialog 
       v-model="importDialogVisible" 
@@ -623,7 +611,6 @@
   </div>
 </template>
 
-<<<<<<< HEAD
 <script setup lang="ts">
 import { ref, reactive, onMounted } from 'vue'
 import { Plus, Refresh, Download, Document, Timer, Check, Warning, Delete } from '@element-plus/icons-vue'
@@ -667,7 +654,6 @@ const searchForm = reactive({
 const pagination = reactive({
   currentPage: 1,
   pageSize: 10,
-=======
 <script setup>
 import { ref, reactive, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
@@ -708,7 +694,6 @@ const pagination = reactive({
 
 // 统计数据
 const statistics = reactive({
-<<<<<<< HEAD
   totalOrders: 0,
   inProgressOrders: 0,
   completedOrders: 0,
@@ -835,7 +820,6 @@ const getOrderList = async () => {
     }).length
   } catch (error) {
     console.error('获取订单列表失败:', error)
-=======
   total: 0,
   inProgress: 0,
   completed: 0,
@@ -1132,7 +1116,6 @@ const fetchData = async () => {
   }
 }
 
-<<<<<<< HEAD
 // 获取状态文本
 const getStatusText = (status: string): string => {
   const statusMap: Record<string, string> = {
@@ -1353,7 +1336,6 @@ onMounted(() => {
 
 .order-detail {
   padding: 10px;
-=======
 onMounted(() => {
   fetchData()
 })

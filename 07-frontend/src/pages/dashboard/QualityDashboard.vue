@@ -2,7 +2,7 @@
   <div class="quality-dashboard-container">
     <div class="page-header">
       <el-breadcrumb separator="/">
-        <el-breadcrumb-item :to="{ path: '/dashboard' }">首页</el-breadcrumb-item>
+        <el-breadcrumb-item :to="{ path: '/dashboard/home' }">首页</el-breadcrumb-item>
         <el-breadcrumb-item>品保部工作台</el-breadcrumb-item>
       </el-breadcrumb>
       <h1>品保部工作台</h1>
@@ -27,7 +27,7 @@
         <el-card shadow="hover" class="stat-card">
           <div class="stat-content">
             <div class="stat-icon success">
-              <el-icon :size="32"><Check /></el-icon>
+              <el-icon :size="32"><Select /></el-icon>
             </div>
             <div class="stat-info">
               <div class="stat-value">286</div>
@@ -53,7 +53,7 @@
         <el-card shadow="hover" class="stat-card">
           <div class="stat-content">
             <div class="stat-icon info">
-              <el-icon :size="32"><DocumentChecked /></el-icon>
+              <el-icon :size="32"><Document /></el-icon>
             </div>
             <div class="stat-info">
               <div class="stat-value">42</div>
@@ -80,18 +80,18 @@
 <script>
 import { 
   SuccessFilled, 
-  Check, 
+  Select, 
   Warning, 
-  DocumentChecked 
+  Document 
 } from '@element-plus/icons-vue';
 
 export default {
   name: 'QualityDashboard',
   components: {
     SuccessFilled,
-    Check,
+    Select,
     Warning,
-    DocumentChecked
+    Document
   }
 };
 </script>

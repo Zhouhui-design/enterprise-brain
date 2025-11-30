@@ -2,7 +2,7 @@
   <div class="hr-dashboard-container">
     <div class="page-header">
       <el-breadcrumb separator="/">
-        <el-breadcrumb-item :to="{ path: '/dashboard' }">首页</el-breadcrumb-item>
+        <el-breadcrumb-item :to="{ path: '/dashboard/home' }">首页</el-breadcrumb-item>
         <el-breadcrumb-item>人事部工作台</el-breadcrumb-item>
       </el-breadcrumb>
       <h1>人事部工作台</h1>
@@ -74,10 +74,10 @@
             </div>
           </template>
           <div class="quick-actions">
-            <el-button type="primary" icon="Plus" @click="handleAction('addEmployee')">录入新员工</el-button>
-            <el-button type="success" icon="DocumentChecked" @click="handleAction('attendance')">考勤管理</el-button>
-            <el-button type="warning" icon="Calendar" @click="handleAction('leave')">请假审批</el-button>
-            <el-button type="info" icon="Management" @click="handleAction('training')">培训管理</el-button>
+            <el-button type="primary" @click="handleAction('addEmployee')">录入新员工</el-button>
+            <el-button type="success" @click="handleAction('attendance')">考勤管理</el-button>
+            <el-button type="warning" @click="handleAction('leave')">请假审批</el-button>
+            <el-button type="info" @click="handleAction('training')">培训管理</el-button>
           </div>
         </el-card>
       </el-col>

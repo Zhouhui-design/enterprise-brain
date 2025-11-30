@@ -2,7 +2,7 @@
   <div class="kpi-dashboard-container">
     <div class="page-header">
       <el-breadcrumb separator="/">
-        <el-breadcrumb-item :to="{ path: '/dashboard' }">首页</el-breadcrumb-item>
+        <el-breadcrumb-item :to="{ path: '/dashboard/home' }">首页</el-breadcrumb-item>
         <el-breadcrumb-item>绩效管理工作台</el-breadcrumb-item>
       </el-breadcrumb>
       <h1>绩效管理工作台</h1>

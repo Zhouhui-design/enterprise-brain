@@ -2,7 +2,7 @@
   <div class="ai-dashboard-container">
     <div class="page-header">
       <el-breadcrumb separator="/">
-        <el-breadcrumb-item :to="{ path: '/dashboard' }">首页</el-breadcrumb-item>
+        <el-breadcrumb-item :to="{ path: '/dashboard/home' }">首页</el-breadcrumb-item>
         <el-breadcrumb-item>智脑工作台</el-breadcrumb-item>
       </el-breadcrumb>
       <h1>智脑工作台</h1>
@@ -10,7 +10,7 @@
 
     <el-card shadow="hover" class="empty-card">
       <div class="empty-content">
-        <el-icon :size="80" color="#909399"><BrainFilled /></el-icon>
+        <el-icon :size="80" color="#909399"><Monitor /></el-icon>
         <h2>AI智能工作台</h2>
         <p>功能开发中，敬请期待...</p>
       </div>
@@ -19,12 +19,12 @@
 </template>
 
 <script>
-import { BrainFilled } from '@element-plus/icons-vue';
+import { Monitor } from '@element-plus/icons-vue';
 
 export default {
   name: 'AIDashboard',
   components: {
-    BrainFilled
+    Monitor
   }
 };
 </script>

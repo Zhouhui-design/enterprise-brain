@@ -13,6 +13,17 @@
           ></el-button>
         </div>
         
+        <!-- 菜单查找功能 -->
+        <div class="menu-search" v-show="!sidebarCollapsed">
+          <el-input
+            v-model="menuSearchKeyword"
+            placeholder="搜索菜单..."
+            :prefix-icon="'el-icon-search'"
+            clearable
+            @input="handleMenuSearch"
+          />
+        </div>
+        
         <nav class="menu-container">
           <el-menu
             :default-active="activeMenu"
@@ -21,7 +32,7 @@
             :collapse="sidebarCollapsed"
             :collapse-transition="false"
           >
-            <template v-for="menu in menus" :key="menu.path">
+            <template v-for="menu in filteredMenus" :key="menu.path">
               <!-- 有子菜单的菜单项 -->
               <el-sub-menu v-if="menu.children && menu.children.length > 0" :index="menu.path">
                 <template #title>
@@ -116,6 +127,7 @@ export default {
   data() {
     return {
       sidebarCollapsed: false,
+      menuSearchKeyword: '',
       menus: [],
       breadcrumbList: []
     }
@@ -135,6 +147,29 @@ export default {
     activeMenu() {
       // 获取当前激活的菜单
       return this.$route.path || '/'
+    },
+    
+    // 过滤后的菜单列表
+    filteredMenus() {
+      if (!this.menuSearchKeyword) {
+        return this.menus
+      }
+      
+      const keyword = this.menuSearchKeyword.toLowerCase()
+      return this.menus.filter(menu => {
+        // 搜索菜单标题
+        const titleMatch = menu.meta.title.toLowerCase().includes(keyword)
+        
+        // 搜索子菜单
+        if (menu.children && menu.children.length > 0) {
+          const childMatch = menu.children.some(child => 
+            child.meta.title.toLowerCase().includes(keyword)
+          )
+          return titleMatch || childMatch
+        }
+        
+        return titleMatch
+      })
     }
   },
   watch: {
@@ -157,9 +192,14 @@ export default {
     }
   },
   methods: {
-    // 切换侧边栏
+    // 切换侧边栏折叠
     toggleSidebar() {
       this.sidebarCollapsed = !this.sidebarCollapsed
+    },
+    
+    // 处理菜单搜索
+    handleMenuSearch() {
+      // 搜索关键词变化时，过滤菜单会自动更新
     },
     
     // 处理菜单选择
@@ -235,6 +275,84 @@ export default {
               icon: 'el-icon-s-grid'
             }
           ]
+        },
+        {
+          path: '/product',
+          name: 'Product',
+          meta: { title: '产品管理' },
+          icon: 'el-icon-box',
+          children: [
+            {
+              path: '/product/manual',
+              name: 'ProductManual',
+              meta: { title: '产品手册' },
+              icon: 'el-icon-document'
+            }
+          ]
+        },
+        {
+          path: '/product/manual',
+          name: 'ProductManual',
+          meta: { title: '产品手册' },
+          icon: 'el-icon-box'
+        },
+        {
+          path: '/material/list',
+          name: 'MaterialList',
+          meta: { title: '产品物料库' },
+          icon: 'el-icon-goods'
+        },
+        {
+          path: '/bom',
+          name: 'Bom',
+          meta: { title: 'BOM管理' },
+          icon: 'el-icon-menu',
+          children: [
+            {
+              path: '/bom/design',
+              name: 'DesignBom',
+              meta: { title: '设计BOM' },
+              icon: 'el-icon-edit'
+            },
+            {
+              path: '/bom/production',
+              name: 'ProductionBom',
+              meta: { title: '生产BOM' },
+              icon: 'el-icon-setting'
+            },
+            {
+              path: '/bom/sales',
+              name: 'SalesBom',
+              meta: { title: '销售BOM' },
+              icon: 'el-icon-sell'
+            }
+          ]
+        },
+        {
+          path: '/after-sales/project-management',
+          name: 'ProjectManagement',
+          meta: { title: '研发项目管理' },
+          icon: 'el-icon-s-flag'
+        },
+        {
+          path: '/sales/orders/customers',
+          name: 'CustomerList',
+          meta: { title: '客户台账' },
+          icon: 'el-icon-user'
+        },
+        {
+          path: '/demo',
+          name: 'Demo',
+          meta: { title: '演示功能' },
+          icon: 'el-icon-monitor',
+          children: [
+            {
+              path: '/demo/smart-select',
+              name: 'SmartSelectDemo',
+              meta: { title: '智能下拉演示' },
+              icon: 'el-icon-select'
+            }
+          ]
         }
       ]
     },
@@ -304,8 +422,8 @@ export default {
 /* 侧边栏样式 */
 .sidebar {
   width: 240px;
-  background-color: #001529;
-  color: #fff;
+  background-color: #ffffff;
+  color: #303133;
   transition: width 0.3s ease;
   height: 100vh;
   position: fixed;
@@ -313,6 +431,7 @@ export default {
   top: 0;
   z-index: 100;
   overflow-y: auto;
+  box-shadow: 2px 0 8px rgba(0, 0, 0, 0.1);
 }
 
 .sidebar.sidebar-collapsed {
@@ -324,13 +443,13 @@ export default {
   justify-content: space-between;
   align-items: center;
   padding: 16px 20px;
-  border-bottom: 1px solid #1f2937;
+  border-bottom: 1px solid #e4e7ed;
 }
 
 .sidebar-header .logo {
   font-size: 18px;
   font-weight: bold;
-  color: #fff;
+  color: #303133;
   transition: opacity 0.3s ease;
 }
 
@@ -339,8 +458,18 @@ export default {
 }
 
 .collapse-btn {
-  color: #fff;
+  color: #606266;
   font-size: 16px;
+}
+
+/* 菜单搜索框 */
+.menu-search {
+  padding: 12px 16px;
+  border-bottom: 1px solid #e4e7ed;
+}
+
+.menu-search .el-input {
+  width: 100%;
 }
 
 .menu-container {
@@ -358,22 +487,36 @@ export default {
 
 .el-menu-item,
 .el-sub-menu__title {
-  color: rgba(255, 255, 255, 0.65);
+  color: #303133 !important;
   height: 40px;
   line-height: 40px;
   padding: 0 20px;
   background-color: transparent;
 }
 
+.el-menu-item span,
+.el-sub-menu__title span {
+  color: #303133 !important;
+}
+
 .el-menu-item:hover,
 .el-sub-menu__title:hover {
-  background-color: #1f2937;
-  color: #fff;
+  background-color: #f5f7fa !important;
+  color: #409EFF !important;
+}
+
+.el-menu-item:hover span,
+.el-sub-menu__title:hover span {
+  color: #409EFF !important;
 }
 
 .el-menu-item.is-active {
-  background-color: #1890ff;
-  color: #fff;
+  background-color: #ecf5ff !important;
+  color: #409EFF !important;
+}
+
+.el-menu-item.is-active span {
+  color: #409EFF !important;
 }
 
 /* 主内容区域样式 */
@@ -404,6 +547,12 @@ export default {
 
 .sidebar-toggle {
   margin-right: 20px;
+  font-size: 14px;
+  color: #606266;
+}
+
+.sidebar-toggle:hover {
+  color: #409EFF;
 }
 
 .breadcrumb-container {

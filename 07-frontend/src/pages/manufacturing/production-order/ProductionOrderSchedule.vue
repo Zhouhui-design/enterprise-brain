@@ -3,7 +3,6 @@
     <!-- 页面头部 -->
     <div class="page-header">
       <div class="header-left">
-<<<<<<< HEAD
         <el-button @click="handleBack" type="text">
           <el-icon><ArrowLeft /></el-icon>
           返回
@@ -22,7 +21,6 @@
         <el-button @click="handleSaveSchedule">
           <el-icon><Save /></el-icon>
           保存排程
-=======
         <h2>生产订单排程</h2>
         <el-breadcrumb separator="/">
           <el-breadcrumb-item :to="{ path: '/dashboard' }">首页</el-breadcrumb-item>
@@ -42,7 +40,6 @@
       </div>
     </div>
 
-<<<<<<< HEAD
     <!-- 订单选择和搜索 -->
     <el-card class="search-card">
       <el-form :inline="true" :model="searchForm" label-width="100px">
@@ -176,7 +173,6 @@
         <div class="stat-item">
           <div class="stat-label">订单准时率</div>
           <div class="stat-value">{{ stats.onTimeRate }}%</div>
-=======
     <!-- 排程工具栏 -->
     <el-card class="toolbar-card" shadow="never">
       <div class="toolbar">
@@ -231,7 +227,6 @@
       </div>
     </el-card>
 
-<<<<<<< HEAD
     <!-- 任务详情对话框 -->
     <el-dialog
       v-model="taskDialogVisible"
@@ -995,7 +990,6 @@ onMounted(async () => {
 
 .task-detail {
   padding: 10px;
-=======
     <!-- 主要内容区域 -->
     <div class="main-content">
       <div class="content-left">

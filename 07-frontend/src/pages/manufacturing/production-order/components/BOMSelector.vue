@@ -1,5 +1,4 @@
 <template>
-<<<<<<< HEAD
   <div class="bom-selector">
     <!-- 搜索筛选区域 -->
     <el-card class="search-card">
@@ -604,7 +603,6 @@ getBOMList()
   color: #303133;
   font-weight: 500;
   font-size: 14px;
-=======
   <el-dialog
     v-model="visible"
     title="BOM选择器"

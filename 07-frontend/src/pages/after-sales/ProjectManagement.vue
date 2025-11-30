@@ -53,15 +53,30 @@
         <el-form-item>
           <el-button type="primary" @click="handleSearch">搜索</el-button>
           <el-button @click="handleReset">重置</el-button>
+          <el-button type="success" :disabled="!hasSelection" @click="handleAddToMaterial">
+            <el-icon><FolderAdd /></el-icon>
+            添加到产品物料库
+          </el-button>
+          <el-button type="warning" @click="handleExport">
+            <el-icon><Download /></el-icon>
+            导出
+          </el-button>
+          <el-button @click="handlePrint">
+            <el-icon><Printer /></el-icon>
+            打印
+          </el-button>
         </el-form-item>
       </el-form>
     </el-card>
 
     <!-- 项目列表 -->
     <el-card class="table-card">
-      <el-table :data="projectList" v-loading="loading" stripe>
+      <el-table :data="filteredProjectList" v-loading="loading" stripe @selection-change="handleSelectionChange">
+        <el-table-column type="selection" width="55" />
         <el-table-column prop="projectCode" label="项目编号" width="120" />
         <el-table-column prop="projectName" label="项目名称" min-width="200" show-overflow-tooltip />
+        <el-table-column prop="sourceOrderNo" label="来源单号" width="140" />
+        <el-table-column prop="sourcePerson" label="来源人" width="100" />
         <el-table-column prop="description" label="项目描述" min-width="250" show-overflow-tooltip />
         <el-table-column prop="status" label="状态" width="100">
           <template #default="{ row }">
@@ -76,6 +91,33 @@
         <el-table-column prop="manager" label="负责人" width="120" />
         <el-table-column prop="startDate" label="开始日期" width="110" />
         <el-table-column prop="endDate" label="结束日期" width="110" />
+        <el-table-column prop="requiredDate" label="需要完成日期" width="120" />
+        <el-table-column prop="plannedDate" label="计划完成日期" width="120" />
+        <el-table-column prop="attachments" label="附件" width="80" align="center">
+          <template #default="{ row }">
+            <el-tag v-if="row.attachments && row.attachments.length > 0" type="success" size="small">
+              {{ row.attachments.length }}
+            </el-tag>
+            <span v-else style="color: #909399;">-</span>
+          </template>
+        </el-table-column>
+        <el-table-column prop="images" label="图片" width="100">
+          <template #default="{ row }">
+            <div v-if="row.images && row.images.length > 0" style="display: flex; gap: 5px;">
+              <el-image 
+                v-for="(img, index) in row.images.slice(0, 2)" 
+                :key="index"
+                :src="img" 
+                :preview-src-list="row.images"
+                :preview-teleported="true"
+                style="width: 40px; height: 40px; cursor: pointer;"
+                fit="cover"
+              />
+              <el-tag v-if="row.images.length > 2" size="small">+{{ row.images.length - 2 }}</el-tag>
+            </div>
+            <span v-else style="color: #909399;">-</span>
+          </template>
+        </el-table-column>
         <el-table-column prop="progress" label="进度" width="120">
           <template #default="{ row }">
             <el-progress :percentage="row.progress" :color="getProgressColor(row.progress)" />
@@ -83,9 +125,9 @@
         </el-table-column>
         <el-table-column label="操作" width="200" fixed="right">
           <template #default="{ row }">
-            <el-button type="primary" size="small" @click="handleView(row)">查看</el-button>
-            <el-button type="warning" size="small" @click="handleEdit(row)">编辑</el-button>
-            <el-button type="danger" size="small" @click="handleDelete(row)">删除</el-button>
+            <el-button link type="success" @click="handleView(row)">查看</el-button>
+            <el-button link type="primary" @click="handleEdit(row)">编辑</el-button>
+            <el-button link type="danger" @click="handleDelete(row)">删除</el-button>
           </template>
         </el-table-column>
       </el-table>
@@ -125,6 +167,18 @@
           <el-col :span="12">
             <el-form-item label="项目名称" prop="projectName">
               <el-input v-model="projectForm.projectName" placeholder="请输入项目名称" />
+            </el-form-item>
+          </el-col>
+        </el-row>
+        <el-row :gutter="20">
+          <el-col :span="12">
+            <el-form-item label="来源单号">
+              <el-input v-model="projectForm.sourceOrderNo" placeholder="请输入来源单号" />
+            </el-form-item>
+          </el-col>
+          <el-col :span="12">
+            <el-form-item label="来源人">
+              <el-input v-model="projectForm.sourcePerson" placeholder="请输入来源人" />
             </el-form-item>
           </el-col>
         </el-row>
@@ -204,6 +258,28 @@
             </el-form-item>
           </el-col>
         </el-row>
+        <el-row :gutter="20">
+          <el-col :span="12">
+            <el-form-item label="需要完成日期">
+              <el-date-picker
+                v-model="projectForm.requiredDate"
+                type="date"
+                placeholder="请选择需要完成日期"
+                style="width: 100%"
+              />
+            </el-form-item>
+          </el-col>
+          <el-col :span="12">
+            <el-form-item label="计划完成日期">
+              <el-date-picker
+                v-model="projectForm.plannedDate"
+                type="date"
+                placeholder="请选择计划完成日期"
+                style="width: 100%"
+              />
+            </el-form-item>
+          </el-col>
+        </el-row>
         <el-form-item label="项目成员">
           <el-select
             v-model="projectForm.members"
@@ -219,6 +295,33 @@
               :value="user.name"
             />
           </el-select>
+        </el-form-item>
+        <el-form-item label="附件">
+          <el-upload
+            :file-list="projectForm.attachments"
+            :on-change="handleAttachmentChange"
+            :on-remove="handleAttachmentRemove"
+            :auto-upload="false"
+            multiple
+          >
+            <el-button size="small" type="primary">点击上传</el-button>
+            <template #tip>
+              <div class="el-upload__tip">支持上传多个文件</div>
+            </template>
+          </el-upload>
+        </el-form-item>
+        <el-form-item label="图片">
+          <el-upload
+            :file-list="projectForm.images"
+            :on-change="handleImageChange"
+            :on-remove="handleImageRemove"
+            :auto-upload="false"
+            list-type="picture-card"
+            accept="image/*"
+            multiple
+          >
+            <el-icon><Plus /></el-icon>
+          </el-upload>
         </el-form-item>
       </el-form>
       <template #footer>
@@ -279,9 +382,9 @@
 </template>
 
 <script setup>
-import { ref, reactive, onMounted } from 'vue'
+import { ref, reactive, computed, onMounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { Plus, Refresh, Timer, User, Warning, Check } from '@element-plus/icons-vue'
+import { Plus, Refresh, Timer, User, Warning, Check, Download, Printer, FolderAdd } from '@element-plus/icons-vue'
 import ProjectGantt from './components/ProjectGantt.vue'
 
 // 响应式数据
@@ -292,6 +395,7 @@ const dialogTitle = ref('新建项目')
 const currentProject = ref(null)
 const activeTab = ref('gantt')
 const projectFormRef = ref()
+const selectedProjects = ref([]) // 选中的项目
 
 // 项目统计数据
 const projectStats = ref([
@@ -332,6 +436,8 @@ const searchForm = reactive({
 const projectForm = reactive({
   projectCode: '',
   projectName: '',
+  sourceOrderNo: '',
+  sourcePerson: '',
   description: '',
   priority: '',
   status: 'planning',
@@ -339,7 +445,11 @@ const projectForm = reactive({
   budget: 0,
   startDate: '',
   endDate: '',
-  members: []
+  requiredDate: '',
+  plannedDate: '',
+  members: [],
+  attachments: [],
+  images: []
 })
 
 // 表单验证规则
@@ -371,6 +481,8 @@ const projectList = ref([
     id: 1,
     projectCode: 'PRJ001',
     projectName: '智能仓储系统',
+    sourceOrderNo: 'SO-2024-001',
+    sourcePerson: '李明',
     description: '基于AI的智能仓储管理系统开发项目',
     status: 'in_progress',
     priority: '高',
@@ -378,13 +490,26 @@ const projectList = ref([
     budget: 500000,
     startDate: '2024-01-15',
     endDate: '2024-06-30',
+    requiredDate: '2024-06-15',
+    plannedDate: '2024-06-20',
     progress: 65,
-    members: ['张三', '李四', '王五']
+    members: ['张三', '李四', '王五'],
+    attachments: [
+      { name: '需求文档.pdf', url: '#' },
+      { name: '设计方案.docx', url: '#' }
+    ],
+    images: [
+      'https://via.placeholder.com/400',
+      'https://via.placeholder.com/400/0000FF',
+      'https://via.placeholder.com/400/FF0000'
+    ]
   },
   {
     id: 2,
     projectCode: 'PRJ002',
     projectName: '生产流程优化',
+    sourceOrderNo: 'SO-2024-002',
+    sourcePerson: '王强',
     description: '制造业生产流程数字化改造项目',
     status: 'planning',
     priority: '中',
@@ -392,13 +517,19 @@ const projectList = ref([
     budget: 300000,
     startDate: '2024-03-01',
     endDate: '2024-08-31',
+    requiredDate: '2024-08-20',
+    plannedDate: '2024-08-25',
     progress: 15,
-    members: ['李四', '赵六']
+    members: ['李四', '赵六'],
+    attachments: [],
+    images: []
   },
   {
     id: 3,
     projectCode: 'PRJ003',
     projectName: '质量管理系统',
+    sourceOrderNo: 'SO-2023-088',
+    sourcePerson: '张敏',
     description: '产品质量全生命周期管理系统',
     status: 'completed',
     priority: '高',
@@ -406,8 +537,16 @@ const projectList = ref([
     budget: 450000,
     startDate: '2023-09-01',
     endDate: '2024-01-15',
+    requiredDate: '2024-01-10',
+    plannedDate: '2024-01-12',
     progress: 100,
-    members: ['王五', '钱七', '孙八']
+    members: ['王五', '钱七', '孙八'],
+    attachments: [
+      { name: '验收报告.pdf', url: '#' }
+    ],
+    images: [
+      'https://via.placeholder.com/400/00FF00'
+    ]
   }
 ])
 
@@ -420,6 +559,35 @@ const userList = ref([
   { id: 5, name: '钱七' },
   { id: 6, name: '孙八' }
 ])
+
+// 下一个项目 ID
+const nextProjectId = ref(4)
+
+// 过滤后的项目列表
+const filteredProjectList = computed(() => {
+  let list = projectList.value
+  
+  if (searchForm.projectName) {
+    list = list.filter(item => 
+      item.projectName.toLowerCase().includes(searchForm.projectName.toLowerCase())
+    )
+  }
+  
+  if (searchForm.status) {
+    list = list.filter(item => item.status === searchForm.status)
+  }
+  
+  if (searchForm.manager) {
+    list = list.filter(item => 
+      item.manager.toLowerCase().includes(searchForm.manager.toLowerCase())
+    )
+  }
+  
+  return list
+})
+
+// 是否有选中的项目
+const hasSelection = computed(() => selectedProjects.value.length > 0)
 
 // 状态类型映射
 const getStatusType = (status) => {
@@ -463,7 +631,22 @@ const getProgressColor = (progress) => {
 // 事件处理函数
 const handleCreateProject = () => {
   dialogTitle.value = '新建项目'
-  projectForm.projectCode = 'PRJ' + String(Date.now()).slice(-3)
+  projectForm.projectCode = 'PRJ' + String(nextProjectId.value).padStart(3, '0')
+  projectForm.projectName = ''
+  projectForm.sourceOrderNo = ''
+  projectForm.sourcePerson = ''
+  projectForm.description = ''
+  projectForm.priority = ''
+  projectForm.status = 'planning'
+  projectForm.manager = ''
+  projectForm.budget = 0
+  projectForm.startDate = ''
+  projectForm.endDate = ''
+  projectForm.requiredDate = ''
+  projectForm.plannedDate = ''
+  projectForm.members = []
+  projectForm.attachments = []
+  projectForm.images = []
   dialogVisible.value = true
 }
 
@@ -476,8 +659,6 @@ const handleRefresh = () => {
 }
 
 const handleSearch = () => {
-  console.log('搜索条件:', searchForm)
-  // 这里应该调用API进行搜索
   ElMessage.success('搜索完成')
 }
 
@@ -486,6 +667,101 @@ const handleReset = () => {
     searchForm[key] = ''
   })
   ElMessage.success('重置成功')
+}
+
+// 表格选择变化
+const handleSelectionChange = (selection) => {
+  selectedProjects.value = selection
+}
+
+// 添加到产品物料库
+const handleAddToMaterial = async () => {
+  if (!selectedProjects.value || selectedProjects.value.length === 0) {
+    ElMessage.warning('请至少选择一个项目')
+    return
+  }
+  
+  try {
+    await ElMessageBox.confirm(
+      `确定将选中的 ${selectedProjects.value.length} 个项目添加到产品物料库？`, 
+      '添加到产品物料库', 
+      {
+        confirmButtonText: '确定',
+        cancelButtonText: '取消',
+        type: 'info'
+      }
+    )
+    
+    // 获取或初始化物料库的localStorage数据
+    let materialList = []
+    const storedMaterials = localStorage.getItem('materialListData')
+    if (storedMaterials) {
+      try {
+        materialList = JSON.parse(storedMaterials)
+      } catch (e) {
+        console.error('解析物料数据失败:', e)
+        materialList = []
+      }
+    }
+    
+    // 获取下一个物料ID
+    let nextId = 1
+    if (materialList.length > 0) {
+      const maxId = Math.max(...materialList.map(m => m.id || 0))
+      nextId = maxId + 1
+    }
+    
+    // 转化选中的项目为物料
+    const newMaterials = selectedProjects.value.map((project, index) => {
+      return {
+        id: nextId + index,
+        materialCode: project.projectCode, // 物料编码 = 项目编码
+        bomNumber: project.projectCode,
+        materialName: project.projectName, // 物料名称 = 项目名称
+        sizeSpec: '',
+        color: '',
+        material: '',
+        majorCategory: '研发项目',
+        middleCategory: '',
+        minorCategory: '',
+        model: '',
+        series: '',
+        source: [],
+        description: project.description || '',
+        materialImage: project.images && project.images.length > 0 ? project.images[0] : '',
+        baseUnit: '个',
+        saleUnit: '',
+        saleConversionRate: 0,
+        purchaseUnit: '',
+        purchaseConversionRate: 0,
+        kgPerPcs: 0,
+        pcsPerKg: 0,
+        processName: '',
+        standardTime: 0,
+        quotaTime: 0,
+        processPrice: 0,
+        purchaseCycle: '',
+        purchasePrice: 0
+      }
+    })
+    
+    // 添加到物料列表
+    materialList.unshift(...newMaterials)
+    
+    // 保存到localStorage
+    localStorage.setItem('materialListData', JSON.stringify(materialList))
+    
+    ElMessage.success(`成功添加 ${newMaterials.length} 个物料，请到产品物料库页面查看`)
+    
+    // 清空选中
+    selectedProjects.value = []
+    
+  } catch (e) {
+    // 用户取消操作
+    if (e !== 'cancel') {
+      console.error('添加到物料库失败:', e)
+    }
+  }
 }
 
 const handleView = (row) => {
@@ -502,13 +778,19 @@ const handleEdit = (row) => {
 }
 
 const handleDelete = (row) => {
-  ElMessageBox.confirm(`确定删除项目"${row.projectName}"吗？`, '提示', {
+  ElMessageBox.confirm(`确定删除项目“${row.projectName}”吗？`, '提示', {
     confirmButtonText: '确定',
     cancelButtonText: '取消',
     type: 'warning'
   }).then(() => {
-    // 这里应该调用API删除项目
-    ElMessage.success('删除成功')
+    const index = projectList.value.findIndex(item => item.id === row.id)
+    if (index !== -1) {
+      projectList.value.splice(index, 1)
+      // 保存到 localStorage
+      localStorage.setItem('projectManagementData', JSON.stringify(projectList.value))
+      updateStats()
+      ElMessage.success('删除成功')
+    }
   }).catch(() => {
     ElMessage.info('已取消删除')
   })
@@ -517,17 +799,142 @@ const handleDelete = (row) => {
 const handleSubmit = () => {
   projectFormRef.value.validate((valid) => {
     if (valid) {
-      // 这里应该调用API保存项目
+      if (dialogTitle.value === '新建项目') {
+        // 新增项目
+        const newProject = {
+          id: nextProjectId.value,
+          projectCode: projectForm.projectCode,
+          projectName: projectForm.projectName,
+          sourceOrderNo: projectForm.sourceOrderNo,
+          sourcePerson: projectForm.sourcePerson,
+          description: projectForm.description,
+          status: projectForm.status,
+          priority: projectForm.priority,
+          manager: projectForm.manager,
+          budget: projectForm.budget,
+          startDate: formatDate(projectForm.startDate),
+          endDate: formatDate(projectForm.endDate),
+          requiredDate: formatDate(projectForm.requiredDate),
+          plannedDate: formatDate(projectForm.plannedDate),
+          progress: 0,
+          members: projectForm.members || [],
+          attachments: projectForm.attachments || [],
+          images: projectForm.images || []
+        }
+        projectList.value.unshift(newProject)
+        nextProjectId.value++
+        ElMessage.success('项目创建成功')
+      } else {
+        // 编辑项目
+        const index = projectList.value.findIndex(item => item.projectCode === projectForm.projectCode)
+        if (index !== -1) {
+          projectList.value[index] = {
+            ...projectList.value[index],
+            projectName: projectForm.projectName,
+            sourceOrderNo: projectForm.sourceOrderNo,
+            sourcePerson: projectForm.sourcePerson,
+            description: projectForm.description,
+            status: projectForm.status,
+            priority: projectForm.priority,
+            manager: projectForm.manager,
+            budget: projectForm.budget,
+            startDate: formatDate(projectForm.startDate),
+            endDate: formatDate(projectForm.endDate),
+            requiredDate: formatDate(projectForm.requiredDate),
+            plannedDate: formatDate(projectForm.plannedDate),
+            members: projectForm.members || [],
+            attachments: projectForm.attachments || [],
+            images: projectForm.images || []
+          }
+        }
+        ElMessage.success('项目更新成功')
+      }
+      // 保存到 localStorage
+      localStorage.setItem('projectManagementData', JSON.stringify(projectList.value))
       dialogVisible.value = false
-      ElMessage.success('保存成功')
-      handleReset()
+      updateStats()
     }
   })
 }
 
 const handleDialogClose = () => {
   projectFormRef.value?.resetFields()
-  handleReset()
+}
+
+// 附件上传处理
+const handleAttachmentChange = (file, fileList) => {
+  projectForm.attachments = fileList.map(f => ({
+    name: f.name,
+    url: f.url || URL.createObjectURL(f.raw)
+  }))
+}
+
+const handleAttachmentRemove = (file, fileList) => {
+  projectForm.attachments = fileList.map(f => ({
+    name: f.name,
+    url: f.url
+  }))
+}
+
+// 图片上传处理
+const handleImageChange = (file, fileList) => {
+  projectForm.images = fileList.map(f => {
+    if (f.url) return f.url
+    return URL.createObjectURL(f.raw)
+  })
+}
+
+const handleImageRemove = (file, fileList) => {
+  projectForm.images = fileList.map(f => f.url)
+}
+
+// 导出功能
+const handleExport = () => {
+  const dataToExport = filteredProjectList.value
+  
+  let csvContent = '项目编号,项目名称,项目描述,状态,优先级,负责人,预算,开始日期,结束日期,进度\n'
+  dataToExport.forEach(row => {
+    csvContent += `${row.projectCode},${row.projectName},${row.description},${getStatusText(row.status)},${row.priority},${row.manager},${row.budget},${row.startDate},${row.endDate},${row.progress}%\n`
+  })
+  
+  const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' })
+  const link = document.createElement('a')
+  link.href = URL.createObjectURL(blob)
+  link.download = `研发项目管理_${new Date().getTime()}.csv`
+  link.click()
+  
+  ElMessage.success(`导出成功，共 ${dataToExport.length} 条记录`)
+}
+
+// 打印功能
+const handlePrint = () => {
+  window.print()
+}
+
+// 格式化日期
+const formatDate = (date) => {
+  if (!date) return ''
+  const d = new Date(date)
+  const year = d.getFullYear()
+  const month = String(d.getMonth() + 1).padStart(2, '0')
+  const day = String(d.getDate()).padStart(2, '0')
+  return `${year}-${month}-${day}`
+}
+
+// 更新统计数据
+const updateStats = () => {
+  const total = projectList.value.length
+  const inProgress = projectList.value.filter(p => p.status === 'in_progress').length
+  const completed = projectList.value.filter(p => p.status === 'completed').length
+  const allMembers = new Set()
+  projectList.value.forEach(p => {
+    p.members?.forEach(m => allMembers.add(m))
+  })
+  
+  projectStats.value[0].value = String(total)
+  projectStats.value[1].value = String(inProgress)
+  projectStats.value[2].value = String(completed)
+  projectStats.value[3].value = String(allMembers.size)
 }
 
 const handleSizeChange = (size) => {
@@ -541,7 +948,21 @@ const handleCurrentChange = (page) => {
 }
 
 onMounted(() => {
+  // 从 localStorage 加载项目数据
+  const storedProjects = localStorage.getItem('projectManagementData')
+  if (storedProjects) {
+    try {
+      const parsedProjects = JSON.parse(storedProjects)
+      if (Array.isArray(parsedProjects) && parsedProjects.length > 0) {
+        projectList.value = parsedProjects
+      }
+    } catch (e) {
+      console.error('加载项目数据失败:', e)
+    }
+  }
+  
   pagination.total = projectList.value.length
+  updateStats()
 })
 </script>
 

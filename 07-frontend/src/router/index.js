@@ -9,6 +9,10 @@ import financeRouter from './modules/finance.js';
 import salesRouter from './modules/sales.js';
 import purchaseRouter from './modules/purchase.js';
 import manufacturingRouter from './modules/manufacturing.js';
+import productRouter from './modules/product.js';
+import materialRouter from './modules/material.js';
+import bomRouter from './modules/bom.js';
+import demoRouter from './modules/demo.js';
 
 const routes = [
   {
@@ -88,6 +92,29 @@ const routes = [
   purchaseRouter,
   // 生产管理路由
   manufacturingRouter,
+  // 产品管理路由
+  productRouter,
+  // 物料管理路由
+  materialRouter,
+  // BOM管理路由
+  bomRouter,
+  // 演示功能路由
+  demoRouter,
+  // 研发项目管理路由
+  {
+    path: '/after-sales',
+    component: Layout,
+    redirect: '/after-sales/project-management',
+    meta: { title: '研发管理' },
+    children: [
+      {
+        path: 'project-management',
+        name: 'ProjectManagement',
+        component: () => import('@/pages/after-sales/ProjectManagement.vue'),
+        meta: { title: '研发项目管理' }
+      }
+    ]
+  },
   // 回厂管理相关路由
   {
     path: '/receipt',

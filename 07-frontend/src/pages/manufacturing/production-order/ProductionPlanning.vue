@@ -3,7 +3,6 @@
     <!-- 页面头部 -->
     <div class="page-header">
       <div class="header-left">
-<<<<<<< HEAD
         <el-button @click="handleBack" type="text">
           <el-icon><ArrowLeft /></el-icon>
           返回
@@ -22,7 +21,6 @@
         <el-button @click="handleExport">
           <el-icon><Download /></el-icon>
           导出计划
-=======
         <h2>生产计划</h2>
         <el-breadcrumb separator="/">
           <el-breadcrumb-item :to="{ path: '/dashboard' }">首页</el-breadcrumb-item>
@@ -41,7 +39,6 @@
       </div>
     </div>
 
-<<<<<<< HEAD
     <!-- 搜索筛选区域 -->
     <el-card class="search-card">
       <el-form :inline="true" :model="searchForm" label-width="100px">
@@ -699,7 +696,6 @@ onMounted(() => {
   font-size: 12px;
   min-width: 35px;
   text-align: right;
-=======
     <!-- 筛选和统计 -->
     <div class="filter-stats-section">
       <el-card class="filter-card" shadow="never">

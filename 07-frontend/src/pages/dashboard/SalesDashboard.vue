@@ -2,7 +2,7 @@
   <div class="sales-dashboard-container">
     <div class="page-header">
       <el-breadcrumb separator="/">
-        <el-breadcrumb-item :to="{ path: '/dashboard' }">首页</el-breadcrumb-item>
+        <el-breadcrumb-item :to="{ path: '/dashboard/home' }">首页</el-breadcrumb-item>
         <el-breadcrumb-item>销售部工作台</el-breadcrumb-item>
       </el-breadcrumb>
       <h1>销售部工作台</h1>
@@ -27,7 +27,7 @@
         <el-card shadow="hover" class="stat-card">
           <div class="stat-content">
             <div class="stat-icon success">
-              <el-icon :size="32"><ShoppingCart /></el-icon>
+              <el-icon :size="32"><ShoppingBag /></el-icon>
             </div>
             <div class="stat-info">
               <div class="stat-value">186</div>
@@ -80,7 +80,7 @@
 <script>
 import { 
   Promotion, 
-  ShoppingCart, 
+  ShoppingBag, 
   User, 
   TrendCharts 
 } from '@element-plus/icons-vue';
@@ -89,7 +89,7 @@ export default {
   name: 'SalesDashboard',
   components: {
     Promotion,
-    ShoppingCart,
+    ShoppingBag,
     User,
     TrendCharts
   }

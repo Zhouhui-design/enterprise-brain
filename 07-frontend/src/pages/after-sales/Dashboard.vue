@@ -40,6 +40,21 @@
           </div>
         </div>
       </el-card>
+
+      <!-- 快捷功能 -->
+      <el-card shadow="hover" class="quick-actions-card">
+        <template #header>
+          <div class="card-header">
+            <span>快捷功能</span>
+          </div>
+        </template>
+        <div class="quick-actions-grid">
+          <el-button type="primary" size="large" @click="navigateToSalesOrder">
+            <el-icon class="btn-icon"><Document /></el-icon>
+            销售订单
+          </el-button>
+        </div>
+      </el-card>
       
       <div class="stats-container">
         <el-card shadow="hover" class="stat-card">
@@ -70,22 +85,24 @@ import { useRouter } from 'vue-router';
 import { ElMessage } from 'element-plus';
 import { 
   User, 
-  BrainFilled, 
+  Monitor, 
   DataAnalysis, 
   TrendCharts, 
   Promotion, 
-  SuccessFilled 
+  SuccessFilled,
+  Document
 } from '@element-plus/icons-vue';
 
 export default {
   name: 'Dashboard',
   components: {
     User,
-    BrainFilled,
+    Monitor,
     DataAnalysis,
     TrendCharts,
     Promotion,
-    SuccessFilled
+    SuccessFilled,
+    Document
   },
   setup() {
     const router = useRouter();
@@ -103,7 +120,7 @@ export default {
         name: '智脑',
         desc: 'AI智能工作台',
         path: '/dashboard/ai',
-        icon: 'BrainFilled',
+        icon: 'Monitor',
         color: '#9C27B0'
       },
       {
@@ -149,11 +166,16 @@ export default {
     const navigateToDepartment = (path) => {
       router.push(path);
     };
+
+    const navigateToSalesOrder = () => {
+      router.push('/sales/orders/list');
+    };
     
     return {
       departments,
       handleLogout,
-      navigateToDepartment
+      navigateToDepartment,
+      navigateToSalesOrder
     };
   }
 };
@@ -256,6 +278,29 @@ export default {
   font-size: 14px;
   color: #909399;
   text-align: center;
+}
+
+/* 快捷功能 */
+.quick-actions-card {
+  margin-bottom: 20px;
+}
+
+.quick-actions-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+  gap: 15px;
+  padding: 10px 0;
+}
+
+.quick-actions-grid .el-button {
+  height: 60px;
+  font-size: 16px;
+  font-weight: 500;
+}
+
+.btn-icon {
+  margin-right: 8px;
+  font-size: 20px;
 }
 
 .stats-container {
