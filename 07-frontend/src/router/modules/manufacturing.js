@@ -8,6 +8,13 @@ const manufacturingRouter = {
     icon: 'el-icon-s-operation'
   },
   children: [
+    // 工序管理
+    {
+      path: 'process',
+      name: 'ProcessList',
+      component: () => import('@/pages/manufacturing/ProcessList.vue'),
+      meta: { title: '工序列表' }
+    },
     // 生产订单管理
     {
       path: 'production-order',

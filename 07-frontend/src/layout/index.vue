@@ -329,6 +329,12 @@ export default {
           ]
         },
         {
+          path: '/manufacturing/process',
+          name: 'ProcessList',
+          meta: { title: '工序' },
+          icon: 'el-icon-s-operation'
+        },
+        {
           path: '/after-sales/project-management',
           name: 'ProjectManagement',
           meta: { title: '研发项目管理' },

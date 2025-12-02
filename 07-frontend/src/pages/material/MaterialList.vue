@@ -30,26 +30,15 @@
       </div>
     </div>
 
-    <!-- 搜索筛选区 -->
-    <div class="search-section">
-      <el-form :inline="true" :model="searchForm" class="search-form">
-        <el-form-item label="物料编码">
-          <el-input v-model="searchForm.materialCode" placeholder="请输入物料编码" clearable />
-        </el-form-item>
-        <el-form-item label="物料名称">
-          <el-input v-model="searchForm.materialName" placeholder="请输入物料名称" clearable />
-        </el-form-item>
-        <el-form-item label="大类">
-          <el-input v-model="searchForm.majorCategory" placeholder="请输入大类" clearable />
-        </el-form-item>
-        <el-form-item>
-          <el-button type="primary" @click="handleSearch">
-            <el-icon><Search /></el-icon>
-            查询
-          </el-button>
-          <el-button @click="handleReset">重置</el-button>
-        </el-form-item>
-      </el-form>
+    <!-- 筛选说明提示 -->
+    <div class="filter-tip">
+      <el-alert
+        title="表头筛选功能"
+        type="info"
+        description="点击表头右侧的筛选图标，可对任意列进行筛选。支持文本、数字、日期等多种筛选类型，可多列同时筛选。"
+        :closable="false"
+        show-icon
+      />
     </div>
 
     <!-- 统计卡片 -->
@@ -89,107 +78,82 @@
       </el-card>
     </div>
 
-    <!-- 主表格 -->
-    <el-table 
-      ref="tableRef"
-      :data="paginatedTableData" 
-      stripe 
+    <!-- 主表格 - 使用FilterTable组件 -->
+    <FilterTable
+      ref="filterTableRef"
+      :data="tableData"
+      :columns="tableColumns"
+      :show-selection="true"
+      :show-index="true"
+      :show-pagination="true"
+      :total="totalCount"
+      :page-num="currentPage"
+      :page-size="pageSize"
+      :page-sizes="[10, 20, 50, 100]"
+      stripe
       border
       :height="tableHeight"
-      @selection-change="handleSelectionChange"
-      :scrollbar-always-on="true"
       highlight-current-row
-      lazy
+      @selection-change="handleSelectionChange"
+      @page-change="handlePageChange"
+      @size-change="handleTableSizeChange"
+      @filter-change="handleFilterChange"
     >
-      <el-table-column type="selection" width="55" fixed="left" />
-      <el-table-column prop="materialCode" label="物料编码" width="140" fixed="left" />
-      <el-table-column prop="bomNumber" label="BOM编号" width="140" />
-      <el-table-column prop="materialName" label="物料名称" width="180" fixed="left">
-        <template #default="{ row }">
-          <el-link type="primary" @click="handleView(row)">{{ row.materialName }}</el-link>
-        </template>
-      </el-table-column>
-      <el-table-column prop="materialImage" label="图片" width="100">
-        <template #default="{ row }">
-          <el-image 
-            v-if="row.materialImage"
-            :src="row.materialImage" 
-            :preview-src-list="[row.materialImage]"
-            :preview-teleported="true"
-            style="width: 50px; height: 50px; cursor: pointer;"
-            fit="cover"
-            lazy
-          />
-          <span v-else style="color: #909399;">无图片</span>
-        </template>
-      </el-table-column>
-      <el-table-column prop="sizeSpec" label="尺寸规格" width="120" />
-      <el-table-column prop="color" label="颜色" width="80" />
-      <el-table-column prop="material" label="材质" width="100" />
-      <el-table-column prop="majorCategory" label="大类" width="100" />
-      <el-table-column prop="middleCategory" label="中类" width="100" />
-      <el-table-column prop="minorCategory" label="小类" width="100" />
-      <el-table-column prop="model" label="型号" width="100" />
-      <el-table-column prop="series" label="系列" width="100" />
-      <el-table-column prop="source" label="来源" width="120">
-        <template #default="{ row }">
-          <span v-if="row.source && row.source.length > 0">
-            <el-tag 
-              v-for="(item, index) in row.source" 
-              :key="index" 
-              size="small" 
-              style="margin-right: 5px;"
-            >
-              {{ item }}
-            </el-tag>
-          </span>
-          <span v-else>-</span>
-        </template>
-      </el-table-column>
-      <el-table-column prop="description" label="物料详述" width="150" show-overflow-tooltip />
-      <el-table-column prop="baseUnit" label="基础单位" width="80" />
-      <el-table-column prop="saleUnit" label="销售单位" width="80" />
-      <el-table-column prop="saleConversionRate" label="销售转化率" width="100" align="right" />
-      <el-table-column prop="purchaseUnit" label="采购单位" width="80" />
-      <el-table-column prop="purchaseConversionRate" label="采购转化率" width="100" align="right" />
-      <el-table-column prop="kgPerPcs" label="kg/pcs" width="80" align="right" />
-      <el-table-column prop="pcsPerKg" label="pcs/kg" width="80" align="right" />
-      <el-table-column prop="processName" label="产出工序名称" width="120" />
-      <el-table-column prop="standardTime" label="定时工额" width="80" align="right" />
-      <el-table-column prop="quotaTime" label="定额工时" width="80" align="right" />
-      <el-table-column prop="processPrice" label="工序单价" width="100" align="right">
-        <template #default="{ row }">
-          ¥{{ row.processPrice?.toFixed(2) }}
-        </template>
-      </el-table-column>
-      <el-table-column prop="purchaseCycle" label="采购周期" width="80" />
-      <el-table-column prop="purchasePrice" label="采购单价" width="100" align="right">
-        <template #default="{ row }">
-          ¥{{ row.purchasePrice?.toFixed(2) }}
-        </template>
-      </el-table-column>
-      <el-table-column prop="createTime" label="创建时间" width="150" />
-      <el-table-column label="操作" width="200" fixed="right">
-        <template #default="{ row }">
-          <el-button link type="primary" @click="handleEdit(row)">编辑</el-button>
-          <el-button link type="success" @click="handleView(row)">查看</el-button>
-          <el-button link type="danger" @click="handleDelete(row)">删除</el-button>
-        </template>
-      </el-table-column>
-    </el-table>
+      <!-- 物料名称列 -->
+      <template #materialName="{ row }">
+        <el-link type="primary" @click="handleView(row)">{{ row.materialName }}</el-link>
+      </template>
 
-    <!-- 分页 -->
-    <div class="pagination-container">
-      <el-pagination
-        v-model:current-page="currentPage"
-        v-model:page-size="pageSize"
-        :page-sizes="[10, 20, 50, 100, 200, 500]"
-        :total="totalCount"
-        layout="total, sizes, prev, pager, next, jumper"
-        @size-change="handleSizeChange"
-        @current-change="handleCurrentChange"
-      />
-    </div>
+      <!-- 图片列 -->
+      <template #materialImage="{ row }">
+        <el-image 
+          v-if="row.materialImage"
+          :src="row.materialImage" 
+          :preview-src-list="[row.materialImage]"
+          :preview-teleported="true"
+          style="width: 50px; height: 50px; cursor: pointer;"
+          fit="cover"
+          lazy
+        />
+        <span v-else style="color: #909399;">无图片</span>
+      </template>
+
+      <!-- 来源列 -->
+      <template #source="{ row }">
+        <span v-if="row.source && row.source.length > 0">
+          <el-tag 
+            v-for="(item, index) in row.source" 
+            :key="index" 
+            size="small" 
+            style="margin-right: 5px;"
+          >
+            {{ item }}
+          </el-tag>
+        </span>
+        <span v-else>-</span>
+      </template>
+
+      <!-- 工序单价列 -->
+      <template #processPrice="{ row }">
+        ¥{{ row.processPrice?.toFixed(2) }}
+      </template>
+
+      <!-- 采购单价列 -->
+      <template #purchasePrice="{ row }">
+        ¥{{ row.purchasePrice?.toFixed(2) }}
+      </template>
+
+      <!-- 操作列 -->
+      <template #actions>
+        <el-table-column label="操作" width="200" fixed="right">
+          <template #default="{ row }">
+            <el-button link type="primary" @click="handleEdit(row)">编辑</el-button>
+            <el-button link type="success" @click="handleView(row)">查看</el-button>
+            <el-button link type="danger" @click="handleDelete(row)">删除</el-button>
+          </template>
+        </el-table-column>
+      </template>
+    </FilterTable>
 
     <!-- 新增/编辑物料对话框 -->
     <el-dialog 
@@ -202,7 +166,11 @@
       <MaterialEdit 
         :material-data="currentMaterial" 
         :is-edit="isEdit"
+        :all-materials="paginatedTableData"
+        :current-index="currentMaterialIndex"
         @success="handleEditSuccess" 
+        @save="handleSaveOnly"
+        @navigate="handleNavigate"
         @cancel="editDialogVisible = false" 
       />
     </el-dialog>
@@ -258,15 +226,53 @@ import {
 import * as XLSX from 'xlsx' // 静态导入XLSX库
 import MaterialEdit from './MaterialEdit.vue'
 import MaterialView from './MaterialView.vue'
-import databaseService from '@/services/DatabaseService.js'
+import FilterTable from '@/components/common/tables/FilterTable.vue'
+// import databaseService from '@/services/DatabaseService.js' // 不再使用IndexedDB
+import materialApiService from '@/services/api/materialApiService' // 使用后端API服务
+
+// 使用后端API服务替代IndexedDB
+const databaseService = materialApiService
 
 // 数据
+const filterTableRef = ref(null)
 const tableRef = ref(null)
 const searchForm = ref({
   materialCode: '',
   materialName: '',
   majorCategory: ''
 })
+
+// 表格列配置
+const tableColumns = ref([
+  { prop: 'materialCode', label: '物料编码', width: 140, fixed: 'left' },
+  { prop: 'bomNumber', label: 'BOM编号', width: 140 },
+  { prop: 'materialName', label: '物料名称', width: 180, fixed: 'left' },
+  { prop: 'materialImage', label: '图片', width: 100 },
+  { prop: 'sizeSpec', label: '尺寸规格', width: 120 },
+  { prop: 'color', label: '颜色', width: 80 },
+  { prop: 'material', label: '材质', width: 100 },
+  { prop: 'majorCategory', label: '大类', width: 100 },
+  { prop: 'middleCategory', label: '中类', width: 100 },
+  { prop: 'minorCategory', label: '小类', width: 100 },
+  { prop: 'model', label: '型号', width: 100 },
+  { prop: 'series', label: '系列', width: 100 },
+  { prop: 'source', label: '来源', width: 120 },
+  { prop: 'description', label: '物料详述', width: 150, showOverflowTooltip: true },
+  { prop: 'baseUnit', label: '基础单位', width: 80 },
+  { prop: 'saleUnit', label: '销售单位', width: 80 },
+  { prop: 'saleConversionRate', label: '销售转化率', width: 100, align: 'right' },
+  { prop: 'purchaseUnit', label: '采购单位', width: 80 },
+  { prop: 'purchaseConversionRate', label: '采购转化率', width: 100, align: 'right' },
+  { prop: 'kgPerPcs', label: 'kg/pcs', width: 80, align: 'right' },
+  { prop: 'pcsPerKg', label: 'pcs/kg', width: 80, align: 'right' },
+  { prop: 'processName', label: '产出工序名称', width: 120 },
+  { prop: 'standardTime', label: '定时工额', width: 80, align: 'right' },
+  { prop: 'quotaTime', label: '定额工时', width: 80, align: 'right' },
+  { prop: 'processPrice', label: '工序单价', width: 100, align: 'right' },
+  { prop: 'purchaseCycle', label: '采购周期', width: 80 },
+  { prop: 'purchasePrice', label: '采购单价', width: 100, align: 'right' },
+  { prop: 'createTime', label: '创建时间', width: 150 }
+])
 
 const selectedRows = ref([])
 const currentPage = ref(1)
@@ -279,6 +285,7 @@ const importDialogVisible = ref(false)
 const currentMaterial = ref(null)
 const isEdit = ref(false)
 const uploadFile = ref(null) // 存储上传的文件
+const currentMaterialIndex = ref(-1) // 当前编辑物料在表格中的索引
 
 // 统计数据
 const stats = ref({
@@ -381,6 +388,8 @@ const handleCreate = () => {
 // 编辑物料
 const handleEdit = (row) => {
   currentMaterial.value = { ...row }
+  // 找到当前物料在分页数据中的索引
+  currentMaterialIndex.value = paginatedTableData.value.findIndex(item => item.id === row.id)
   isEdit.value = true
   editDialogVisible.value = true
 }
@@ -436,7 +445,7 @@ const handleBatchDelete = async () => {
   }
 }
 
-// 编辑成功回调
+// 编辑成功回调（提交并关闭）
 const handleEditSuccess = async (materialData) => {
   try {
     if (isEdit.value) {
@@ -447,10 +456,11 @@ const handleEditSuccess = async (materialData) => {
           ...materialData,
           updateTime: new Date().toLocaleString('zh-CN')
         }
+        // 保存到数据库
+        console.log('更新物料到数据库:', tableData.value[index])
+        await databaseService.saveMaterial(tableData.value[index])
+        ElMessage.success('物料更新成功')
       }
-      // 保存到数据库
-      await databaseService.saveMaterial(tableData.value[index])
-      ElMessage.success('物料更新成功')
     } else {
       // 新增物料
       const newMaterial = {
@@ -462,15 +472,76 @@ const handleEditSuccess = async (materialData) => {
       tableData.value.unshift(newMaterial)
       nextMaterialId.value++
       // 保存到数据库
+      console.log('新增物料到数据库:', newMaterial)
       await databaseService.saveMaterial(newMaterial)
       ElMessage.success('物料创建成功')
     }
     
-    editDialogVisible.value = false
+    editDialogVisible.value = false // 关闭对话框
     updateStats()
   } catch (error) {
-    console.error('保存物料失败:', error)
-    ElMessage.error('保存物料失败: ' + error.message)
+    console.error('保存物料失败详细信息:', error)
+    console.error('错误堆栈:', error.stack)
+    ElMessage.error('保存物料失败: ' + (error.message || error))
+  }
+}
+
+// 只保存，不关闭对话框
+const handleSaveOnly = async (materialData) => {
+  try {
+    if (isEdit.value) {
+      // 更新物料
+      const index = tableData.value.findIndex(m => m.id === materialData.id)
+      if (index !== -1) {
+        tableData.value[index] = {
+          ...materialData,
+          updateTime: new Date().toLocaleString('zh-CN')
+        }
+        // 保存到数据库
+        console.log('更新物料到数据库:', tableData.value[index])
+        await databaseService.saveMaterial(tableData.value[index])
+      }
+    } else {
+      // 新增物料
+      const newMaterial = {
+        ...materialData,
+        id: nextMaterialId.value,
+        materialCode: `M${new Date().getFullYear()}${String(nextMaterialId.value).padStart(4, '0')}`,
+        createTime: new Date().toLocaleString('zh-CN')
+      }
+      tableData.value.unshift(newMaterial)
+      nextMaterialId.value++
+      // 保存到数据库
+      console.log('新增物料到数据库:', newMaterial)
+      await databaseService.saveMaterial(newMaterial)
+      // 更新为编辑模式
+      isEdit.value = true
+      currentMaterial.value = newMaterial
+    }
+    
+    updateStats()
+    // 不关闭对话框
+  } catch (error) {
+    console.error('保存物料失败详细信息:', error)
+    console.error('错误堆栈:', error.stack)
+    ElMessage.error('保存物料失败: ' + (error.message || error))
+  }
+}
+
+// 导航到上一项/下一项
+const handleNavigate = (direction) => {
+  const materials = paginatedTableData.value
+  let newIndex = currentMaterialIndex.value
+  
+  if (direction === 'prev' && newIndex > 0) {
+    newIndex--
+  } else if (direction === 'next' && newIndex < materials.length - 1) {
+    newIndex++
+  }
+  
+  if (newIndex !== currentMaterialIndex.value) {
+    currentMaterialIndex.value = newIndex
+    currentMaterial.value = { ...materials[newIndex] }
   }
 }
 
@@ -612,8 +683,13 @@ const handleImportConfirm = async () => {
     // 克隆数据以避免Proxy对象问题
     const materialsToSave = JSON.parse(JSON.stringify(tableData.value))
     await databaseService.saveMaterials(materialsToSave)
+    
+    // 重新从后端加载所有数据
+    const reloadedMaterials = await databaseService.getAllMaterials()
+    tableData.value = reloadedMaterials
+    
     // 更新下一个物料ID
-    const maxId = materialsToSave.length > 0 ? Math.max(...materialsToSave.map(m => m.id)) : 0
+    const maxId = reloadedMaterials.length > 0 ? Math.max(...reloadedMaterials.map(m => m.id)) : 0
     nextMaterialId.value = maxId + 1
     
     ElMessage.success(`导入成功！新增 ${addedCount} 条，更新 ${updatedCount} 条`)
@@ -691,8 +767,22 @@ const handlePrint = () => {
 }
 
 // 刷新
-const handleRefresh = () => {
-  ElMessage.success('刷新成功')
+const handleRefresh = async () => {
+  try {
+    // 从后端重新加载所有数据
+    const materials = await databaseService.getAllMaterials()
+    tableData.value = materials
+    
+    // 更新下一个ID
+    const maxId = materials.length > 0 ? Math.max(...materials.map(m => m.id)) : 0
+    nextMaterialId.value = maxId + 1
+    
+    updateStats()
+    ElMessage.success('刷新成功')
+  } catch (error) {
+    console.error('刷新失败:', error)
+    ElMessage.error('刷新失败: ' + error.message)
+  }
 }
 
 // 分页
@@ -705,42 +795,38 @@ const handleCurrentChange = (page) => {
   currentPage.value = page
 }
 
+// FilterTable事件处理
+const handlePageChange = ({ page, pageSize: size }) => {
+  currentPage.value = page
+  pageSize.value = size
+}
+
+const handleTableSizeChange = ({ page, pageSize: size }) => {
+  pageSize.value = size
+  currentPage.value = page
+}
+
+const handleFilterChange = (filters) => {
+  console.log('筛选条件更新:', filters)
+  // FilterTable组件自动处理筛选，这里可以记录日志或保存筛选状态
+  // 如果需要保存筛选配置，可以存到localStorage
+  localStorage.setItem('materialFilters', JSON.stringify(filters))
+}
+
 // 生命周期
 onMounted(async () => {
   try {
-    // 初始化数据库
-    await databaseService.init()
-    
-    // 从数据库加载物料数据
+    // 从后端加载物料数据（不再需要初始化IndexedDB）
     const materials = await databaseService.getAllMaterials()
     if (Array.isArray(materials) && materials.length > 0) {
       tableData.value = materials
     }
     
-    // 获取下一个物料ID
-    nextMaterialId.value = await databaseService.getNextMaterialId()
+    // 后端API不需要获取下一个ID，数据库会自动生成
+    // nextMaterialId.value = await databaseService.getNextMaterialId()
   } catch (error) {
-    console.error('数据库初始化或数据加载失败:', error)
-    ElMessage.error('数据加载失败: ' + error.message)
-    
-    // 降级到localStorage
-    const storedData = localStorage.getItem('materialListData')
-    if (storedData) {
-      try {
-        const parsedData = JSON.parse(storedData)
-        if (Array.isArray(parsedData) && parsedData.length > 0) {
-          tableData.value = parsedData
-        }
-      } catch (e) {
-        console.error('加载物料数据失败:', e)
-      }
-    }
-    
-    // 加载下一个物料ID
-    const storedNextId = localStorage.getItem('materialListNextId')
-    if (storedNextId) {
-      nextMaterialId.value = parseInt(storedNextId, 10)
-    }
+    console.error('数据加载失败:', error)
+    ElMessage.warning('无法连接到后端服务器，请确保后端服务正在运行（npm run backend）')
   }
   
   const updateTableHeight = () => {
@@ -780,6 +866,10 @@ onMounted(async () => {
 .toolbar-right {
   display: flex;
   gap: 10px;
+}
+
+.filter-tip {
+  margin-bottom: 20px;
 }
 
 .search-section {

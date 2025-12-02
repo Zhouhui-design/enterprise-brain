@@ -164,6 +164,48 @@ const initializeDatabase = () => {
     )
   `);
 
+  // 创建生产BOM草稿表
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS production_bom_drafts (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      bom_code TEXT NOT NULL,
+      bom_name TEXT NOT NULL,
+      product_code TEXT NOT NULL,
+      product_name TEXT NOT NULL,
+      version TEXT,
+      status TEXT DEFAULT 'draft',
+      designer TEXT,
+      material_count INTEGER DEFAULT 0,
+      remark TEXT,
+      auditor TEXT,
+      effective_date DATETIME,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    )
+  `);
+
+  // 创建草稿子件表
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS bom_draft_components (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      draft_id INTEGER NOT NULL,
+      sequence INTEGER NOT NULL,
+      level INTEGER DEFAULT 1,
+      component_code TEXT NOT NULL,
+      component_name TEXT NOT NULL,
+      standard_quantity REAL DEFAULT 1,
+      output_process TEXT,
+      component_source TEXT,
+      process_wage REAL DEFAULT 0,
+      material_loss REAL DEFAULT 0,
+      material_price REAL DEFAULT 0,
+      material_cost REAL DEFAULT 0,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (draft_id) REFERENCES production_bom_drafts(id) ON DELETE CASCADE
+    )
+  `);
+
   // 创建索引
   db.exec(`
     CREATE INDEX IF NOT EXISTS idx_bom_components_bom_id ON bom_components(bom_id);

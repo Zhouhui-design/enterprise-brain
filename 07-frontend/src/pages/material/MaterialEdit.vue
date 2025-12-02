@@ -120,7 +120,18 @@
           <el-row :gutter="20">
             <el-col :span="12">
               <el-form-item label="产出工序名称">
-                <el-input v-model="formData.processName" placeholder="请输入产出工序名称" />
+                <SmartSelect
+                  v-model="formData.processName"
+                  :options="processList"
+                  label-field="processName"
+                  value-field="processName"
+                  description-field="processCode"
+                  placeholder="请选择或输入工序名称"
+                  :filterable="true"
+                  :clearable="true"
+                  :show-description="true"
+                  style="width: 100%;"
+                />
               </el-form-item>
               <el-form-item label="定时工额">
                 <el-input-number v-model="formData.standardTime" :precision="2" :min="0" style="width: 100%;" />
@@ -155,13 +166,38 @@
               <el-form-item label="采购周期">
                 <el-input v-model="formData.purchaseCycle" placeholder="如：7天、15天" />
               </el-form-item>
+              <el-form-item label="基础单价">
+                <el-input-number 
+                  :model-value="basePriceComputed" 
+                  disabled
+                  :precision="2" 
+                  :min="0" 
+                  style="width: 100%;" 
+                />
+                <div style="font-size: 12px; color: #909399; margin-top: 4px;">
+                  计算公式：基础单价 = 采购单价 ÷ 采购转化率
+                </div>
+              </el-form-item>
             </el-col>
             <el-col :span="12">
               <el-form-item label="采购转化率">
-                <el-input-number v-model="formData.purchaseConversionRate" :precision="2" :min="0" placeholder="请输入采购转化率" style="width: 100%;" />
+                <el-input-number 
+                  v-model="formData.purchaseConversionRate" 
+                  :precision="2" 
+                  :min="0" 
+                  placeholder="请输入采购转化率" 
+                  @change="handlePurchaseDataChange"
+                  style="width: 100%;" 
+                />
               </el-form-item>
               <el-form-item label="采购单价">
-                <el-input-number v-model="formData.purchasePrice" :precision="2" :min="0" style="width: 100%;" />
+                <el-input-number 
+                  v-model="formData.purchasePrice" 
+                  :precision="2" 
+                  :min="0" 
+                  @change="handlePurchaseDataChange"
+                  style="width: 100%;" 
+                />
               </el-form-item>
             </el-col>
           </el-row>
@@ -185,16 +221,30 @@
     </el-tabs>
 
     <div class="footer-buttons">
-      <el-button @click="handleCancel">取消</el-button>
-      <el-button type="primary" @click="handleSubmit">提交</el-button>
+      <div class="nav-buttons">
+        <el-button @click="handlePrevious" :disabled="!hasPrevious">
+          <el-icon><ArrowLeft /></el-icon>
+          上一项
+        </el-button>
+        <el-button @click="handleNext" :disabled="!hasNext">
+          下一项
+          <el-icon><ArrowRight /></el-icon>
+        </el-button>
+      </div>
+      <div class="action-buttons">
+        <el-button @click="handleCancel">取消</el-button>
+        <el-button type="success" @click="handleSave">保存</el-button>
+        <el-button type="primary" @click="handleSubmit">提交</el-button>
+      </div>
     </div>
   </div>
 </template>
 
 <script setup>
-import { ref, reactive, watch } from 'vue'
+import { ref, reactive, watch, onMounted, computed } from 'vue'
 import { ElMessage } from 'element-plus'
-import { Plus } from '@element-plus/icons-vue'
+import { Plus, ArrowLeft, ArrowRight } from '@element-plus/icons-vue'
+import SmartSelect from '@/components/SmartSelect.vue'
 
 const props = defineProps({
   materialData: {
@@ -204,12 +254,22 @@ const props = defineProps({
   isEdit: {
     type: Boolean,
     default: false
+  },
+  // 批量编辑相关
+  allMaterials: {
+    type: Array,
+    default: () => []
+  },
+  currentIndex: {
+    type: Number,
+    default: -1
   }
 })
 
-const emit = defineEmits(['success', 'cancel'])
+const emit = defineEmits(['success', 'save', 'cancel', 'navigate'])
 
 const activeTab = ref('basic')
+const processList = ref([]) // 工序列表
 
 const formData = reactive({
   materialCode: '',
@@ -238,8 +298,34 @@ const formData = reactive({
   quotaTime: 0,
   processPrice: 0,
   purchaseCycle: '',
-  purchasePrice: 0
+  purchasePrice: 0,
+  basePrice: 0 // 基础单价（计算字段）
 })
+
+// 计算属性：基础单价
+const basePriceComputed = computed(() => {
+  const purchasePrice = formData.purchasePrice || 0
+  const purchaseConversionRate = formData.purchaseConversionRate || 1
+  
+  // 基础单价 = 采购单价 ÷ 采购转化率
+  if (purchaseConversionRate > 0) {
+    return (purchasePrice / purchaseConversionRate).toFixed(2)
+  }
+  return '0.00'
+})
+
+// 处理采购数据变化（重新计算基础单价）
+const handlePurchaseDataChange = () => {
+  const purchasePrice = formData.purchasePrice || 0
+  const purchaseConversionRate = formData.purchaseConversionRate || 1
+  
+  // 计算并更新基础单价
+  if (purchaseConversionRate > 0) {
+    formData.basePrice = purchasePrice / purchaseConversionRate
+  } else {
+    formData.basePrice = 0
+  }
+}
 
 // 监听 props 变化
 watch(() => props.materialData, (newVal) => {
@@ -247,6 +333,16 @@ watch(() => props.materialData, (newVal) => {
     Object.assign(formData, newVal)
   }
 }, { immediate: true })
+
+// 计算属性：是否有上一项
+const hasPrevious = computed(() => {
+  return props.currentIndex > 0
+})
+
+// 计算属性：是否有下一项
+const hasNext = computed(() => {
+  return props.currentIndex >= 0 && props.currentIndex < props.allMaterials.length - 1
+})
 
 // 处理图片上传
 const handleImageChange = (file) => {
@@ -266,6 +362,19 @@ const handleCancel = () => {
   emit('cancel')
 }
 
+// 保存（不关闭页面）
+const handleSave = () => {
+  if (!formData.materialName) {
+    ElMessage.warning('请输入物料名称')
+    activeTab.value = 'basic'
+    return
+  }
+  
+  emit('save', { ...formData })
+  ElMessage.success('保存成功')
+}
+
+// 提交（关闭页面）
 const handleSubmit = () => {
   if (!formData.materialName) {
     ElMessage.warning('请输入物料名称')
@@ -274,6 +383,52 @@ const handleSubmit = () => {
   }
   
   emit('success', { ...formData })
+}
+
+// 上一项
+const handlePrevious = () => {
+  if (hasPrevious.value) {
+    // 先保存当前数据
+    if (formData.materialName) {
+      emit('save', { ...formData })
+    }
+    // 然后切换到上一项
+    emit('navigate', 'prev')
+  }
+}
+
+// 下一项
+const handleNext = () => {
+  if (hasNext.value) {
+    // 先保存当前数据
+    if (formData.materialName) {
+      emit('save', { ...formData })
+    }
+    // 然后切换到下一项
+    emit('navigate', 'next')
+  }
+}
+
+// 加载工序列表
+onMounted(() => {
+  loadProcessList()
+})
+
+// 从 localStorage 加载工序数据
+const loadProcessList = () => {
+  try {
+    const processData = localStorage.getItem('processListData')
+    if (processData) {
+      const data = JSON.parse(processData)
+      processList.value = data || []
+      console.log('加载工序数据成功:', processList.value.length, '条')
+    } else {
+      console.log('未找到工序数据')
+    }
+  } catch (error) {
+    console.error('加载工序数据失败:', error)
+    ElMessage.error('加载工序数据失败')
+  }
 }
 </script>
 
@@ -287,7 +442,13 @@ const handleSubmit = () => {
   padding-top: 20px;
   border-top: 1px solid #dcdfe6;
   display: flex;
-  justify-content: flex-end;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.nav-buttons,
+.action-buttons {
+  display: flex;
   gap: 10px;
 }
 

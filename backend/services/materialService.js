@@ -34,6 +34,11 @@ class MaterialService {
   // 创建物料
   static async createMaterial(materialData) {
     try {
+      // 计算基础单价
+      const purchasePrice = materialData.purchase_price || materialData.purchasePrice || 0;
+      const purchaseConversionRate = materialData.purchase_conversion_rate || materialData.purchaseConversionRate || 1;
+      const basePrice = purchaseConversionRate > 0 ? purchasePrice / purchaseConversionRate : 0;
+
       const stmt = db.prepare(`
         INSERT INTO materials (
           material_code, bom_number, material_name, size_spec, color, material,
@@ -41,41 +46,42 @@ class MaterialService {
           description, material_image, base_unit, sale_unit, sale_conversion_rate,
           purchase_unit, purchase_conversion_rate, kg_per_pcs, pcs_per_kg,
           process_name, standard_time, quota_time, process_price,
-          purchase_cycle, purchase_price, status
+          purchase_cycle, purchase_price, base_price, status
         ) VALUES (
           ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
-          ?, ?, ?, ?, ?, ?, ?
+          ?, ?, ?, ?, ?, ?, ?, ?
         )
       `);
 
       const result = stmt.run(
-        materialData.material_code,
-        materialData.bom_number || '',
-        materialData.material_name,
-        materialData.size_spec || '',
+        materialData.material_code || materialData.materialCode,
+        materialData.bom_number || materialData.bomNumber || '',
+        materialData.material_name || materialData.materialName,
+        materialData.size_spec || materialData.sizeSpec || '',
         materialData.color || '',
         materialData.material || '',
-        materialData.major_category || '',
-        materialData.middle_category || '',
-        materialData.minor_category || '',
+        materialData.major_category || materialData.majorCategory || '',
+        materialData.middle_category || materialData.middleCategory || '',
+        materialData.minor_category || materialData.minorCategory || '',
         materialData.model || '',
         materialData.series || '',
-        materialData.source ? JSON.stringify(materialData.source) : '[]',
+        materialData.source ? (typeof materialData.source === 'string' ? materialData.source : JSON.stringify(materialData.source)) : '[]',
         materialData.description || '',
-        materialData.material_image || '',
-        materialData.base_unit || '个',
-        materialData.sale_unit || '',
-        materialData.sale_conversion_rate || 1,
-        materialData.purchase_unit || '',
-        materialData.purchase_conversion_rate || 1,
-        materialData.kg_per_pcs || 0,
-        materialData.pcs_per_kg || 0,
-        materialData.process_name || '',
-        materialData.standard_time || 0,
-        materialData.quota_time || 0,
-        materialData.process_price || 0,
-        materialData.purchase_cycle || '',
-        materialData.purchase_price || 0,
+        materialData.material_image || materialData.materialImage || '',
+        materialData.base_unit || materialData.baseUnit || '个',
+        materialData.sale_unit || materialData.saleUnit || '',
+        materialData.sale_conversion_rate || materialData.saleConversionRate || 1,
+        materialData.purchase_unit || materialData.purchaseUnit || '',
+        purchaseConversionRate,
+        materialData.kg_per_pcs || materialData.kgPerPcs || 0,
+        materialData.pcs_per_kg || materialData.pcsPerKg || 0,
+        materialData.process_name || materialData.processName || '',
+        materialData.standard_time || materialData.standardTime || 0,
+        materialData.quota_time || materialData.quotaTime || 0,
+        materialData.process_price || materialData.processPrice || 0,
+        materialData.purchase_cycle || materialData.purchaseCycle || '',
+        purchasePrice,
+        basePrice,
         materialData.status || 'active'
       );
 
@@ -90,8 +96,8 @@ class MaterialService {
 
   // 批量创建物料
   static async createMaterials(materialsData) {
-    const successCount = 0;
-    const errorCount = 0;
+    let successCount = 0;
+    let errorCount = 0;
     const errors = [];
 
     try {
@@ -114,40 +120,96 @@ class MaterialService {
 
       for (const materialData of materialsData) {
         try {
-          stmt.run(
-            materialData.material_code,
-            materialData.bom_number || '',
-            materialData.material_name,
-            materialData.size_spec || '',
-            materialData.color || '',
-            materialData.material || '',
-            materialData.major_category || '',
-            materialData.middle_category || '',
-            materialData.minor_category || '',
-            materialData.model || '',
-            materialData.series || '',
-            materialData.source ? JSON.stringify(materialData.source) : '[]',
-            materialData.description || '',
-            materialData.material_image || '',
-            materialData.base_unit || '个',
-            materialData.sale_unit || '',
-            materialData.sale_conversion_rate || 1,
-            materialData.purchase_unit || '',
-            materialData.purchase_conversion_rate || 1,
-            materialData.kg_per_pcs || 0,
-            materialData.pcs_per_kg || 0,
-            materialData.process_name || '',
-            materialData.standard_time || 0,
-            materialData.quota_time || 0,
-            materialData.process_price || 0,
-            materialData.purchase_cycle || '',
-            materialData.purchase_price || 0,
-            materialData.status || 'active'
-          );
+          // 支持驼峰命名和下划线命名
+          const materialCode = materialData.material_code || materialData.materialCode;
+          
+          // 检查物料编码是否已存在
+          const existingStmt = db.prepare('SELECT id FROM materials WHERE material_code = ?');
+          const existing = existingStmt.get(materialCode);
+          
+          if (existing) {
+            // 如果已存在，使用UPDATE
+            const updateStmt = db.prepare(`
+              UPDATE materials SET
+                bom_number = ?, material_name = ?, size_spec = ?,
+                color = ?, material = ?, major_category = ?, middle_category = ?,
+                minor_category = ?, model = ?, series = ?, source = ?,
+                description = ?, material_image = ?, base_unit = ?, sale_unit = ?,
+                sale_conversion_rate = ?, purchase_unit = ?, purchase_conversion_rate = ?,
+                kg_per_pcs = ?, pcs_per_kg = ?, process_name = ?, standard_time = ?,
+                quota_time = ?, process_price = ?, purchase_cycle = ?, purchase_price = ?,
+                status = ?, updated_at = CURRENT_TIMESTAMP
+              WHERE material_code = ?
+            `);
+            
+            updateStmt.run(
+              materialData.bom_number || materialData.bomNumber || '',
+              materialData.material_name || materialData.materialName,
+              materialData.size_spec || materialData.sizeSpec || '',
+              materialData.color || '',
+              materialData.material || '',
+              materialData.major_category || materialData.majorCategory || '',
+              materialData.middle_category || materialData.middleCategory || '',
+              materialData.minor_category || materialData.minorCategory || '',
+              materialData.model || '',
+              materialData.series || '',
+              materialData.source ? (typeof materialData.source === 'string' ? materialData.source : JSON.stringify(materialData.source)) : '[]',
+              materialData.description || '',
+              materialData.material_image || materialData.materialImage || '',
+              materialData.base_unit || materialData.baseUnit || '个',
+              materialData.sale_unit || materialData.saleUnit || '',
+              materialData.sale_conversion_rate || materialData.saleConversionRate || 1,
+              materialData.purchase_unit || materialData.purchaseUnit || '',
+              materialData.purchase_conversion_rate || materialData.purchaseConversionRate || 1,
+              materialData.kg_per_pcs || materialData.kgPerPcs || 0,
+              materialData.pcs_per_kg || materialData.pcsPerKg || 0,
+              materialData.process_name || materialData.processName || '',
+              materialData.standard_time || materialData.standardTime || 0,
+              materialData.quota_time || materialData.quotaTime || 0,
+              materialData.process_price || materialData.processPrice || 0,
+              materialData.purchase_cycle || materialData.purchaseCycle || '',
+              materialData.purchase_price || materialData.purchasePrice || 0,
+              materialData.status || 'active',
+              materialCode
+            );
+          } else {
+            // 如果不存在，使用INSERT
+            stmt.run(
+              materialCode,
+              materialData.bom_number || materialData.bomNumber || '',
+              materialData.material_name || materialData.materialName,
+              materialData.size_spec || materialData.sizeSpec || '',
+              materialData.color || '',
+              materialData.material || '',
+              materialData.major_category || materialData.majorCategory || '',
+              materialData.middle_category || materialData.middleCategory || '',
+              materialData.minor_category || materialData.minorCategory || '',
+              materialData.model || '',
+              materialData.series || '',
+              materialData.source ? (typeof materialData.source === 'string' ? materialData.source : JSON.stringify(materialData.source)) : '[]',
+              materialData.description || '',
+              materialData.material_image || materialData.materialImage || '',
+              materialData.base_unit || materialData.baseUnit || '个',
+              materialData.sale_unit || materialData.saleUnit || '',
+              materialData.sale_conversion_rate || materialData.saleConversionRate || 1,
+              materialData.purchase_unit || materialData.purchaseUnit || '',
+              materialData.purchase_conversion_rate || materialData.purchaseConversionRate || 1,
+              materialData.kg_per_pcs || materialData.kgPerPcs || 0,
+              materialData.pcs_per_kg || materialData.pcsPerKg || 0,
+              materialData.process_name || materialData.processName || '',
+              materialData.standard_time || materialData.standardTime || 0,
+              materialData.quota_time || materialData.quotaTime || 0,
+              materialData.process_price || materialData.processPrice || 0,
+              materialData.purchase_cycle || materialData.purchaseCycle || '',
+              materialData.purchase_price || materialData.purchasePrice || 0,
+              materialData.status || 'active'
+            );
+          }
+          successCount++;
         } catch (error) {
           errorCount++;
           errors.push({
-            materialCode: materialData.material_code,
+            materialCode: materialData.material_code || materialData.materialCode,
             error: error.message
           });
         }
@@ -157,7 +219,7 @@ class MaterialService {
       db.exec('COMMIT');
 
       return {
-        successCount: materialsData.length - errorCount,
+        successCount,
         errorCount,
         errors
       };
@@ -171,6 +233,11 @@ class MaterialService {
   // 更新物料
   static async updateMaterial(id, materialData) {
     try {
+      // 计算基础单价
+      const purchasePrice = materialData.purchase_price || materialData.purchasePrice || 0;
+      const purchaseConversionRate = materialData.purchase_conversion_rate || materialData.purchaseConversionRate || 1;
+      const basePrice = purchaseConversionRate > 0 ? purchasePrice / purchaseConversionRate : 0;
+
       const stmt = db.prepare(`
         UPDATE materials SET
           material_code = ?, bom_number = ?, material_name = ?, size_spec = ?,
@@ -180,38 +247,39 @@ class MaterialService {
           sale_conversion_rate = ?, purchase_unit = ?, purchase_conversion_rate = ?,
           kg_per_pcs = ?, pcs_per_kg = ?, process_name = ?, standard_time = ?,
           quota_time = ?, process_price = ?, purchase_cycle = ?, purchase_price = ?,
-          status = ?, updated_at = CURRENT_TIMESTAMP
+          base_price = ?, status = ?, updated_at = CURRENT_TIMESTAMP
         WHERE id = ?
       `);
 
       const result = stmt.run(
-        materialData.material_code,
-        materialData.bom_number || '',
-        materialData.material_name,
-        materialData.size_spec || '',
+        materialData.material_code || materialData.materialCode,
+        materialData.bom_number || materialData.bomNumber || '',
+        materialData.material_name || materialData.materialName,
+        materialData.size_spec || materialData.sizeSpec || '',
         materialData.color || '',
         materialData.material || '',
-        materialData.major_category || '',
-        materialData.middle_category || '',
-        materialData.minor_category || '',
+        materialData.major_category || materialData.majorCategory || '',
+        materialData.middle_category || materialData.middleCategory || '',
+        materialData.minor_category || materialData.minorCategory || '',
         materialData.model || '',
         materialData.series || '',
-        materialData.source ? JSON.stringify(materialData.source) : '[]',
+        materialData.source ? (typeof materialData.source === 'string' ? materialData.source : JSON.stringify(materialData.source)) : '[]',
         materialData.description || '',
-        materialData.material_image || '',
-        materialData.base_unit || '个',
-        materialData.sale_unit || '',
-        materialData.sale_conversion_rate || 1,
-        materialData.purchase_unit || '',
-        materialData.purchase_conversion_rate || 1,
-        materialData.kg_per_pcs || 0,
-        materialData.pcs_per_kg || 0,
-        materialData.process_name || '',
-        materialData.standard_time || 0,
-        materialData.quota_time || 0,
-        materialData.process_price || 0,
-        materialData.purchase_cycle || '',
-        materialData.purchase_price || 0,
+        materialData.material_image || materialData.materialImage || '',
+        materialData.base_unit || materialData.baseUnit || '个',
+        materialData.sale_unit || materialData.saleUnit || '',
+        materialData.sale_conversion_rate || materialData.saleConversionRate || 1,
+        materialData.purchase_unit || materialData.purchaseUnit || '',
+        purchaseConversionRate,
+        materialData.kg_per_pcs || materialData.kgPerPcs || 0,
+        materialData.pcs_per_kg || materialData.pcsPerKg || 0,
+        materialData.process_name || materialData.processName || '',
+        materialData.standard_time || materialData.standardTime || 0,
+        materialData.quota_time || materialData.quotaTime || 0,
+        materialData.process_price || materialData.processPrice || 0,
+        materialData.purchase_cycle || materialData.purchaseCycle || '',
+        purchasePrice,
+        basePrice,
         materialData.status || 'active',
         id
       );

@@ -5,7 +5,7 @@
 class DatabaseService {
   constructor() {
     this.dbName = 'EnterpriseBrainDB';
-    this.version = 2; // 增加版本号以确保数据库结构更新
+    this.version = 3; // 增加版本号以添加草稿箱存储
     this.db = null;
   }
 
@@ -65,6 +65,24 @@ class DatabaseService {
         if (!this.db.objectStoreNames.contains('designBoms')) {
           const designBomStore = this.db.createObjectStore('designBoms', { keyPath: 'id' });
           designBomStore.createIndex('bomCode', 'bomCode', { unique: true });
+        }
+
+        // 创建生产BOM草稿对象存储
+        if (!this.db.objectStoreNames.contains('productionBomDrafts')) {
+          const productionBomDraftStore = this.db.createObjectStore('productionBomDrafts', { keyPath: 'draftId' });
+          productionBomDraftStore.createIndex('bomCode', 'bomCode', { unique: false });
+        }
+
+        // 创建销售BOM草稿对象存储
+        if (!this.db.objectStoreNames.contains('salesBomDrafts')) {
+          const salesBomDraftStore = this.db.createObjectStore('salesBomDrafts', { keyPath: 'draftId' });
+          salesBomDraftStore.createIndex('bomCode', 'bomCode', { unique: false });
+        }
+
+        // 创建设计BOM草稿对象存储
+        if (!this.db.objectStoreNames.contains('designBomDrafts')) {
+          const designBomDraftStore = this.db.createObjectStore('designBomDrafts', { keyPath: 'draftId' });
+          designBomDraftStore.createIndex('bomCode', 'bomCode', { unique: false });
         }
 
         console.log('数据库结构初始化完成');
@@ -133,6 +151,39 @@ class DatabaseService {
         console.log('设计BOM对象存储创建成功');
       } catch (error) {
         console.warn('设计BOM对象存储创建失败:', error);
+      }
+    }
+
+    // 检查并创建生产BOM草稿对象存储
+    if (!this.db.objectStoreNames.contains('productionBomDrafts')) {
+      try {
+        const productionBomDraftStore = this.db.createObjectStore('productionBomDrafts', { keyPath: 'draftId' });
+        productionBomDraftStore.createIndex('bomCode', 'bomCode', { unique: false });
+        console.log('生产BOM草稿对象存储创建成功');
+      } catch (error) {
+        console.warn('生产BOM草稿对象存储创建失败:', error);
+      }
+    }
+
+    // 检查并创建销售BOM草稿对象存储
+    if (!this.db.objectStoreNames.contains('salesBomDrafts')) {
+      try {
+        const salesBomDraftStore = this.db.createObjectStore('salesBomDrafts', { keyPath: 'draftId' });
+        salesBomDraftStore.createIndex('bomCode', 'bomCode', { unique: false });
+        console.log('销售BOM草稿对象存储创建成功');
+      } catch (error) {
+        console.warn('销售BOM草稿对象存储创建失败:', error);
+      }
+    }
+
+    // 检查并创建设计BOM草稿对象存储
+    if (!this.db.objectStoreNames.contains('designBomDrafts')) {
+      try {
+        const designBomDraftStore = this.db.createObjectStore('designBomDrafts', { keyPath: 'draftId' });
+        designBomDraftStore.createIndex('bomCode', 'bomCode', { unique: false });
+        console.log('设计BOM草稿对象存储创建成功');
+      } catch (error) {
+        console.warn('设计BOM草稿对象存储创建失败:', error);
       }
     }
   }
@@ -414,12 +465,12 @@ class DatabaseService {
         const keys = event.target.result || [];
         const maxId = keys.length > 0 ? Math.max(...keys) : 0;
         const nextId = maxId + 1;
-        console.log('下一个BOM ID:', nextId);
+        console.log(`下一个${bomType} ID:`, nextId);
         resolve(nextId);
       };
 
       request.onerror = (event) => {
-        console.error('获取下一个BOM ID失败:', event.target.error);
+        console.error(`获取下一个${bomType} ID失败:`, event.target.error);
         // 如果获取失败，返回默认值
         resolve(1);
       };
@@ -472,6 +523,90 @@ class DatabaseService {
         reject(new Error('数据库删除被阻止'));
       };
     });
+  }
+
+  /**
+   * 导出所有数据（备份）
+   * @returns {Promise<Object>}
+   */
+  async exportAllData() {
+    try {
+      const data = {
+        materials: await this.getAllMaterials(),
+        boms: await this.getAllBoms('boms'),
+        productionBoms: await this.getAllBoms('productionBoms'),
+        salesBoms: await this.getAllBoms('salesBoms'),
+        designBoms: await this.getAllBoms('designBoms'),
+        exportTime: new Date().toISOString(),
+        version: this.version
+      };
+
+      // 尝试加载草稿数据（可能不存在）
+      try {
+        data.productionBomDrafts = await this.getAllBoms('productionBomDrafts');
+        data.salesBomDrafts = await this.getAllBoms('salesBomDrafts');
+        data.designBomDrafts = await this.getAllBoms('designBomDrafts');
+      } catch (error) {
+        console.warn('草稿数据不存在，跳过');
+      }
+      
+      // 保存到localStorage作为备份
+      localStorage.setItem('enterpriseBrain_backup', JSON.stringify(data));
+      console.log('数据已备份到localStorage');
+      
+      return data;
+    } catch (error) {
+      console.error('数据导出失败:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * 从备份恢复数据
+   * @param {Object} backupData - 备份数据
+   * @returns {Promise}
+   */
+  async restoreFromBackup(backupData) {
+    try {
+      let restoredCount = 0;
+      
+      // 恢复物料数据
+      if (backupData.materials && backupData.materials.length > 0) {
+        const existing = await this.getAllMaterials();
+        if (existing.length === 0) {
+          await this.saveMaterials(backupData.materials);
+          restoredCount += backupData.materials.length;
+          console.log(`恢复了${backupData.materials.length}条物料数据`);
+        }
+      }
+      
+      // 恢复各类BOM数据
+      const bomTypes = ['boms', 'productionBoms', 'salesBoms', 'designBoms', 
+                        'productionBomDrafts', 'salesBomDrafts', 'designBomDrafts'];
+      
+      for (const bomType of bomTypes) {
+        if (backupData[bomType] && backupData[bomType].length > 0) {
+          try {
+            const existing = await this.getAllBoms(bomType);
+            if (existing.length === 0) {
+              for (const bom of backupData[bomType]) {
+                await this.saveBom(bom, bomType);
+              }
+              restoredCount += backupData[bomType].length;
+              console.log(`恢复了${backupData[bomType].length}条${bomType}数据`);
+            }
+          } catch (error) {
+            console.warn(`恢复${bomType}失败:`, error);
+          }
+        }
+      }
+      
+      console.log(`数据恢复完成，共恢复${restoredCount}条记录`);
+      return restoredCount;
+    } catch (error) {
+      console.error('数据恢复失败:', error);
+      throw error;
+    }
   }
 }
 

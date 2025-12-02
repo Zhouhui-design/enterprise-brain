@@ -67,6 +67,14 @@
           <el-descriptions-item label="采购转化率">{{ materialData?.purchaseConversionRate || '-' }}</el-descriptions-item>
           <el-descriptions-item label="采购周期">{{ materialData?.purchaseCycle || '-' }}</el-descriptions-item>
           <el-descriptions-item label="采购单价">¥{{ materialData?.purchasePrice?.toFixed(2) }}</el-descriptions-item>
+          <el-descriptions-item label="基础单价">
+            <span style="color: #67c23a; font-weight: bold;">
+              ¥{{ basePriceComputed }}
+            </span>
+            <span style="color: #909399; font-size: 12px; margin-left: 8px;">
+              (采购单价 ÷ 采购转化率)
+            </span>
+          </el-descriptions-item>
         </el-descriptions>
       </el-tab-pane>
     </el-tabs>
@@ -78,6 +86,8 @@
 </template>
 
 <script setup>
+import { computed } from 'vue'
+
 const props = defineProps({
   materialData: {
     type: Object,
@@ -86,6 +96,20 @@ const props = defineProps({
 })
 
 const emit = defineEmits(['close'])
+
+// 计算属性：基础单价
+const basePriceComputed = computed(() => {
+  if (!props.materialData) return '0.00'
+  
+  const purchasePrice = props.materialData.purchasePrice || 0
+  const purchaseConversionRate = props.materialData.purchaseConversionRate || 1
+  
+  // 基础单价 = 采购单价 ÷ 采购转化率
+  if (purchaseConversionRate > 0) {
+    return (purchasePrice / purchaseConversionRate).toFixed(2)
+  }
+  return '0.00'
+})
 
 const handleClose = () => {
   emit('close')

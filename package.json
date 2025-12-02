@@ -60,6 +60,7 @@
     "better-sqlite3": "^12.5.0",
     "cors": "^2.8.5",
     "express": "^5.1.0",
+    "node-cron": "^4.2.1",
     "sortablejs": "^1.15.6",
     "vue": "3.4.21",
     "vue-i18n": "9.14.4",

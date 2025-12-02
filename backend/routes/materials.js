@@ -41,13 +41,19 @@ router.post('/create', async (req, res) => {
 router.post('/batch-create', async (req, res) => {
   try {
     const materialsData = req.body;
+    console.log(`收到批量创建请求，数据条数: ${materialsData.length}`);
+    console.log('第一条数据示例:', JSON.stringify(materialsData[0], null, 2));
+    
     const result = await MaterialService.createMaterials(materialsData);
+    console.log('批量创建结果:', result);
+    
     res.json({
       code: 200,
       data: result,
       message: '批量创建物料成功'
     });
   } catch (error) {
+    console.error('批量创建失败:', error);
     res.status(500).json({
       code: 500,
       message: error.message
