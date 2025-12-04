@@ -19,6 +19,14 @@
           恢复数据
         </el-button>
         <el-button type="danger" :disabled="!hasSelection" @click="handleBatchDelete">批量删除</el-button>
+        <el-button type="success" :disabled="!isSingleSelection" @click="handleShowBomTree">
+          <el-icon><Grid /></el-icon>
+          生成BOM树结构
+        </el-button>
+        <el-button type="info" :disabled="!isSingleSelection" @click="handleViewBomTree">
+          <el-icon><DataAnalysis /></el-icon>
+          查看BOM树信息
+        </el-button>
         <el-button type="success" @click="handleImport">
           <el-icon><Upload /></el-icon>
           导入
@@ -140,6 +148,19 @@
         </template>
       </el-table-column>
       <el-table-column prop="productName" label="产品名称" width="180" />
+      <el-table-column prop="productImage" label="产品图片" width="100">
+        <template #default="{ row }">
+          <el-image 
+            v-if="row.productImage"
+            :src="row.productImage" 
+            :preview-src-list="[row.productImage]"
+            :preview-teleported="true"
+            style="width: 50px; height: 50px; cursor: pointer;"
+            fit="cover"
+          />
+          <span v-else style="color: #909399;">无图片</span>
+        </template>
+      </el-table-column>
       <el-table-column prop="version" label="版本号" width="100" />
       <el-table-column prop="status" label="状态" width="100">
         <template #default="{ row }">
@@ -152,14 +173,33 @@
       <el-table-column prop="designer" label="设计人员" width="120" />
       <el-table-column prop="reviewer" label="审核人员" width="120" />
       <el-table-column prop="itemCount" label="物料数量" width="100" align="right" />
+      <el-table-column prop="totalLabor" label="总人工" width="120" align="right">
+        <template #default="{ row }">
+          <span v-if="row.totalLabor">￥{{ parseFloat(row.totalLabor).toFixed(2) }}</span>
+          <span v-else style="color: #909399;">-</span>
+        </template>
+      </el-table-column>
+      <el-table-column prop="totalMaterial" label="总材料" width="120" align="right">
+        <template #default="{ row }">
+          <span v-if="row.totalMaterial">￥{{ parseFloat(row.totalMaterial).toFixed(2) }}</span>
+          <span v-else style="color: #909399;">-</span>
+        </template>
+      </el-table-column>
+      <el-table-column prop="isPushedToManual" label="是否推送" width="100" align="center">
+        <template #default="{ row }">
+          <el-tag v-if="row.isPushedToManual" type="success">已推送</el-tag>
+          <el-tag v-else type="info">未推送</el-tag>
+        </template>
+      </el-table-column>
       <el-table-column prop="effectiveDate" label="生效日期" width="120" />
       <el-table-column prop="createTime" label="创建时间" width="180" />
       <el-table-column prop="updateTime" label="更新时间" width="180" />
       <el-table-column prop="remark" label="备注" width="200" show-overflow-tooltip />
-      <el-table-column label="操作" width="200" fixed="right">
+      <el-table-column label="操作" width="280" fixed="right">
         <template #default="{ row }">
           <el-button link type="primary" @click="handleEdit(row)">编辑</el-button>
           <el-button link type="success" @click="handleView(row)">查看</el-button>
+          <el-button link type="warning" @click="handlePushToManual(row)">推送</el-button>
           <el-button link type="danger" @click="handleDelete(row)">删除</el-button>
         </template>
       </el-table-column>
@@ -287,6 +327,11 @@
               </el-form-item>
             </el-col>
             <el-col :span="8">
+              <el-form-item label="产出工序">
+                <el-input v-model="formData.outputProcess" readonly placeholder="自动填充" style="width: 100%;" />
+              </el-form-item>
+            </el-col>
+            <el-col :span="8">
               <el-form-item label="总人工">
                 <div style="display: flex; gap: 10px; width: 100%;">
                   <el-input v-model="formData.totalLabor" readonly style="flex: 1;" />
@@ -294,6 +339,8 @@
                 </div>
               </el-form-item>
             </el-col>
+          </el-row>
+          <el-row :gutter="20">
             <el-col :span="8">
               <el-form-item label="总材料">
                 <div style="display: flex; gap: 10px; width: 100%;">
@@ -339,6 +386,10 @@
               移动到
             </el-button>
             <el-divider direction="vertical" />
+            <el-button type="primary" size="small" @click="handleReloadProcessNames">
+              <el-icon><Refresh /></el-icon>
+              重新加载工序名称
+            </el-button>
             <el-button size="small" @click="settingsVisible = true">
               <el-icon><Setting /></el-icon>
               本页设置
@@ -373,7 +424,7 @@
         </div>
         
         <el-table 
-          :data="formData.childItems" 
+          :data="paginatedChildItems" 
           border 
           stripe
           height="400"
@@ -392,7 +443,13 @@
                 placeholder="层阶" 
                 size="small"
                 @focus="handleCellFocus(row, 'level')"
+                @change="updateLevelPath(row)"
               />
+            </template>
+          </el-table-column>
+          <el-table-column prop="levelPath" label="层阶地址" min-width="120" align="center">
+            <template #default="{ row }">
+              <span style="font-weight: bold; color: #409EFF;">{{ row.levelPath || '-' }}</span>
             </template>
           </el-table-column>
           <el-table-column prop="childCode" label="子件编码" min-width="150">
@@ -517,6 +574,20 @@
             </template>
           </el-table-column>
         </el-table>
+        
+        <!-- 子件分页 -->
+        <div style="margin-top: 10px; text-align: center;">
+          <el-pagination
+            v-model:current-page="childCurrentPage"
+            v-model:page-size="childPageSize"
+            :page-sizes="[20, 50, 100, 200]"
+            :total="childTotalCount"
+            layout="total, sizes, prev, pager, next, jumper"
+            @size-change="handleChildSizeChange"
+            @current-change="handleChildCurrentChange"
+            small
+          />
+        </div>
       </div>
 
       <template #footer>
@@ -553,6 +624,14 @@
           <el-descriptions-item label="审核人员">{{ currentBom.reviewer }}</el-descriptions-item>
           <el-descriptions-item label="物料数量">{{ currentBom.itemCount }}</el-descriptions-item>
           <el-descriptions-item label="生效日期">{{ currentBom.effectiveDate }}</el-descriptions-item>
+          <el-descriptions-item label="总人工">
+            <span v-if="currentBom.totalLabor">￥{{ parseFloat(currentBom.totalLabor).toFixed(2) }}</span>
+            <span v-else style="color: #909399;">-</span>
+          </el-descriptions-item>
+          <el-descriptions-item label="总材料">
+            <span v-if="currentBom.totalMaterial">￥{{ parseFloat(currentBom.totalMaterial).toFixed(2) }}</span>
+            <span v-else style="color: #909399;">-</span>
+          </el-descriptions-item>
           <el-descriptions-item label="创建时间">{{ currentBom.createTime }}</el-descriptions-item>
           <el-descriptions-item label="更新时间">{{ currentBom.updateTime }}</el-descriptions-item>
           <el-descriptions-item label="备注" :span="2">{{ currentBom.remark }}</el-descriptions-item>
@@ -570,9 +649,19 @@
         >
           <el-table-column type="index" label="序号" width="60" align="center" />
           <el-table-column prop="level" label="层阶" width="80" align="center" />
+          <el-table-column prop="levelPath" label="层阶地址" width="120" align="center">
+            <template #default="{ row }">
+              <span style="font-weight: bold; color: #409EFF;">{{ row.levelPath || '-' }}</span>
+            </template>
+          </el-table-column>
           <el-table-column prop="childCode" label="子件编码" min-width="120" />
           <el-table-column prop="childName" label="子件名称" min-width="150" />
           <el-table-column prop="standardQty" label="标准用量" width="100" align="right" />
+          <el-table-column prop="level0Qty" label="0层阶标准用量" width="140" align="right">
+            <template #default="{ row }">
+              <span>{{ calculateLevel0Qty(row) }}</span>
+            </template>
+          </el-table-column>
           <el-table-column prop="outputProcess" label="产出工序" min-width="120" />
           <el-table-column prop="source" label="子件来源" width="100" />
           <el-table-column prop="processWage" label="工序工资" width="100" align="right">
@@ -592,7 +681,12 @@
           </el-table-column>
           <el-table-column prop="materialCost" label="材料费用" width="100" align="right">
             <template #default="{ row }">
-              {{ row.materialCost ? row.materialCost.toFixed(2) : '0.00' }}
+              {{ calculateMaterialCost(row) }}
+            </template>
+          </el-table-column>
+          <el-table-column prop="level0Labor" label="0阶人工" width="100" align="right">
+            <template #default="{ row }">
+              <span>{{ calculateLevel0Labor(row) }}</span>
             </template>
           </el-table-column>
         </el-table>
@@ -735,16 +829,69 @@
         <el-button @click="draftBoxVisible = false">关闭</el-button>
       </template>
     </el-dialog>
+
+    <!-- BOM树结构展示对话框 -->
+    <el-dialog
+      v-model="bomTreeDialogVisible"
+      :title="`BOM树结构 - ${bomTreeData.bomName || ''}`"
+      width="95%"
+      :close-on-click-modal="false"
+      destroy-on-close
+      class="bom-tree-dialog"
+      top="5vh"
+    >
+      <div class="bom-tree-container">
+        <!-- 产品信息区 -->
+        <div class="product-info-header">
+          <el-descriptions :column="4" border size="small">
+            <el-descriptions-item label="BOM编号">
+              <el-tag type="primary">{{ bomTreeData.bomCode }}</el-tag>
+            </el-descriptions-item>
+            <el-descriptions-item label="BOM名称">
+              <strong>{{ bomTreeData.bomName }}</strong>
+            </el-descriptions-item>
+            <el-descriptions-item label="版本号">{{ bomTreeData.version || '-' }}</el-descriptions-item>
+            <el-descriptions-item label="状态">
+              <el-tag v-if="bomTreeData.status === 'draft'" type="info">草稿</el-tag>
+              <el-tag v-else-if="bomTreeData.status === 'reviewing'" type="warning">审核中</el-tag>
+              <el-tag v-else-if="bomTreeData.status === 'approved'" type="success">已批准</el-tag>
+              <el-tag v-else-if="bomTreeData.status === 'obsolete'" type="danger">已废弃</el-tag>
+            </el-descriptions-item>
+          </el-descriptions>
+        </div>
+
+        <!-- 横向组织架构式树形结构 -->
+        <div class="org-tree-section">
+          <div class="org-tree-wrapper">
+            <div class="org-tree-container" ref="orgTreeContainer">
+              <!-- 递归渲染组织架构树 -->
+              <div class="org-tree-node-wrapper" v-if="orgTreeData">
+                <OrgTreeNode :node="orgTreeData" :is-root="true" />
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <template #footer>
+        <el-button @click="bomTreeDialogVisible = false">关闭</el-button>
+        <el-button type="primary" @click="handlePrintTree">
+          <el-icon><Printer /></el-icon>
+          打印
+        </el-button>
+      </template>
+    </el-dialog>
   </div>
 </template>
 
 <script setup>
-import { ref, computed, onMounted } from 'vue'
-import { ElMessage, ElMessageBox } from 'element-plus'
+import { ref, computed, onMounted, h, defineComponent, nextTick } from 'vue'
+import { ElMessage, ElMessageBox, ElNotification } from 'element-plus'
+import { useRouter } from 'vue-router'
 import { 
   Search, Plus, Upload, Download, Printer, Refresh, 
   Document, CircleCheck, Warning, UploadFilled, Delete, Rank, RefreshRight, DocumentCopy,
-  Setting, Operation, PriceTag, Money, Coin, User
+  Setting, Operation, PriceTag, Money, Coin, User, Grid, Files, Folder, DataAnalysis
 } from '@element-plus/icons-vue'
 import SmartSelect from '@/components/SmartSelect.vue'
 import { copyToClipboard, getCopyableColumnProps } from '@/utils/clipboard'
@@ -753,6 +900,76 @@ import materialApiService from '@/services/api/materialApiService'
 import bomApiService from '@/services/api/bomApiService'
 import bomDraftApiService from '@/services/api/bomDraftApiService'
 import databaseService from '@/services/DatabaseService.js' // 仅用于数据迁移
+import bomTreeStructureApi from '@/api/bomTreeStructure'
+
+// 组织架构树节点组件
+const OrgTreeNode = defineComponent({
+  name: 'OrgTreeNode',
+  props: {
+    node: Object,
+    isRoot: Boolean
+  },
+  setup(props) {
+    return () => {
+      if (!props.node) return null
+      
+      const hasChildren = props.node.children && props.node.children.length > 0
+      
+      return h('div', { class: 'org-tree-node' }, [
+        // 子节点区域（在左侧）
+        hasChildren && h('div', { class: 'org-tree-children' }, [
+          h('div', { class: 'org-tree-children-list' }, 
+            props.node.children.map((child, index) => 
+              h('div', { 
+                key: child.id,
+                class: 'org-tree-child-wrapper'
+              }, [
+                h(OrgTreeNode, { node: child, isRoot: false })
+              ])
+            )
+          )
+        ]),
+        
+        // 当前节点卡片（在右侧）
+        h('div', { class: 'org-tree-node-content' }, [
+          h('div', { 
+            class: [
+              'org-node-card',
+              props.isRoot ? 'root-node' : 'child-node',
+              `level-${props.node.level}`
+            ]
+          }, [
+            // 层级标识
+            h('div', { class: 'node-level-badge' }, `L${props.node.level}`),
+            
+            // 节点信息
+            h('div', { class: 'node-info-content' }, [
+              h('div', { class: 'node-row' }, [
+                h('span', { class: 'node-label' }, '编号：'),
+                h('span', { class: 'node-value code' }, props.node.code)
+              ]),
+              h('div', { class: 'node-row' }, [
+                h('span', { class: 'node-label' }, '名称：'),
+                h('span', { class: 'node-value name' }, props.node.name)
+              ]),
+              h('div', { class: 'node-row' }, [
+                h('span', { class: 'node-label' }, '用量：'),
+                h('span', { class: 'node-value qty' }, props.node.standardQty)
+              ]),
+              props.node.outputProcess && h('div', { class: 'node-row' }, [
+                h('span', { class: 'node-label' }, '工序：'),
+                h('span', { class: 'node-value process' }, props.node.outputProcess)
+              ])
+            ])
+          ])
+        ])
+      ])
+    }
+  }
+})
+
+// Router
+const router = useRouter()
 
 // 数据
 const tableRef = ref(null)
@@ -771,6 +988,7 @@ const editDialogVisible = ref(false)
 const viewDialogVisible = ref(false)
 const importDialogVisible = ref(false)
 const draftBoxVisible = ref(false)
+const bomTreeDialogVisible = ref(false)
 const currentBom = ref(null)
 const isEdit = ref(false)
 const isDraftMode = ref(false)
@@ -810,6 +1028,16 @@ const nextBomId = ref(1)
 const draftList = ref([])
 const nextDraftId = ref(1)
 
+// BOM树结构数据
+const bomTreeData = ref({})
+const treeStructure = ref([])
+const orgTreeData = ref(null)
+const orgTreeContainer = ref(null)
+const treeProps = {
+  children: 'children',
+  label: 'name'
+}
+
 // 子件选择的行
 const selectedChildRows = ref([])
 
@@ -824,6 +1052,10 @@ const settingsVisible = ref(false)
 // 性能优化：焦点行记录
 const focusedRow = ref(null)
 const focusedField = ref(null)
+
+// 子件表格分页
+const childCurrentPage = ref(1)
+const childPageSize = ref(20)
 
 // 处理单元格焦点（仅记录，不处理）
 const handleCellFocus = (row, field) => {
@@ -843,8 +1075,24 @@ const filteredChildMaterialList = computed(() => {
   return materialList.value.filter(m => m.materialCode !== formData.value.productCode)
 })
 
+// 计算属性：分页后的子件数据
+const paginatedChildItems = computed(() => {
+  if (!formData.value.childItems || formData.value.childItems.length === 0) {
+    return []
+  }
+  const start = (childCurrentPage.value - 1) * childPageSize.value
+  const end = start + childPageSize.value
+  return formData.value.childItems.slice(start, end)
+})
+
+// 计算属性：子件总数
+const childTotalCount = computed(() => {
+  return formData.value.childItems ? formData.value.childItems.length : 0
+})
+
 // 计算属性
 const hasSelection = computed(() => selectedRows.value.length > 0)
+const isSingleSelection = computed(() => selectedRows.value.length === 1)
 
 const filteredTableData = computed(() => {
   let data = tableData.value
@@ -910,7 +1158,7 @@ const handleCancel = async () => {
   }
 }
 
-// 产品编码变化时，自动填充产品名称
+// 产品编码变化时，自动填充产品名称和产出工序
 const handleProductCodeChange = (value) => {
   if (!value) {
     return
@@ -920,7 +1168,8 @@ const handleProductCodeChange = (value) => {
   const material = materialList.value.find(m => m.materialCode === value)
   if (material) {
     formData.value.productName = material.materialName
-    ElMessage.success('已自动填充产品名称')
+    formData.value.outputProcess = material.outputProcessName || '' // 填充产出工序
+    ElMessage.success('已自动填充产品名称和产出工序')
   }
 }
 
@@ -938,11 +1187,98 @@ const handleProductNameChange = (value) => {
   }
 }
 
+// 计算层阶地址
+// 根据层阶和父子关系计算地址，格式为 1.1.1.1 ...
+const calculateLevelPath = (item, allItems) => {
+  const level = parseInt(item.level) || 1
+  
+  if (level === 1) {
+    // 层阶1：根据顺序编号
+    const level1Items = allItems.filter(i => parseInt(i.level || 1) === 1)
+    const index = level1Items.findIndex(i => i.id === item.id)
+    return String(index + 1)
+  } else {
+    // 层阶2及以上：查找父件
+    const currentIndex = allItems.findIndex(i => i.id === item.id)
+    if (currentIndex === -1) return ''
+    
+    // 向上查找父件（第一个层阶比当前小1的）
+    let parentItem = null
+    let parentIndex = -1
+    for (let i = currentIndex - 1; i >= 0; i--) {
+      const prevLevel = parseInt(allItems[i].level || 1)
+      if (prevLevel === level - 1) {
+        parentItem = allItems[i]
+        parentIndex = i
+        break
+      }
+    }
+    
+    if (!parentItem) return ''
+    
+    // 计算父件地址（递归）
+    const parentPath = parentItem.levelPath || calculateLevelPath(parentItem, allItems)
+    
+    // 计算当前在同级同父中的序号
+    let siblingIndex = 1
+    for (let i = parentIndex + 1; i < currentIndex; i++) {
+      const itemLevel = parseInt(allItems[i].level || 1)
+      if (itemLevel === level) {
+        // 检查是否与当前项同父
+        let isSameParent = false
+        for (let j = i - 1; j >= 0; j--) {
+          const prevLevel = parseInt(allItems[j].level || 1)
+          if (prevLevel === level - 1) {
+            isSameParent = (allItems[j].id === parentItem.id)
+            break
+          }
+        }
+        if (isSameParent) {
+          siblingIndex++
+        }
+      }
+    }
+    
+    return `${parentPath}.${siblingIndex}`
+  }
+}
+
+// 更新单个项的层阶地址
+const updateLevelPath = (item) => {
+  if (!item || !formData.value.childItems) return
+  
+  const allItems = formData.value.childItems
+  item.levelPath = calculateLevelPath(item, allItems)
+  
+  // 更新所有下级的层阶地址
+  recalculateAllLevelPaths()
+}
+
+// 重新计算所有层阶地址
+const recalculateAllLevelPaths = () => {
+  if (!formData.value.childItems || formData.value.childItems.length === 0) return
+  
+  const allItems = formData.value.childItems
+  
+  // 按顺序重新计算每一项的地址
+  allItems.forEach(item => {
+    item.levelPath = calculateLevelPath(item, allItems)
+  })
+}
+
+// 计算层阶1的顺序编号
+const getLevel1Sequence = (item, allItems) => {
+  const level1Items = allItems.filter(i => parseInt(i.level || 1) === 1)
+  const index = level1Items.findIndex(i => i.id === item.id)
+  return index + 1
+}
+
 // 添加子件
 const handleAddChild = () => {
-  formData.value.childItems.push({
+  const newItem = {
     id: `child_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`, // 唯一ID
     level: '1',
+    levelPath: '', // 将在下面计算
     childCode: '',
     childName: '',
     standardQty: 1,
@@ -952,6 +1288,13 @@ const handleAddChild = () => {
     materialLoss: 0,
     materialPrice: 0,
     indent: 0 // 缩进层级
+  }
+  
+  formData.value.childItems.push(newItem)
+  
+  // 计算层阶地址
+  nextTick(() => {
+    recalculateAllLevelPaths()
   })
 }
 
@@ -993,6 +1336,7 @@ const handleAddChildLevelForRow = (row, index) => {
   const newItem = {
     id: `child_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`, // 唯一ID
     level: String(currentLevel + 1),
+    levelPath: '', // 将在下面计算
     childCode: '',
     childName: '',
     standardQty: 1,
@@ -1006,6 +1350,12 @@ const handleAddChildLevelForRow = (row, index) => {
   }
   
   formData.value.childItems.splice(index + 1, 0, newItem)
+  
+  // 计算层阶地址
+  nextTick(() => {
+    recalculateAllLevelPaths()
+  })
+  
   ElMessage.success('已添加下层子件')
 }
 
@@ -1194,10 +1544,8 @@ const handleChildCodeChange = (value, row) => {
     row.childName = material.materialName
     
     // 数据流水线：从物料库自动填充其他字段
-    // 产出工序 = 物料库的产出工序名称
-    if (material.processName) {
-      row.outputProcess = material.processName
-    }
+    // 产出工序 = 物料库的产出工序名称，如果为空则默认为“采购”
+    row.outputProcess = material.outputProcessName || material.processName || '采购'
     
     // 子件来源 = 物料库的来源（取第一个）
     if (material.source && Array.isArray(material.source) && material.source.length > 0) {
@@ -1245,10 +1593,8 @@ const handleChildNameChange = (value, row) => {
     row.childCode = material.materialCode
     
     // 数据流水线：从物料库自动填充其他字段
-    // 产出工序 = 物料库的产出工序名称
-    if (material.processName) {
-      row.outputProcess = material.processName
-    }
+    // 产出工序 = 物料库的产出工序名称，如果为空则默认为“采购”
+    row.outputProcess = material.outputProcessName || material.processName || '采购'
     
     // 子件来源 = 物料库的来源（取第一个）
     if (material.source && Array.isArray(material.source) && material.source.length > 0) {
@@ -1281,6 +1627,45 @@ const handleChildNameChange = (value, row) => {
     })
     
     ElMessage.success('已自动填充子件信息（材料单价使用基础单价）')
+  }
+}
+
+// 重新加载工序名称
+const handleReloadProcessNames = () => {
+  if (!formData.value.childItems || formData.value.childItems.length === 0) {
+    ElMessage.warning('暂无子件数据')
+    return
+  }
+  
+  let updatedCount = 0
+  
+  formData.value.childItems.forEach(row => {
+    if (!row.childCode) return
+    
+    // 查找对应的物料信息
+    const material = materialList.value.find(m => m.materialCode === row.childCode)
+    if (material) {
+      // 重新计算产出工序：如果为空或者物料库有值，则更新
+      const newProcessName = material.outputProcessName || material.processName || '采购'
+      
+      // 如果产出工序为空或者不同，则更新
+      if (!row.outputProcess || row.outputProcess !== newProcessName) {
+        row.outputProcess = newProcessName
+        updatedCount++
+      }
+    } else {
+      // 没有找到对应物料，默认为“采购”
+      if (!row.outputProcess) {
+        row.outputProcess = '采购'
+        updatedCount++
+      }
+    }
+  })
+  
+  if (updatedCount > 0) {
+    ElMessage.success(`已重新加载 ${updatedCount} 条工序名称`)
+  } else {
+    ElMessage.info('所有工序名称已是最新')
   }
 }
 
@@ -1474,24 +1859,78 @@ const handleLoadProcessWage = () => {
   ElMessage.success(`已加载 ${count} 条子件的工序工资`)
 }
 
-// 加载材料单价（手动加载）
+// 加载材料单价（手动加载）- 强制重新计算覆盖当前值
 const handleLoadMaterialPrice = () => {
   if (!formData.value.childItems || formData.value.childItems.length === 0) {
     ElMessage.warning('暂无子件数据')
     return
   }
   
-  let count = 0
-  for (const row of formData.value.childItems) {
-    // 从物料库加载材料单价（基础单价）
-    const material = materialList.value.find(m => m.materialCode === row.childCode)
-    if (material && material.basePrice !== undefined && material.basePrice !== null) {
-      row.materialPrice = material.basePrice
-      count++
-    }
+  // 检查计算方式
+  if (calculationMode.value !== 'manual') {
+    ElMessage.warning('请先在【本页设置】中将计算方式设置为【手动加载】')
+    return
   }
   
-  ElMessage.success(`已加载 ${count} 条子件的材料单价（基础单价）`)
+  let successCount = 0
+  let noMaterialCount = 0
+  let updatedCount = 0
+  let noChangeCount = 0
+  
+  // 遍历所有子件，强制重新计算材料单价
+  for (const row of formData.value.childItems) {
+    if (!row.childCode) {
+      continue
+    }
+    
+    // 从物料库查找对应物料
+    const material = materialList.value.find(m => m.materialCode === row.childCode)
+    
+    if (!material) {
+      noMaterialCount++
+      continue
+    }
+    
+    // 检查基础单价是否存在
+    if (material.basePrice === undefined || material.basePrice === null) {
+      noMaterialCount++
+      continue
+    }
+    
+    // 记录旧值
+    const oldPrice = row.materialPrice || 0
+    const newPrice = material.basePrice
+    
+    // 强制更新为基础单价（无论当前值是什么）
+    row.materialPrice = newPrice
+    
+    if (Math.abs(oldPrice - newPrice) > 0.01) {
+      updatedCount++  // 值发生变化
+    } else {
+      noChangeCount++ // 值未变化
+    }
+    
+    successCount++
+  }
+  
+  // 显示详细的加载结果
+  const messages = []
+  messages.push(`✅ 成功加载：${successCount} 条`)
+  if (updatedCount > 0) {
+    messages.push(`🔄 值已更新：${updatedCount} 条`)
+  }
+  if (noChangeCount > 0) {
+    messages.push(`✔️ 值未变化：${noChangeCount} 条`)
+  }
+  if (noMaterialCount > 0) {
+    messages.push(`⚠️ 无物料数据：${noMaterialCount} 条`)
+  }
+  
+  ElMessage.success({
+    message: `材料单价加载完成（基础单价）\n${messages.join('\n')}`,
+    duration: 5000,
+    dangerouslyUseHTMLString: true
+  })
 }
 
 // 加载0阶人工（手动加载）
@@ -1523,6 +1962,7 @@ const handleCreate = () => {
     bomName: '',
     productCode: '',
     productName: '',
+    outputProcess: '', // 产出工序
     version: 'V1.0',
     status: 'draft',
     designer: '',
@@ -1551,6 +1991,12 @@ const handleEdit = async (row) => {
       ...bomDetail,
       childItems: bomDetail.childItems || []
     }
+    
+    // 计算层阶地址
+    nextTick(() => {
+      recalculateAllLevelPaths()
+    })
+    
     editDialogVisible.value = true
   } catch (error) {
     console.error('加载BOM数据失败:', error)
@@ -1564,6 +2010,37 @@ const handleView = async (row) => {
     // 从后端加载完整数据（包含子件）
     const bomDetail = await bomApiService.getBomDetail(row.id)
     currentBom.value = bomDetail
+    
+    // 计算层阶地址
+    if (currentBom.value.childItems && currentBom.value.childItems.length > 0) {
+      currentBom.value.childItems.forEach(item => {
+        item.levelPath = calculateLevelPath(item, currentBom.value.childItems)
+      })
+    }
+    
+    // 计算总人工和总材料（如果没有值）
+    if (!currentBom.value.totalLabor || currentBom.value.totalLabor === '0.00') {
+      let totalLabor = 0
+      if (currentBom.value.childItems && currentBom.value.childItems.length > 0) {
+        currentBom.value.childItems.forEach(item => {
+          const level0Labor = parseFloat(calculateLevel0Labor(item)) || 0
+          totalLabor += level0Labor
+        })
+      }
+      currentBom.value.totalLabor = totalLabor.toFixed(2)
+    }
+    
+    if (!currentBom.value.totalMaterial || currentBom.value.totalMaterial === '0.00') {
+      let totalMaterial = 0
+      if (currentBom.value.childItems && currentBom.value.childItems.length > 0) {
+        currentBom.value.childItems.forEach(item => {
+          const materialCost = parseFloat(calculateMaterialCost(item)) || 0
+          totalMaterial += materialCost
+        })
+      }
+      currentBom.value.totalMaterial = totalMaterial.toFixed(2)
+    }
+    
     viewDialogVisible.value = true
   } catch (error) {
     console.error('加载BOM详情失败:', error)
@@ -1759,25 +2236,68 @@ const handleSubmit = async () => {
       isDraftMode.value = false
     } else {
       // 正常保存逻辑
+      
+      // 保存前，从物料库获取产品图片
+      if (formData.value.productCode && !formData.value.productImage) {
+        const material = materialList.value.find(m => m.materialCode === formData.value.productCode)
+        if (material && material.materialImage) {
+          formData.value.productImage = material.materialImage
+        }
+      }
+      
       if (isEdit.value) {
+        // 先保存到后端
+        const savedBom = await bomApiService.saveBom(formData.value)
+        
+        // 后端保存成功后，再更新本地数据
         const index = tableData.value.findIndex(p => p.id === currentBom.value.id)
         if (index !== -1) {
+          // 只保存必要的字段，过滤掉前端显示字段
           tableData.value[index] = {
-            ...formData.value,
-            id: currentBom.value.id,
+            id: savedBom.id,
+            bomCode: formData.value.bomCode,
+            bomName: formData.value.bomName,
+            productCode: formData.value.productCode,
+            productName: formData.value.productName,
+            version: formData.value.version,
+            status: formData.value.status,
+            designer: formData.value.designer,
+            reviewer: formData.value.reviewer,
+            itemCount: formData.value.itemCount,
+            effectiveDate: formData.value.effectiveDate,
+            remark: formData.value.remark,
+            totalLabor: formData.value.totalLabor,
+            totalMaterial: formData.value.totalMaterial,
+            productImage: formData.value.productImage,
             updateTime: new Date().toLocaleString('zh-CN')
           }
-          await bomApiService.saveBom(tableData.value[index])
         }
         ElMessage.success('BOM更新成功')
       } else {
+        // 先保存到后端
+        const savedBom = await bomApiService.saveBom(formData.value)
+        
+        // 后端保存成功后，再更新本地数据
         const newBom = {
-          ...formData.value,
+          id: savedBom.id,
+          bomCode: formData.value.bomCode,
+          bomName: formData.value.bomName,
+          productCode: formData.value.productCode,
+          productName: formData.value.productName,
+          version: formData.value.version,
+          status: formData.value.status,
+          designer: formData.value.designer,
+          reviewer: formData.value.reviewer,
+          itemCount: formData.value.itemCount,
+          effectiveDate: formData.value.effectiveDate,
+          remark: formData.value.remark,
+          totalLabor: formData.value.totalLabor,
+          totalMaterial: formData.value.totalMaterial,
+          productImage: formData.value.productImage,
           createTime: new Date().toLocaleString('zh-CN'),
           updateTime: new Date().toLocaleString('zh-CN')
         }
-        const savedBom = await bomApiService.saveBom(newBom)
-        tableData.value.unshift({ ...newBom, id: savedBom.id })
+        tableData.value.unshift(newBom)
         nextBomId.value++
         ElMessage.success('BOM创建成功')
       }
@@ -1843,6 +2363,12 @@ const handleEditDraft = (row) => {
     ...row,
     childItems: row.childItems || []
   }
+  
+  // 计算层阶地址
+  nextTick(() => {
+    recalculateAllLevelPaths()
+  })
+  
   editDialogVisible.value = true
   draftBoxVisible.value = false
 }
@@ -1916,6 +2442,211 @@ const handleDeleteDraft = async (row) => {
 // 导入
 const handleImport = () => {
   importDialogVisible.value = true
+}
+
+// 显示BOM树结构（生成并跳转）
+const handleShowBomTree = async () => {
+  if (selectedRows.value.length !== 1) {
+    ElMessage.warning('请选择一条BOM数据')
+    return
+  }
+  
+  const selectedBom = selectedRows.value[0]
+  
+  try {
+    // 加载完整BOM数据（包含子件）
+    const loadingMsg = ElMessage({
+      message: '正在加载BOM数据...',
+      type: 'info',
+      duration: 0
+    })
+    
+    const bomDetail = await bomApiService.getBomDetail(selectedBom.id)
+    
+    // 计算层阶地址（如果没有）
+    if (bomDetail.childItems && bomDetail.childItems.length > 0) {
+      bomDetail.childItems.forEach(item => {
+        if (!item.levelPath) {
+          item.levelPath = calculateLevelPath(item, bomDetail.childItems)
+        }
+      })
+    }
+    
+    loadingMsg.close()
+    
+    // 构建数据流水线对象
+    const bomTreePipelineData = {
+      // 父件属性
+      parent: {
+        productCode: bomDetail.productCode || '',
+        productName: bomDetail.productName || '',
+        itemCount: bomDetail.itemCount || 1,
+        outputProcess: bomDetail.outputProcess || '' // 产出工序
+      },
+      // 子件属性
+      children: (bomDetail.childItems || []).map(child => ({
+        levelPath: child.levelPath || '', // 层阶地址
+        childCode: child.childCode || '',
+        childName: child.childName || '',
+        outputProcess: child.outputProcess || '',
+        standardQty: child.standardQty || 0
+      })),
+      // BOM基础信息
+      bomInfo: {
+        bomCode: bomDetail.bomCode,
+        bomName: bomDetail.bomName,
+        version: bomDetail.version
+      }
+    }
+    
+    console.log('BOM数据流水线:', bomTreePipelineData)
+    
+    // 将数据保存到 sessionStorage
+    sessionStorage.setItem('bomTreePipelineData', JSON.stringify(bomTreePipelineData))
+    
+    // 跳转到BOM树结构页面
+    router.push('/bom-tree-structure')
+    
+    ElMessage.success('已跳转到BOM树结构页面')
+  } catch (error) {
+    console.error('加载BOM数据失败:', error)
+    ElMessage.error('加载BOM数据失败: ' + error.message)
+  }
+}
+
+// 查看BOM树信息（从数据库加载）
+const handleViewBomTree = async () => {
+  if (selectedRows.value.length !== 1) {
+    ElMessage.warning('请选择一条BOM数据')
+    return
+  }
+  
+  const selectedBom = selectedRows.value[0]
+  
+  try {
+    // 显示loading
+    const loadingMsg = ElMessage({
+      message: '正在加载BOM树结构...',
+      type: 'info',
+      duration: 0
+    })
+    
+    // 从数据库获取BOM树结构
+    const response = await bomTreeStructureApi.getTreeStructure(selectedBom.bomCode)
+    
+    // 关闭 loading
+    loadingMsg.close()
+    
+    if (response.data.success) {
+      // 设置BOM数据
+      bomTreeData.value = {
+        bomCode: response.data.data.bomCode,
+        bomName: response.data.data.bomName,
+        productCode: response.data.data.productCode,
+        productName: response.data.data.productName,
+        version: response.data.data.version,
+        status: response.data.data.status,
+        itemCount: selectedBom.itemCount
+      }
+      
+      // 构建树结构
+      buildTreeStructure(selectedBom)
+      
+      // 打开对话框
+      bomTreeDialogVisible.value = true
+      
+      ElMessage.success('加载BOM树结构成功')
+    } else {
+      ElMessage.warning('该BOM尚未生成树结构，请先点击\'生成BOM树结构\'按钮')
+    }
+  } catch (error) {
+    console.error('获取BOM树结构失败:', error)
+    
+    if (error.response?.status === 404) {
+      ElMessage.warning('该BOM尚未生成树结构，请先点击\'生成BOM树结构\'按钮')
+    } else {
+      ElMessage.error('获取BOM树结构失败：' + (error.response?.data?.message || error.message))
+    }
+  }
+}
+
+// 构建BOM树结构（组织架构式）
+const buildTreeStructure = (bomData) => {
+  // 根节点（父件/产品）
+  const rootNode = {
+    id: `root-${bomData.bomCode}`,
+    code: bomData.productCode,
+    name: bomData.productName,
+    level: 0,
+    standardQty: 1,
+    outputProcess: bomData.outputProcess || '-',
+    children: []
+  }
+  
+  if (!bomData.childItems || bomData.childItems.length === 0) {
+    orgTreeData.value = rootNode
+    return
+  }
+  
+  // 按层级分组子件
+  const itemsByLevel = {}
+  bomData.childItems.forEach(item => {
+    const level = parseInt(item.level) || 1
+    if (!itemsByLevel[level]) {
+      itemsByLevel[level] = []
+    }
+    itemsByLevel[level].push({
+      id: `${item.childCode}-${item.level}-${Math.random()}`,
+      code: item.childCode,
+      name: item.childName,
+      level: level,
+      standardQty: item.standardQty || 0,
+      outputProcess: item.outputProcess || '-',
+      children: [],
+      parentLevel: level - 1
+    })
+  })
+  
+  // 获取所有层级并排序
+  const levels = Object.keys(itemsByLevel).map(Number).sort((a, b) => a - b)
+  
+  if (levels.length === 0) {
+    orgTreeData.value = rootNode
+    return
+  }
+  
+  // 构建层级关系
+  // 第1层直接挂在根节点下
+  if (levels.includes(1)) {
+    rootNode.children = itemsByLevel[1]
+  }
+  
+  // 后续层级按照父子关系挂载
+  for (let i = 1; i < levels.length; i++) {
+    const currentLevel = levels[i]
+    const prevLevel = levels[i - 1]
+    
+    if (itemsByLevel[prevLevel] && itemsByLevel[currentLevel]) {
+      const prevLevelNodes = itemsByLevel[prevLevel]
+      const currentLevelNodes = itemsByLevel[currentLevel]
+      
+      // 将当前层节点平均分配给上一层节点
+      const itemsPerParent = Math.ceil(currentLevelNodes.length / prevLevelNodes.length)
+      prevLevelNodes.forEach((parentNode, index) => {
+        const start = index * itemsPerParent
+        const end = Math.min(start + itemsPerParent, currentLevelNodes.length)
+        parentNode.children = currentLevelNodes.slice(start, end)
+      })
+    }
+  }
+  
+  orgTreeData.value = rootNode
+}
+
+// 打印树结构
+const handlePrintTree = () => {
+  window.print()
+  ElMessage.success('请在打印预览中选择打印机')
 }
 
 // 文件选择
@@ -2089,6 +2820,140 @@ const restoreFromBackupData = async (backupJson, backupKey) => {
   }
 }
 
+// 推送到产品手册
+const handlePushToManual = async (row) => {
+  try {
+    // 检查产品编号
+    if (!row.productCode) {
+      ElMessage.error('产品编号为空，无法推送')
+      return
+    }
+    
+    // 确认推送
+    await ElMessageBox.confirm(
+      `确定要将该BOM推送到产品手册吗？<br/><br/>` +
+      `<strong>BOM名称：</strong>${row.bomName}<br/>` +
+      `<strong>产品编号：</strong>${row.productCode}<br/>` +
+      `<strong>产品名称：</strong>${row.productName}<br/><br/>` +
+      `<span style="color: #909399;">推送后将在产品手册中创建相应的产品记录</span>`,
+      '推送确认',
+      {
+        dangerouslyUseHTMLString: true,
+        confirmButtonText: '确定推送',
+        cancelButtonText: '取消',
+        type: 'info'
+      }
+    )
+    
+    // 构建产品手册数据
+    const productManualData = {
+      productCode: row.productCode,
+      productName: row.productName,
+      productImage: row.productImage || '',
+      source: ['自制'], // 默认来源为自制，用户可以后期更改
+      category: '', // 用户后期填写
+      specification: row.version || '',
+      unit: '个',
+      status: '在售',
+      productStatus: '正常',
+      version: row.version || 'V1.0',
+      isEnabled: true,
+      designer: row.designer || '',
+      bomMaintainer: row.designer || '',
+      createTime: new Date().toLocaleString('zh-CN'),
+      updateTime: new Date().toLocaleString('zh-CN'),
+      remark: `由生产BOM ${row.bomCode} 推送生成`
+    }
+    
+    // 保存到产品手册（localStorage）
+    const existingData = localStorage.getItem('productManualData')
+    let productList = []
+    let nextId = 1
+    
+    if (existingData) {
+      try {
+        productList = JSON.parse(existingData)
+        if (Array.isArray(productList) && productList.length > 0) {
+          // 检查是否已存在相同产品编号
+          const existingIndex = productList.findIndex(p => p.productCode === row.productCode)
+          if (existingIndex !== -1) {
+            // 已存在，提示用户
+            const overwrite = await ElMessageBox.confirm(
+              `产品手册中已存在相同产品编号（${row.productCode}），是否覆盖？`,
+              '提示',
+              {
+                confirmButtonText: '覆盖',
+                cancelButtonText: '取消',
+                type: 'warning'
+              }
+            )
+            
+            if (!overwrite) {
+              return
+            }
+            
+            // 覆盖更新
+            productList[existingIndex] = Object.assign({}, productList[existingIndex], productManualData, {
+              id: productList[existingIndex].id, // 保持原有ID
+              updateTime: new Date().toLocaleString('zh-CN')
+            })
+          } else {
+            // 不存在，添加新记录
+            nextId = Math.max(...productList.map(p => p.id || 0)) + 1
+            productList.unshift({
+              ...productManualData,
+              id: nextId
+            })
+          }
+        } else {
+          // 空数组，添加第一条
+          productList = [{
+            ...productManualData,
+            id: 1
+          }]
+        }
+      } catch (e) {
+        console.error('解析产品手册数据失败:', e)
+        productList = [{
+          ...productManualData,
+          id: 1
+        }]
+      }
+    } else {
+      // localStorage为空，创建第一条记录
+      productList = [{
+        ...productManualData,
+        id: 1
+      }]
+    }
+    
+    // 保存到localStorage
+    localStorage.setItem('productManualData', JSON.stringify(productList))
+    localStorage.setItem('productManualNextId', String(productList.length + 1))
+    
+    // 更新BOM的推送状态
+    const bomIndex = tableData.value.findIndex(b => b.id === row.id)
+    if (bomIndex !== -1) {
+      tableData.value[bomIndex].isPushedToManual = 1
+    }
+    
+    ElMessage.success(
+      `推送成功！<br/>` +
+      `产品编号：${row.productCode}<br/>` +
+      `请到产品手册页面查看`,
+      {
+        dangerouslyUseHTMLString: true,
+        duration: 3000
+      }
+    )
+  } catch (error) {
+    if (error !== 'cancel') {
+      console.error('推送到产品手册失败:', error)
+      ElMessage.error('推送失败: ' + error.message)
+    }
+  }
+}
+
 // 刷新
 const handleRefresh = async () => {
   try {
@@ -2114,13 +2979,23 @@ const handleRefresh = async () => {
   }
 }
 
-// 分页
+// 主表格分页
 const handleSizeChange = (val) => {
   pageSize.value = val
 }
 
 const handleCurrentChange = (val) => {
   currentPage.value = val
+}
+
+// 子件表格分页
+const handleChildSizeChange = (val) => {
+  childPageSize.value = val
+  childCurrentPage.value = 1 // 重置到第一页
+}
+
+const handleChildCurrentChange = (val) => {
+  childCurrentPage.value = val
 }
 
 // 生命周期
@@ -2370,6 +3245,279 @@ onMounted(async () => {
 /* 层级缩进样式 */
 .indent-level-1 .el-table__cell:nth-child(3) {
   padding-left: 40px !important;
+}
+
+/* BOM树结构对话框样式 */
+.bom-tree-dialog .el-dialog__body {
+  padding: 15px;
+  background: #f5f7fa;
+  max-height: 85vh;
+  overflow: hidden;
+}
+
+.bom-tree-container {
+  display: flex;
+  flex-direction: column;
+  gap: 15px;
+  height: 100%;
+}
+
+.product-info-header {
+  background: white;
+  padding: 15px;
+  border-radius: 8px;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+}
+
+/* 组织架构树样式 */
+.org-tree-section {
+  flex: 1;
+  background: white;
+  border-radius: 8px;
+  padding: 20px;
+  overflow: hidden;
+}
+
+.org-tree-wrapper {
+  width: 100%;
+  height: 100%;
+  overflow: auto;
+  position: relative;
+}
+
+.org-tree-container {
+  display: inline-flex;
+  justify-content: flex-end;
+  align-items: center;
+  min-width: 100%;
+  min-height: 100%;
+  padding: 40px;
+}
+
+.org-tree-node-wrapper {
+  display: inline-flex;
+}
+
+/* 组织架构树节点 */
+.org-tree-node {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  position: relative;
+}
+
+/* 子节点区域（在左侧） */
+.org-tree-children {
+  display: flex;
+  flex-direction: column;
+  margin-right: 60px;
+  position: relative;
+}
+
+.org-tree-children-list {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.org-tree-child-wrapper {
+  position: relative;
+}
+
+/* 连接线样式 */
+.org-tree-child-wrapper::before {
+  content: '';
+  position: absolute;
+  right: -30px;
+  top: 50%;
+  width: 30px;
+  height: 2px;
+  background: #d0d7de;
+}
+
+.org-tree-child-wrapper::after {
+  content: '';
+  position: absolute;
+  right: -30px;
+  top: 50%;
+  width: 0;
+  height: 0;
+  border: 6px solid transparent;
+  border-left-color: #d0d7de;
+  transform: translateY(-50%);
+}
+
+/* 多个子节点时的竖线 */
+.org-tree-children-list::before {
+  content: '';
+  position: absolute;
+  right: -31px;
+  top: 0;
+  bottom: 0;
+  width: 2px;
+  background: #d0d7de;
+}
+
+/* 只有一个子节点时隐藏竖线 */
+.org-tree-children-list:has(> .org-tree-child-wrapper:only-child)::before {
+  display: none;
+}
+
+/* 节点卡片区域 */
+.org-tree-node-content {
+  display: flex;
+  align-items: center;
+}
+
+/* 节点卡片 */
+.org-node-card {
+  position: relative;
+  min-width: 200px;
+  max-width: 280px;
+  padding: 16px;
+  background: linear-gradient(135deg, #ffffff 0%, #f8f9fa 100%);
+  border: 2px solid #e4e7ed;
+  border-radius: 12px;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.08);
+  transition: all 0.3s ease;
+  cursor: pointer;
+}
+
+.org-node-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 20px rgba(0,0,0,0.12);
+  border-color: #409EFF;
+}
+
+/* 根节点（产品） */
+.org-node-card.root-node {
+  background: linear-gradient(135deg, #e8f4ff 0%, #d6ebff 100%);
+  border-color: #409EFF;
+  border-width: 3px;
+  box-shadow: 0 6px 16px rgba(64, 158, 255, 0.25);
+}
+
+.org-node-card.root-node:hover {
+  background: linear-gradient(135deg, #d6ebff 0%, #c0e3ff 100%);
+  box-shadow: 0 8px 24px rgba(64, 158, 255, 0.35);
+}
+
+/* 子节点 */
+.org-node-card.child-node {
+  background: linear-gradient(135deg, #f0f9ff 0%, #e0f2fe 100%);
+  border-color: #67C23A;
+}
+
+.org-node-card.child-node:hover {
+  background: linear-gradient(135deg, #e0f2fe 0%, #bae6fd 100%);
+  border-color: #409EFF;
+}
+
+/* 层级标识 */
+.node-level-badge {
+  position: absolute;
+  top: -12px;
+  right: -12px;
+  background: linear-gradient(135deg, #409EFF 0%, #337ecc 100%);
+  color: white;
+  padding: 4px 12px;
+  border-radius: 12px;
+  font-size: 12px;
+  font-weight: bold;
+  box-shadow: 0 2px 8px rgba(64, 158, 255, 0.4);
+  z-index: 1;
+}
+
+.org-node-card.root-node .node-level-badge {
+  background: linear-gradient(135deg, #F56C6C 0%, #d9534f 100%);
+  box-shadow: 0 2px 8px rgba(245, 108, 108, 0.4);
+}
+
+.org-node-card.level-1 .node-level-badge {
+  background: linear-gradient(135deg, #67C23A 0%, #5daf34 100%);
+}
+
+.org-node-card.level-2 .node-level-badge {
+  background: linear-gradient(135deg, #E6A23C 0%, #cf9236 100%);
+}
+
+.org-node-card.level-3 .node-level-badge {
+  background: linear-gradient(135deg, #909399 0%, #7d8185 100%);
+}
+
+/* 节点信息内容 */
+.node-info-content {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.node-row {
+  display: flex;
+  align-items: baseline;
+  gap: 4px;
+  line-height: 1.6;
+}
+
+.node-label {
+  font-size: 12px;
+  color: #909399;
+  font-weight: 500;
+  min-width: 45px;
+  flex-shrink: 0;
+}
+
+.node-value {
+  font-size: 13px;
+  color: #303133;
+  font-weight: 600;
+  word-break: break-all;
+  flex: 1;
+}
+
+.node-value.code {
+  color: #409EFF;
+  font-family: 'Courier New', monospace;
+}
+
+.node-value.name {
+  color: #303133;
+  font-weight: 600;
+}
+
+.node-value.qty {
+  color: #E6A23C;
+  font-weight: bold;
+  font-size: 14px;
+}
+
+.node-value.process {
+  color: #67C23A;
+  font-size: 12px;
+}
+
+/* 打印样式 */
+@media print {
+  .bom-tree-dialog .el-dialog__header,
+  .bom-tree-dialog .el-dialog__footer {
+    display: none;
+  }
+
+  .bom-tree-container {
+    background: white;
+  }
+
+  .org-node-card {
+    page-break-inside: avoid;
+  }
+  
+  .org-tree-section {
+    overflow: visible;
+  }
+  
+  .org-tree-wrapper {
+    overflow: visible;
+  }
 }
 
 .indent-level-2 .el-table__cell:nth-child(3) {

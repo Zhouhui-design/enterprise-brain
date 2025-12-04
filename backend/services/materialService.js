@@ -111,10 +111,10 @@ class MaterialService {
           description, material_image, base_unit, sale_unit, sale_conversion_rate,
           purchase_unit, purchase_conversion_rate, kg_per_pcs, pcs_per_kg,
           process_name, standard_time, quota_time, process_price,
-          purchase_cycle, purchase_price, status
+          purchase_cycle, purchase_price, base_price, status
         ) VALUES (
           ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
-          ?, ?, ?, ?, ?, ?, ?
+          ?, ?, ?, ?, ?, ?, ?, ?
         )
       `);
 
@@ -122,6 +122,11 @@ class MaterialService {
         try {
           // 支持驼峰命名和下划线命名
           const materialCode = materialData.material_code || materialData.materialCode;
+          
+          // 计算基础单价
+          const purchasePrice = materialData.purchase_price || materialData.purchasePrice || 0;
+          const purchaseConversionRate = materialData.purchase_conversion_rate || materialData.purchaseConversionRate || 1;
+          const basePrice = purchaseConversionRate > 0 ? purchasePrice / purchaseConversionRate : 0;
           
           // 检查物料编码是否已存在
           const existingStmt = db.prepare('SELECT id FROM materials WHERE material_code = ?');
@@ -138,7 +143,7 @@ class MaterialService {
                 sale_conversion_rate = ?, purchase_unit = ?, purchase_conversion_rate = ?,
                 kg_per_pcs = ?, pcs_per_kg = ?, process_name = ?, standard_time = ?,
                 quota_time = ?, process_price = ?, purchase_cycle = ?, purchase_price = ?,
-                status = ?, updated_at = CURRENT_TIMESTAMP
+                base_price = ?, status = ?, updated_at = CURRENT_TIMESTAMP
               WHERE material_code = ?
             `);
             
@@ -160,7 +165,7 @@ class MaterialService {
               materialData.sale_unit || materialData.saleUnit || '',
               materialData.sale_conversion_rate || materialData.saleConversionRate || 1,
               materialData.purchase_unit || materialData.purchaseUnit || '',
-              materialData.purchase_conversion_rate || materialData.purchaseConversionRate || 1,
+              purchaseConversionRate,
               materialData.kg_per_pcs || materialData.kgPerPcs || 0,
               materialData.pcs_per_kg || materialData.pcsPerKg || 0,
               materialData.process_name || materialData.processName || '',
@@ -168,7 +173,8 @@ class MaterialService {
               materialData.quota_time || materialData.quotaTime || 0,
               materialData.process_price || materialData.processPrice || 0,
               materialData.purchase_cycle || materialData.purchaseCycle || '',
-              materialData.purchase_price || materialData.purchasePrice || 0,
+              purchasePrice,
+              basePrice,
               materialData.status || 'active',
               materialCode
             );
@@ -193,7 +199,7 @@ class MaterialService {
               materialData.sale_unit || materialData.saleUnit || '',
               materialData.sale_conversion_rate || materialData.saleConversionRate || 1,
               materialData.purchase_unit || materialData.purchaseUnit || '',
-              materialData.purchase_conversion_rate || materialData.purchaseConversionRate || 1,
+              purchaseConversionRate,
               materialData.kg_per_pcs || materialData.kgPerPcs || 0,
               materialData.pcs_per_kg || materialData.pcsPerKg || 0,
               materialData.process_name || materialData.processName || '',
@@ -201,7 +207,8 @@ class MaterialService {
               materialData.quota_time || materialData.quotaTime || 0,
               materialData.process_price || materialData.processPrice || 0,
               materialData.purchase_cycle || materialData.purchaseCycle || '',
-              materialData.purchase_price || materialData.purchasePrice || 0,
+              purchasePrice,
+              basePrice,
               materialData.status || 'active'
             );
           }

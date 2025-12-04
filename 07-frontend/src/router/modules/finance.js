@@ -14,11 +14,143 @@ export default {
     {
       path: 'overview',
       name: 'FinanceOverview',
-      component: () => import('@/pages/finance/Overview.vue'),
+      component: () => import('@/pages/finance/FinanceOverview.vue'),
       meta: { 
-        title: '财务总览',
+        title: '财务概览',
         icon: 'DataBoard',
         permission: ['finance:overview']
+      }
+    },
+    // 成本管理
+    {
+      path: 'cost-management',
+      name: 'CostManagement',
+      component: () => import('@/pages/finance/CostManagement.vue'),
+      meta: { 
+        title: '成本管理',
+        icon: 'Coin',
+        permission: ['finance:cost']
+      }
+    },
+    // 费用报销
+    {
+      path: 'expense-reimbursement',
+      name: 'ExpenseReimbursement',
+      component: () => import('@/pages/finance/ExpenseReimbursement.vue'),
+      meta: { 
+        title: '费用报销',
+        icon: 'Wallet',
+        permission: ['finance:expense-reimbursement']
+      }
+    },
+    // 预算管理
+    {
+      path: 'budget-management',
+      name: 'BudgetManagementPage',
+      component: () => import('@/pages/finance/BudgetManagement.vue'),
+      meta: { 
+        title: '预算管理',
+        icon: 'Coin',
+        permission: ['finance:budget-page']
+      }
+    },
+    // 付款申请
+    {
+      path: 'payment-application',
+      name: 'PaymentApplication',
+      component: () => import('@/pages/finance/PaymentApplication.vue'),
+      meta: { 
+        title: '付款申请',
+        icon: 'CreditCard',
+        permission: ['finance:payment-application']
+      }
+    },
+    // 付款计划
+    {
+      path: 'payment-plan',
+      name: 'PaymentPlan',
+      component: () => import('@/pages/finance/PaymentPlan.vue'),
+      meta: { 
+        title: '付款计划',
+        icon: 'Calendar',
+        permission: ['finance:payment-plan']
+      }
+    },
+    // 收款管理
+    {
+      path: 'collection-management',
+      name: 'CollectionManagement',
+      component: () => import('@/pages/finance/CollectionManagement.vue'),
+      meta: { 
+        title: '收款管理',
+        icon: 'Money',
+        permission: ['finance:collection']
+      }
+    },
+    // 回款跟进
+    {
+      path: 'payment-follow-up',
+      name: 'PaymentFollowUp',
+      component: () => import('@/pages/finance/PaymentFollowUp.vue'),
+      meta: { 
+        title: '回款跟进',
+        icon: 'View',
+        permission: ['finance:payment-followup']
+      }
+    },
+    // 应收账款
+    {
+      path: 'account-receivable',
+      name: 'AccountReceivable',
+      component: () => import('@/pages/finance/AccountReceivable.vue'),
+      meta: { 
+        title: '应收账款',
+        icon: 'Money',
+        permission: ['finance:account-receivable']
+      }
+    },
+    // 发票管理
+    {
+      path: 'invoice-management',
+      name: 'InvoiceManagement',
+      component: () => import('@/pages/finance/InvoiceManagement.vue'),
+      meta: { 
+        title: '发票管理',
+        icon: 'Tickets',
+        permission: ['finance:invoice']
+      }
+    },
+    // 财务报表
+    {
+      path: 'financial-report',
+      name: 'FinancialReport',
+      component: () => import('@/pages/finance/FinancialReport.vue'),
+      meta: { 
+        title: '财务报表',
+        icon: 'Document',
+        permission: ['finance:financial-report']
+      }
+    },
+    // 财务分析
+    {
+      path: 'financial-analysis',
+      name: 'FinancialAnalysis',
+      component: () => import('@/pages/finance/FinancialAnalysis.vue'),
+      meta: { 
+        title: '财务分析',
+        icon: 'DataAnalysis',
+        permission: ['finance:analysis']
+      }
+    },
+    // 税务管理
+    {
+      path: 'tax-management',
+      name: 'TaxManagementPage',
+      component: () => import('@/pages/finance/TaxManagement.vue'),
+      meta: { 
+        title: '税务管理',
+        icon: 'Tickets',
+        permission: ['finance:tax-page']
       }
     },
     // 费用报销管理

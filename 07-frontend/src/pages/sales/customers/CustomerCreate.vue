@@ -21,10 +21,18 @@
                   <el-input v-model="formData.customerName" placeholder="请输入客户名称" />
                 </el-form-item>
                 <el-form-item label="客户类型">
-                  <el-input v-model="formData.customerType" placeholder="如：VIP客户、普通客户、潜在客户" />
+                  <el-select v-model="formData.customerType" placeholder="请选择客户类型">
+                    <el-option label="VIP客户" value="vip" />
+                    <el-option label="普通客户" value="regular" />
+                    <el-option label="潜在客户" value="potential" />
+                  </el-select>
                 </el-form-item>
                 <el-form-item label="客户状态">
-                  <el-input v-model="formData.status" placeholder="如：合作中、已流失、已冻结" />
+                  <el-select v-model="formData.status" placeholder="请选择客户状态">
+                    <el-option label="合作中" value="active" />
+                    <el-option label="已流失" value="lost" />
+                    <el-option label="已冻结" value="frozen" />
+                  </el-select>
                 </el-form-item>
               </el-form>
             </el-card>
@@ -246,7 +254,7 @@
 </template>
 
 <script setup>
-import { ref, reactive, watch } from 'vue'
+import { ref, reactive, watch, onMounted } from 'vue'
 import { ElMessage } from 'element-plus'
 import { 
   User, Phone, OfficeBuilding, Location, Briefcase, 
@@ -306,6 +314,23 @@ const formData = reactive({
   invoiceAddress: ''
 })
 
+// 生成客户编码
+const generateCustomerCode = () => {
+  const now = new Date();
+  const year = now.getFullYear();
+  const month = String(now.getMonth() + 1).padStart(2, '0');
+  const day = String(now.getDate()).padStart(2, '0');
+  const random = Math.floor(Math.random() * 1000).toString().padStart(3, '0');
+  return `CUS${year}${month}${day}${random}`;
+};
+
+// 初始化时生成客户编码（新增模式）
+onMounted(() => {
+  if (!props.isEdit) {
+    formData.customerCode = generateCustomerCode();
+  }
+})
+
 // 监听 props 变化，编辑模式下填充数据
 watch(() => props.customerData, (newVal) => {
   if (newVal && props.isEdit) {
@@ -342,8 +367,14 @@ const handleSubmit = () => {
     return
   }
   
-  // 提交 - 将表单数据传递给父组件
+  // 确保客户编码存在
+  if (!formData.customerCode) {
+    formData.customerCode = generateCustomerCode();
+  }
+  
+  // 提交 - 将表单数据传递给父组件，包含客户编码
   emit('success', {
+    customerCode: formData.customerCode,
     customerName: formData.customerName,
     customerType: formData.customerType,
     status: formData.status,

@@ -1,0 +1,88 @@
+const express = require('express');
+const router = express.Router();
+const BomNode = require('../models/BomNode');
+const BomTemplate = require('../models/BomTemplate');
+const { v4: uuidv4 } = require('uuid'); // 生成唯一bomId（需安装：npm install uuid）
+
+// 1. 获取指定BOM的所有节点数据（用于前端渲染树结构）
+router.get('/nodes/:bomId', async (req, res) => {
+  try {
+    const bomNodes = await BomNode.find({ bomId: req.params.bomId });
+    res.status(200).json(bomNodes);
+  } catch (err) {
+    res.status(500).json({ message: '获取BOM节点失败', error: err });
+  }
+});
+
+// 2. 批量保存BOM节点（前端提交BOM数据时调用）
+router.post('/nodes/batch', async (req, res) => {
+  try {
+    const { bomId, nodes } = req.body;
+    // 先删除旧数据，再批量插入新数据
+    await BomNode.deleteMany({ bomId });
+    const result = await BomNode.insertMany(nodes);
+    res.status(200).json({ message: 'BOM节点保存成功', data: result });
+  } catch (err) {
+    res.status(500).json({ message: '保存BOM节点失败', error: err });
+  }
+});
+
+// 3. 创建BOM模板（将当前BOM保存为模板）
+router.post('/template', async (req, res) => {
+  try {
+    const { templateName, description, bomId } = req.body;
+    // 检查bomId是否存在
+    const exists = await BomNode.exists({ bomId });
+    if (!exists) return res.status(400).json({ message: 'BOM数据不存在' });
+
+    // 创建模板元信息
+    const template = new BomTemplate({
+      templateName,
+      description,
+      bomId
+    });
+    await template.save();
+
+    // 将BOM节点标记为模板
+    await BomNode.updateMany({ bomId }, { isTemplate: true });
+
+    res.status(200).json({ message: '模板创建成功', data: template });
+  } catch (err) {
+    res.status(500).json({ message: '创建模板失败', error: err });
+  }
+});
+
+// 4. 获取所有模板列表
+router.get('/templates', async (req, res) => {
+  try {
+    const templates = await BomTemplate.find();
+    res.status(200).json(templates);
+  } catch (err) {
+    res.status(500).json({ message: '获取模板列表失败', error: err });
+  }
+});
+
+// 5. 生成新BOM（基于模板初始化）
+router.post('/new-bom/:templateId', async (req, res) => {
+  try {
+    const template = await BomTemplate.findById(req.params.templateId);
+    if (!template) return res.status(400).json({ message: '模板不存在' });
+
+    // 复制模板的BOM节点，生成新bomId
+    const newBomId = uuidv4();
+    const templateNodes = await BomNode.find({ bomId: template.bomId });
+    const newNodes = templateNodes.map(node => ({
+      ...node._doc,
+      _id: mongoose.Types.ObjectId(), // 新ID
+      bomId: newBomId,
+      isTemplate: false
+    }));
+
+    await BomNode.insertMany(newNodes);
+    res.status(200).json({ message: '新BOM生成成功', bomId: newBomId });
+  } catch (err) {
+    res.status(500).json({ message: '生成新BOM失败', error: err });
+  }
+});
+
+module.exports = router;

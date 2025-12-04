@@ -127,6 +127,10 @@ class BOMAPIService {
       remark: bomData.remark,
       reviewer: bomData.auditor,
       effectiveDate: bomData.effective_date,
+      totalLabor: bomData.total_labor,
+      totalMaterial: bomData.total_material,
+      productImage: bomData.product_image,
+      isPushedToManual: bomData.is_pushed_to_manual,
       createTime: bomData.created_at,
       updateTime: bomData.updated_at
     }
@@ -168,6 +172,9 @@ class BOMAPIService {
       remark: bomData.remark,
       reviewer: bomData.reviewer,
       effectiveDate: bomData.effectiveDate,
+      totalLabor: bomData.totalLabor,
+      totalMaterial: bomData.totalMaterial,
+      productImage: bomData.productImage,
       childItems: bomData.childItems ? bomData.childItems.map(item => ({
         sequence: item.sequence,
         level: item.level,

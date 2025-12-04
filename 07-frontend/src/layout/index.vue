@@ -39,16 +39,60 @@
                   <el-icon><component :is="menu.icon || 'el-icon-menu'" /></el-icon>
                   <span>{{ menu.meta.title }}</span>
                 </template>
-                <el-menu-item
-                  v-for="subMenu in menu.children"
-                  :key="subMenu.path"
-                  :index="subMenu.path"
-                  :disabled="!hasPermission(subMenu.meta?.permissions)"
-                >
-                  <el-icon v-if="subMenu.icon"><component :is="subMenu.icon" /></el-icon>
-                  <span>{{ subMenu.meta.title }}</span>
-                </el-menu-item>
+                
+                <!-- 递归渲染子菜单 -->
+                <template v-for="subMenu in menu.children" :key="subMenu.path">
+                  <!-- 子菜单还有下级菜单 -->
+                  <el-sub-menu v-if="subMenu.children && subMenu.children.length > 0" :index="subMenu.path">
+                    <template #title>
+                      <el-icon v-if="subMenu.icon"><component :is="subMenu.icon" /></el-icon>
+                      <span>{{ subMenu.meta.title }}</span>
+                    </template>
+                    
+                    <!-- 第三层菜单 -->
+                    <template v-for="thirdMenu in subMenu.children" :key="thirdMenu.path">
+                      <el-sub-menu v-if="thirdMenu.children && thirdMenu.children.length > 0" :index="thirdMenu.path">
+                        <template #title>
+                          <el-icon v-if="thirdMenu.icon"><component :is="thirdMenu.icon" /></el-icon>
+                          <span>{{ thirdMenu.meta.title }}</span>
+                        </template>
+                        
+                        <!-- 第四层菜单项 -->
+                        <el-menu-item
+                          v-for="fourthMenu in thirdMenu.children"
+                          :key="fourthMenu.path"
+                          :index="fourthMenu.path"
+                          :disabled="!hasPermission(fourthMenu.meta?.permissions)"
+                        >
+                          <el-icon v-if="fourthMenu.icon"><component :is="fourthMenu.icon" /></el-icon>
+                          <span>{{ fourthMenu.meta.title }}</span>
+                        </el-menu-item>
+                      </el-sub-menu>
+                      
+                      <!-- 第三层无子菜单 -->
+                      <el-menu-item
+                        v-else
+                        :index="thirdMenu.path"
+                        :disabled="!hasPermission(thirdMenu.meta?.permissions)"
+                      >
+                        <el-icon v-if="thirdMenu.icon"><component :is="thirdMenu.icon" /></el-icon>
+                        <span>{{ thirdMenu.meta.title }}</span>
+                      </el-menu-item>
+                    </template>
+                  </el-sub-menu>
+                  
+                  <!-- 子菜单无下级 -->
+                  <el-menu-item
+                    v-else
+                    :index="subMenu.path"
+                    :disabled="!hasPermission(subMenu.meta?.permissions)"
+                  >
+                    <el-icon v-if="subMenu.icon"><component :is="subMenu.icon" /></el-icon>
+                    <span>{{ subMenu.meta.title }}</span>
+                  </el-menu-item>
+                </template>
               </el-sub-menu>
+              
               <!-- 无子菜单的菜单项 -->
               <el-menu-item
                 v-else
@@ -219,95 +263,71 @@ export default {
           icon: 'el-icon-s-home'
         },
         {
-          path: '/receipt',
-          name: 'Receipt',
-          meta: { title: '回厂管理' },
-          icon: 'el-icon-box',
+          path: '/system-manual',
+          name: 'SystemManual',
+          meta: { title: '系统操作说明书' },
+          icon: 'el-icon-reading',
+          children: []
+        },
+        {
+          path: '/initial-setup',
+          name: 'InitialSetup',
+          meta: { title: '期初设置' },
+          icon: 'el-icon-setting',
+          children: []
+        },
+        {
+          path: '/sales-management',
+          name: 'SalesManagement',
+          meta: { title: '销售管理' },
+          icon: 'el-icon-sell',
           children: [
             {
-              path: '/receipt/list',
-              name: 'ReceiptList',
-              meta: { title: '回厂单列表' },
+              path: '/sales/orders/customers',
+              name: 'CustomerList',
+              meta: { title: '客户台账' },
+              icon: 'el-icon-user'
+            },
+            {
+              path: '/sales/orders/list',
+              name: 'SalesOrderList',
+              meta: { title: '销售订单' },
               icon: 'el-icon-document'
             },
             {
-              path: '/receipt/quality-check',
-              name: 'QualityCheck',
-              meta: { title: '质量检验' },
-              icon: 'el-icon-check'
+              path: '/bom/sales',
+              name: 'SalesBom',
+              meta: { title: '销售BOM' },
+              icon: 'el-icon-sell'
+            },
+            {
+              path: '/product',
+              name: 'Product',
+              meta: { title: '产品管理' },
+              icon: 'el-icon-box',
+              children: [
+                {
+                  path: '/product/manual',
+                  name: 'ProductManual',
+                  meta: { title: '产品手册' },
+                  icon: 'el-icon-document'
+                }
+              ]
             }
           ]
         },
         {
-          path: '/warehouse',
-          name: 'Warehouse',
-          meta: { title: '仓库管理' },
-          icon: 'el-icon-warehouse',
+          path: '/rd-management',
+          name: 'RDManagement',
+          meta: { title: '技术&研发&设计管理' },
+          icon: 'el-icon-s-flag',
           children: [
             {
-              path: '/warehouse/in',
-              name: 'WarehouseIn',
-              meta: { title: '入库管理' },
-              icon: 'el-icon-download'
+              path: '/material/list',
+              name: 'MaterialList',
+              meta: { title: '产品物料库' },
+              icon: 'el-icon-goods'
             },
-            {
-              path: '/warehouse/out',
-              name: 'WarehouseOut',
-              meta: { title: '出库管理' },
-              icon: 'el-icon-upload'
-            },
-            {
-              path: '/warehouse/stock-transfer',
-              name: 'StockTransfer',
-              meta: { title: '库存转移' },
-              icon: 'el-icon-switch-button'
-            },
-            {
-              path: '/warehouse/inventory-count',
-              name: 'InventoryCount',
-              meta: { title: '库存盘点' },
-              icon: 'el-icon-s-finance'
-            },
-            {
-              path: '/warehouse/location-management',
-              name: 'LocationManagement',
-              meta: { title: '库位管理' },
-              icon: 'el-icon-s-grid'
-            }
-          ]
-        },
-        {
-          path: '/product',
-          name: 'Product',
-          meta: { title: '产品管理' },
-          icon: 'el-icon-box',
-          children: [
-            {
-              path: '/product/manual',
-              name: 'ProductManual',
-              meta: { title: '产品手册' },
-              icon: 'el-icon-document'
-            }
-          ]
-        },
-        {
-          path: '/product/manual',
-          name: 'ProductManual',
-          meta: { title: '产品手册' },
-          icon: 'el-icon-box'
-        },
-        {
-          path: '/material/list',
-          name: 'MaterialList',
-          meta: { title: '产品物料库' },
-          icon: 'el-icon-goods'
-        },
-        {
-          path: '/bom',
-          name: 'Bom',
-          meta: { title: 'BOM管理' },
-          icon: 'el-icon-menu',
-          children: [
             {
               path: '/bom/design',
               name: 'DesignBom',
@@ -315,36 +335,446 @@ export default {
               icon: 'el-icon-edit'
             },
             {
+              path: '/after-sales/project-management',
+              name: 'ProjectManagement',
+              meta: { title: '研发项目管理' },
+              icon: 'el-icon-s-flag'
+            }
+          ]
+        },
+        {
+          path: '/production-management',
+          name: 'ProductionManagement',
+          meta: { title: '生产管理' },
+          icon: 'el-icon-s-operation',
+          children: [
+            {
               path: '/bom/production',
               name: 'ProductionBom',
               meta: { title: '生产BOM' },
               icon: 'el-icon-setting'
             },
             {
-              path: '/bom/sales',
-              name: 'SalesBom',
-              meta: { title: '销售BOM' },
-              icon: 'el-icon-sell'
+              path: '/bom-tree-structure',
+              name: 'BomTreeStructure',
+              meta: { title: '生产BOM树结构' },
+              icon: 'el-icon-s-grid'
+            },
+            {
+              path: '/manufacturing/process',
+              name: 'ProcessList',
+              meta: { title: '工序' },
+              icon: 'el-icon-s-operation'
             }
           ]
         },
         {
-          path: '/manufacturing/process',
-          name: 'ProcessList',
-          meta: { title: '工序' },
-          icon: 'el-icon-s-operation'
+          path: '/planning-control',
+          name: 'PlanningControl',
+          meta: { title: '计划&物控管理' },
+          icon: 'el-icon-s-data',
+          children: [
+            {
+              path: '/production-planning',
+              name: 'ProductionPlanning',
+              meta: { title: '生产计划' },
+              icon: 'el-icon-s-order',
+              children: [
+                {
+                  path: '/production-planning/list',
+                  name: 'ProductionPlanList',
+                  meta: { title: '主生产计划' },
+                  icon: 'el-icon-document',
+                  children: [
+                    {
+                      path: '/production-planning/adjustment',
+                      name: 'PlanAdjustment',
+                      meta: { title: '主生产计划调整' },
+                      icon: 'el-icon-edit'
+                    }
+                  ]
+                },
+                {
+                  path: '/production-planning/capacity',
+                  name: 'CapacityPlanning',
+                  meta: { title: '产能规划' },
+                  icon: 'el-icon-s-data'
+                }
+              ]
+            },
+            {
+              path: '/material-control',
+              name: 'MaterialControl',
+              meta: { title: '物控管理' },
+              icon: 'el-icon-s-cooperation',
+              children: [
+                {
+                  path: '/inventory/projected-balance',
+                  name: 'ProjectedBalance',
+                  meta: { title: '预计结存' },
+                  icon: 'el-icon-s-data'
+                }
+              ]
+            }
+          ]
         },
         {
-          path: '/after-sales/project-management',
-          name: 'ProjectManagement',
-          meta: { title: '研发项目管理' },
-          icon: 'el-icon-s-flag'
+          path: '/purchase-management',
+          name: 'PurchaseManagement',
+          meta: { title: '采购管理' },
+          icon: 'el-icon-shopping-cart-2',
+          children: [
+            {
+              path: '/purchase/orders',
+              name: 'PurchaseOrders',
+              meta: { title: '采购订单' },
+              icon: 'el-icon-document',
+              children: [
+                {
+                  path: '/purchase/order/create',
+                  name: 'PurchaseOrderCreate',
+                  meta: { title: '创建采购订单' },
+                  icon: 'el-icon-document-add'
+                },
+                {
+                  path: '/purchase/order/approve',
+                  name: 'PurchaseOrderApprove',
+                  meta: { title: '采购订单审批' },
+                  icon: 'el-icon-check'
+                }
+              ]
+            },
+            {
+              path: '/purchase/tracking',
+              name: 'PurchaseTracking',
+              meta: { title: '采购跟踪' },
+              icon: 'el-icon-view'
+            },
+            {
+              path: '/purchase/supplier',
+              name: 'SupplierManagement',
+              meta: { title: '供应商管理' },
+              icon: 'el-icon-user',
+              children: [
+                {
+                  path: '/purchase/supplier/evaluation',
+                  name: 'SupplierEvaluation',
+                  meta: { title: '供应商评估' },
+                  icon: 'el-icon-s-data',
+                  children: [
+                    {
+                      path: '/purchase/supplier/evaluation/detail',
+                      name: 'SupplierEvaluationDetail',
+                      meta: { title: '供应商评估详情页' },
+                      icon: 'el-icon-document'
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              path: '/purchase/plan',
+              name: 'ProcurementPlan',
+              meta: { title: '采购计划' },
+              icon: 'el-icon-s-order'
+            },
+            {
+              path: '/purchase/statistics',
+              name: 'PurchaseStatistics',
+              meta: { title: '采购统计' },
+              icon: 'el-icon-s-data'
+            },
+            {
+              path: '/purchase/tracking/detail',
+              name: 'PurchaseTrackingDetail',
+              meta: { title: '采购跟踪详情页' },
+              icon: 'el-icon-document'
+            }
+          ]
         },
         {
-          path: '/sales/orders/customers',
-          name: 'CustomerList',
-          meta: { title: '客户台账' },
-          icon: 'el-icon-user'
+          path: '/equipment-technician',
+          name: 'EquipmentTechnician',
+          meta: { title: '设备&技工管理' },
+          icon: 'el-icon-s-tools',
+          children: []
+        },
+        {
+          path: '/mold-fixture',
+          name: 'MoldFixture',
+          meta: { title: '模具&工装夹具管理' },
+          icon: 'el-icon-s-platform',
+          children: []
+        },
+        {
+          path: '/quality-management',
+          name: 'QualityManagement',
+          meta: { title: '品保管理' },
+          icon: 'el-icon-s-check',
+          children: []
+        },
+        {
+          path: '/finance-management',
+          name: 'FinanceManagement',
+          meta: { title: '财务管理' },
+          icon: 'el-icon-s-finance',
+          children: [
+            {
+              path: '/finance/overview',
+              name: 'FinanceOverview',
+              meta: { title: '财务概览' },
+              icon: 'el-icon-data-line'
+            },
+            {
+              path: '/finance/cost-management',
+              name: 'CostManagement',
+              meta: { title: '成本管理' },
+              icon: 'el-icon-coin'
+            },
+            {
+              path: '/finance/expense-reimbursement',
+              name: 'ExpenseReimbursement',
+              meta: { title: '费用报销' },
+              icon: 'el-icon-document'
+            },
+            {
+              path: '/cost/budget-management',
+              name: 'BudgetManagement',
+              meta: { title: '预算管理' },
+              icon: 'el-icon-s-finance'
+            },
+            {
+              path: '/finance/payment-application',
+              name: 'PaymentApplication',
+              meta: { title: '付款申请' },
+              icon: 'el-icon-document-add'
+            },
+            {
+              path: '/finance/payment-plan',
+              name: 'PaymentPlan',
+              meta: { title: '付款计划' },
+              icon: 'el-icon-s-order'
+            },
+            {
+              path: '/finance/collection-management',
+              name: 'CollectionManagement',
+              meta: { title: '收款管理' },
+              icon: 'el-icon-money'
+            },
+            {
+              path: '/finance/payment-follow-up',
+              name: 'PaymentFollowUp',
+              meta: { title: '回款跟进' },
+              icon: 'el-icon-view'
+            },
+            {
+              path: '/finance/account-receivable',
+              name: 'AccountReceivable',
+              meta: { title: '应收账款' },
+              icon: 'el-icon-wallet'
+            },
+            {
+              path: '/finance/invoice-management',
+              name: 'InvoiceManagement',
+              meta: { title: '发票管理' },
+              icon: 'el-icon-tickets'
+            },
+            {
+              path: '/finance/financial-report',
+              name: 'FinancialReport',
+              meta: { title: '财务报表' },
+              icon: 'el-icon-document'
+            },
+            {
+              path: '/finance/financial-analysis',
+              name: 'FinancialAnalysis',
+              meta: { title: '财务分析' },
+              icon: 'el-icon-data-analysis'
+            },
+            {
+              path: '/finance/tax-management',
+              name: 'TaxManagement',
+              meta: { title: '税务管理' },
+              icon: 'el-icon-s-claim'
+            },
+            {
+              path: '/cost/cost-center',
+              name: 'CostCenter',
+              meta: { title: '成本中心' },
+              icon: 'el-icon-office-building'
+            },
+            {
+              path: '/cost/cost-item',
+              name: 'CostItem',
+              meta: { title: '成本项目' },
+              icon: 'el-icon-notebook-2'
+            },
+            {
+              path: '/cost/cost-allocation',
+              name: 'CostAllocation',
+              meta: { title: '成本分配' },
+              icon: 'el-icon-share'
+            },
+            {
+              path: '/cost/cost-analysis',
+              name: 'CostAnalysis',
+              meta: { title: '成本分析' },
+              icon: 'el-icon-data-board'
+            },
+            {
+              path: '/cost/profit-analysis',
+              name: 'ProfitAnalysis',
+              meta: { title: '利润分析' },
+              icon: 'el-icon-trophy'
+            }
+          ]
+        },
+        {
+          path: '/logistics-management',
+          name: 'LogisticsManagement',
+          meta: { title: '后勤管理' },
+          icon: 'el-icon-s-goods',
+          children: []
+        },
+        {
+          path: '/admin-management',
+          name: 'AdminManagement',
+          meta: { title: '行政管理' },
+          icon: 'el-icon-s-custom',
+          children: []
+        },
+        {
+          path: '/info-communication',
+          name: 'InfoCommunication',
+          meta: { title: '信息沟通' },
+          icon: 'el-icon-message',
+          children: []
+        },
+        {
+          path: '/oa-application',
+          name: 'OAApplication',
+          meta: { title: 'OA申请' },
+          icon: 'el-icon-document-checked',
+          children: [
+            {
+              path: '/purchase/requisition',
+              name: 'PurchaseRequisition',
+              meta: { title: '采购申请' },
+              icon: 'el-icon-document-add'
+            }
+          ]
+        },
+        {
+          path: '/warehouse-logistics',
+          name: 'WarehouseLogistics',
+          meta: { title: '仓储&物流管理' },
+          icon: 'el-icon-box',
+          children: [
+            {
+              path: '/receipt',
+              name: 'Receipt',
+              meta: { title: '回厂管理' },
+              icon: 'el-icon-box',
+              children: [
+                {
+                  path: '/receipt/list',
+                  name: 'ReceiptList',
+                  meta: { title: '回厂单列表' },
+                  icon: 'el-icon-document'
+                },
+                {
+                  path: '/receipt/quality-check',
+                  name: 'QualityCheck',
+                  meta: { title: '质量检验' },
+                  icon: 'el-icon-check'
+                }
+              ]
+            },
+            {
+              path: '/warehouse',
+              name: 'Warehouse',
+              meta: { title: '仓库管理' },
+              icon: 'el-icon-s-home',
+              children: [
+                {
+                  path: '/warehouse/in',
+                  name: 'WarehouseIn',
+                  meta: { title: '入库管理' },
+                  icon: 'el-icon-download'
+                },
+                {
+                  path: '/warehouse/out',
+                  name: 'WarehouseOut',
+                  meta: { title: '出库管理' },
+                  icon: 'el-icon-upload'
+                },
+                {
+                  path: '/warehouse/stock-transfer',
+                  name: 'StockTransfer',
+                  meta: { title: '库存转移' },
+                  icon: 'el-icon-switch-button'
+                },
+                {
+                  path: '/warehouse/inventory-count',
+                  name: 'InventoryCount',
+                  meta: { title: '库存盘点' },
+                  icon: 'el-icon-s-finance'
+                },
+                {
+                  path: '/warehouse/location-management',
+                  name: 'LocationManagement',
+                  meta: { title: '库位管理' },
+                  icon: 'el-icon-s-grid'
+                }
+              ]
+            },
+            {
+              path: '/shipping',
+              name: 'Shipping',
+              meta: { title: '发货计划' },
+              icon: 'el-icon-s-promotion',
+              children: [
+                {
+                  path: '/shipping/logistics-tracking',
+                  name: 'LogisticsTracking',
+                  meta: { title: '发货物流跟踪' },
+                  icon: 'el-icon-location'
+                },
+                {
+                  path: '/shipping/delivery-note',
+                  name: 'DeliveryNote',
+                  meta: { title: '发货单' },
+                  icon: 'el-icon-document'
+                },
+                {
+                  path: '/shipping/shipping-execution',
+                  name: 'ShippingExecution',
+                  meta: { title: '发货执行' },
+                  icon: 'el-icon-s-promotion'
+                },
+                {
+                  path: '/shipping/shipping-application',
+                  name: 'ShippingApplication',
+                  meta: { title: '发货申请' },
+                  icon: 'el-icon-document-add'
+                }
+              ]
+            }
+          ]
+        },
+        {
+          path: '/human-resources',
+          name: 'HumanResources',
+          meta: { title: '人事管理' },
+          icon: 'el-icon-user',
+          children: [
+            {
+              path: '/human-resources/employee-list',
+              name: 'EmployeeList',
+              meta: { title: '员工台账' },
+              icon: 'el-icon-user'
+            }
+          ]
         },
         {
           path: '/demo',

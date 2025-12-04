@@ -260,6 +260,7 @@ import { ElMessage, ElMessageBox } from 'element-plus'
 import { Search, Plus, User, Trophy, Connection, Money, Upload, Download, Printer, UploadFilled } from '@element-plus/icons-vue'
 import CustomerCreate from './CustomerCreate.vue'
 import CustomerView from './CustomerView.vue'
+import { customerApi } from '@/api/customer'
 
 // 数据
 const tableRef = ref(null)
@@ -286,58 +287,7 @@ const stats = ref({
 })
 
 // 表格数据（模拟数据）
-const tableData = ref([
-  {
-    id: 1,
-    customerCode: 'C2025001',
-    customerName: '上海ABC科技有限公司',
-    customerType: 'vip',
-    status: 'active',
-    contactPerson: '张三',
-    contactPhone: '13800138000',
-    contactEmail: 'zhangsan@abc.com',
-    company: '上海ABC科技有限公司',
-    industry: '电子制造',
-    region: '华东区',
-    address: '上海市浦东新区张江高科技园区XX路XX号',
-    creditLimit: 1000000,
-    usedCredit: 650000,
-    totalOrders: 48,
-    totalAmount: 3560000,
-    lastOrderDate: '2025-11-25',
-    salesPerson: '李四',
-    paymentTerm: '月结30天',
-    taxNumber: '91310000MA1FL2XX42',
-    bankAccount: '6222 0000 0000 0000',
-    createTime: '2023-01-15 10:30:00',
-    remark: 'VIP客户，优先处理'
-  },
-  {
-    id: 2,
-    customerCode: 'C2025002',
-    customerName: '北京XYZ电子公司',
-    customerType: 'regular',
-    status: 'active',
-    contactPerson: '王五',
-    contactPhone: '13900139000',
-    contactEmail: 'wangwu@xyz.com',
-    company: '北京XYZ电子公司',
-    industry: '电子元器件',
-    region: '华北区',
-    address: '北京市海淀区中关村XX号',
-    creditLimit: 500000,
-    usedCredit: 320000,
-    totalOrders: 25,
-    totalAmount: 1280000,
-    lastOrderDate: '2025-11-20',
-    salesPerson: '赵六',
-    paymentTerm: '货到付款',
-    taxNumber: '91110000MA1FL2XX43',
-    bankAccount: '6222 0000 0000 0001',
-    createTime: '2023-06-20 14:20:00',
-    remark: ''
-  }
-])
+const tableData = ref([])
 
 // 下一个客户ID
 const nextCustomerId = ref(3)
@@ -432,70 +382,56 @@ const handleCreate = () => {
   createDialogVisible.value = true
 }
 
-const handleCreateSuccess = (newCustomerData) => {
-  // 生成客户编号
-  const customerCode = `C${new Date().getFullYear()}${String(nextCustomerId.value).padStart(4, '0')}`
-  
-  // 添加新客户到表格数据
-  const newCustomer = {
-    id: nextCustomerId.value,
-    customerCode: customerCode,
-    customerName: newCustomerData.customerName,
-    customerType: newCustomerData.customerType || 'regular',
-    status: newCustomerData.status || 'active',
-    contactPerson: newCustomerData.contactPerson,
-    contactPhone: newCustomerData.contactPhone,
-    contactEmail: newCustomerData.contactEmail || '',
-    company: newCustomerData.company || newCustomerData.customerName,
-    industry: newCustomerData.industry || '',
-    region: newCustomerData.region || '',
-    address: newCustomerData.address || '',
-    creditLimit: newCustomerData.creditLimit || 0,
-    usedCredit: newCustomerData.usedCredit || 0,
-    totalOrders: newCustomerData.totalOrders || 0,
-    totalAmount: newCustomerData.totalAmount || 0,
-    lastOrderDate: newCustomerData.lastOrderDate || '',
-    salesPerson: newCustomerData.salesPerson || '',
-    paymentTerm: newCustomerData.paymentTerm || '',
-    taxNumber: newCustomerData.taxNumber || '',
-    bankAccount: newCustomerData.bankAccount || '',
-    createTime: new Date().toLocaleString('zh-CN', { 
-      year: 'numeric', 
-      month: '2-digit', 
-      day: '2-digit',
-      hour: '2-digit',
-      minute: '2-digit',
-      second: '2-digit'
-    }),
-    remark: newCustomerData.remark || ''
+const handleCreateSuccess = async (newCustomerData) => {
+  try {
+    const response = await customerApi.createCustomer({
+      customerName: newCustomerData.customerName,
+      customerType: newCustomerData.customerType || 'regular',
+      status: newCustomerData.status || 'active',
+      contactPerson: newCustomerData.contactPerson,
+      contactPhone: newCustomerData.contactPhone,
+      contactEmail: newCustomerData.contactEmail,
+      company: newCustomerData.company || newCustomerData.customerName,
+      industry: newCustomerData.industry,
+      region: newCustomerData.region,
+      contactAddress: newCustomerData.address,
+      creditLimit: newCustomerData.creditLimit || 0,
+      salesPerson: newCustomerData.salesPerson,
+      taxNumber: newCustomerData.taxNumber,
+      remark: newCustomerData.remark,
+      createdBy: 'admin'
+    })
+    
+    if (response.data.success) {
+      const savedCustomer = response.data.data
+      tableData.value.unshift({
+        id: savedCustomer.id,
+        customerCode: savedCustomer.customer_code,
+        customerName: savedCustomer.customer_name,
+        customerType: savedCustomer.customer_type,
+        status: savedCustomer.status,
+        contactPerson: savedCustomer.contact_person,
+        contactPhone: savedCustomer.contact_phone,
+        contactEmail: savedCustomer.contact_email,
+        company: savedCustomer.company,
+        industry: savedCustomer.industry,
+        region: savedCustomer.region,
+        address: savedCustomer.contact_address,
+        createTime: new Date(savedCustomer.created_at).toLocaleString('zh-CN')
+      })
+      
+      stats.value.total++
+      if (savedCustomer.customer_type === 'vip') stats.value.vip++
+      if (savedCustomer.status === 'active') stats.value.active++
+      
+      createDialogVisible.value = false
+      ElMessage.success(`客户"${savedCustomer.customer_name}"创建成功！`)
+      currentPage.value = 1
+    }
+  } catch (error) {
+    console.error('创建失败:', error)
+    ElMessage.error('创建客户失败：' + (error.response?.data?.message || error.message))
   }
-  
-  // 添加到表格数据开头（最新的在前面）
-  tableData.value.unshift(newCustomer)
-  
-  // 更新统计数据
-  stats.value.total++
-  if (newCustomer.customerType === 'vip') {
-    stats.value.vip++
-  }
-  if (newCustomer.status === 'active') {
-    stats.value.active++
-  }
-  
-  // 递增下一个客户ID
-  nextCustomerId.value++
-  
-  // 同步到localStorage
-  localStorage.setItem('customerListData', JSON.stringify(tableData.value))
-  
-  // 关闭对话框
-  createDialogVisible.value = false
-  
-  // 显示成功消息
-  ElMessage.success(`客户"${newCustomer.customerName}"创建成功！`)
-  
-  // 刷新页面（回到第一页）
-  currentPage.value = 1
 }
 
 const handleView = (row) => {
@@ -526,31 +462,29 @@ const handleEditSuccess = (customerData) => {
 
 const handleDelete = async (row) => {
   try {
-    await ElMessageBox.confirm(`确定要删除客户“${row.customerName}”吗？`, '提示', {
+    await ElMessageBox.confirm(`确定要删除客户"${row.customerName}"吗？`, '提示', {
       confirmButtonText: '确定',
       cancelButtonText: '取消',
       type: 'warning'
     })
     
-    // 从表格数据中删除
-    const index = tableData.value.findIndex(item => item.id === row.id)
-    if (index !== -1) {
-      tableData.value.splice(index, 1)
-      
-      // 更新统计数据
-      stats.value.total--
-      if (row.customerType === 'vip' || row.customerType === 'VIP客户') {
-        stats.value.vip--
+    const response = await customerApi.deleteCustomer(row.id)
+    if (response.data.success) {
+      const index = tableData.value.findIndex(item => item.id === row.id)
+      if (index !== -1) {
+        tableData.value.splice(index, 1)
+        stats.value.total--
+        if (row.customerType === 'vip') stats.value.vip--
+        if (row.status === 'active') stats.value.active--
+        ElMessage.success('删除成功')
       }
-      if (row.status === 'active' || row.status === '合作中') {
-        stats.value.active--
-      }
-      // 减去删除客户的交易额
-      stats.value.totalRevenue -= (row.totalAmount || 0)
-      
-      ElMessage.success('删除成功')
     }
-  } catch {}
+  } catch (error) {
+    if (error !== 'cancel') {
+      console.error('删除失败:', error)
+      ElMessage.error('删除失败：' + (error.response?.data?.message || error.message))
+    }
+  }
 }
 
 const handleBatchDelete = async () => {
@@ -561,33 +495,25 @@ const handleBatchDelete = async () => {
       type: 'warning'
     })
     
-    // 获取要删除的客户ID列表
-    const deleteIds = selectedRows.value.map(row => row.id)
+    const ids = selectedRows.value.map(row => row.id)
+    const response = await customerApi.batchDeleteCustomers(ids)
     
-    // 从表格数据中删除
-    tableData.value = tableData.value.filter(row => !deleteIds.includes(row.id))
-    
-    // 更新统计数据
-    selectedRows.value.forEach(row => {
-      stats.value.total--
-      if (row.customerType === 'vip' || row.customerType === 'VIP客户') {
-        stats.value.vip--
-      }
-      if (row.status === 'active' || row.status === '合作中') {
-        stats.value.active--
-      }
-      // 减去删除客户的交易额
-      stats.value.totalRevenue -= (row.totalAmount || 0)
-    })
-    
-    // 同步到localStorage
-    localStorage.setItem('customerListData', JSON.stringify(tableData.value))
-    
-    // 清空选中项
-    selectedRows.value = []
-    
-    ElMessage.success('批量删除成功')
-  } catch {}
+    if (response.data.success) {
+      tableData.value = tableData.value.filter(row => !ids.includes(row.id))
+      selectedRows.value.forEach(row => {
+        stats.value.total--
+        if (row.customerType === 'vip') stats.value.vip--
+        if (row.status === 'active') stats.value.active--
+      })
+      selectedRows.value = []
+      ElMessage.success(`成功删除 ${response.data.data.deletedCount} 个客户`)
+    }
+  } catch (error) {
+    if (error !== 'cancel') {
+      console.error('批量删除失败:', error)
+      ElMessage.error('批量删除失败：' + (error.response?.data?.message || error.message))
+    }
+  }
 }
 
 const handleExport = () => {
@@ -632,17 +558,52 @@ const handleRefresh = () => {
 }
 
 // 生命周期
-onMounted(() => {
-  // 计算表格高度
+onMounted(async () => {
+  console.log('=== 客户台账页面初始化 ===')
+  
   const updateTableHeight = () => {
-    const windowHeight = window.innerHeight
-    tableHeight.value = windowHeight - 450
+    tableHeight.value = window.innerHeight - 450
   }
   updateTableHeight()
   window.addEventListener('resize', updateTableHeight)
   
-  // 同步客户数据到localStorage，供其他页面使用
-  localStorage.setItem('customerListData', JSON.stringify(tableData.value))
+  try {
+    const response = await customerApi.getCustomers({
+      page: currentPage.value,
+      pageSize: pageSize.value
+    })
+    
+    if (response.data.success) {
+      const customers = response.data.data.list
+      tableData.value = customers.map(c => ({
+        id: c.id,
+        customerCode: c.customer_code,
+        customerName: c.customer_name,
+        customerType: c.customer_type,
+        status: c.status,
+        contactPerson: c.contact_person,
+        contactPhone: c.contact_phone,
+        contactEmail: c.contact_email,
+        company: c.company,
+        industry: c.industry,
+        region: c.region,
+        createTime: new Date(c.created_at).toLocaleString('zh-CN')
+      }))
+      totalCount.value = response.data.data.total
+      console.log('✅ 从后端加载', tableData.value.length, '条数据')
+    }
+    
+    const statsRes = await customerApi.getCustomerStats()
+    if (statsRes.data.success) {
+      stats.value = statsRes.data.data
+      console.log('✅ 统计数据:', stats.value)
+    }
+  } catch (error) {
+    console.error('❌ 加载失败:', error)
+    ElMessage.error('加载数据失败')
+  }
+  
+  console.log('=== 初始化完成 ===')
 })
 </script>
 

@@ -1,0 +1,68 @@
+// 在Vue组件中添加方法
+methods: {
+  // 从后端加载BOM树
+  async loadBomTreeFromBackend(bomId) {
+    try {
+      this.loading = true;
+      const response = await this.$http.get(`/api/bom/${bomId}/tree`);
+      
+      if (response.data.success) {
+        // 处理后端返回的树结构数据
+        this.l0Node = this.extractL0Node(response.data.data);
+        this.bomTreeData = this.formatBomDataForTemplate(response.data.data);
+        this.updateLayout();
+      }
+    } catch (error) {
+      console.error('加载BOM树失败:', error);
+      alert('加载BOM树失败');
+    } finally {
+      this.loading = false;
+    }
+  },
+  
+  // 保存BOM树到后端
+  async saveBomTreeToBackend() {
+    try {
+      const bomData = this.prepareBomDataForSave();
+      
+      const response = await this.$http.post('/api/bom', {
+        bom_code: this.generateBomCode(),
+        bom_name: this.bomName,
+        product_id: this.getProductIdFromCode(this.l0Node.productCode),
+        template_id: this.templateId,
+        nodes: bomData
+      });
+      
+      if (response.data.success) {
+        alert('BOM保存成功');
+        this.bomId = response.data.data.id;
+      }
+    } catch (error) {
+      console.error('保存BOM失败:', error);
+      alert('保存BOM失败');
+    }
+  },
+  
+  // 从列表式BOM生成树结构
+  async generateTreeFromListBom() {
+    try {
+      // 获取列表式BOM数据
+      const listBomResponse = await this.$http.get('/api/bom/list-flat');
+      const listBomData = listBomResponse.data.data;
+      
+      // 转换逻辑
+      const treeData = this.convertListToTree(listBomData);
+      
+      // 保存为树结构
+      await this.$http.post('/api/bom/convert-to-tree', {
+        bom_id: this.bomId,
+        tree_data: treeData
+      });
+      
+      alert('BOM树结构生成成功');
+      this.loadBomTreeFromBackend(this.bomId);
+    } catch (error) {
+      console.error('生成树结构失败:', error);
+    }
+  }
+}

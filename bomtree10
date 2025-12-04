@@ -1,0 +1,98 @@
+const express = require('express');
+const bodyParser = require('body-parser');
+const cors = require('cors');
+const sqlite3 = require('sqlite3').verbose();
+
+const app = express();
+const port = 3000;
+
+app.use(cors());
+app.use(bodyParser.json({ limit: '50mb' }));
+
+// 初始化数据库
+const db = new sqlite3.Database('./bom.db', (err) => {
+  if (err) {
+    console.error(err.message);
+  }
+  console.log('Connected to the bom database.');
+});
+
+// 创建表
+db.run(`CREATE TABLE IF NOT EXISTS bom_trees (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  name TEXT NOT NULL,
+  bom_data TEXT NOT NULL,
+  created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+  updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+)`);
+
+// 更新updated_at的触发器
+db.run(`CREATE TRIGGER IF NOT EXISTS update_bom_trees_updated_at AFTER UPDATE ON bom_trees
+  BEGIN
+    UPDATE bom_trees SET updated_at = CURRENT_TIMESTAMP WHERE id = NEW.id;
+  END`);
+
+// 保存BOM树
+app.post('/api/bom/save', (req, res) => {
+  const { name, bomData } = req.body;
+  if (!name || !bomData) {
+    return res.status(400).json({ error: 'Name and bomData are required.' });
+  }
+
+  const bomDataString = JSON.stringify(bomData);
+
+  const sql = `INSERT INTO bom_trees (name, bom_data) VALUES (?, ?)`;
+  db.run(sql, [name, bomDataString], function(err) {
+    if (err) {
+      return res.status(500).json({ error: err.message });
+    }
+    res.json({ id: this.lastID, message: 'BOM tree saved successfully.' });
+  });
+});
+
+// 获取BOM树列表
+app.get('/api/bom/list', (req, res) => {
+  const sql = `SELECT id, name, created_at, updated_at FROM bom_trees ORDER BY updated_at DESC`;
+  db.all(sql, [], (err, rows) => {
+    if (err) {
+      return res.status(500).json({ error: err.message });
+    }
+    res.json(rows);
+  });
+});
+
+// 获取单个BOM树
+app.get('/api/bom/:id', (req, res) => {
+  const id = req.params.id;
+  const sql = `SELECT * FROM bom_trees WHERE id = ?`;
+  db.get(sql, [id], (err, row) => {
+    if (err) {
+      return res.status(500).json({ error: err.message });
+    }
+    if (!row) {
+      return res.status(404).json({ error: 'BOM tree not found.' });
+    }
+    // 解析bom_data字符串为JSON
+    row.bom_data = JSON.parse(row.bom_data);
+    res.json(row);
+  });
+});
+
+// 删除BOM树
+app.delete('/api/bom/:id', (req, res) => {
+  const id = req.params.id;
+  const sql = `DELETE FROM bom_trees WHERE id = ?`;
+  db.run(sql, [id], function(err) {
+    if (err) {
+      return res.status(500).json({ error: err.message });
+    }
+    if (this.changes === 0) {
+      return res.status(404).json({ error: 'BOM tree not found.' });
+    }
+    res.json({ message: 'BOM tree deleted successfully.' });
+  });
+});
+
+app.listen(port, () => {
+  console.log(`Server running at http://localhost:${port}`);
+});

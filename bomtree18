@@ -1,0 +1,68 @@
+const { DataTypes } = require('sequelize');
+const sequelize = require('../../config/database');
+const Product = require('./Product');
+const BomTemplate = require('./BomTemplate');
+
+const BomInstance = sequelize.define('BomInstance', {
+  id: {
+    type: DataTypes.INTEGER,
+    primaryKey: true,
+    autoIncrement: true
+  },
+  bom_code: {
+    type: DataTypes.STRING(50),
+    unique: true,
+    allowNull: false,
+    comment: 'BOM编码'
+  },
+  bom_name: {
+    type: DataTypes.STRING(200),
+    allowNull: false,
+    comment: 'BOM名称'
+  },
+  product_id: {
+    type: DataTypes.INTEGER,
+    allowNull: false,
+    comment: '产品ID'
+  },
+  template_id: {
+    type: DataTypes.INTEGER,
+    comment: '模板ID'
+  },
+  version: {
+    type: DataTypes.STRING(20),
+    defaultValue: '1.0',
+    comment: '版本号'
+  },
+  status: {
+    type: DataTypes.ENUM('draft', 'active', 'obsolete'),
+    defaultValue: 'draft',
+    comment: '状态'
+  },
+  effective_date: {
+    type: DataTypes.DATEONLY,
+    comment: '生效日期'
+  },
+  expiry_date: {
+    type: DataTypes.DATEONLY,
+    comment: '失效日期'
+  },
+  created_by: {
+    type: DataTypes.STRING(50),
+    comment: '创建人'
+  },
+  approved_by: {
+    type: DataTypes.STRING(50),
+    comment: '审核人'
+  }
+}, {
+  tableName: 'bom_instances',
+  timestamps: true,
+  comment: 'BOM实例表'
+});
+
+// 关联关系
+BomInstance.belongsTo(Product, { foreignKey: 'product_id' });
+BomInstance.belongsTo(BomTemplate, { foreignKey: 'template_id' });
+
+module.exports = BomInstance;

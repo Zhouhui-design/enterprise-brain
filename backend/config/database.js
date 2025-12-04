@@ -97,6 +97,10 @@ const initializeDatabase = () => {
       remark TEXT,
       auditor TEXT,
       effective_date DATETIME,
+      total_labor REAL DEFAULT 0,
+      total_material REAL DEFAULT 0,
+      product_image TEXT,
+      is_pushed_to_manual INTEGER DEFAULT 0,
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
       updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
     )
@@ -210,6 +214,31 @@ const initializeDatabase = () => {
   db.exec(`
     CREATE INDEX IF NOT EXISTS idx_bom_components_bom_id ON bom_components(bom_id);
     CREATE INDEX IF NOT EXISTS idx_bom_components_component_code ON bom_components(component_code);
+  `);
+
+  // 创建BOM树结构表
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS bom_tree_structures (
+      id TEXT PRIMARY KEY,
+      bom_code TEXT NOT NULL,
+      bom_name TEXT,
+      product_code TEXT NOT NULL,
+      product_name TEXT,
+      version TEXT,
+      status TEXT,
+      max_level INTEGER DEFAULT 0,
+      tree_data TEXT NOT NULL,
+      create_time DATETIME DEFAULT CURRENT_TIMESTAMP,
+      update_time DATETIME DEFAULT CURRENT_TIMESTAMP,
+      create_by TEXT DEFAULT 'admin',
+      UNIQUE(bom_code)
+    )
+  `);
+
+  // 创建BOM树结构索引
+  db.exec(`
+    CREATE INDEX IF NOT EXISTS idx_bom_tree_bom_code ON bom_tree_structures(bom_code);
+    CREATE INDEX IF NOT EXISTS idx_bom_tree_product_code ON bom_tree_structures(product_code);
   `);
 
   console.log('数据库初始化完成');

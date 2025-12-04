@@ -1,0 +1,87 @@
+// 添加到methods中
+generateFromListBom(listBomData) {
+  // 假设listBomData是一个数组，包含所有BOM项
+  // 每个项包含: id, parentId, productCode, productName, process, quantity
+  
+  // 1. 重置模板
+  this.resetTemplate();
+  
+  // 2. 找到根节点（没有父节点的项）
+  const rootItem = listBomData.find(item => !item.parentId);
+  if (rootItem) {
+    this.l0Node = {
+      productCode: rootItem.productCode,
+      productName: rootItem.productName,
+      process: rootItem.process,
+      quantity: rootItem.quantity,
+      address: 'L0'
+    };
+  }
+  
+  // 3. 递归构建树结构
+  const buildTree = (parentId, parentAddress, currentLevel) => {
+    if (currentLevel > this.maxLevels) return;
+    
+    const children = listBomData.filter(item => item.parentId === parentId);
+    
+    children.forEach((child, index) => {
+      // 计算子节点在模板中的位置
+      const nodeIndex = this.findAvailableNodePosition(parentAddress, currentLevel);
+      
+      if (nodeIndex) {
+        const nodeAddress = `L${currentLevel}-${nodeIndex}`;
+        const node = this.getNode(currentLevel, nodeIndex);
+        
+        // 更新节点数据
+        node.productCode = child.productCode;
+        node.productName = child.productName;
+        node.process = child.process;
+        node.quantity = child.quantity;
+        
+        // 递归处理子节点
+        buildTree(child.id, nodeAddress, currentLevel + 1);
+      }
+    });
+  };
+  
+  // 从根节点开始构建
+  if (rootItem) {
+    buildTree(rootItem.id, 'L0', 1);
+  }
+  
+  // 4. 更新布局和连接线
+  this.updateLayout();
+  alert('BOM树已从列表数据生成');
+},
+
+// 辅助方法：查找可用的节点位置
+findAvailableNodePosition(parentAddress, targetLevel) {
+  const parentLevel = targetLevel - 1;
+  
+  if (parentLevel === 0) {
+    // L0的子节点在L1层
+    for (let i = 1; i <= this.nodesPerParent; i++) {
+      const node = this.getNode(1, i);
+      if (!node.productCode) {
+        return i;
+      }
+    }
+  } else {
+    // 解析父节点地址获取索引
+    const match = parentAddress.match(/L(\d+)-(\d+)/);
+    if (match) {
+      const parentIndex = parseInt(match[2]);
+      const startIndex = (parentIndex - 1) * this.nodesPerParent + 1;
+      
+      for (let i = 0; i < this.nodesPerParent; i++) {
+        const childIndex = startIndex + i;
+        const node = this.getNode(targetLevel, childIndex);
+        if (!node.productCode) {
+          return childIndex;
+        }
+      }
+    }
+  }
+  
+  return null;
+}

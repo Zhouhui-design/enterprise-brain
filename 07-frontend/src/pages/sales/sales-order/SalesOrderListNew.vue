@@ -360,6 +360,7 @@
 <script setup>
 import { ref, computed, onMounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
+import { salesOrderApi } from '@/api/salesOrder'
 import { Search, Setting, Plus, UploadFilled } from '@element-plus/icons-vue'
 import SalesOrderCreate from './SalesOrderCreate.vue'
 import SalesOrderView from './SalesOrderView.vue'
@@ -386,79 +387,7 @@ const currentOrder = ref(null)
 const activeTab = ref('workflow')
 
 // 表格数据（模拟数据）
-const tableData = ref([
-  {
-    id: 1,
-    orderStatus: '待审核',
-    internalOrderNo: 'SO2025112900001',
-    customerOrderNo: 'CO-2025-001',
-    customerName: '测试客户A',
-    salesperson: '张三',
-    quotationNo: 'QT-2025-001',
-    orderTime: '2025-11-29 10:00:00',
-    promisedDelivery: '2025-12-15',
-    returnOrderNo: '',
-    deliveryMethod: '快递',
-    salesDepartment: '华东区',
-    orderCurrency: 'CNY',
-    currentExchangeRate: '1.00',
-    taxRate: '13%',
-    customerDelivery: '2025-12-15',
-    estimatedCompletionDate: '2025-12-10',
-    orderAttachment: '',
-    orderNotes: '客户要求加急',
-    totalAmountExcludingTax: 100000,
-    totalAmountIncludingTax: 113000,
-    packagingMethod: '纸箱',
-    packagingRequirements: '需要防震包装',
-    packagingAttachment: '',
-    consignee: '李四',
-    deliveryAddress: '上海市浦东新区XX路XX号',
-    billRecipient: '财务部',
-    billAddress: '上海市浦东新区XX路XX号',
-    paymentMethod: '银行转账',
-    advancePaymentRatio: '30%',
-    fees: 500,
-    paymentPlan: '3期',
-    totalReceivable: 113000,
-    plannedPaymentDate: '2025-12-20',
-    plannedPaymentAmount: 37667,
-    createTime: '2025-11-29 09:00:00',
-    orderType: '标准订单',
-    productCode: 'P001',
-    productName: '测试产品',
-    productImage: '',
-    salesBomSelection: 'BOM-001',
-    majorCategory: '电子产品',
-    middleCategory: '手机',
-    minorCategory: '智能手机',
-    productSource: '自产',
-    productSpec: '6.5寸屏',
-    productColor: '黑色',
-    productMaterial: '铝合金',
-    productDescription: '高端智能手机',
-    realtimeInventory: 1000,
-    availableInventory: 800,
-    effectiveInventory: 900,
-    estimatedBalance: 700,
-    productUnit: '台',
-    orderQuantity: 100,
-    unitPriceExcludingTax: 1000,
-    productTaxRate: '13%',
-    unitPriceIncludingTax: 1130,
-    amountExcludingTax: 100000,
-    amountIncludingTax: 113000,
-    appliedShipmentQty: 0,
-    unappliedShipmentQty: 100,
-    shippedQty: 0,
-    unshippedQty: 100,
-    receivedAmount: 0,
-    unreceivedAmount: 113000,
-    hasAfterSales: false,
-    afterSalesDetails: '',
-    afterSalesOrderNo: ''
-  }
-])
+const tableData = ref([])
 
 // 下一个订单ID
 const nextOrderId = ref(2)
@@ -551,25 +480,43 @@ const handleCreate = () => {
   createDialogVisible.value = true
 }
 
-const handleCreateSuccess = (orderData) => {
-  // 生成订单编号
-  const today = new Date()
-  const orderNo = `SO${today.getFullYear()}${String(today.getMonth() + 1).padStart(2, '0')}${String(today.getDate()).padStart(2, '0')}${String(nextOrderId.value).padStart(5, '0')}`
-  
-  // 添加新订单
-  const newOrder = {
-    ...orderData,
-    id: nextOrderId.value,
-    internalOrderNo: orderNo,
-    orderStatus: '草稿',
-    createTime: new Date().toLocaleString('zh-CN')
+// 加载订单数据
+const loadOrders = async () => {
+  try {
+    const response = await salesOrderApi.getSalesOrders({
+      page: currentPage.value,
+      pageSize: pageSize.value
+    })
+    
+    if (response.data.success) {
+      const orders = response.data.data.list
+      tableData.value = orders.map(order => ({
+        id: order.id,
+        internalOrderNo: order.internal_order_no,
+        customerOrderNo: order.customer_order_no,
+        customerName: order.customer_name,
+        salesperson: order.salesperson,
+        orderType: order.order_type,
+        orderStatus: order.status,
+        totalAmount: order.total_amount,
+        orderTime: order.order_time,
+        promisedDelivery: order.promised_delivery,
+        createTime: new Date(order.created_at).toLocaleString('zh-CN'),
+        orderDetail: order
+      }))
+      totalCount.value = response.data.data.total
+      console.log('✅ 从后端加载订单:', tableData.value.length, '条')
+    }
+  } catch (error) {
+    console.error('❌ 加载订单失败:', error)
+    ElMessage.error('加载订单数据失败')
   }
-  
-  tableData.value.unshift(newOrder)
-  nextOrderId.value++
-  
+}
+
+const handleCreateSuccess = async (orderData) => {
   createDialogVisible.value = false
-  ElMessage.success(`订单"${orderNo}"创建成功！`)
+  ElMessage.success('订单创建成功！')
+  await loadOrders() // 重新加载数据
 }
 
 const handleManualTerminate = async () => {
@@ -605,13 +552,19 @@ const handleDelete = async () => {
       type: 'warning'
     })
     
-    // 删除选中的订单
-    const deleteIds = selectedRows.value.map(row => row.id)
-    tableData.value = tableData.value.filter(row => !deleteIds.includes(row.id))
-    selectedRows.value = []
+    const ids = selectedRows.value.map(row => row.id)
+    const response = await salesOrderApi.batchDeleteSalesOrders(ids)
     
-    ElMessage.success('删除成功')
-  } catch {}
+    if (response.data.success) {
+      selectedRows.value = []
+      ElMessage.success('删除成功')
+      await loadOrders()
+    }
+  } catch (error) {
+    if (error !== 'cancel') {
+      ElMessage.error('删除失败')
+    }
+  }
 }
 
 const handleDeleteRow = async (row) => {
@@ -622,12 +575,16 @@ const handleDeleteRow = async (row) => {
       type: 'warning'
     })
     
-    const index = tableData.value.findIndex(item => item.id === row.id)
-    if (index !== -1) {
-      tableData.value.splice(index, 1)
+    const response = await salesOrderApi.deleteSalesOrder(row.id)
+    if (response.data.success) {
       ElMessage.success('删除成功')
+      await loadOrders()
     }
-  } catch {}
+  } catch (error) {
+    if (error !== 'cancel') {
+      ElMessage.error('删除失败')
+    }
+  }
 }
 
 const handleEdit = (row) => {
@@ -689,7 +646,8 @@ const handleExport = () => {
   ElMessage.success(`导出成功，共 ${dataToExport.length} 条记录`)
 }
 
-const handleRefresh = () => {
+const handleRefresh = async () => {
+  await loadOrders()
   ElMessage.success('刷新成功')
 }
 
@@ -735,7 +693,10 @@ const applySettings = () => {
 }
 
 // 生命周期
-onMounted(() => {
+onMounted(async () => {
+  // 加载订单数据
+  await loadOrders()
+  
   // 加载保存的设置
   const savedSettings = localStorage.getItem('salesOrderSettings')
   if (savedSettings) {

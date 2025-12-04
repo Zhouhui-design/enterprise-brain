@@ -48,8 +48,9 @@ class BOMService {
         const stmt = db.prepare(`
           INSERT INTO production_boms (
             bom_code, bom_name, product_code, product_name, version, 
-            status, designer, material_count, remark, auditor, effective_date
-          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            status, designer, material_count, remark, auditor, effective_date,
+            total_labor, total_material, product_image
+          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         `);
         
         const info = stmt.run(
@@ -63,7 +64,10 @@ class BOMService {
           bomInfo.itemCount || 0,
           bomInfo.remark || '',
           bomInfo.reviewer || '',
-          bomInfo.effectiveDate || null
+          bomInfo.effectiveDate || null,
+          parseFloat(bomInfo.totalLabor) || 0,
+          parseFloat(bomInfo.totalMaterial) || 0,
+          bomInfo.productImage || null
         );
         
         const bomId = info.lastInsertRowid;
@@ -125,7 +129,9 @@ class BOMService {
           UPDATE production_boms SET
             bom_code = ?, bom_name = ?, product_code = ?, product_name = ?,
             version = ?, status = ?, designer = ?, material_count = ?,
-            remark = ?, auditor = ?, effective_date = ?, updated_at = CURRENT_TIMESTAMP
+            remark = ?, auditor = ?, effective_date = ?,
+            total_labor = ?, total_material = ?, product_image = ?,
+            updated_at = CURRENT_TIMESTAMP
           WHERE id = ?
         `);
         
@@ -141,6 +147,9 @@ class BOMService {
           bomInfo.remark || '',
           bomInfo.reviewer || '',
           bomInfo.effectiveDate || null,
+          parseFloat(bomInfo.totalLabor) || 0,
+          parseFloat(bomInfo.totalMaterial) || 0,
+          bomInfo.productImage || null,
           bomId
         );
         

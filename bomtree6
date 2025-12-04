@@ -1,0 +1,71 @@
+import axios from 'axios';
+
+// 后端接口基础地址
+const API_BASE = 'http://localhost:3000/api/bom';
+
+// 1. 获取指定BOM的节点数据并渲染
+async function loadBomData(bomId) {
+  try {
+    const res = await axios.get(`${API_BASE}/nodes/${bomId}`);
+    const nodes = res.data;
+    
+    // 遍历节点，填充到前端单元格
+    nodes.forEach(node => {
+      const cell = document.getElementById(node.cellAddress);
+      if (cell) {
+        cell.querySelector('.product-code').textContent = node.productCode;
+        cell.querySelector('.product-name').textContent = node.productName;
+        cell.querySelector('.product-process').textContent = node.productProcess;
+        cell.querySelector('.product-qty').textContent = node.productQty;
+        
+        // 产品编码非空则显示单元格
+        if (node.productCode) cell.classList.add('visible');
+      }
+    });
+  } catch (err) {
+    console.error('加载BOM数据失败：', err);
+  }
+}
+
+// 2. 批量保存BOM节点数据
+async function saveBomData(bomId) {
+  // 收集前端所有单元格的数据
+  const nodes = [];
+  document.querySelectorAll('.bom-cell').forEach(cell => {
+    const cellAddress = cell.id;
+    const [layerStr, indexStr] = cellAddress.split('-');
+    const layer = parseInt(layerStr.replace('L', ''));
+    const index = parseInt(indexStr) - 1; // 数据库中index从0开始
+    
+    nodes.push({
+      bomId,
+      layer,
+      index,
+      cellAddress,
+      productCode: cell.querySelector('.product-code').textContent,
+      productName: cell.querySelector('.product-name').textContent,
+      productProcess: cell.querySelector('.product-process').textContent,
+      productQty: parseInt(cell.querySelector('.product-qty').textContent) || 0,
+      parentCellAddress: getParentCellAddress(cellAddress) // 需实现父地址计算逻辑
+    });
+  });
+
+  try {
+    await axios.post(`${API_BASE}/nodes/batch`, { bomId, nodes });
+    alert('BOM数据保存成功');
+  } catch (err) {
+    console.error('保存BOM数据失败：', err);
+  }
+}
+
+// 3. 加载模板列表
+async function loadTemplates() {
+  try {
+    const res = await axios.get(`${API_BASE}/templates`);
+    const templates = res.data;
+    // 渲染到前端下拉菜单等UI
+    console.log('模板列表：', templates);
+  } catch (err) {
+    console.error('加载模板失败：', err);
+  }
+}

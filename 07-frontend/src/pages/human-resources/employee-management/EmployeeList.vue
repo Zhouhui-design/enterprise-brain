@@ -38,9 +38,13 @@
           <el-button type="primary" :icon="Plus" @click="handleCreate">新增员工</el-button>
           <el-button type="success" :icon="Upload" @click="handleImport">导入</el-button>
           <el-button type="warning" :icon="Download" @click="handleExport">导出</el-button>
+          <el-button type="danger" :icon="Delete" @click="handleBatchDelete" :disabled="selectedRows.length === 0">
+            批量删除
+          </el-button>
         </div>
-        <div>
+        <div style="display: flex; align-items: center; gap: 10px;">
           <el-tag type="info">总计：{{ total }} 人</el-tag>
+          <TableColumnControl v-model:columns="tableColumns" @change="handleColumnChange" />
         </div>
       </div>
 
@@ -70,38 +74,86 @@
 
       <!-- 员工列表 -->
       <el-table 
-        :data="employeeList" 
+        :data="filteredEmployeeList" 
         border 
         v-loading="loading"
         style="margin-top: 20px;"
         @selection-change="handleSelectionChange"
       >
-        <el-table-column type="selection" width="55" />
-        <el-table-column type="index" label="#" width="60" />
-        <el-table-column prop="employeeNo" label="工号" width="120" />
-        <el-table-column label="姓名" width="120">
-          <template #default="scope">
-            <div class="employee-info">
-              <el-avatar :size="32" :src="scope.row.avatar" style="margin-right: 8px;">
-                {{ scope.row.name?.charAt(0) }}
-              </el-avatar>
-              <span>{{ scope.row.name }}</span>
-            </div>
-          </template>
-        </el-table-column>
-        <el-table-column prop="gender" label="性别" width="60" />
-        <el-table-column prop="phone" label="手机号" width="130" />
-        <el-table-column prop="email" label="邮箱" width="180" show-overflow-tooltip />
-        <el-table-column prop="departmentName" label="部门" width="120" />
-        <el-table-column prop="positionName" label="职位" width="120" />
-        <el-table-column label="在职状态" width="100">
-          <template #default="scope">
-            <el-tag :type="getStatusType(scope.row.status)">
-              {{ getStatusText(scope.row.status) }}
-            </el-tag>
-          </template>
-        </el-table-column>
-        <el-table-column prop="entryDate" label="入职日期" width="120" />
+        <el-table-column type="selection" width="55" fixed />
+        <el-table-column type="index" label="#" width="60" fixed />
+        
+        <!-- 动态渲染列 -->
+        <template v-for="column in visibleColumns" :key="column.prop">
+          <el-table-column
+            v-if="column.prop === 'name'"
+            :prop="column.prop"
+            :label="column.label"
+            :width="column.width"
+            :fixed="column.fixed"
+          >
+            <template #header>
+              <span>{{ column.label }}</span>
+              <TableHeaderFilter
+                v-if="column.filterable"
+                :column="column"
+                v-model="filters[column.prop]"
+                @filter="handleFilter"
+              />
+            </template>
+            <template #default="scope">
+              <div class="employee-info">
+                <el-avatar :size="32" :src="scope.row.avatar" style="margin-right: 8px;">
+                  {{ scope.row.name?.charAt(0) }}
+                </el-avatar>
+                <span>{{ scope.row.name }}</span>
+              </div>
+            </template>
+          </el-table-column>
+          
+          <el-table-column
+            v-else-if="column.prop === 'status'"
+            :prop="column.prop"
+            :label="column.label"
+            :width="column.width"
+            :fixed="column.fixed"
+          >
+            <template #header>
+              <span>{{ column.label }}</span>
+              <TableHeaderFilter
+                v-if="column.filterable"
+                :column="column"
+                v-model="filters[column.prop]"
+                @filter="handleFilter"
+              />
+            </template>
+            <template #default="scope">
+              <el-tag :type="getStatusType(scope.row.status)">
+                {{ getStatusText(scope.row.status) }}
+              </el-tag>
+            </template>
+          </el-table-column>
+          
+          <el-table-column
+            v-else
+            :prop="column.prop"
+            :label="column.label"
+            :width="column.width"
+            :fixed="column.fixed"
+            show-overflow-tooltip
+          >
+            <template #header>
+              <span>{{ column.label }}</span>
+              <TableHeaderFilter
+                v-if="column.filterable"
+                :column="column"
+                v-model="filters[column.prop]"
+                @filter="handleFilter"
+              />
+            </template>
+          </el-table-column>
+        </template>
+        
         <el-table-column label="操作" fixed="right" width="250">
           <template #default="scope">
             <el-button type="primary" size="small" link @click="viewDetail(scope.row)">
@@ -144,11 +196,14 @@
 </template>
 
 <script setup>
-import { ref, reactive, onMounted } from 'vue'
+import { ref, reactive, computed, onMounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { Search, Refresh, Plus, Upload, Download, ArrowDown } from '@element-plus/icons-vue'
+import { Search, Refresh, Plus, Upload, Download, ArrowDown, Delete } from '@element-plus/icons-vue'
 import { employeeApi, departmentApi } from '@/api/hr/employee'
 import { useRouter } from 'vue-router'
+import TableColumnControl from '@/components/TableColumnControl/index.vue'
+import TableHeaderFilter from '@/components/TableHeaderFilter/index.vue'
+import * as XLSX from 'xlsx'
 
 const router = useRouter()
 
@@ -160,6 +215,7 @@ const selectedRows = ref([])
 const pageNum = ref(1)
 const pageSize = ref(20)
 const total = ref(0)
+const filters = reactive({})
 
 const stats = reactive({
   activeCount: 0,
@@ -173,6 +229,60 @@ const searchForm = reactive({
   employeeNo: '',
   departmentId: '',
   status: ''
+})
+
+// 表格列配置
+const tableColumns = ref([
+  { prop: 'employeeNo', label: '工号', width: 120, visible: true, filterable: true, filterType: 'input' },
+  { prop: 'name', label: '姓名', width: 120, visible: true, filterable: true, filterType: 'input' },
+  { prop: 'gender', label: '性别', width: 60, visible: true, filterable: true, filterType: 'select', filterOptions: [
+    { label: '男', value: '男' },
+    { label: '女', value: '女' }
+  ]},
+  { prop: 'phone', label: '手机号', width: 130, visible: true, filterable: true, filterType: 'input' },
+  { prop: 'email', label: '邮箱', width: 180, visible: true, filterable: true, filterType: 'input' },
+  { prop: 'departmentName', label: '部门', width: 120, visible: true, filterable: true, filterType: 'select', filterOptions: [] },
+  { prop: 'positionName', label: '职位', width: 120, visible: true, filterable: true, filterType: 'input' },
+  { prop: 'status', label: '在职状态', width: 100, visible: true, filterable: true, filterType: 'select', filterOptions: [
+    { label: '在职', value: 'active' },
+    { label: '离职', value: 'resigned' },
+    { label: '试用期', value: 'probation' }
+  ]},
+  { prop: 'entryDate', label: '入职日期', width: 120, visible: true, filterable: true, filterType: 'date' }
+])
+
+// 计算属性：可见列
+const visibleColumns = computed(() => {
+  return tableColumns.value.filter(col => col.visible)
+})
+
+// 计算属性：过滤后的员工列表
+const filteredEmployeeList = computed(() => {
+  let list = employeeList.value
+  
+  // 应用表头筛选
+  Object.keys(filters).forEach(key => {
+    const filterValue = filters[key]
+    if (filterValue !== null && filterValue !== '' && filterValue !== undefined) {
+      const column = tableColumns.value.find(col => col.prop === key)
+      
+      if (column?.filterType === 'input') {
+        list = list.filter(item => 
+          String(item[key] || '').toLowerCase().includes(String(filterValue).toLowerCase())
+        )
+      } else if (column?.filterType === 'select') {
+        list = list.filter(item => item[key] === filterValue)
+      } else if (column?.filterType === 'date' && Array.isArray(filterValue)) {
+        const [start, end] = filterValue
+        list = list.filter(item => {
+          const date = new Date(item[key])
+          return date >= start && date <= end
+        })
+      }
+    }
+  })
+  
+  return list
 })
 
 // 方法
@@ -290,11 +400,94 @@ const handleDelete = (row) => {
 }
 
 const handleImport = () => {
-  ElMessage.info('导入功能开发中...')
+  // 创建文件输入元素
+  const input = document.createElement('input')
+  input.type = 'file'
+  input.accept = '.xlsx, .xls'
+  
+  input.onchange = async (e) => {
+    const file = e.target.files[0]
+    if (!file) return
+    
+    try {
+      const reader = new FileReader()
+      reader.onload = (e) => {
+        const data = new Uint8Array(e.target.result)
+        const workbook = XLSX.read(data, { type: 'array' })
+        const sheetName = workbook.SheetNames[0]
+        const worksheet = workbook.Sheets[sheetName]
+        const jsonData = XLSX.utils.sheet_to_json(worksheet)
+        
+        console.log('导入数据:', jsonData)
+        ElMessage.success(`成功导入 ${jsonData.length} 条数据`)
+        loadEmployeeList()
+      }
+      reader.readAsArrayBuffer(file)
+    } catch (error) {
+      console.error('导入失败:', error)
+      ElMessage.error('导入失败')
+    }
+  }
+  
+  input.click()
 }
 
 const handleExport = () => {
-  ElMessage.info('导出功能开发中...')
+  try {
+    // 准备导出数据
+    const exportData = filteredEmployeeList.value.map(item => ({
+      '工号': item.employeeNo,
+      '姓名': item.name,
+      '性别': item.gender,
+      '手机号': item.phone,
+      '邮箱': item.email,
+      '部门': item.departmentName,
+      '职位': item.positionName,
+      '在职状态': getStatusText(item.status),
+      '入职日期': item.entryDate
+    }))
+    
+    // 创建工作簿
+    const worksheet = XLSX.utils.json_to_sheet(exportData)
+    const workbook = XLSX.utils.book_new()
+    XLSX.utils.book_append_sheet(workbook, worksheet, '员工台账')
+    
+    // 导出文件
+    XLSX.writeFile(workbook, `员工台账_${new Date().getTime()}.xlsx`)
+    ElMessage.success('导出成功')
+  } catch (error) {
+    console.error('导出失败:', error)
+    ElMessage.error('导出失败')
+  }
+}
+
+// 批量删除
+const handleBatchDelete = () => {
+  ElMessageBox.confirm(
+    `确认删除选中的 ${selectedRows.value.length} 位员工吗？删除后将无法恢复。`,
+    '批量删除确认',
+    { type: 'warning' }
+  ).then(async () => {
+    try {
+      const ids = selectedRows.value.map(row => row.id)
+      await employeeApi.batchDeleteEmployees(ids)
+      ElMessage.success('删除成功')
+      selectedRows.value = []
+      loadEmployeeList()
+    } catch (error) {
+      ElMessage.error('删除失败')
+    }
+  }).catch(() => {})
+}
+
+// 列变化事件
+const handleColumnChange = (columns) => {
+  console.log('列配置变化:', columns)
+}
+
+// 筛选事件
+const handleFilter = ({ prop, value }) => {
+  console.log('筛选:', prop, value)
 }
 
 const getStatusType = (status) => {

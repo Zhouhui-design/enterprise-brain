@@ -61,8 +61,10 @@ class MaterialAPIService {
       standardTime: obj.standard_time,
       quotaTime: obj.quota_time,
       processPrice: obj.process_price,
+      materialLoss: obj.material_loss,
       purchaseCycle: obj.purchase_cycle,
       purchasePrice: obj.purchase_price,
+      basePrice: obj.base_price,
       status: obj.status,
       createTime: obj.created_at,
       updateTime: obj.updated_at
