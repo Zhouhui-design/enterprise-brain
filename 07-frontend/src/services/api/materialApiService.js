@@ -34,6 +34,26 @@ class MaterialAPIService {
   convertToCamelCase(obj) {
     if (!obj) return obj
     
+    // 安全解析source字段
+    let sourceValue = []
+    if (obj.source) {
+      if (typeof obj.source === 'string') {
+        try {
+          // 尝试解析JSON字符串
+          const trimmed = obj.source.trim()
+          if (trimmed && trimmed !== '[]' && trimmed !== '') {
+            sourceValue = JSON.parse(trimmed)
+          }
+        } catch (error) {
+          // JSON解析失败，尝试按逗号分割
+          console.warn(`物料 ${obj.material_code} 的source字段JSON解析失败，使用逗号分割: ${obj.source}`)
+          sourceValue = obj.source.split(',').map(s => s.trim()).filter(s => s)
+        }
+      } else if (Array.isArray(obj.source)) {
+        sourceValue = obj.source
+      }
+    }
+    
     return {
       id: obj.id,
       materialCode: obj.material_code,
@@ -47,7 +67,7 @@ class MaterialAPIService {
       minorCategory: obj.minor_category,
       model: obj.model,
       series: obj.series,
-      source: obj.source ? (typeof obj.source === 'string' ? JSON.parse(obj.source) : obj.source) : [],
+      source: sourceValue,
       description: obj.description,
       materialImage: obj.material_image,
       baseUnit: obj.base_unit,
@@ -60,11 +80,11 @@ class MaterialAPIService {
       processName: obj.process_name,
       standardTime: obj.standard_time,
       quotaTime: obj.quota_time,
-      processPrice: obj.process_price,
+      processPrice: parseFloat(obj.process_price) || 0,
       materialLoss: obj.material_loss,
       purchaseCycle: obj.purchase_cycle,
-      purchasePrice: obj.purchase_price,
-      basePrice: obj.base_price,
+      purchasePrice: parseFloat(obj.purchase_price) || 0,
+      basePrice: parseFloat(obj.base_price) || 0,
       status: obj.status,
       createTime: obj.created_at,
       updateTime: obj.updated_at

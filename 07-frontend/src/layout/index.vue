@@ -369,6 +369,166 @@ export default {
           ]
         },
         {
+          path: '/production-resources',
+          name: 'ProductionResources',
+          meta: { title: '生产资源管理' },
+          icon: 'el-icon-s-tools',
+          children: [
+            {
+              path: '/equipment-management',
+              name: 'EquipmentManagement',
+              meta: { title: '设备管理' },
+              icon: 'el-icon-s-operation',
+              children: [
+                {
+                  path: '/production-resources/equipment/list',
+                  name: 'EquipmentList',
+                  meta: { title: '设备列表' },
+                  icon: 'el-icon-document'
+                },
+                {
+                  path: '/production-resources/equipment/maintenance',
+                  name: 'EquipmentMaintenance',
+                  meta: { title: '设备维护' },
+                  icon: 'el-icon-setting'
+                },
+                {
+                  path: '/production-resources/equipment/status',
+                  name: 'EquipmentStatus',
+                  meta: { title: '设备状态' },
+                  icon: 'el-icon-data-line'
+                },
+                {
+                  path: '/production-resources/equipment/repair',
+                  name: 'RepairManagement',
+                  meta: { title: '维修管理' },
+                  icon: 'el-icon-s-tools'
+                },
+                {
+                  path: '/production-resources/equipment/utilization',
+                  name: 'UtilizationReport',
+                  meta: { title: '利用率报告' },
+                  icon: 'el-icon-s-data'
+                }
+              ]
+            },
+            {
+              path: '/fixture-management',
+              name: 'FixtureManagement',
+              meta: { title: '夹具管理' },
+              icon: 'el-icon-s-platform',
+              children: [
+                {
+                  path: '/production-resources/fixture/management',
+                  name: 'FixtureManagementPage',
+                  meta: { title: '夹具管理' },
+                  icon: 'el-icon-document'
+                },
+                {
+                  path: '/production-resources/fixture/inventory',
+                  name: 'FixtureInventory',
+                  meta: { title: '夹具库存' },
+                  icon: 'el-icon-box'
+                },
+                {
+                  path: '/production-resources/fixture/maintenance',
+                  name: 'FixtureMaintenance',
+                  meta: { title: '夹具维护' },
+                  icon: 'el-icon-setting'
+                },
+                {
+                  path: '/production-resources/fixture/design',
+                  name: 'FixtureDesign',
+                  meta: { title: '夹具设计' },
+                  icon: 'el-icon-edit'
+                },
+                {
+                  path: '/production-resources/fixture/setup',
+                  name: 'FixtureSetup',
+                  meta: { title: '夹具配置' },
+                  icon: 'el-icon-s-tools'
+                }
+              ]
+            },
+            {
+              path: '/mold-management',
+              name: 'MoldManagement',
+              meta: { title: '模具管理' },
+              icon: 'el-icon-s-grid',
+              children: [
+                {
+                  path: '/production-resources/mold/management',
+                  name: 'MoldManagementPage',
+                  meta: { title: '模具管理' },
+                  icon: 'el-icon-document'
+                },
+                {
+                  path: '/production-resources/mold/maintenance',
+                  name: 'MoldMaintenance',
+                  meta: { title: '模具维护' },
+                  icon: 'el-icon-setting'
+                },
+                {
+                  path: '/production-resources/mold/lifecycle',
+                  name: 'MoldLifecycle',
+                  meta: { title: '模具生命周期' },
+                  icon: 'el-icon-data-line'
+                },
+                {
+                  path: '/production-resources/mold/schedule',
+                  name: 'MoldSchedule',
+                  meta: { title: '模具排程' },
+                  icon: 'el-icon-s-order'
+                },
+                {
+                  path: '/production-resources/mold/storage',
+                  name: 'MoldStorage',
+                  meta: { title: '模具存储' },
+                  icon: 'el-icon-box'
+                }
+              ]
+            },
+            {
+              path: '/tooling-management',
+              name: 'ToolingManagement',
+              meta: { title: '刀具管理' },
+              icon: 'el-icon-s-tools',
+              children: [
+                {
+                  path: '/production-resources/tooling/management',
+                  name: 'ToolingManagementPage',
+                  meta: { title: '刀具管理' },
+                  icon: 'el-icon-document'
+                },
+                {
+                  path: '/production-resources/tooling/inventory',
+                  name: 'ToolingInventory',
+                  meta: { title: '刀具库存' },
+                  icon: 'el-icon-box'
+                },
+                {
+                  path: '/production-resources/tooling/issue',
+                  name: 'ToolingIssue',
+                  meta: { title: '刀具发放' },
+                  icon: 'el-icon-upload'
+                },
+                {
+                  path: '/production-resources/tooling/return',
+                  name: 'ToolingReturn',
+                  meta: { title: '刀具回收' },
+                  icon: 'el-icon-download'
+                },
+                {
+                  path: '/production-resources/tooling/maintenance',
+                  name: 'ToolingMaintenance',
+                  meta: { title: '刀具维护' },
+                  icon: 'el-icon-setting'
+                }
+              ]
+            }
+          ]
+        },
+        {
           path: '/planning-control',
           name: 'PlanningControl',
           meta: { title: '计划&物控管理' },
@@ -413,6 +573,44 @@ export default {
                   name: 'ProjectedBalance',
                   meta: { title: '预计结存' },
                   icon: 'el-icon-s-data'
+                },
+                {
+                  path: '/mrp/capacity-load',
+                  name: 'CapacityLoad',
+                  meta: { title: '工序能力负荷表' },
+                  icon: 'el-icon-s-data'
+                }
+              ]
+            },
+            {
+              path: '/process-planning',
+              name: 'ProcessPlanning',
+              meta: { title: '工序计划' },
+              icon: 'el-icon-s-order',
+              children: [
+                {
+                  path: '/process-planning/operation-sequence',
+                  name: 'OperationSequence',
+                  meta: { title: '工序顺序管理' },
+                  icon: 'el-icon-sort'
+                },
+                {
+                  path: '/process-planning/process-plan-create',
+                  name: 'ProcessPlanCreate',
+                  meta: { title: '工序计划创建' },
+                  icon: 'el-icon-document-add'
+                },
+                {
+                  path: '/process-planning/process-route',
+                  name: 'ProcessRoute',
+                  meta: { title: '工序路线管理' },
+                  icon: 'el-icon-share'
+                },
+                {
+                  path: '/process-planning/work-instruction',
+                  name: 'WorkInstruction',
+                  meta: { title: '工作指导书管理' },
+                  icon: 'el-icon-document'
                 }
               ]
             }
@@ -495,14 +693,14 @@ export default {
         {
           path: '/equipment-technician',
           name: 'EquipmentTechnician',
-          meta: { title: '设备&技工管理' },
+          meta: { title: '设备&技工管理（待部署）' },
           icon: 'el-icon-s-tools',
           children: []
         },
         {
           path: '/mold-fixture',
           name: 'MoldFixture',
-          meta: { title: '模具&工装夹具管理' },
+          meta: { title: '模具&工装夹具管理（待部署）' },
           icon: 'el-icon-s-platform',
           children: []
         },
@@ -759,6 +957,120 @@ export default {
                   icon: 'el-icon-document-add'
                 }
               ]
+            }
+          ]
+        },
+        {
+          path: '/scheduling',
+          name: 'Scheduling',
+          meta: { title: '排程管理' },
+          icon: 'el-icon-s-data',
+          children: [
+            {
+              path: '/scheduling/list',
+              name: 'ScheduleList',
+              meta: { title: '排程列表' },
+              icon: 'el-icon-document'
+            },
+            {
+              path: '/scheduling/create',
+              name: 'ScheduleCreate',
+              meta: { title: '创建排程' },
+              icon: 'el-icon-document-add'
+            },
+            {
+              path: '/scheduling/board',
+              name: 'ScheduleBoard',
+              meta: { title: '排程看板' },
+              icon: 'el-icon-s-platform'
+            },
+            {
+              path: '/scheduling/optimize',
+              name: 'ScheduleOptimize',
+              meta: { title: '排程优化' },
+              icon: 'el-icon-s-tools'
+            },
+            {
+              path: '/scheduling/machine-loading',
+              name: 'MachineLoading',
+              meta: { title: '机器负载' },
+              icon: 'el-icon-s-operation'
+            }
+          ]
+        },
+        {
+          path: '/production-dispatch',
+          name: 'ProductionDispatch',
+          meta: { title: '生产派工' },
+          icon: 'el-icon-s-custom',
+          children: [
+            {
+              path: '/production-dispatch/list',
+              name: 'DispatchList',
+              meta: { title: '派工列表' },
+              icon: 'el-icon-document'
+            },
+            {
+              path: '/production-dispatch/create',
+              name: 'DispatchCreate',
+              meta: { title: '创建派工' },
+              icon: 'el-icon-document-add'
+            },
+            {
+              path: '/production-dispatch/board',
+              name: 'DispatchBoard',
+              meta: { title: '派工看板' },
+              icon: 'el-icon-s-platform'
+            },
+            {
+              path: '/production-dispatch/work-assignment',
+              name: 'WorkAssignment',
+              meta: { title: '工作分配' },
+              icon: 'el-icon-s-operation'
+            },
+            {
+              path: '/production-dispatch/worker-schedule',
+              name: 'WorkerSchedule',
+              meta: { title: '工人排程' },
+              icon: 'el-icon-user'
+            }
+          ]
+        },
+        {
+          path: '/production-reporting',
+          name: 'ProductionReporting',
+          meta: { title: '生产报工' },
+          icon: 'el-icon-document-checked',
+          children: [
+            {
+              path: '/production-reporting/work-report',
+              name: 'WorkReport',
+              meta: { title: '工作报工' },
+              icon: 'el-icon-edit'
+            },
+            {
+              path: '/production-reporting/progress-report',
+              name: 'ProgressReport',
+              meta: { title: '进度报告' },
+              icon: 'el-icon-data-line'
+            },
+            {
+              path: '/production-reporting/output-report',
+              name: 'OutputReport',
+              meta: { title: '产出报告' },
+              icon: 'el-icon-s-data'
+            },
+            {
+              path: '/production-reporting/quality-report',
+              name: 'QualityReport',
+              meta: { title: '质量报告' },
+              icon: 'el-icon-s-check'
+            },
+            {
+              path: '/production-reporting/defect-report',
+              name: 'DefectReport',
+              meta: { title: '缺陷报告' },
+              icon: 'el-icon-warning'
             }
           ]
         },

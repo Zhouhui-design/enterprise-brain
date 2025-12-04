@@ -5,7 +5,7 @@ const BOMDraftService = require('../services/bomDraftService');
 // 获取所有草稿
 router.get('/list', async (req, res) => {
   try {
-    const drafts = BOMDraftService.getAllDrafts();
+    const drafts = await BOMDraftService.getAllDrafts();
     res.json({
       code: 200,
       data: drafts,
@@ -24,7 +24,7 @@ router.get('/list', async (req, res) => {
 router.get('/detail/:id', async (req, res) => {
   try {
     const { id } = req.params;
-    const draft = BOMDraftService.getDraftById(id);
+    const draft = await BOMDraftService.getDraftById(id);
     
     if (!draft) {
       return res.status(404).json({
@@ -52,7 +52,7 @@ router.post('/create', async (req, res) => {
   try {
     console.log('收到创建草稿请求');
     const draftData = req.body;
-    const result = BOMDraftService.createDraft(draftData);
+    const result = await BOMDraftService.createDraft(draftData);
     res.json({
       code: 200,
       data: result,
@@ -73,7 +73,7 @@ router.put('/update/:id', async (req, res) => {
     const { id } = req.params;
     console.log('收到更新草稿请求, ID:', id);
     const draftData = req.body;
-    const result = BOMDraftService.updateDraft(id, draftData);
+    const result = await BOMDraftService.updateDraft(id, draftData);
     res.json({
       code: 200,
       data: result,
@@ -93,7 +93,7 @@ router.delete('/delete/:id', async (req, res) => {
   try {
     const { id } = req.params;
     console.log('收到删除草稿请求, ID:', id);
-    const success = BOMDraftService.deleteDraft(id);
+    const success = await BOMDraftService.deleteDraft(id);
     
     if (success) {
       res.json({
@@ -120,7 +120,7 @@ router.delete('/batch-delete', async (req, res) => {
   try {
     const { ids } = req.body;
     console.log('收到批量删除草稿请求, IDs:', ids);
-    const result = BOMDraftService.batchDeleteDrafts(ids);
+    const result = await BOMDraftService.batchDeleteDrafts(ids);
     res.json({
       code: 200,
       data: result,

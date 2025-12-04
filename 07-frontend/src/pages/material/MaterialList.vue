@@ -584,120 +584,104 @@ const handleImportConfirm = async () => {
     // 将工作表转换为JSON
     const importedData = XLSX.utils.sheet_to_json(worksheet)
     
+    console.log(`导入数据总条数: ${importedData.length}`)
+    
     if (importedData.length === 0) {
       ElMessage.warning('导入文件为空')
+      importDialogVisible.value = false
       return
     }
     
-    // 处理导入数据，根据合并规则更新系统数据
-    const existingData = [...tableData.value]
-    const newData = []
+    // 准备批量导入的数据
+    const materialsToImport = []
     let addedCount = 0
     let updatedCount = 0
+    let skipCount = 0
     
-    // 遍历导入的数据
-    importedData.forEach(item => {
-      // 查找系统中是否已存在该物料编码
-      const existingIndex = existingData.findIndex(m => m.materialCode === item['物料编码'])
-      
-      if (existingIndex === -1) {
-        // 规则1: 导入表格有的，系统表格没有 = 新增到系统
-        const newMaterial = {
-          id: nextMaterialId.value,
-          materialCode: item['物料编码'] || '',
-          bomNumber: item['BOM编号'] || '',
-          materialName: item['物料名称'] || '',
-          sizeSpec: item['尺寸规格'] || '',
+    // 遍历导入的数据，转换为后端格式
+    for (const item of importedData) {
+      try {
+        const materialData = {
+          material_code: item['物料编码'] || '',
+          bom_number: item['BOM编号'] || '',
+          material_name: item['物料名称'] || '',
+          size_spec: item['尺寸规格'] || '',
           color: item['颜色'] || '',
           material: item['材质'] || '',
-          majorCategory: item['大类'] || '',
-          middleCategory: item['中类'] || '',
-          minorCategory: item['小类'] || '',
+          major_category: item['大类'] || '',
+          middle_category: item['中类'] || '',
+          minor_category: item['小类'] || '',
           model: item['型号'] || '',
           series: item['系列'] || '',
-          source: item['来源'] ? item['来源'].split(',') : [],
+          source: item['来源'] || '',
           description: item['物料详述'] || '',
-          materialImage: item['物料图片'] || '',
-          baseUnit: item['基础单位'] || '个',
-          saleUnit: item['销售单位'] || '',
-          saleConversionRate: parseFloat(item['销售转化率']) || 0,
-          purchaseUnit: item['采购单位'] || '',
-          purchaseConversionRate: parseFloat(item['采购转化率']) || 0,
-          kgPerPcs: parseFloat(item['kg/pcs']) || 0,
-          pcsPerKg: parseFloat(item['pcs/kg']) || 0,
-          processName: item['产出工序名称'] || '',
-          standardTime: parseFloat(item['定时工额']) || 0,
-          quotaTime: parseFloat(item['定额工时']) || 0,
-          processPrice: parseFloat(item['工序单价']) || 0,
-          purchaseCycle: item['采购周期'] || '',
-          purchasePrice: parseFloat(item['采购单价']) || 0,
-          createTime: new Date().toLocaleString('zh-CN')
+          material_image: item['物料图片'] || '',
+          base_unit: item['基础单位'] || '个',
+          sale_unit: item['销售单位'] || '',
+          sale_conversion_rate: parseFloat(item['销售转化率']) || 0,
+          purchase_unit: item['采购单位'] || '',
+          purchase_conversion_rate: parseFloat(item['采购转化率']) || 0,
+          kg_per_pcs: parseFloat(item['kg/pcs']) || 0,
+          pcs_per_kg: parseFloat(item['pcs/kg']) || 0,
+          process_name: item['产出工序名称'] || '',
+          standard_time: parseFloat(item['定时工额']) || 0,
+          quota_time: parseFloat(item['定额工时']) || 0,
+          process_price: parseFloat(item['工序单价']) || 0,
+          purchase_cycle: item['采购周期'] || '',
+          purchase_price: parseFloat(item['采购单价']) || 0,
+          base_price: parseFloat(item['基础单价']) || 0
         }
         
-        newData.push(newMaterial)
-        nextMaterialId.value++
-        addedCount++
-      } else {
-        // 规则2: 导入表格有的，系统表格也有 = 保留导入表格的
-        existingData[existingIndex] = {
-          ...existingData[existingIndex],
-          materialCode: item['物料编码'] || existingData[existingIndex].materialCode,
-          bomNumber: item['BOM编号'] || existingData[existingIndex].bomNumber,
-          materialName: item['物料名称'] || existingData[existingIndex].materialName,
-          sizeSpec: item['尺寸规格'] || existingData[existingIndex].sizeSpec,
-          color: item['颜色'] || existingData[existingIndex].color,
-          material: item['材质'] || existingData[existingIndex].material,
-          majorCategory: item['大类'] || existingData[existingIndex].majorCategory,
-          middleCategory: item['中类'] || existingData[existingIndex].middleCategory,
-          minorCategory: item['小类'] || existingData[existingIndex].minorCategory,
-          model: item['型号'] || existingData[existingIndex].model,
-          series: item['系列'] || existingData[existingIndex].series,
-          source: item['来源'] ? item['来源'].split(',') : existingData[existingIndex].source,
-          description: item['物料详述'] || existingData[existingIndex].description,
-          materialImage: item['物料图片'] || existingData[existingIndex].materialImage,
-          baseUnit: item['基础单位'] || existingData[existingIndex].baseUnit,
-          saleUnit: item['销售单位'] || existingData[existingIndex].saleUnit,
-          saleConversionRate: parseFloat(item['销售转化率']) || existingData[existingIndex].saleConversionRate,
-          purchaseUnit: item['采购单位'] || existingData[existingIndex].purchaseUnit,
-          purchaseConversionRate: parseFloat(item['采购转化率']) || existingData[existingIndex].purchaseConversionRate,
-          kgPerPcs: parseFloat(item['kg/pcs']) || existingData[existingIndex].kgPerPcs,
-          pcsPerKg: parseFloat(item['pcs/kg']) || existingData[existingIndex].pcsPerKg,
-          processName: item['产出工序名称'] || existingData[existingIndex].processName,
-          standardTime: parseFloat(item['定时工额']) || existingData[existingIndex].standardTime,
-          quotaTime: parseFloat(item['定额工时']) || existingData[existingIndex].quotaTime,
-          processPrice: parseFloat(item['工序单价']) || existingData[existingIndex].processPrice,
-          purchaseCycle: item['采购周期'] || existingData[existingIndex].purchaseCycle,
-          purchasePrice: parseFloat(item['采购单价']) || existingData[existingIndex].purchasePrice,
-          updateTime: new Date().toLocaleString('zh-CN')
+        // 验证必填字段
+        if (!materialData.material_code) {
+          console.warn(`跳过无物料编码的数据:`, item)
+          skipCount++
+          continue
         }
-        updatedCount++
+        
+        materialsToImport.push(materialData)
+      } catch (error) {
+        console.error(`处理数据失败:`, item, error)
+        skipCount++
       }
+    }
+    
+    console.log(`准备导入 ${materialsToImport.length} 条数据，跳过 ${skipCount} 条`)
+    
+    if (materialsToImport.length === 0) {
+      ElMessage.warning('没有有效数据可导入')
+      importDialogVisible.value = false
+      return
+    }
+    
+    // 调用后端批量导入接口
+    const response = await fetch('http://192.168.2.229:3005/api/materials/batch-create', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(materialsToImport)
     })
+    const result = await response.json()
     
-    // 将新数据添加到现有数据前面
-    tableData.value = [...newData, ...existingData]
+    console.log('导入结果:', result)
     
-    // 规则3: 导入表格没有的，系统表格有 = 保留系统表格的数据（已自动满足）
-    
-    // 保存到数据库
-    // 克隆数据以避免Proxy对象问题
-    const materialsToSave = JSON.parse(JSON.stringify(tableData.value))
-    await databaseService.saveMaterials(materialsToSave)
-    
-    // 重新从后端加载所有数据
-    const reloadedMaterials = await databaseService.getAllMaterials()
-    tableData.value = reloadedMaterials
-    
-    // 更新下一个物料ID
-    const maxId = reloadedMaterials.length > 0 ? Math.max(...reloadedMaterials.map(m => m.id)) : 0
-    nextMaterialId.value = maxId + 1
-    
-    ElMessage.success(`导入成功！新增 ${addedCount} 条，更新 ${updatedCount} 条`)
-    importDialogVisible.value = false
-    updateStats()
+    if (result.code === 200) {
+      // 重新加载所有数据
+      const reloadedMaterials = await databaseService.getAllMaterials()
+      tableData.value = reloadedMaterials
+      updateStats()
+      
+      ElMessage.success(`导入成功！成功 ${result.data.successCount} 条，失败 ${result.data.errorCount} 条，跳过 ${skipCount} 条`)
+      importDialogVisible.value = false
+    } else {
+      ElMessage.error(result.message || '导入失败')
+      importDialogVisible.value = false
+    }
   } catch (error) {
     console.error('导入失败:', error)
     ElMessage.error('导入失败：' + (error.message || '未知错误'))
+    importDialogVisible.value = false
+  } finally {
+    uploadFile.value = null
   }
 }
 

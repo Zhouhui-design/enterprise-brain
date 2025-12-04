@@ -5,7 +5,7 @@ const BOMService = require('../services/bomService');
 // 获取所有生产BOM
 router.get('/list', async (req, res) => {
   try {
-    const boms = BOMService.getAllProductionBOMs();
+    const boms = await BOMService.getAllProductionBOMs();
     res.json({
       code: 200,
       data: boms,
@@ -23,7 +23,7 @@ router.get('/list', async (req, res) => {
 router.get('/detail/:id', async (req, res) => {
   try {
     const { id } = req.params;
-    const bom = BOMService.getBOMById(id);
+    const bom = await BOMService.getBOMById(id);
     
     if (!bom) {
       return res.status(404).json({
@@ -50,7 +50,7 @@ router.post('/create', async (req, res) => {
   try {
     console.log('收到创建BOM请求:', JSON.stringify(req.body, null, 2));
     const bomData = req.body;
-    const result = BOMService.createProductionBOM(bomData);
+    const result = await BOMService.createProductionBOM(bomData);
     console.log('BOM创建成功:', result.id);
     res.json({
       code: 200,
@@ -73,7 +73,7 @@ router.put('/update/:id', async (req, res) => {
     const bomData = req.body;
     console.log(`收到更新BOM请求, ID: ${id}`);
     console.log('更新数据:', JSON.stringify(bomData, null, 2));
-    const result = BOMService.updateProductionBOM(id, bomData);
+    const result = await BOMService.updateProductionBOM(id, bomData);
     res.json({
       code: 200,
       data: result,
@@ -93,7 +93,7 @@ router.delete('/delete/:id', async (req, res) => {
   try {
     const { id } = req.params;
     console.log('收到删除BOM请求, ID:', id);
-    const success = BOMService.deleteProductionBOM(id);
+    const success = await BOMService.deleteProductionBOM(id);
     
     if (success) {
       console.log('BOM删除成功, ID:', id);
@@ -121,7 +121,7 @@ router.delete('/delete/:id', async (req, res) => {
 router.delete('/batch-delete', async (req, res) => {
   try {
     const { ids } = req.body;
-    const result = BOMService.batchDeleteProductionBOMs(ids);
+    const result = await BOMService.batchDeleteProductionBOMs(ids);
     res.json({
       code: 200,
       data: result,

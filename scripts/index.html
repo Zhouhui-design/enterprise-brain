@@ -1,0 +1,177 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>数据备份恢复工具导航</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }
+        
+        .container {
+            background: white;
+            border-radius: 20px;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+            max-width: 600px;
+            width: 100%;
+            padding: 50px;
+            text-align: center;
+        }
+        
+        h1 {
+            color: #333;
+            font-size: 32px;
+            margin-bottom: 20px;
+        }
+        
+        .subtitle {
+            color: #666;
+            font-size: 16px;
+            margin-bottom: 40px;
+        }
+        
+        .card {
+            background: #f8f9fa;
+            border-radius: 12px;
+            padding: 30px;
+            margin-bottom: 20px;
+            transition: transform 0.3s, box-shadow 0.3s;
+        }
+        
+        .card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
+        }
+        
+        .card-title {
+            color: #667eea;
+            font-size: 24px;
+            font-weight: 600;
+            margin-bottom: 15px;
+        }
+        
+        .card-desc {
+            color: #666;
+            margin-bottom: 20px;
+            line-height: 1.6;
+        }
+        
+        .btn {
+            display: inline-block;
+            padding: 15px 40px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            text-decoration: none;
+            border-radius: 30px;
+            font-size: 18px;
+            font-weight: 500;
+            transition: all 0.3s;
+            box-shadow: 0 5px 15px rgba(102, 126, 234, 0.4);
+        }
+        
+        .btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 25px rgba(102, 126, 234, 0.6);
+        }
+        
+        .info-box {
+            background: #e3f2fd;
+            border-left: 4px solid #2196F3;
+            padding: 15px;
+            margin-top: 30px;
+            border-radius: 6px;
+            text-align: left;
+        }
+        
+        .info-box p {
+            color: #1565c0;
+            margin: 5px 0;
+            font-size: 14px;
+        }
+        
+        .quick-links {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 15px;
+            margin-top: 30px;
+        }
+        
+        .quick-link {
+            background: white;
+            border: 2px solid #667eea;
+            color: #667eea;
+            padding: 12px;
+            border-radius: 8px;
+            text-decoration: none;
+            font-weight: 500;
+            transition: all 0.3s;
+        }
+        
+        .quick-link:hover {
+            background: #667eea;
+            color: white;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🔄 数据备份恢复中心</h1>
+        <p class="subtitle">企业大脑系统 - 数据管理工具</p>
+        
+        <div class="card">
+            <div class="card-title">📥 数据恢复工具</div>
+            <div class="card-desc">
+                恢复您之前备份的所有数据<br>
+                包括物料、BOM、订单、客户等所有业务数据
+            </div>
+            <a href="./browser-data-restore.html" class="btn">立即恢复数据</a>
+        </div>
+        
+        <div class="quick-links">
+            <a href="../07-frontend/index.html" class="quick-link">🏠 返回系统首页</a>
+            <a href="./README.md" class="quick-link">📖 使用文档</a>
+            <a href="#" class="quick-link" onclick="showBackupList(); return false;">📋 查看备份列表</a>
+            <a href="#" class="quick-link" onclick="downloadBackup(); return false;">💾 下载当前备份</a>
+        </div>
+        
+        <div class="info-box">
+            <p><strong>📌 温馨提示：</strong></p>
+            <p>• 备份文件位置: /home/sardenesy/ai_workspaces/ai_desktop_3/beifenshuju/</p>
+            <p>• 最新备份: localStorage_backup_*.json</p>
+            <p>• 建议定期备份重要数据</p>
+            <p>• 恢复数据后需刷新页面</p>
+        </div>
+    </div>
+    
+    <script>
+        function showBackupList() {
+            alert('备份列表功能\n\n请在终端执行以下命令查看：\n\ncd /home/sardenesy/ai_workspaces/ai_desktop_3\n./scripts/restore-browser-data.sh --list');
+        }
+        
+        function downloadBackup() {
+            if (confirm('是否备份当前浏览器数据？\n\n这将导出所有LocalStorage和IndexedDB数据')) {
+                window.location.href = './browser-data-restore.html';
+            }
+        }
+        
+        // 显示欢迎消息
+        window.addEventListener('load', () => {
+            console.log('%c🎉 欢迎使用数据备份恢复工具！', 'color: #667eea; font-size: 20px; font-weight: bold;');
+            console.log('%c💡 提示：您可以在此页面恢复之前备份的所有数据', 'color: #666; font-size: 14px;');
+        });
+    </script>
+</body>
+</html>

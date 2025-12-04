@@ -38,8 +38,10 @@
           <el-icon><Search /></el-icon>
         </template>
       </el-input>
-      <el-select v-model="statusFilter" placeholder="订单状态" clearable style="width: 150px; margin-right: 10px;">
+      <el-select v-model="statusFilter" placeholder="订单状态" clearable style="width: 180px; margin-right: 10px;">
         <el-option label="全部" value="" />
+        <el-option label="待下单" value="待下单" />
+        <el-option label="已模拟排程待下单" value="已模拟排程待下单" />
         <el-option label="草稿" value="draft" />
         <el-option label="待审核" value="pending" />
         <el-option label="已审核" value="approved" />
@@ -49,6 +51,11 @@
         <el-option label="已取消" value="cancelled" />
         <el-option label="手动终止" value="terminated" />
       </el-select>
+      
+      <!-- 模拟排程订单提示 -->
+      <el-tag v-if="simulatedOrders.length > 0" type="warning" style="margin-right: 10px;">
+        当前有 {{ simulatedOrders.length }} 个模拟排程订单未下单
+      </el-tag>
     </div>
 
     <!-- 主表格 -->
@@ -202,10 +209,26 @@
         <el-table-column prop="afterSalesOrderNo" label="售后订单号" width="140" />
         
         <!-- 操作列 -->
-        <el-table-column label="操作" width="200" fixed="right">
+        <el-table-column label="操作" width="320" fixed="right">
           <template #default="{ row }">
             <el-button link type="primary" @click="handleEdit(row)">编辑</el-button>
             <el-button link type="success" @click="handleView(row)">查看</el-button>
+            <el-button 
+              link 
+              type="warning" 
+              @click="handleSimulateScheduling(row)"
+              v-if="row.orderStatus === '待下单' || row.orderStatus === '草稿'"
+            >
+              模拟排程
+            </el-button>
+            <el-button 
+              link 
+              type="success" 
+              @click="handleConfirmOrder(row)"
+              v-if="row.orderStatus === '待下单' || row.orderStatus === '已模拟排程待下单'"
+            >
+              确认下单
+            </el-button>
             <el-button link type="danger" @click="handleDeleteRow(row)">删除</el-button>
           </template>
         </el-table-column>
@@ -229,7 +252,7 @@
     <el-dialog v-model="settingsVisible" title="页面设置" width="800px">
       <el-tabs v-model="activeTab">
         <el-tab-pane label="流程设置" name="workflow">
-          <el-form label-width="120px">
+          <el-form label-width="160px">
             <el-form-item label="审批流程">
               <el-select v-model="settings.approvalFlow" style="width: 100%;">
                 <el-option label="单级审批" value="single" />
@@ -239,6 +262,81 @@
             </el-form-item>
           </el-form>
         </el-tab-pane>
+        
+        <el-tab-pane label="模拟排程设置" name="scheduling">
+          <el-form label-width="200px">
+            <el-form-item label="模拟排程失效天数">
+              <el-input-number 
+                v-model="settings.simulationExpireDays" 
+                :min="1" 
+                :max="30" 
+                style="width: 200px;"
+              />
+              <span style="margin-left: 10px; color: #909399;">天</span>
+            </el-form-item>
+            <el-form-item label="说明">
+              <el-alert 
+                type="info" 
+                :closable="false"
+                show-icon
+              >
+                <template #title>
+                  <div style="line-height: 1.6;">
+                    模拟排程期间，当新增订单的承诺交期减去设置天数小于等于本订单的预计完成日期，<br/>
+                    则本订单的模拟排程结果失效，需要重新模拟排程。
+                  </div>
+                </template>
+              </el-alert>
+            </el-form-item>
+            <el-form-item label="示例">
+              <el-alert type="warning" :closable="false">
+                <template #title>
+                  <div style="line-height: 1.6;">
+                    <b>示例：</b>设置失效天数为 3 天<br/>
+                    A订单：预计完成日期 = 2025-12-10<br/>
+                    B订单（新增）：承诺交期 = 2025-12-12<br/>
+                    <b>计算：</b>2025-12-12 - 3天 = 2025-12-09<br/>
+                    <b>结果：</b>2025-12-09 < 2025-12-10，<span style="color: #E6A23C;">→ A订单模拟排程失效</span>
+                  </div>
+                </template>
+              </el-alert>
+            </el-form-item>
+          </el-form>
+        </el-tab-pane>
+        
+        <el-tab-pane label="业务变量设置" name="variables">
+          <el-form label-width="160px">
+            <el-form-item label="默认币种">
+              <el-select v-model="settings.defaultCurrency" style="width: 200px;">
+                <el-option label="人民币 (CNY)" value="CNY" />
+                <el-option label="美元 (USD)" value="USD" />
+                <el-option label="欧元 (EUR)" value="EUR" />
+              </el-select>
+            </el-form-item>
+            <el-form-item label="默认汇率">
+              <el-input-number v-model="settings.defaultExchangeRate" :min="0.1" :step="0.1" style="width: 200px;" />
+            </el-form-item>
+            <el-form-item label="默认税率">
+              <el-input-number v-model="settings.defaultTaxRate" :min="0" :max="100" style="width: 200px;" />
+              <span style="margin-left: 10px; color: #909399;">%</span>
+            </el-form-item>
+            <el-form-item label="默认付款方式">
+              <el-select v-model="settings.defaultPaymentMethod" style="width: 200px;">
+                <el-option label="预付+尾款" value="预付+尾款" />
+                <el-option label="货到付款" value="货到付款" />
+                <el-option label="月结" value="月结" />
+              </el-select>
+            </el-form-item>
+            <el-form-item label="默认送货方式">
+              <el-select v-model="settings.defaultDeliveryMethod" style="width: 200px;">
+                <el-option label="快递" value="快递" />
+                <el-option label="物流" value="物流" />
+                <el-option label="自提" value="自提" />
+              </el-select>
+            </el-form-item>
+          </el-form>
+        </el-tab-pane>
+        
         <el-tab-pane label="菜单设置" name="menu">
           <el-form label-width="120px">
             <el-form-item label="菜单位置">
@@ -249,6 +347,7 @@
             </el-form-item>
           </el-form>
         </el-tab-pane>
+        
         <el-tab-pane label="颜色设置" name="color">
           <el-form label-width="120px">
             <el-form-item label="主题色">
@@ -262,6 +361,7 @@
             </el-form-item>
           </el-form>
         </el-tab-pane>
+        
         <el-tab-pane label="编码设置" name="encoding">
           <el-form label-width="120px">
             <el-form-item label="订单编号规则">
@@ -372,6 +472,8 @@ const router = useRouter()
 const tableRef = ref(null)
 const searchText = ref('')
 const statusFilter = ref('')
+const simulatingOrderId = ref(null) // 当前正在模拟排程的订单ID
+const simulatedOrders = ref([]) // 已模拟排程的订单列表
 const selectedRows = ref([])
 const currentPage = ref(1)
 const pageSize = ref(20)
@@ -410,7 +512,13 @@ const settings = ref({
   themeColor: '#409EFF',
   backgroundColor: '#f5f7fa',
   tableRowColor: '#ffffff',
-  orderNoRule: 'SO{YYYY}{MM}{DD}{####}'
+  orderNoRule: 'SO{YYYY}{MM}{DD}{####}',
+  simulationExpireDays: 1, // 模拟排程失效天数
+  defaultCurrency: 'CNY', // 默认币种
+  defaultExchangeRate: 1.0, // 默认汇率
+  defaultTaxRate: 13, // 默认税率
+  defaultPaymentMethod: '预付+尾款', // 默认付款方式
+  defaultDeliveryMethod: '快递' // 默认送货方式
 })
 
 // 计算属性
@@ -497,10 +605,11 @@ const loadOrders = async () => {
         customerName: order.customer_name,
         salesperson: order.salesperson,
         orderType: order.order_type,
-        orderStatus: order.status,
+        orderStatus: order.status || '待下单', // 确保有状态
         totalAmount: order.total_amount,
         orderTime: order.order_time,
         promisedDelivery: order.promised_delivery,
+        estimatedCompletionDate: order.estimated_completion_date, // 预计完成日期
         createTime: new Date(order.created_at).toLocaleString('zh-CN'),
         orderDetail: order
       }))
@@ -670,6 +779,21 @@ const handleSettings = () => {
 const handleSaveSettings = () => {
   // 保存设置到localStorage
   localStorage.setItem('salesOrderSettings', JSON.stringify(settings.value))
+  
+  // 同步保存到业务设置服务
+  import('@/services/businessSettingsService.js').then(({ updateModuleSettings }) => {
+    updateModuleSettings('scheduling', {
+      simulationExpireDays: settings.value.simulationExpireDays
+    })
+    updateModuleSettings('order', {
+      defaultCurrency: settings.value.defaultCurrency,
+      defaultExchangeRate: settings.value.defaultExchangeRate,
+      defaultTaxRate: settings.value.defaultTaxRate,
+      defaultPaymentMethod: settings.value.defaultPaymentMethod,
+      defaultDeliveryMethod: settings.value.defaultDeliveryMethod
+    })
+  })
+  
   ElMessage.success('设置已保存')
   settingsVisible.value = false
   // 应用设置
@@ -689,6 +813,111 @@ const applySettings = () => {
   const container = document.querySelector('.sales-order-list-container')
   if (container) {
     container.style.backgroundColor = settings.value.backgroundColor
+  }
+}
+
+// 模拟排程
+const handleSimulateScheduling = async (row) => {
+  try {
+    // 显示模拟排程说明
+    await ElMessageBox.confirm(
+      '模拟排程计算期间不考虑同时期模拟排程的订单，只考虑已确认下单的订单。如有需要请联系开发员增加考虑其他模拟排程模式。',
+      '模拟排程说明',
+      {
+        confirmButtonText: '开始模拟排程',
+        cancelButtonText: '取消',
+        type: 'info',
+        dangerouslyUseHTMLString: true
+      }
+    )
+
+    simulatingOrderId.value = row.id
+    ElMessage.loading('正在模拟排程，请稍候...')
+
+    // 调用模拟排程服务
+    const { simulateScheduling } = await import('@/services/schedulingSimulationService.js')
+    const result = await simulateScheduling({
+      orderId: row.id,
+      orderData: row,
+      excludeSimulatedOrders: true // 不考虑其他模拟排程订单
+    })
+
+    if (result.success) {
+      // 更新订单状态
+      row.orderStatus = '已模拟排程待下单'
+      row.estimatedCompletionDate = result.estimatedCompletionDate
+      row.simulationDate = new Date().toLocaleString('zh-CN')
+
+      // 添加到已模拟列表
+      if (!simulatedOrders.value.find(o => o.id === row.id)) {
+        simulatedOrders.value.push({
+          id: row.id,
+          orderNo: row.internalOrderNo,
+          simulationDate: row.simulationDate,
+          estimatedCompletionDate: row.estimatedCompletionDate
+        })
+      }
+
+      // 保存到数据库
+      await salesOrderApi.updateSalesOrder(row.id, {
+        status: '已模拟排程待下单',
+        estimated_completion_date: result.estimatedCompletionDate,
+        simulation_result: JSON.stringify(result)
+      })
+
+      ElMessage.success(
+        `模拟排程完成！预计完成日期：${result.estimatedCompletionDate}\n` +
+        `当前有 ${simulatedOrders.value.length} 个模拟排程订单待下单`
+      )
+    } else {
+      ElMessage.error(`模拟排程失败：${result.message}`)
+    }
+  } catch (error) {
+    if (error !== 'cancel') {
+      console.error('模拟排程错误:', error)
+      ElMessage.error('模拟排程失败')
+    }
+  } finally {
+    simulatingOrderId.value = null
+  }
+}
+
+// 确认下单
+const handleConfirmOrder = async (row) => {
+  try {
+    await ElMessageBox.confirm(
+      `确定要正式下单吗？\n订单编号：${row.internalOrderNo}\n客户：${row.customerName}`,
+      '确认下单',
+      {
+        confirmButtonText: '确认下单',
+        cancelButtonText: '取消',
+        type: 'warning'
+      }
+    )
+
+    // 更新订单状态为已下单
+    row.orderStatus = '已下单'
+    row.orderTime = new Date().toLocaleString('zh-CN')
+
+    // 从模拟列表中移除
+    const index = simulatedOrders.value.findIndex(o => o.id === row.id)
+    if (index !== -1) {
+      simulatedOrders.value.splice(index, 1)
+    }
+
+    // 保存到数据库
+    await salesOrderApi.updateSalesOrder(row.id, {
+      status: '已下单',
+      order_time: new Date().toISOString()
+    })
+
+    ElMessage.success('订单已确认下单！')
+    await loadOrders()
+  } catch (error) {
+    if (error !== 'cancel') {
+      console.error('确认下单错误:', error)
+      ElMessage.error('确认下单失败')
+    }
   }
 }
 

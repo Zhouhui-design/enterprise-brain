@@ -1168,8 +1168,11 @@ const handleProductCodeChange = (value) => {
   const material = materialList.value.find(m => m.materialCode === value)
   if (material) {
     formData.value.productName = material.materialName
-    formData.value.outputProcess = material.outputProcessName || '' // 填充产出工序
+    formData.value.outputProcess = material.processName || '' // 填充产出工序（来自物料库的process_name字段）
+    console.log(`产品编码 ${value} lookup产出工序: ${formData.value.outputProcess}`)
     ElMessage.success('已自动填充产品名称和产出工序')
+  } else {
+    console.warn(`未找到产品编码: ${value}`)
   }
 }
 
@@ -1545,7 +1548,7 @@ const handleChildCodeChange = (value, row) => {
     
     // 数据流水线：从物料库自动填充其他字段
     // 产出工序 = 物料库的产出工序名称，如果为空则默认为“采购”
-    row.outputProcess = material.outputProcessName || material.processName || '采购'
+    row.outputProcess = material.processName || '采购'
     
     // 子件来源 = 物料库的来源（取第一个）
     if (material.source && Array.isArray(material.source) && material.source.length > 0) {
@@ -1594,7 +1597,7 @@ const handleChildNameChange = (value, row) => {
     
     // 数据流水线：从物料库自动填充其他字段
     // 产出工序 = 物料库的产出工序名称，如果为空则默认为“采购”
-    row.outputProcess = material.outputProcessName || material.processName || '采购'
+    row.outputProcess = material.processName || '采购'
     
     // 子件来源 = 物料库的来源（取第一个）
     if (material.source && Array.isArray(material.source) && material.source.length > 0) {
@@ -1646,7 +1649,7 @@ const handleReloadProcessNames = () => {
     const material = materialList.value.find(m => m.materialCode === row.childCode)
     if (material) {
       // 重新计算产出工序：如果为空或者物料库有值，则更新
-      const newProcessName = material.outputProcessName || material.processName || '采购'
+      const newProcessName = material.processName || '采购'
       
       // 如果产出工序为空或者不同，则更新
       if (!row.outputProcess || row.outputProcess !== newProcessName) {

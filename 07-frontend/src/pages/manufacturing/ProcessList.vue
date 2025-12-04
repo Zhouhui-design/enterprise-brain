@@ -444,13 +444,18 @@ const handleDelete = async (row) => {
       type: 'warning'
     })
     
-    const index = tableData.value.findIndex(item => item.id === row.id)
-    if (index !== -1) {
-      tableData.value.splice(index, 1)
-      updateStats()
-      // 保存到localStorage
-      localStorage.setItem('processListData', JSON.stringify(tableData.value))
+    // 调用后端API删除
+    const response = await fetch(`http://192.168.2.229:3005/api/processes/delete/${row.id}`, {
+      method: 'DELETE'
+    })
+    const result = await response.json()
+    
+    if (result.code === 200) {
+      // 删除成功后重新加载数据
+      await loadData()
       ElMessage.success('删除成功')
+    } else {
+      ElMessage.error(result.message || '删除失败')
     }
   } catch (error) {
     if (error !== 'cancel') {
@@ -470,12 +475,22 @@ const handleBatchDelete = async () => {
     })
     
     const deleteIds = selectedRows.value.map(row => row.id)
-    tableData.value = tableData.value.filter(row => !deleteIds.includes(row.id))
-    selectedRows.value = []
-    updateStats()
-    // 保存到localStorage
-    localStorage.setItem('processListData', JSON.stringify(tableData.value))
-    ElMessage.success('批量删除成功')
+    
+    // 调用后端API批量删除
+    const response = await fetch('http://192.168.2.229:3005/api/processes/batch-delete', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ ids: deleteIds })
+    })
+    const result = await response.json()
+    
+    if (result.code === 200) {
+      selectedRows.value = []
+      await loadData()
+      ElMessage.success('批量删除成功')
+    } else {
+      ElMessage.error(result.message || '批量删除失败')
+    }
   } catch (error) {
     if (error !== 'cancel') {
       console.error('批量删除工序失败:', error)
@@ -489,38 +504,47 @@ const handleSave = async () => {
   try {
     await formRef.value.validate()
     
-    if (isEdit.value) {
-      // 更新工序
-      const index = tableData.value.findIndex(p => p.id === currentProcess.value.id)
-      if (index !== -1) {
-        tableData.value[index] = {
-          ...formData.value,
-          id: currentProcess.value.id,
-          updateTime: new Date().toLocaleString('zh-CN')
-        }
-      }
-      ElMessage.success('工序更新成功')
-    } else {
-      // 新增工序
-      const newProcess = {
-        ...formData.value,
-        id: nextProcessId.value,
-        createTime: new Date().toLocaleString('zh-CN'),
-        updateTime: new Date().toLocaleString('zh-CN')
-      }
-      tableData.value.unshift(newProcess)
-      nextProcessId.value++
-      // 保存下一个ID
-      localStorage.setItem('processNextId', nextProcessId.value.toString())
-      ElMessage.success('工序创建成功')
+    // 转换字段名为后端格式
+    const requestData = {
+      process_code: formData.value.processCode,
+      process_name: formData.value.processName,
+      responsible_person: formData.value.processPrincipal,
+      dispatch_method: formData.value.dispatchMethod,
+      is_warehousing: formData.value.isStorage ? 1 : 0,
+      completion_warehouse: formData.value.completionWarehouse || '',
+      workshop_name: formData.value.workshopName,
+      process_wage: formData.value.processWage || 0
     }
     
-    // 保存到localStorage
-    localStorage.setItem('processListData', JSON.stringify(tableData.value))
-    editDialogVisible.value = false
-    updateStats()
+    let response
+    if (isEdit.value) {
+      // 更新工序
+      response = await fetch(`http://192.168.2.229:3005/api/processes/update/${currentProcess.value.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(requestData)
+      })
+    } else {
+      // 新增工序
+      response = await fetch('http://192.168.2.229:3005/api/processes/create', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(requestData)
+      })
+    }
+    
+    const result = await response.json()
+    
+    if (result.code === 200) {
+      ElMessage.success(isEdit.value ? '工序更新成功' : '工序创建成功')
+      editDialogVisible.value = false
+      await loadData()
+    } else {
+      ElMessage.error(result.message || '保存失败')
+    }
   } catch (error) {
     console.error('保存工序失败:', error)
+    ElMessage.error('保存工序失败')
   }
 }
 
@@ -565,51 +589,33 @@ const handleImportConfirm = async () => {
     let addedCount = 0
     let updatedCount = 0
     
-    importedData.forEach(item => {
-      const existingIndex = tableData.value.findIndex(p => p.processCode === item['工序编号'])
-      
-      if (existingIndex === -1) {
-        // 新增
-        const newProcess = {
-          id: nextProcessId.value,
-          processCode: item['工序编号'] || '',
-          processName: item['工序名称'] || '',
-          processPrincipal: item['工序负责人'] || '',
-          dispatchMethod: item['派工方式'] === '自动派工' ? 'auto' : 'manual',
-          isStorage: item['是否入库'] === '是',
-          completionWarehouse: item['完工绑定仓库'] || '',
-          workshopName: item['所属车间名称'] || '',
-          processWage: parseFloat(item['工序工资']) || 0,
-          createTime: new Date().toLocaleString('zh-CN'),
-          updateTime: new Date().toLocaleString('zh-CN')
-        }
-        tableData.value.unshift(newProcess)
-        nextProcessId.value++
-        addedCount++
-      } else {
-        // 更新
-        tableData.value[existingIndex] = {
-          ...tableData.value[existingIndex],
-          processName: item['工序名称'] || tableData.value[existingIndex].processName,
-          processPrincipal: item['工序负责人'] || tableData.value[existingIndex].processPrincipal,
-          dispatchMethod: item['派工方式'] === '自动派工' ? 'auto' : 'manual',
-          isStorage: item['是否入库'] === '是',
-          completionWarehouse: item['完工绑定仓库'] || tableData.value[existingIndex].completionWarehouse,
-          workshopName: item['所属车间名称'] || tableData.value[existingIndex].workshopName,
-          processWage: parseFloat(item['工序工资']) || tableData.value[existingIndex].processWage,
-          updateTime: new Date().toLocaleString('zh-CN')
-        }
-        updatedCount++
-      }
+    // 批量创建/更新
+    const importRequests = importedData.map(item => ({
+      process_code: item['工序编号'] || '',
+      process_name: item['工序名称'] || '',
+      responsible_person: item['工序负责人'] || '',
+      dispatch_method: item['派工方式'] === '自动派工' ? 'auto' : 'manual',
+      is_warehousing: item['是否入库'] === '是' ? 1 : 0,
+      completion_warehouse: item['完工绑定仓库'] || '',
+      workshop_name: item['所属车间名称'] || '',
+      process_wage: parseFloat(item['工序工资']) || 0
+    }))
+    
+    // 调用后端API批量创建
+    const response = await fetch('http://192.168.2.229:3005/api/processes/batch-create', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(importRequests)
     })
+    const result = await response.json()
     
-    // 保存到localStorage
-    localStorage.setItem('processListData', JSON.stringify(tableData.value))
-    localStorage.setItem('processNextId', nextProcessId.value.toString())
-    
-    ElMessage.success(`导入成功！新增 ${addedCount} 条，更新 ${updatedCount} 条`)
-    importDialogVisible.value = false
-    updateStats()
+    if (result.code === 200) {
+      ElMessage.success(`导入成功！成功 ${result.data.successCount} 条，失败 ${result.data.errorCount} 条`)
+      importDialogVisible.value = false
+      await loadData()
+    } else {
+      ElMessage.error(result.message || '导入失败')
+    }
   } catch (error) {
     console.error('导入失败:', error)
     ElMessage.error('导入失败：' + (error.message || '未知错误'))
@@ -659,20 +665,8 @@ const handlePrint = () => {
 }
 
 // 刷新
-const handleRefresh = () => {
-  // 从localStorage重新加载数据
-  const storedData = localStorage.getItem('processListData')
-  if (storedData) {
-    try {
-      const parsedData = JSON.parse(storedData)
-      if (Array.isArray(parsedData)) {
-        tableData.value = parsedData
-        updateStats()
-      }
-    } catch (e) {
-      console.error('加载数据失败:', e)
-    }
-  }
+const handleRefresh = async () => {
+  await loadData()
   ElMessage.success('刷新成功')
 }
 
@@ -686,26 +680,40 @@ const handleCurrentChange = (page) => {
   currentPage.value = page
 }
 
+// 加载数据
+const loadData = async () => {
+  try {
+    const response = await fetch('http://192.168.2.229:3005/api/processes/list')
+    const result = await response.json()
+    
+    if (result.code === 200) {
+      // 转换后端数据格式为前端格式
+      tableData.value = result.data.map(item => ({
+        id: item.id,
+        processCode: item.process_code,
+        processName: item.process_name,
+        processPrincipal: item.responsible_person,
+        dispatchMethod: item.dispatch_method,
+        isStorage: item.is_warehousing === 1,
+        completionWarehouse: item.completion_warehouse || '',
+        workshopName: item.workshop_name,
+        processWage: parseFloat(item.process_wage) || 0,
+        createTime: new Date(item.created_at).toLocaleString('zh-CN'),
+        updateTime: new Date(item.updated_at).toLocaleString('zh-CN')
+      }))
+      updateStats()
+    } else {
+      console.error('加载工序数据失败:', result.message)
+    }
+  } catch (error) {
+    console.error('加载工序数据失败:', error)
+  }
+}
+
 // 生命周期
 onMounted(() => {
-  // 从localStorage加载数据
-  const storedData = localStorage.getItem('processListData')
-  if (storedData) {
-    try {
-      const parsedData = JSON.parse(storedData)
-      if (Array.isArray(parsedData) && parsedData.length > 0) {
-        tableData.value = parsedData
-      }
-    } catch (e) {
-      console.error('加载工序数据失败:', e)
-    }
-  }
-  
-  // 加载下一个ID
-  const storedNextId = localStorage.getItem('processNextId')
-  if (storedNextId) {
-    nextProcessId.value = parseInt(storedNextId, 10)
-  }
+  // 从MySQL数据库加载数据
+  loadData()
   
   const updateTableHeight = () => {
     const windowHeight = window.innerHeight
@@ -713,7 +721,6 @@ onMounted(() => {
   }
   updateTableHeight()
   window.addEventListener('resize', updateTableHeight)
-  updateStats()
 })
 </script>
 

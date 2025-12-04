@@ -19,6 +19,8 @@ import inventoryRouter from './modules/inventory.js';
 import costCenterRouter from './modules/cost-center.js';
 import purchaseManagementRouter from './modules/purchase-management.js';
 import bomTreeStructureRouter from './modules/bom-tree-structure.js';
+import mrpRouter from './modules/mrp.js';
+import processPlanningRouter from './modules/process-planning.js';
 
 const routes = [
   {
@@ -116,6 +118,10 @@ const routes = [
   purchaseManagementRouter,
   // BOM树结构路由
   bomTreeStructureRouter,
+  // MRP管理路由
+  mrpRouter,
+  // 工序计划路由
+  processPlanningRouter,
   // 演示功能路由
   demoRouter,
   // 研发项目管理路由

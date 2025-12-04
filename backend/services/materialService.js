@@ -4,8 +4,8 @@ class MaterialService {
   // 获取所有物料
   static async getAllMaterials() {
     try {
-      const stmt = db.prepare('SELECT * FROM materials ORDER BY created_at DESC');
-      return stmt.all();
+      const [rows] = await db.execute('SELECT * FROM materials ORDER BY created_at DESC');
+      return rows;
     } catch (error) {
       throw new Error(`获取物料列表失败: ${error.message}`);
     }
@@ -14,8 +14,8 @@ class MaterialService {
   // 根据ID获取物料
   static async getMaterialById(id) {
     try {
-      const stmt = db.prepare('SELECT * FROM materials WHERE id = ?');
-      return stmt.get(id);
+      const [rows] = await db.execute('SELECT * FROM materials WHERE id = ?', [id]);
+      return rows[0];
     } catch (error) {
       throw new Error(`获取物料失败: ${error.message}`);
     }
@@ -24,8 +24,8 @@ class MaterialService {
   // 根据物料编码获取物料
   static async getMaterialByCode(materialCode) {
     try {
-      const stmt = db.prepare('SELECT * FROM materials WHERE material_code = ?');
-      return stmt.get(materialCode);
+      const [rows] = await db.execute('SELECT * FROM materials WHERE material_code = ?', [materialCode]);
+      return rows[0];
     } catch (error) {
       throw new Error(`获取物料失败: ${error.message}`);
     }
@@ -39,7 +39,7 @@ class MaterialService {
       const purchaseConversionRate = materialData.purchase_conversion_rate || materialData.purchaseConversionRate || 1;
       const basePrice = purchaseConversionRate > 0 ? purchasePrice / purchaseConversionRate : 0;
 
-      const stmt = db.prepare(`
+      const sql = `
         INSERT INTO materials (
           material_code, bom_number, material_name, size_spec, color, material,
           major_category, middle_category, minor_category, model, series, source,
@@ -47,13 +47,10 @@ class MaterialService {
           purchase_unit, purchase_conversion_rate, kg_per_pcs, pcs_per_kg,
           process_name, standard_time, quota_time, process_price,
           purchase_cycle, purchase_price, base_price, status
-        ) VALUES (
-          ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
-          ?, ?, ?, ?, ?, ?, ?, ?
-        )
-      `);
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      `;
 
-      const result = stmt.run(
+      const [result] = await db.execute(sql, [
         materialData.material_code || materialData.materialCode,
         materialData.bom_number || materialData.bomNumber || '',
         materialData.material_name || materialData.materialName,
@@ -83,11 +80,11 @@ class MaterialService {
         purchasePrice,
         basePrice,
         materialData.status || 'active'
-      );
+      ]);
 
-      return { id: result.lastInsertRowid };
+      return { id: result.insertId };
     } catch (error) {
-      if (error.message.includes('UNIQUE constraint failed')) {
+      if (error.code === 'ER_DUP_ENTRY') {
         throw new Error('物料编码已存在');
       }
       throw new Error(`创建物料失败: ${error.message}`);
@@ -96,31 +93,16 @@ class MaterialService {
 
   // 批量创建物料
   static async createMaterials(materialsData) {
+    const connection = await db.getConnection();
     let successCount = 0;
     let errorCount = 0;
     const errors = [];
 
     try {
-      // 开始事务
-      db.exec('BEGIN TRANSACTION');
-
-      const stmt = db.prepare(`
-        INSERT OR REPLACE INTO materials (
-          material_code, bom_number, material_name, size_spec, color, material,
-          major_category, middle_category, minor_category, model, series, source,
-          description, material_image, base_unit, sale_unit, sale_conversion_rate,
-          purchase_unit, purchase_conversion_rate, kg_per_pcs, pcs_per_kg,
-          process_name, standard_time, quota_time, process_price,
-          purchase_cycle, purchase_price, base_price, status
-        ) VALUES (
-          ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
-          ?, ?, ?, ?, ?, ?, ?, ?
-        )
-      `);
+      await connection.beginTransaction();
 
       for (const materialData of materialsData) {
         try {
-          // 支持驼峰命名和下划线命名
           const materialCode = materialData.material_code || materialData.materialCode;
           
           // 计算基础单价
@@ -129,12 +111,14 @@ class MaterialService {
           const basePrice = purchaseConversionRate > 0 ? purchasePrice / purchaseConversionRate : 0;
           
           // 检查物料编码是否已存在
-          const existingStmt = db.prepare('SELECT id FROM materials WHERE material_code = ?');
-          const existing = existingStmt.get(materialCode);
+          const [existing] = await connection.execute(
+            'SELECT id FROM materials WHERE material_code = ?',
+            [materialCode]
+          );
           
-          if (existing) {
-            // 如果已存在，使用UPDATE
-            const updateStmt = db.prepare(`
+          if (existing.length > 0) {
+            // 更新现有物料
+            const updateSql = `
               UPDATE materials SET
                 bom_number = ?, material_name = ?, size_spec = ?,
                 color = ?, material = ?, major_category = ?, middle_category = ?,
@@ -143,11 +127,11 @@ class MaterialService {
                 sale_conversion_rate = ?, purchase_unit = ?, purchase_conversion_rate = ?,
                 kg_per_pcs = ?, pcs_per_kg = ?, process_name = ?, standard_time = ?,
                 quota_time = ?, process_price = ?, purchase_cycle = ?, purchase_price = ?,
-                base_price = ?, status = ?, updated_at = CURRENT_TIMESTAMP
+                base_price = ?, status = ?
               WHERE material_code = ?
-            `);
+            `;
             
-            updateStmt.run(
+            await connection.execute(updateSql, [
               materialData.bom_number || materialData.bomNumber || '',
               materialData.material_name || materialData.materialName,
               materialData.size_spec || materialData.sizeSpec || '',
@@ -177,10 +161,21 @@ class MaterialService {
               basePrice,
               materialData.status || 'active',
               materialCode
-            );
+            ]);
           } else {
-            // 如果不存在，使用INSERT
-            stmt.run(
+            // 插入新物料
+            const insertSql = `
+              INSERT INTO materials (
+                material_code, bom_number, material_name, size_spec, color, material,
+                major_category, middle_category, minor_category, model, series, source,
+                description, material_image, base_unit, sale_unit, sale_conversion_rate,
+                purchase_unit, purchase_conversion_rate, kg_per_pcs, pcs_per_kg,
+                process_name, standard_time, quota_time, process_price,
+                purchase_cycle, purchase_price, base_price, status
+              ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            `;
+            
+            await connection.execute(insertSql, [
               materialCode,
               materialData.bom_number || materialData.bomNumber || '',
               materialData.material_name || materialData.materialName,
@@ -210,7 +205,7 @@ class MaterialService {
               purchasePrice,
               basePrice,
               materialData.status || 'active'
-            );
+            ]);
           }
           successCount++;
         } catch (error) {
@@ -222,18 +217,13 @@ class MaterialService {
         }
       }
 
-      // 提交事务
-      db.exec('COMMIT');
-
-      return {
-        successCount,
-        errorCount,
-        errors
-      };
+      await connection.commit();
+      return { successCount, errorCount, errors };
     } catch (error) {
-      // 回滚事务
-      db.exec('ROLLBACK');
+      await connection.rollback();
       throw new Error(`批量创建物料失败: ${error.message}`);
+    } finally {
+      connection.release();
     }
   }
 
@@ -245,7 +235,7 @@ class MaterialService {
       const purchaseConversionRate = materialData.purchase_conversion_rate || materialData.purchaseConversionRate || 1;
       const basePrice = purchaseConversionRate > 0 ? purchasePrice / purchaseConversionRate : 0;
 
-      const stmt = db.prepare(`
+      const sql = `
         UPDATE materials SET
           material_code = ?, bom_number = ?, material_name = ?, size_spec = ?,
           color = ?, material = ?, major_category = ?, middle_category = ?,
@@ -254,11 +244,11 @@ class MaterialService {
           sale_conversion_rate = ?, purchase_unit = ?, purchase_conversion_rate = ?,
           kg_per_pcs = ?, pcs_per_kg = ?, process_name = ?, standard_time = ?,
           quota_time = ?, process_price = ?, purchase_cycle = ?, purchase_price = ?,
-          base_price = ?, status = ?, updated_at = CURRENT_TIMESTAMP
+          base_price = ?, status = ?
         WHERE id = ?
-      `);
+      `;
 
-      const result = stmt.run(
+      const [result] = await db.execute(sql, [
         materialData.material_code || materialData.materialCode,
         materialData.bom_number || materialData.bomNumber || '',
         materialData.material_name || materialData.materialName,
@@ -289,15 +279,15 @@ class MaterialService {
         basePrice,
         materialData.status || 'active',
         id
-      );
+      ]);
 
-      if (result.changes === 0) {
+      if (result.affectedRows === 0) {
         throw new Error('物料不存在或未更新');
       }
 
       return { id };
     } catch (error) {
-      if (error.message.includes('UNIQUE constraint failed')) {
+      if (error.code === 'ER_DUP_ENTRY') {
         throw new Error('物料编码已存在');
       }
       throw new Error(`更新物料失败: ${error.message}`);
@@ -307,10 +297,9 @@ class MaterialService {
   // 删除物料
   static async deleteMaterial(id) {
     try {
-      const stmt = db.prepare('DELETE FROM materials WHERE id = ?');
-      const result = stmt.run(id);
+      const [result] = await db.execute('DELETE FROM materials WHERE id = ?', [id]);
 
-      if (result.changes === 0) {
+      if (result.affectedRows === 0) {
         throw new Error('物料不存在');
       }
 
@@ -322,41 +311,36 @@ class MaterialService {
 
   // 批量删除物料
   static async deleteMaterials(ids) {
+    const connection = await db.getConnection();
     try {
-      // 开始事务
-      db.exec('BEGIN TRANSACTION');
+      await connection.beginTransaction();
 
-      const stmt = db.prepare('DELETE FROM materials WHERE id = ?');
       let successCount = 0;
-
       for (const id of ids) {
-        const result = stmt.run(id);
-        successCount += result.changes;
+        const [result] = await connection.execute('DELETE FROM materials WHERE id = ?', [id]);
+        successCount += result.affectedRows;
       }
 
-      // 提交事务
-      db.exec('COMMIT');
-
-      return {
-        successCount,
-        totalCount: ids.length
-      };
+      await connection.commit();
+      return { successCount, totalCount: ids.length };
     } catch (error) {
-      // 回滚事务
-      db.exec('ROLLBACK');
+      await connection.rollback();
       throw new Error(`批量删除物料失败: ${error.message}`);
+    } finally {
+      connection.release();
     }
   }
 
   // 搜索物料
   static async searchMaterials(keyword) {
     try {
-      const stmt = db.prepare(`
+      const sql = `
         SELECT * FROM materials 
         WHERE material_code LIKE ? OR material_name LIKE ? OR description LIKE ?
         ORDER BY created_at DESC
-      `);
-      return stmt.all(`%${keyword}%`, `%${keyword}%`, `%${keyword}%`);
+      `;
+      const [rows] = await db.execute(sql, [`%${keyword}%`, `%${keyword}%`, `%${keyword}%`]);
+      return rows;
     } catch (error) {
       throw new Error(`搜索物料失败: ${error.message}`);
     }

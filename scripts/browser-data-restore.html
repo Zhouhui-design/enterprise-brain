@@ -1,0 +1,635 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>企业大脑 - 数据恢复工具</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }
+        
+        .container {
+            background: white;
+            border-radius: 16px;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+            max-width: 800px;
+            width: 100%;
+            padding: 40px;
+        }
+        
+        h1 {
+            color: #333;
+            font-size: 28px;
+            margin-bottom: 10px;
+            text-align: center;
+        }
+        
+        .subtitle {
+            color: #666;
+            text-align: center;
+            margin-bottom: 30px;
+        }
+        
+        .section {
+            margin-bottom: 30px;
+            padding: 20px;
+            background: #f8f9fa;
+            border-radius: 8px;
+        }
+        
+        .section-title {
+            color: #667eea;
+            font-size: 18px;
+            font-weight: 600;
+            margin-bottom: 15px;
+            display: flex;
+            align-items: center;
+        }
+        
+        .section-title::before {
+            content: '●';
+            margin-right: 8px;
+        }
+        
+        .file-input-wrapper {
+            margin-bottom: 20px;
+        }
+        
+        .file-input {
+            display: none;
+        }
+        
+        .file-label {
+            display: inline-block;
+            padding: 12px 24px;
+            background: #667eea;
+            color: white;
+            border-radius: 6px;
+            cursor: pointer;
+            transition: background 0.3s;
+        }
+        
+        .file-label:hover {
+            background: #5568d3;
+        }
+        
+        .file-name {
+            margin-left: 15px;
+            color: #666;
+            font-size: 14px;
+        }
+        
+        .btn {
+            padding: 12px 30px;
+            border: none;
+            border-radius: 6px;
+            font-size: 16px;
+            cursor: pointer;
+            transition: all 0.3s;
+            font-weight: 500;
+        }
+        
+        .btn-primary {
+            background: #667eea;
+            color: white;
+        }
+        
+        .btn-primary:hover {
+            background: #5568d3;
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+        }
+        
+        .btn-success {
+            background: #48bb78;
+            color: white;
+        }
+        
+        .btn-success:hover {
+            background: #38a169;
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(72, 187, 120, 0.4);
+        }
+        
+        .btn-danger {
+            background: #f56565;
+            color: white;
+        }
+        
+        .btn-danger:hover {
+            background: #e53e3e;
+        }
+        
+        .btn:disabled {
+            background: #cbd5e0;
+            cursor: not-allowed;
+            transform: none;
+        }
+        
+        .log-box {
+            background: #1a202c;
+            color: #48bb78;
+            padding: 20px;
+            border-radius: 6px;
+            font-family: 'Courier New', monospace;
+            font-size: 13px;
+            max-height: 300px;
+            overflow-y: auto;
+            margin-top: 15px;
+        }
+        
+        .log-item {
+            margin-bottom: 8px;
+            line-height: 1.6;
+        }
+        
+        .log-success {
+            color: #48bb78;
+        }
+        
+        .log-error {
+            color: #f56565;
+        }
+        
+        .log-info {
+            color: #4299e1;
+        }
+        
+        .log-warning {
+            color: #ed8936;
+        }
+        
+        .stats {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            gap: 15px;
+            margin-top: 20px;
+        }
+        
+        .stat-card {
+            background: white;
+            padding: 15px;
+            border-radius: 8px;
+            text-align: center;
+        }
+        
+        .stat-value {
+            font-size: 24px;
+            font-weight: 700;
+            color: #667eea;
+            margin-bottom: 5px;
+        }
+        
+        .stat-label {
+            font-size: 12px;
+            color: #666;
+        }
+        
+        .button-group {
+            display: flex;
+            gap: 15px;
+            margin-top: 20px;
+        }
+        
+        .alert {
+            padding: 15px;
+            border-radius: 6px;
+            margin-bottom: 20px;
+        }
+        
+        .alert-info {
+            background: #bee3f8;
+            color: #2c5282;
+            border-left: 4px solid #4299e1;
+        }
+        
+        .alert-success {
+            background: #c6f6d5;
+            color: #22543d;
+            border-left: 4px solid #48bb78;
+        }
+        
+        .progress-bar {
+            width: 100%;
+            height: 8px;
+            background: #e2e8f0;
+            border-radius: 4px;
+            overflow: hidden;
+            margin-top: 10px;
+        }
+        
+        .progress-fill {
+            height: 100%;
+            background: linear-gradient(90deg, #667eea, #764ba2);
+            transition: width 0.3s;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🔄 企业大脑数据恢复工具</h1>
+        <p class="subtitle">快速恢复您的业务数据</p>
+        
+        <div class="alert alert-info">
+            <strong>📌 使用说明：</strong><br>
+            1. 选择备份文件（localStorage_backup_*.json）<br>
+            2. 点击"恢复数据"按钮<br>
+            3. 等待恢复完成后刷新页面
+        </div>
+        
+        <!-- 文件选择 -->
+        <div class="section">
+            <div class="section-title">选择备份文件</div>
+            <div class="file-input-wrapper">
+                <input type="file" id="fileInput" class="file-input" accept=".json">
+                <label for="fileInput" class="file-label">📁 选择备份文件</label>
+                <span id="fileName" class="file-name">未选择文件</span>
+            </div>
+        </div>
+        
+        <!-- 操作按钮 -->
+        <div class="section">
+            <div class="section-title">数据操作</div>
+            <div class="button-group">
+                <button id="restoreBtn" class="btn btn-primary" disabled>🔄 恢复数据</button>
+                <button id="backupBtn" class="btn btn-success">💾 备份当前数据</button>
+                <button id="clearBtn" class="btn btn-danger">🗑️ 清空所有数据</button>
+            </div>
+            <div id="progressBarContainer" style="display: none;">
+                <div class="progress-bar">
+                    <div id="progressFill" class="progress-fill" style="width: 0%"></div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- 统计信息 -->
+        <div class="section">
+            <div class="section-title">数据统计</div>
+            <div class="stats">
+                <div class="stat-card">
+                    <div id="materialsCount" class="stat-value">0</div>
+                    <div class="stat-label">物料数据</div>
+                </div>
+                <div class="stat-card">
+                    <div id="bomsCount" class="stat-value">0</div>
+                    <div class="stat-label">BOM数据</div>
+                </div>
+                <div class="stat-card">
+                    <div id="draftsCount" class="stat-value">0</div>
+                    <div class="stat-label">草稿数据</div>
+                </div>
+                <div class="stat-card">
+                    <div id="localStorageCount" class="stat-value">0</div>
+                    <div class="stat-label">LocalStorage条目</div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- 日志输出 -->
+        <div class="section">
+            <div class="section-title">操作日志</div>
+            <div id="logBox" class="log-box"></div>
+        </div>
+    </div>
+
+    <script>
+        // 日志输出
+        const logBox = document.getElementById('logBox');
+        
+        function log(message, type = 'info') {
+            const timestamp = new Date().toLocaleTimeString();
+            const logItem = document.createElement('div');
+            logItem.className = `log-item log-${type}`;
+            logItem.textContent = `[${timestamp}] ${message}`;
+            logBox.appendChild(logItem);
+            logBox.scrollTop = logBox.scrollHeight;
+        }
+        
+        // 更新进度条
+        function updateProgress(percent) {
+            const progressFill = document.getElementById('progressFill');
+            const progressBarContainer = document.getElementById('progressBarContainer');
+            progressBarContainer.style.display = 'block';
+            progressFill.style.width = percent + '%';
+            
+            if (percent >= 100) {
+                setTimeout(() => {
+                    progressBarContainer.style.display = 'none';
+                }, 2000);
+            }
+        }
+        
+        // 更新统计信息
+        async function updateStats() {
+            try {
+                // 统计LocalStorage
+                document.getElementById('localStorageCount').textContent = localStorage.length;
+                
+                // 统计IndexedDB
+                const db = await openDatabase();
+                
+                let materialsCount = 0;
+                let bomsCount = 0;
+                let draftsCount = 0;
+                
+                try {
+                    const materials = await getAllFromStore(db, 'materials');
+                    materialsCount = materials.length;
+                } catch (e) {}
+                
+                const bomTypes = ['boms', 'productionBoms', 'salesBoms', 'designBoms'];
+                for (const bomType of bomTypes) {
+                    try {
+                        const boms = await getAllFromStore(db, bomType);
+                        bomsCount += boms.length;
+                    } catch (e) {}
+                }
+                
+                const draftTypes = ['productionBomDrafts', 'salesBomDrafts', 'designBomDrafts'];
+                for (const draftType of draftTypes) {
+                    try {
+                        const drafts = await getAllFromStore(db, draftType);
+                        draftsCount += drafts.length;
+                    } catch (e) {}
+                }
+                
+                document.getElementById('materialsCount').textContent = materialsCount;
+                document.getElementById('bomsCount').textContent = bomsCount;
+                document.getElementById('draftsCount').textContent = draftsCount;
+                
+            } catch (error) {
+                log('统计信息更新失败: ' + error.message, 'error');
+            }
+        }
+        
+        // 打开IndexedDB
+        function openDatabase() {
+            return new Promise((resolve, reject) => {
+                const request = indexedDB.open('EnterpriseBrainDB', 3);
+                request.onsuccess = (event) => resolve(event.target.result);
+                request.onerror = (event) => reject(event.target.error);
+            });
+        }
+        
+        // 从存储中获取所有数据
+        function getAllFromStore(db, storeName) {
+            return new Promise((resolve, reject) => {
+                if (!db.objectStoreNames.contains(storeName)) {
+                    resolve([]);
+                    return;
+                }
+                const transaction = db.transaction([storeName], 'readonly');
+                const store = transaction.objectStore(storeName);
+                const request = store.getAll();
+                request.onsuccess = () => resolve(request.result || []);
+                request.onerror = () => reject(request.error);
+            });
+        }
+        
+        // 保存到存储
+        function saveToStore(db, storeName, data) {
+            return new Promise((resolve, reject) => {
+                if (!db.objectStoreNames.contains(storeName)) {
+                    resolve();
+                    return;
+                }
+                const transaction = db.transaction([storeName], 'readwrite');
+                const store = transaction.objectStore(storeName);
+                
+                let count = 0;
+                data.forEach((item) => {
+                    const request = store.put(item);
+                    request.onsuccess = () => {
+                        count++;
+                        if (count === data.length) resolve();
+                    };
+                });
+                
+                if (data.length === 0) resolve();
+            });
+        }
+        
+        // 文件选择
+        let selectedFile = null;
+        document.getElementById('fileInput').addEventListener('change', (e) => {
+            selectedFile = e.target.files[0];
+            if (selectedFile) {
+                document.getElementById('fileName').textContent = selectedFile.name;
+                document.getElementById('restoreBtn').disabled = false;
+                log('已选择文件: ' + selectedFile.name, 'success');
+            }
+        });
+        
+        // 恢复数据
+        document.getElementById('restoreBtn').addEventListener('click', async () => {
+            if (!selectedFile) {
+                alert('请先选择备份文件！');
+                return;
+            }
+            
+            if (!confirm('确定要恢复数据吗？这将覆盖当前数据！')) {
+                return;
+            }
+            
+            try {
+                log('开始读取备份文件...', 'info');
+                const text = await selectedFile.text();
+                const backupData = JSON.parse(text);
+                
+                log('备份文件解析成功', 'success');
+                updateProgress(10);
+                
+                // 恢复LocalStorage
+                log('开始恢复LocalStorage数据...', 'info');
+                let localStorageCount = 0;
+                Object.keys(backupData).forEach(key => {
+                    if (typeof backupData[key] === 'string') {
+                        localStorage.setItem(key, backupData[key]);
+                        localStorageCount++;
+                    }
+                });
+                log(`LocalStorage恢复完成，共${localStorageCount}条`, 'success');
+                updateProgress(30);
+                
+                // 恢复IndexedDB (如果有enterpriseBrain_backup)
+                if (backupData.enterpriseBrain_backup) {
+                    log('检测到IndexedDB备份数据，开始恢复...', 'info');
+                    const dbBackup = JSON.parse(backupData.enterpriseBrain_backup);
+                    
+                    const db = await openDatabase();
+                    let totalRestored = 0;
+                    
+                    // 恢复物料
+                    if (dbBackup.materials && dbBackup.materials.length > 0) {
+                        await saveToStore(db, 'materials', dbBackup.materials);
+                        totalRestored += dbBackup.materials.length;
+                        log(`恢复物料数据: ${dbBackup.materials.length}条`, 'success');
+                        updateProgress(40);
+                    }
+                    
+                    // 恢复各类BOM
+                    const bomTypes = ['boms', 'productionBoms', 'salesBoms', 'designBoms'];
+                    let progress = 40;
+                    for (const bomType of bomTypes) {
+                        if (dbBackup[bomType] && dbBackup[bomType].length > 0) {
+                            await saveToStore(db, bomType, dbBackup[bomType]);
+                            totalRestored += dbBackup[bomType].length;
+                            log(`恢复${bomType}数据: ${dbBackup[bomType].length}条`, 'success');
+                            progress += 10;
+                            updateProgress(progress);
+                        }
+                    }
+                    
+                    // 恢复草稿
+                    const draftTypes = ['productionBomDrafts', 'salesBomDrafts', 'designBomDrafts'];
+                    for (const draftType of draftTypes) {
+                        if (dbBackup[draftType] && dbBackup[draftType].length > 0) {
+                            await saveToStore(db, draftType, dbBackup[draftType]);
+                            totalRestored += dbBackup[draftType].length;
+                            log(`恢复${draftType}数据: ${dbBackup[draftType].length}条`, 'success');
+                        }
+                    }
+                    
+                    log(`IndexedDB数据恢复完成，共${totalRestored}条记录`, 'success');
+                }
+                
+                updateProgress(100);
+                log('✅ 所有数据恢复完成！', 'success');
+                
+                await updateStats();
+                
+                setTimeout(() => {
+                    if (confirm('数据恢复完成！是否刷新页面？')) {
+                        location.reload();
+                    }
+                }, 1000);
+                
+            } catch (error) {
+                log('❌ 恢复失败: ' + error.message, 'error');
+                console.error(error);
+            }
+        });
+        
+        // 备份当前数据
+        document.getElementById('backupBtn').addEventListener('click', async () => {
+            try {
+                log('开始备份当前数据...', 'info');
+                updateProgress(10);
+                
+                const backupData = {};
+                
+                // 备份LocalStorage
+                for (let i = 0; i < localStorage.length; i++) {
+                    const key = localStorage.key(i);
+                    backupData[key] = localStorage.getItem(key);
+                }
+                log('LocalStorage备份完成', 'success');
+                updateProgress(30);
+                
+                // 备份IndexedDB
+                try {
+                    const db = await openDatabase();
+                    const dbBackup = {
+                        exportTime: new Date().toISOString(),
+                        version: 3
+                    };
+                    
+                    dbBackup.materials = await getAllFromStore(db, 'materials');
+                    updateProgress(40);
+                    
+                    const bomTypes = ['boms', 'productionBoms', 'salesBoms', 'designBoms'];
+                    let progress = 40;
+                    for (const bomType of bomTypes) {
+                        dbBackup[bomType] = await getAllFromStore(db, bomType);
+                        progress += 10;
+                        updateProgress(progress);
+                    }
+                    
+                    const draftTypes = ['productionBomDrafts', 'salesBomDrafts', 'designBomDrafts'];
+                    for (const draftType of draftTypes) {
+                        dbBackup[draftType] = await getAllFromStore(db, draftType);
+                    }
+                    
+                    backupData.enterpriseBrain_backup = JSON.stringify(dbBackup);
+                    log('IndexedDB备份完成', 'success');
+                    updateProgress(90);
+                } catch (e) {
+                    log('IndexedDB备份失败，仅备份LocalStorage', 'warning');
+                }
+                
+                // 下载备份文件
+                const blob = new Blob([JSON.stringify(backupData, null, 2)], { type: 'application/json' });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = `localStorage_backup_${Date.now()}.json`;
+                a.click();
+                URL.revokeObjectURL(url);
+                
+                updateProgress(100);
+                log('✅ 备份文件下载完成！', 'success');
+                
+            } catch (error) {
+                log('❌ 备份失败: ' + error.message, 'error');
+                console.error(error);
+            }
+        });
+        
+        // 清空所有数据
+        document.getElementById('clearBtn').addEventListener('click', async () => {
+            if (!confirm('⚠️ 警告：这将清空所有数据！\n\n建议先备份数据，确定要继续吗？')) {
+                return;
+            }
+            
+            if (!confirm('再次确认：真的要清空所有数据吗？此操作不可恢复！')) {
+                return;
+            }
+            
+            try {
+                log('开始清空数据...', 'warning');
+                
+                // 清空LocalStorage
+                localStorage.clear();
+                log('LocalStorage已清空', 'info');
+                
+                // 清空IndexedDB
+                const db = await openDatabase();
+                const stores = ['materials', 'boms', 'productionBoms', 'salesBoms', 'designBoms',
+                               'productionBomDrafts', 'salesBomDrafts', 'designBomDrafts'];
+                
+                for (const storeName of stores) {
+                    if (db.objectStoreNames.contains(storeName)) {
+                        const transaction = db.transaction([storeName], 'readwrite');
+                        const store = transaction.objectStore(storeName);
+                        store.clear();
+                    }
+                }
+                
+                log('✅ 所有数据已清空', 'success');
+                await updateStats();
+                
+            } catch (error) {
+                log('❌ 清空失败: ' + error.message, 'error');
+                console.error(error);
+            }
+        });
+        
+        // 初始化
+        log('数据恢复工具已就绪', 'success');
+        updateStats();
+    </script>
+</body>
+</html>

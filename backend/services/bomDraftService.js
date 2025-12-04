@@ -1,16 +1,16 @@
 const db = require('../config/database');
 
 /**
- * 生产BOM草稿服务
+ * 生产BOM草稿服务 - MySQL版本
  */
 class BOMDraftService {
   /**
    * 获取所有草稿
    */
-  static getAllDrafts() {
+  static async getAllDrafts() {
     try {
-      const stmt = db.prepare('SELECT * FROM production_bom_drafts ORDER BY updated_at DESC');
-      return stmt.all();
+      const [rows] = await db.execute('SELECT * FROM production_bom_drafts ORDER BY updated_at DESC');
+      return rows;
     } catch (error) {
       console.error('获取草稿列表失败:', error);
       throw error;
@@ -20,18 +20,20 @@ class BOMDraftService {
   /**
    * 根据ID获取草稿详情
    */
-  static getDraftById(id) {
+  static async getDraftById(id) {
     try {
-      const stmt = db.prepare('SELECT * FROM production_bom_drafts WHERE id = ?');
-      const draft = stmt.get(id);
+      const [rows] = await db.execute('SELECT * FROM production_bom_drafts WHERE id = ?', [id]);
+      const draft = rows[0];
       
       if (!draft) {
         return null;
       }
       
       // 获取子件
-      const componentStmt = db.prepare('SELECT * FROM bom_draft_components WHERE draft_id = ? ORDER BY sequence');
-      const components = componentStmt.all(id);
+      const [components] = await db.execute(
+        'SELECT * FROM bom_draft_components WHERE draft_id = ? ORDER BY sequence',
+        [id]
+      );
       
       draft.childItems = components;
       return draft;
@@ -44,211 +46,213 @@ class BOMDraftService {
   /**
    * 创建草稿
    */
-  static createDraft(draftData) {
+  static async createDraft(draftData) {
+    const connection = await db.getConnection();
     try {
       const { childItems, ...draftInfo } = draftData;
       
-      const createTransaction = db.transaction(() => {
-        // 插入草稿主表
-        const stmt = db.prepare(`
-          INSERT INTO production_bom_drafts (
-            bom_code, bom_name, product_code, product_name, version, 
-            status, designer, material_count, remark, auditor, effective_date
-          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-        `);
-        
-        const info = stmt.run(
-          draftInfo.bomCode,
-          draftInfo.bomName || '',
-          draftInfo.productCode || '',
-          draftInfo.productName || '',
-          draftInfo.version || 'V1.0',
-          draftInfo.status || 'draft',
-          draftInfo.designer || '',
-          draftInfo.itemCount || 0,
-          draftInfo.remark || '',
-          draftInfo.reviewer || '',
-          draftInfo.effectiveDate || null
-        );
-        
-        const draftId = info.lastInsertRowid;
-        
-        // 插入子件
-        if (childItems && childItems.length > 0) {
-          const componentStmt = db.prepare(`
+      await connection.beginTransaction();
+      
+      // 插入草稿主表
+      const [result] = await connection.execute(`
+        INSERT INTO production_bom_drafts (
+          bom_code, bom_name, product_code, product_name, version, 
+          status, designer, material_count, remark, auditor, effective_date
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      `, [
+        draftInfo.bomCode,
+        draftInfo.bomName || '',
+        draftInfo.productCode || '',
+        draftInfo.productName || '',
+        draftInfo.version || 'V1.0',
+        draftInfo.status || 'draft',
+        draftInfo.designer || '',
+        draftInfo.itemCount || 0,
+        draftInfo.remark || '',
+        draftInfo.reviewer || '',
+        draftInfo.effectiveDate || null
+      ]);
+      
+      const draftId = result.insertId;
+      
+      // 插入子件
+      if (childItems && childItems.length > 0) {
+        for (let i = 0; i < childItems.length; i++) {
+          const item = childItems[i];
+          await connection.execute(`
             INSERT INTO bom_draft_components (
               draft_id, sequence, level, component_code, component_name,
               standard_quantity, output_process, component_source,
               process_wage, material_loss, material_price, material_cost
             ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-          `);
-          
-          for (let i = 0; i < childItems.length; i++) {
-            const item = childItems[i];
-            componentStmt.run(
-              draftId,
-              i + 1,
-              parseInt(item.level) || 1,
-              item.childCode || '',
-              item.childName || '',
-              parseFloat(item.standardQty) || 0,
-              item.outputProcess || '',
-              item.source || '',
-              parseFloat(item.processWage) || 0,
-              parseFloat(item.materialLoss) || 0,
-              parseFloat(item.materialPrice) || 0,
-              parseFloat(item.materialCost) || 0
-            );
-          }
+          `, [
+            draftId,
+            i + 1,
+            parseInt(item.level) || 1,
+            item.childCode || '',
+            item.childName || '',
+            parseFloat(item.standardQty) || 0,
+            item.outputProcess || '',
+            item.source || '',
+            parseFloat(item.processWage) || 0,
+            parseFloat(item.materialLoss) || 0,
+            parseFloat(item.materialPrice) || 0,
+            parseFloat(item.materialCost) || 0
+          ]);
         }
-        
-        return draftId;
-      });
+      }
       
-      const draftId = createTransaction();
+      await connection.commit();
       console.log(`草稿创建成功, ID: ${draftId}, BOM编号: ${draftInfo.bomCode}`);
       
       return { id: draftId, ...draftInfo };
     } catch (error) {
+      await connection.rollback();
       console.error('创建草稿失败:', error);
       throw error;
+    } finally {
+      connection.release();
     }
   }
 
   /**
    * 更新草稿
    */
-  static updateDraft(id, draftData) {
+  static async updateDraft(id, draftData) {
+    const connection = await db.getConnection();
     try {
       const { childItems, ...draftInfo } = draftData;
       const draftId = parseInt(id); // 确保ID是整数
       
-      const updateTransaction = db.transaction(() => {
-        // 更新草稿主表
-        const stmt = db.prepare(`
-          UPDATE production_bom_drafts SET
-            bom_code = ?, bom_name = ?, product_code = ?, product_name = ?,
-            version = ?, status = ?, designer = ?, material_count = ?,
-            remark = ?, auditor = ?, effective_date = ?, updated_at = CURRENT_TIMESTAMP
-          WHERE id = ?
-        `);
-        
-        stmt.run(
-          draftInfo.bomCode,
-          draftInfo.bomName || '',
-          draftInfo.productCode || '',
-          draftInfo.productName || '',
-          draftInfo.version || 'V1.0',
-          draftInfo.status || 'draft',
-          draftInfo.designer || '',
-          draftInfo.itemCount || 0,
-          draftInfo.remark || '',
-          draftInfo.reviewer || '',
-          draftInfo.effectiveDate || null,
-          draftId
-        );
-        
-        // 删除旧子件
-        const deleteStmt = db.prepare('DELETE FROM bom_draft_components WHERE draft_id = ?');
-        deleteStmt.run(draftId);
-        
-        // 插入新子件
-        if (childItems && childItems.length > 0) {
-          const componentStmt = db.prepare(`
+      await connection.beginTransaction();
+      
+      // 更新草稿主表
+      await connection.execute(`
+        UPDATE production_bom_drafts SET
+          bom_code = ?, bom_name = ?, product_code = ?, product_name = ?,
+          version = ?, status = ?, designer = ?, material_count = ?,
+          remark = ?, auditor = ?, effective_date = ?, updated_at = CURRENT_TIMESTAMP
+        WHERE id = ?
+      `, [
+        draftInfo.bomCode,
+        draftInfo.bomName || '',
+        draftInfo.productCode || '',
+        draftInfo.productName || '',
+        draftInfo.version || 'V1.0',
+        draftInfo.status || 'draft',
+        draftInfo.designer || '',
+        draftInfo.itemCount || 0,
+        draftInfo.remark || '',
+        draftInfo.reviewer || '',
+        draftInfo.effectiveDate || null,
+        draftId
+      ]);
+      
+      // 删除旧子件
+      await connection.execute('DELETE FROM bom_draft_components WHERE draft_id = ?', [draftId]);
+      
+      // 插入新子件
+      if (childItems && childItems.length > 0) {
+        for (let i = 0; i < childItems.length; i++) {
+          const item = childItems[i];
+          await connection.execute(`
             INSERT INTO bom_draft_components (
               draft_id, sequence, level, component_code, component_name,
               standard_quantity, output_process, component_source,
               process_wage, material_loss, material_price, material_cost
             ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-          `);
-          
-          for (let i = 0; i < childItems.length; i++) {
-            const item = childItems[i];
-            componentStmt.run(
-              draftId,
-              i + 1,
-              parseInt(item.level) || 1,
-              item.childCode || '',
-              item.childName || '',
-              parseFloat(item.standardQty) || 0,
-              item.outputProcess || '',
-              item.source || '',
-              parseFloat(item.processWage) || 0,
-              parseFloat(item.materialLoss) || 0,
-              parseFloat(item.materialPrice) || 0,
-              parseFloat(item.materialCost) || 0
-            );
-          }
+          `, [
+            draftId,
+            i + 1,
+            parseInt(item.level) || 1,
+            item.childCode || '',
+            item.childName || '',
+            parseFloat(item.standardQty) || 0,
+            item.outputProcess || '',
+            item.source || '',
+            parseFloat(item.processWage) || 0,
+            parseFloat(item.materialLoss) || 0,
+            parseFloat(item.materialPrice) || 0,
+            parseFloat(item.materialCost) || 0
+          ]);
         }
-      });
+      }
       
-      updateTransaction();
+      await connection.commit();
       console.log(`草稿更新成功, ID: ${draftId}`);
       
       return { id: draftId, ...draftInfo };
     } catch (error) {
+      await connection.rollback();
       console.error('更新草稿失败:', error);
       throw error;
+    } finally {
+      connection.release();
     }
   }
 
   /**
    * 删除草稿
    */
-  static deleteDraft(id) {
+  static async deleteDraft(id) {
+    const connection = await db.getConnection();
     try {
       const draftId = parseInt(id); // 确保ID是整数
       
-      const deleteTransaction = db.transaction(() => {
-        // 删除子件
-        const deleteComponentsStmt = db.prepare('DELETE FROM bom_draft_components WHERE draft_id = ?');
-        deleteComponentsStmt.run(draftId);
-        
-        // 删除草稿
-        const stmt = db.prepare('DELETE FROM production_bom_drafts WHERE id = ?');
-        const info = stmt.run(draftId);
-        
-        return info.changes > 0;
-      });
+      await connection.beginTransaction();
       
-      const success = deleteTransaction();
+      // 删除子件
+      await connection.execute('DELETE FROM bom_draft_components WHERE draft_id = ?', [draftId]);
+      
+      // 删除草稿
+      const [result] = await connection.execute('DELETE FROM production_bom_drafts WHERE id = ?', [draftId]);
+      
+      const success = result.affectedRows > 0;
+      
+      await connection.commit();
       console.log(`草稿删除${success ? '成功' : '失败'}, ID: ${draftId}`);
       
       return success;
     } catch (error) {
+      await connection.rollback();
       console.error('删除草稿失败:', error);
       throw error;
+    } finally {
+      connection.release();
     }
   }
 
   /**
    * 批量删除草稿
    */
-  static batchDeleteDrafts(ids) {
+  static async batchDeleteDrafts(ids) {
+    const connection = await db.getConnection();
     try {
-      const deleteTransaction = db.transaction((idList) => {
-        let successCount = 0;
-        for (const id of idList) {
-          const deleteComponentsStmt = db.prepare('DELETE FROM bom_draft_components WHERE draft_id = ?');
-          deleteComponentsStmt.run(id);
-          
-          const deleteDraftStmt = db.prepare('DELETE FROM production_bom_drafts WHERE id = ?');
-          const info = deleteDraftStmt.run(id);
-          
-          if (info.changes > 0) {
-            successCount++;
-          }
-        }
-        return successCount;
-      });
+      await connection.beginTransaction();
       
-      const successCount = deleteTransaction(ids);
+      let successCount = 0;
+      for (const id of ids) {
+        // 删除子件
+        await connection.execute('DELETE FROM bom_draft_components WHERE draft_id = ?', [id]);
+        
+        // 删除草稿
+        const [result] = await connection.execute('DELETE FROM production_bom_drafts WHERE id = ?', [id]);
+        
+        if (result.affectedRows > 0) {
+          successCount++;
+        }
+      }
+      
+      await connection.commit();
       console.log(`批量删除草稿完成: 成功${successCount}条/总共${ids.length}条`);
       
       return { successCount, totalCount: ids.length };
     } catch (error) {
+      await connection.rollback();
       console.error('批量删除草稿失败:', error);
       throw error;
+    } finally {
+      connection.release();
     }
   }
 }
