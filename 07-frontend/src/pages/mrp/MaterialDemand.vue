@@ -183,6 +183,7 @@
     <!-- 页面设置对话框 -->
     <PageSettings
       v-model:visible="pageSettingsVisible"
+      settings-key="materialDemand"
       :settings="pageSettings"
       :available-fields="tableColumns"
       :show-workflow="false"
@@ -482,7 +483,7 @@ const getSourceTypeColor = (type) => {
     production: 'success',
     safety: 'warning'
   }
-  return map[type] || ''
+  return map[type] || 'info'
 }
 
 // 执行状态文本
@@ -504,7 +505,7 @@ const getExecStatusType = (status) => {
     produced: 'success',
     completed: 'success'
   }
-  return map[status] || ''
+  return map[status] || 'info'
 }
 
 // 建议类型文本
@@ -524,7 +525,7 @@ const getSuggestTypeColor = (type) => {
     production: 'primary',
     transfer: 'warning'
   }
-  return map[type] || ''
+  return map[type] || 'info'
 }
 
 // 表格行class
