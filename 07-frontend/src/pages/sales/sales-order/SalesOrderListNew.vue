@@ -424,7 +424,7 @@
       :close-on-click-modal="false"
     >
       <SalesOrderView 
-        :order-data="currentOrder" 
+        :order-id="currentOrder?.id" 
         @close="viewDialogVisible = false" 
       />
     </el-dialog>
@@ -599,18 +599,68 @@ const loadOrders = async () => {
     if (response.data.success) {
       const orders = response.data.data.list
       tableData.value = orders.map(order => ({
+        // 基本信息
         id: order.id,
         internalOrderNo: order.internal_order_no,
         customerOrderNo: order.customer_order_no,
         customerName: order.customer_name,
+        customerId: order.customer_id,
         salesperson: order.salesperson,
+        quotationNo: order.quotation_no,
         orderType: order.order_type,
-        orderStatus: order.status || '待下单', // 确保有状态
-        totalAmount: order.total_amount,
+        orderStatus: order.status || '待下单',
+        
+        // 时间信息
         orderTime: order.order_time,
         promisedDelivery: order.promised_delivery,
-        estimatedCompletionDate: order.estimated_completion_date, // 预计完成日期
+        customerDelivery: order.customer_delivery,
+        estimatedCompletionDate: order.estimated_completion_date,
         createTime: new Date(order.created_at).toLocaleString('zh-CN'),
+        updateTime: order.updated_at ? new Date(order.updated_at).toLocaleString('zh-CN') : null,
+        
+        // 销售部门和物流信息
+        salesDepartment: order.sales_department,
+        deliveryMethod: order.delivery_method,
+        returnOrderNo: order.return_order_no,
+        
+        // 金额信息
+        orderCurrency: order.order_currency,
+        currentExchangeRate: order.current_exchange_rate,
+        taxRate: order.tax_rate,
+        totalAmountExcludingTax: order.total_amount_excluding_tax,
+        totalAmountIncludingTax: order.total_amount_including_tax,
+        totalAmount: order.total_amount,
+        
+        // 附件和说明
+        orderAttachment: order.order_attachment,
+        orderNotes: order.order_notes,
+        
+        // 包装信息
+        packagingMethod: order.packaging_method,
+        packagingRequirements: order.packaging_requirements,
+        packagingAttachment: order.packaging_attachment,
+        
+        // 收货信息
+        consignee: order.consignee,
+        deliveryAddress: order.delivery_address,
+        billRecipient: order.bill_recipient,
+        billAddress: order.bill_address,
+        
+        // 回款信息
+        paymentMethod: order.payment_method,
+        advancePaymentRatio: order.advance_payment_ratio,
+        fees: order.fees,
+        paymentPlan: order.payment_plan,
+        totalReceivable: order.total_receivable,
+        plannedPaymentDate: order.planned_payment_date,
+        plannedPaymentAmount: order.planned_payment_amount,
+        receivedAmount: order.received_amount || 0,
+        unreceivedAmount: order.unreceived_amount || 0,
+        
+        // 备注
+        remark: order.remark,
+        
+        // 完整订单数据(用于编辑和查看)
         orderDetail: order
       }))
       totalCount.value = response.data.data.total
@@ -696,9 +746,20 @@ const handleDeleteRow = async (row) => {
   }
 }
 
-const handleEdit = (row) => {
-  currentOrder.value = { ...row }
-  editDialogVisible.value = true
+const handleEdit = async (row) => {
+  try {
+    // 从后端重新获取完整数据
+    const response = await salesOrderApi.getSalesOrderById(row.id)
+    if (response.data && response.data.success) {
+      currentOrder.value = response.data.data
+      editDialogVisible.value = true
+    } else {
+      ElMessage.error('获取订单详情失败')
+    }
+  } catch (error) {
+    console.error('❌ 获取订单详情失败:', error)
+    ElMessage.error('获取订单详情失败')
+  }
 }
 
 const handleEditSuccess = (orderData) => {
@@ -713,8 +774,9 @@ const handleEditSuccess = (orderData) => {
   ElMessage.success('订单更新成功')
 }
 
-const handleView = (row) => {
-  currentOrder.value = { ...row }
+const handleView = async (row) => {
+  // 直接传递订单ID,由查看组件自行加载
+  currentOrder.value = { id: row.id }
   viewDialogVisible.value = true
 }
 

@@ -561,7 +561,7 @@
 </template>
 
 <script setup>
-import { ref, reactive, computed, onMounted } from 'vue'
+import { ref, reactive, computed, onMounted, watch } from 'vue'
 import { ElMessage } from 'element-plus'
 import { 
   Document, Calendar, OfficeBuilding, Money, Paperclip, 
@@ -570,6 +570,13 @@ import {
 import { customerApi } from '@/api/customer'
 import { salesOrderApi } from '@/api/salesOrder'
 
+// 接收props - 支持编辑模式
+const props = defineProps({
+  orderData: {
+    type: Object,
+    default: null
+  }
+})
 const emit = defineEmits(['success', 'cancel'])
 
 const activeTab = ref('orderDetail')
@@ -783,6 +790,124 @@ onMounted(async () => {
     ]
   }
 })
+
+// 监听orderData变化 - 编辑模式下加载完整数据
+watch(
+  () => props.orderData,
+  async (newOrderData) => {
+    if (newOrderData && newOrderData.id) {
+      try {
+        console.log('🔄 编辑模式:开始加载订单数据...', newOrderData.id)
+        
+        // 1. 从后端加载完整订单数据 - 使用正确的API
+        const response = await salesOrderApi.getSalesOrderById(newOrderData.id)
+        if (response.data && response.data.success) {
+          const order = response.data.data
+          console.log('✅ 订单主信息加载成功', order)
+          
+          // 2. 填充基本信息
+          Object.assign(formData, {
+            id: order.id,
+            internalOrderNo: order.internal_order_no,
+            customerOrderNo: order.customer_order_no,
+            customerName: order.customer_name,
+            salesperson: order.salesperson,
+            quotationNo: order.quotation_no,
+            orderType: order.order_type,
+            orderTime: order.order_time,
+            promisedDelivery: order.promised_delivery,
+            customerDelivery: order.customer_delivery,
+            estimatedCompletionDate: order.estimated_completion_date,
+            salesDepartment: order.sales_department,
+            deliveryMethod: order.delivery_method,
+            returnOrderNo: order.return_order_no,
+            orderCurrency: order.order_currency || 'CNY',
+            currentExchangeRate: order.current_exchange_rate || 1,
+            taxRate: order.tax_rate || 13,
+            orderAttachment: order.order_attachment,
+            orderNotes: order.order_notes,
+            packagingMethod: order.packaging_method,
+            packagingRequirements: order.packaging_requirements,
+            packagingAttachment: order.packaging_attachment,
+            consignee: order.consignee,
+            deliveryAddress: order.delivery_address,
+            billRecipient: order.bill_recipient,
+            billAddress: order.bill_address,
+            paymentMethod: order.payment_method,
+            advancePaymentRatio: order.advance_payment_ratio || 0,
+            fees: order.fees || 0,
+            totalReceivable: order.total_receivable || 0,
+            remark: order.remark,
+            products: [],
+            paymentSchedule: []
+          })
+          
+          // 3. 加载产品明细
+          const productsResponse = await salesOrderApi.getOrderProducts(order.id)
+          console.log('✅ 产品明细响应:', productsResponse)
+          if (productsResponse.success && productsResponse.data && productsResponse.data.length > 0) {
+            formData.products = productsResponse.data.map(p => ({
+              productCode: p.product_code,
+              productName: p.product_name,
+              productSpec: p.product_spec,
+              productColor: p.product_color,
+              productUnit: p.product_unit || '个',
+              orderQuantity: p.order_quantity || 0,
+              unitPriceExcludingTax: p.unit_price_excluding_tax || 0,
+              taxRate: p.tax_rate || 13,
+              accessories: []
+            }))
+            console.log('✅ 产品明细加载成功:', formData.products.length, '个产品')
+          } else {
+            console.log('⚠️ 无产品明细,使用默认空行')
+            formData.products = [{
+              productCode: '',
+              productName: '',
+              productSpec: '',
+              productColor: '',
+              productUnit: '个',
+              orderQuantity: 1,
+              unitPriceExcludingTax: 0,
+              taxRate: 13,
+              accessories: []
+            }]
+          }
+          
+          // 4. 加载回款计划
+          const paymentsResponse = await salesOrderApi.getOrderPayments(order.id)
+          console.log('✅ 回款计划响应:', paymentsResponse)
+          if (paymentsResponse.success && paymentsResponse.data && paymentsResponse.data.length > 0) {
+            formData.paymentSchedule = paymentsResponse.data.map(p => ({
+              plannedDate: p.payment_date,
+              plannedAmount: p.payment_amount || 0,
+              remark: p.remark || ''
+            }))
+            console.log('✅ 回款计划加载成功:', formData.paymentSchedule.length, '条记录')
+          } else {
+            console.log('⚠️ 无回款计划,使用默认空行')
+            formData.paymentSchedule = [{
+              plannedDate: '',
+              plannedAmount: 0,
+              remark: ''
+            }]
+          }
+          
+          console.log('✅ 编辑模式:订单数据完整加载成功', order.id)
+          ElMessage.success('订单数据加载成功')
+        } else {
+          console.error('❌ 订单主信息加载失败,响应:', response)
+          ElMessage.error('订单主信息加载失败')
+        }
+      } catch (error) {
+        console.error('❌ 加载订单数据失败:', error)
+        ElMessage.error('加载订单数据失败: ' + (error.message || '未知错误'))
+      }
+    } else {
+      console.log('ℹ️ 新增模式:无需加载数据')
+    }
+  },
+  { immediate: true }
+)
 
 // 客户选择变化事件
 const handleCustomerChange = (customerName) => {
@@ -1029,10 +1154,19 @@ const saveOrderData = async (closeAfterSave = false) => {
   }
   
   try {
-    const response = await salesOrderApi.createSalesOrder(orderData)
+    // 判断是创建还是更新
+    let response
+    if (formData.id) {
+      // 编辑模式 - 更新订单
+      response = await salesOrderApi.updateSalesOrder(formData.id, orderData)
+      console.log('✅ 订单更新成功:', response.data.data)
+    } else {
+      // 创建模式 - 新增订单
+      response = await salesOrderApi.createSalesOrder(orderData)
+      console.log('✅ 订单创建成功:', response.data.data)
+    }
     
     if (response.data.success) {
-      console.log('✅ 订单保存成功:', response.data.data)
       return true
     } else {
       ElMessage.error('保存失败:' + response.data.message)

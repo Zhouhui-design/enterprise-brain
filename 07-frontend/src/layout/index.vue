@@ -579,6 +579,18 @@ export default {
                   name: 'CapacityLoad',
                   meta: { title: '工序能力负荷表' },
                   icon: 'el-icon-s-data'
+                },
+                {
+                  path: '/mrp/plan-approve',
+                  name: 'MRPPlanApprove',
+                  meta: { title: 'MRP计划审核' },
+                  icon: 'el-icon-finished'
+                },
+                {
+                  path: '/mrp/material-demand',
+                  name: 'MaterialDemand',
+                  meta: { title: '物料需求明细' },
+                  icon: 'el-icon-document-copy'
                 }
               ]
             },

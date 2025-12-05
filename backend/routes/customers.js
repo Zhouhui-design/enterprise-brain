@@ -132,7 +132,8 @@ router.get('/:id', async (req, res) => {
  * 创建新客户
  * POST /api/customers
  */
-router.post('/', (req, res) => {
+router.post('/', async (req, res) => {
+  let connection
   try {
     console.log('=== 创建客户 ===')
     console.log('请求数据:', req.body)
@@ -147,15 +148,11 @@ router.post('/', (req, res) => {
       contactEmail,
       contactAddress,
       company,
-      companyAddress,
       industry,
       region,
       taxNumber,
-      creditLevel,
       creditLimit = 0,
       salesPerson,
-      source,
-      tags,
       remark,
       createdBy = 'admin'
     } = req.body
@@ -168,54 +165,47 @@ router.post('/', (req, res) => {
       })
     }
     
-   // 自动生成客户编号（如果没有提供）
-let finalCustomerCode = customerCode
-if (!finalCustomerCode) {
-  // 生成格式：C + 年份 + 递增编号
-  const year = new Date().getFullYear()
-  const count = db.prepare('SELECT COUNT(*) as count FROM customers').get().count
-  finalCustomerCode = `C${year}${String(count + 1).padStart(4, '0')}`
-  
-  console.log('自动生成客户编号:', finalCustomerCode)
-}
-
-// 检查客户编号是否已存在
-const existing = db.prepare('SELECT id FROM customers WHERE customer_code = ?').get(finalCustomerCode)
-if (existing) {
-  return res.status(400).json({
-    success: false,
-    message: '客户编号已存在'
-  })
-}
+    connection = await pool.getConnection()
     
-    // 生成UUID
-    const { v4: uuidv4 } = require('uuid')
-    const id = uuidv4()
+    // 自动生成客户编号（如果没有提供）
+    let finalCustomerCode = customerCode
+    if (!finalCustomerCode) {
+      const year = new Date().getFullYear()
+      const [countResult] = await connection.execute('SELECT COUNT(*) as count FROM customers')
+      const count = countResult[0].count
+      finalCustomerCode = `C${year}${String(count + 1).padStart(4, '0')}`
+      console.log('自动生成客户编号:', finalCustomerCode)
+    }
+
+    // 检查客户编号是否已存在
+    const [existing] = await connection.execute('SELECT id FROM customers WHERE customer_code = ?', [finalCustomerCode])
+    if (existing && existing.length > 0) {
+      return res.status(400).json({
+        success: false,
+        message: '客户编号已存在'
+      })
+    }
     
     // 插入数据
-    const stmt = db.prepare(`
+    await connection.execute(`
       INSERT INTO customers (
-        id, customer_code, customer_name, customer_type, status,
+        customer_code, customer_name, customer_type, status,
         contact_person, contact_phone, contact_email, contact_address,
-        company, company_address, industry, region, tax_number,
-        credit_level, credit_limit, sales_person, source,
-        tags, remark, created_by,
-        created_at, updated_at
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'), datetime('now'))
-    `)
-    
-    const result = stmt.run(
-      id, finalCustomerCode, customerName, customerType, status,
-      contactPerson, contactPhone, contactEmail, contactAddress,
-      company, companyAddress, industry, region, taxNumber,
-      creditLevel, creditLimit, salesPerson, source,
-      tags ? JSON.stringify(tags) : null, remark, createdBy
-    )
+        company, industry, region, tax_number,
+        credit_limit, sales_person, remark, created_by
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `, [
+      finalCustomerCode, customerName, customerType, status,
+      contactPerson || null, contactPhone || null, contactEmail || null, contactAddress || null,
+      company || null, industry || null, region || null, taxNumber || null,
+      creditLimit, salesPerson || null, remark || null, createdBy
+    ])
     
     // 获取创建的客户
-    const newCustomer = db.prepare('SELECT * FROM customers WHERE id = ?').get(id)
+    const [newCustomers] = await connection.execute('SELECT * FROM customers WHERE customer_code = ?', [finalCustomerCode])
+    const newCustomer = newCustomers[0]
     
-    console.log('✅ 创建成功，ID:', id)
+    console.log('✅ 创建成功，ID:', newCustomer.id)
     
     res.json({
       success: true,
@@ -229,6 +219,8 @@ if (existing) {
       message: '创建客户失败',
       error: error.message
     })
+  } finally {
+    if (connection) connection.release()
   }
 })
 
@@ -423,15 +415,24 @@ router.post('/batch-delete', (req, res) => {
  * 获取客户统计信息
  * GET /api/customers/stats
  */
-router.get('/statistics/overview', (req, res) => {
+router.get('/statistics/overview', async (req, res) => {
+  let connection
   try {
     console.log('=== 获取客户统计信息 ===')
     
+    connection = await pool.getConnection()
+    
+    // 获取各项统计
+    const [totalResult] = await connection.execute('SELECT COUNT(*) as count FROM customers')
+    const [vipResult] = await connection.execute("SELECT COUNT(*) as count FROM customers WHERE customer_type = 'vip'")
+    const [activeResult] = await connection.execute("SELECT COUNT(*) as count FROM customers WHERE status = 'active'")
+    const [revenueResult] = await connection.execute('SELECT SUM(credit_limit) as total FROM customers')
+    
     const stats = {
-      total: db.prepare('SELECT COUNT(*) as count FROM customers').get().count,
-      vip: db.prepare("SELECT COUNT(*) as count FROM customers WHERE customer_type = 'vip'").get().count,
-      active: db.prepare("SELECT COUNT(*) as count FROM customers WHERE status = 'active'").get().count,
-      totalRevenue: db.prepare('SELECT SUM(total_amount) as total FROM customers').get().total || 0
+      total: totalResult[0].count,
+      vip: vipResult[0].count,
+      active: activeResult[0].count,
+      totalRevenue: revenueResult[0].total || 0
     }
     
     console.log('✅ 统计成功:', stats)
@@ -447,6 +448,8 @@ router.get('/statistics/overview', (req, res) => {
       message: '获取统计信息失败',
       error: error.message
     })
+  } finally {
+    if (connection) connection.release()
   }
 })
 

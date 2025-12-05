@@ -318,7 +318,7 @@
 
 <script>
 import axios from 'axios'
-import { Message, Notification } from 'element-ui'
+import { ElMessage, ElNotification } from 'element-plus'
 
 export default {
   name: 'OperationSequence',
@@ -439,7 +439,7 @@ export default {
       this.connections = []
       this.selectedOperationId = null
       this.selectedOperations = []
-      Message.success('已创建新的工序顺序')
+      ElMessage.success('已创建新的工序顺序')
     },
     
     // 生成顺序编号
@@ -451,7 +451,7 @@ export default {
     // 保存顺序
     async saveSequence() {
       if (!this.sequenceInfo.code) {
-        Message.error('请先创建顺序')
+        ElMessage.error('请先创建顺序')
         return
       }
       
@@ -459,27 +459,27 @@ export default {
         // 模拟保存操作
         setTimeout(() => {
           this.sequenceInfo.updatedTime = new Date()
-          Message.success('保存成功')
+          ElMessage.success('保存成功')
         }, 500)
       } catch (error) {
-        Message.error('保存失败: ' + error.message)
+        ElMessage.error('保存失败: ' + error.message)
       }
     },
     
     // 导入顺序
     importSequence() {
-      Message.info('导入功能待实现')
+      ElMessage.info('导入功能待实现')
     },
     
     // 导出顺序
     exportSequence() {
       if (!this.operations.length) {
-        Message.error('没有数据可导出')
+        ElMessage.error('没有数据可导出')
         return
       }
       
       // 模拟导出操作
-      Message.success('导出成功')
+      ElMessage.success('导出成功')
     },
     
     // 路线变更处理
@@ -509,7 +509,7 @@ export default {
         
         // 生成连接关系
         this.generateConnections()
-        Message.success('已加载路线关联的工序')
+        ElMessage.success('已加载路线关联的工序')
       }
     },
     
@@ -575,7 +575,7 @@ export default {
           
           // 关闭抽屉
           this.operationDrawerVisible = false
-          Message.success('保存成功')
+          ElMessage.success('保存成功')
         }
       })
     },
@@ -617,7 +617,7 @@ export default {
           this.selectedOperationId = null
         }
         
-        Message.success('删除成功')
+        ElMessage.success('删除成功')
       }).catch(() => {
         // 取消删除
       })
@@ -626,7 +626,7 @@ export default {
     // 删除选中的工序
     deleteSelectedOperation() {
       if (!this.selectedOperations.length) {
-        Message.warning('请先选择要删除的工序')
+        ElMessage.warning('请先选择要删除的工序')
         return
       }
       
@@ -654,7 +654,7 @@ export default {
         this.selectedOperationId = null
         this.selectedOperations = []
         
-        Message.success('删除成功')
+        ElMessage.success('删除成功')
       }).catch(() => {
         // 取消删除
       })
@@ -817,7 +817,7 @@ export default {
         operation.predecessors = [...this.predecessorForm.selectedPredecessors]
         this.generateConnections()
         this.predecessorDialogVisible = false
-        Message.success('前置工序设置成功')
+        ElMessage.success('前置工序设置成功')
       }
     },
     
@@ -939,7 +939,7 @@ export default {
       })
       
       if (hasCycle) {
-        Message.warning('工序依赖关系中存在循环依赖，无法排序')
+        ElMessage.warning('工序依赖关系中存在循环依赖，无法排序')
         return
       }
       
@@ -953,7 +953,7 @@ export default {
         }
       })
       
-      Message.success('工序排序完成')
+      ElMessage.success('工序排序完成')
     },
     
     // 重置布局

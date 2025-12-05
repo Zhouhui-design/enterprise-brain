@@ -13,6 +13,21 @@ export const salesOrderApi = {
   getSalesOrderById(id) {
     return axios.get(`${API_BASE_URL}/sales-orders/${id}`)
   },
+  
+  // 获取订单详情(别名,与查看页面兼容)
+  getOrderDetail(id) {
+    return axios.get(`${API_BASE_URL}/sales-orders/${id}`).then(res => res.data)
+  },
+  
+  // 获取订单产品明细
+  getOrderProducts(orderId) {
+    return axios.get(`${API_BASE_URL}/sales-orders/${orderId}/products`).then(res => res.data)
+  },
+  
+  // 获取订单回款计划
+  getOrderPayments(orderId) {
+    return axios.get(`${API_BASE_URL}/sales-orders/${orderId}/payments`).then(res => res.data)
+  },
 
   // 创建销售订单
   createSalesOrder(data) {

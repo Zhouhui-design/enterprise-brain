@@ -262,9 +262,24 @@ const applyColumnSettings = () => {
 
 // 格式化统计值
 const formatSummaryValue = (column, value) => {
-  if (column.format) {
+  // 如果format是函数，直接调用
+  if (typeof column.format === 'function') {
     return column.format(value)
   }
+  // 如果format是字符串，根据类型格式化
+  if (typeof column.format === 'string') {
+    switch (column.format) {
+      case 'number':
+        return value?.toLocaleString() || '0'
+      case 'money':
+        return `¥${value?.toFixed(2) || '0.00'}`
+      case 'percent':
+        return `${value?.toFixed(2) || '0'}%`
+      default:
+        return value || 0
+    }
+  }
+  // 如果没有format，根据type格式化
   if (column.type === 'money') {
     return `¥${value?.toFixed(2) || '0.00'}`
   }

@@ -511,6 +511,9 @@ const drawArrow = (svg, x1, y1, x2, y2) => {
   verticalLine.setAttribute('y1', y1)
   verticalLine.setAttribute('x2', midX)
   verticalLine.setAttribute('y2', y2)
+  verticalLine.setAttribute('stroke', '#409EFF')
+  verticalLine.setAttribute('stroke-width', '1.5')
+  verticalLine.setAttribute('opacity', '0.6')
   svg.appendChild(verticalLine)
   
   // 创建水平线（从转弯点到子节点左侧）
@@ -521,7 +524,7 @@ const drawArrow = (svg, x1, y1, x2, y2) => {
   finalHorizontalLine.setAttribute('y2', y2)
   finalHorizontalLine.setAttribute('stroke', '#409EFF')
   finalHorizontalLine.setAttribute('stroke-width', '1.5')
-  finalLine.setAttribute('opacity', '0.6')
+  finalHorizontalLine.setAttribute('opacity', '0.6')
   svg.appendChild(finalHorizontalLine)
 
   // 创建箭头头部（指向子节点）
@@ -930,13 +933,27 @@ const handleScroll = () => {
 }
 
 .bom-cell {
-  width: 220px;
-  background: white;
-  border: 2px solid #e4e7ed;
-  border-radius: 8px;
-  padding: 12px;
-  box-shadow: 0 2px 8px rgba(0,0,0,0.08);
-  transition: all 0.3s;
+  width: 240px;
+  background: linear-gradient(135deg, #ffffff 0%, #f8f9fa 100%);
+  border: 2px solid #dcdfe6;
+  border-radius: 12px;
+  padding: 16px;
+  box-shadow: 0 2px 12px rgba(0,0,0,0.1);
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  position: relative;
+  overflow: hidden;
+  
+  &::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 4px;
+    background: linear-gradient(90deg, #409EFF, #67C23A);
+    opacity: 0;
+    transition: opacity 0.3s;
+  }
   
   &.cell-hidden {
     display: none;
@@ -944,18 +961,29 @@ const handleScroll = () => {
   
   &.cell-active {
     border-color: #409EFF;
-    box-shadow: 0 4px 12px rgba(64, 158, 255, 0.2);
+    box-shadow: 0 4px 20px rgba(64, 158, 255, 0.25);
+    background: linear-gradient(135deg, #ffffff 0%, #ecf5ff 100%);
+    
+    &::before {
+      opacity: 1;
+    }
   }
   
   &.cell-warning {
     border-color: #f56c6c !important;
-    background: #fef0f0;
-    box-shadow: 0 0 8px rgba(245, 108, 108, 0.4);
+    background: linear-gradient(135deg, #fef0f0 0%, #fde2e2 100%);
+    box-shadow: 0 4px 16px rgba(245, 108, 108, 0.3);
+    
+    &::before {
+      background: #f56c6c;
+      opacity: 1;
+    }
   }
   
   &:hover {
-    transform: translateY(-2px);
-    box-shadow: 0 4px 16px rgba(0,0,0,0.12);
+    transform: translateY(-4px) scale(1.02);
+    box-shadow: 0 8px 24px rgba(0,0,0,0.15);
+    border-color: #409EFF;
   }
 }
 
@@ -963,47 +991,64 @@ const handleScroll = () => {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: 12px;
-  padding-bottom: 8px;
-  border-bottom: 1px solid #e4e7ed;
+  margin-bottom: 14px;
+  padding-bottom: 10px;
+  border-bottom: 2px solid #e4e7ed;
   
   .cell-address {
-    font-size: 14px;
-    font-weight: 600;
-    color: #303133;
+    font-size: 13px;
+    font-weight: 700;
+    color: #409EFF;
+    letter-spacing: 0.5px;
+    text-shadow: 0 1px 2px rgba(64, 158, 255, 0.1);
   }
   
   .cell-badge {
     font-size: 11px;
-    padding: 2px 8px;
-    background: #ecf5ff;
+    padding: 3px 10px;
+    background: linear-gradient(135deg, #ecf5ff, #d9ecff);
     color: #409EFF;
-    border-radius: 10px;
+    border-radius: 12px;
+    font-weight: 600;
+    box-shadow: 0 1px 4px rgba(64, 158, 255, 0.2);
   }
 }
 
 .cell-body {
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 10px;
 }
 
 .cell-field {
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: 5px;
   
   .field-label {
     font-size: 12px;
     color: #606266;
+    font-weight: 600;
+    letter-spacing: 0.3px;
   }
   
   :deep(.el-input__inner) {
-    font-size: 12px;
+    font-size: 13px;
+    border-radius: 6px;
+    transition: all 0.3s;
+    
+    &:focus {
+      border-color: #409EFF;
+      box-shadow: 0 0 0 2px rgba(64, 158, 255, 0.1);
+    }
   }
   
   :deep(.el-input-number) {
     width: 100%;
+    
+    .el-input__inner {
+      text-align: left;
+    }
   }
 }
 </style>

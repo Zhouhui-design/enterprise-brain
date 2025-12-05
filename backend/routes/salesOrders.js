@@ -4,6 +4,23 @@ const pool = require('../config/database')
 const { v4: uuidv4 } = require('uuid')
 
 /**
+ * 将ISO日期格式转换为MySQL DATETIME格式
+ * @param {string} isoDate - ISO格式的日期字符串
+ * @returns {string|null} - MySQL DATETIME格式或null
+ */
+function formatDateForMySQL(isoDate) {
+  if (!isoDate) return null
+  try {
+    const date = new Date(isoDate)
+    if (isNaN(date.getTime())) return null
+    // 格式: YYYY-MM-DD HH:MM:SS
+    return date.toISOString().slice(0, 19).replace('T', ' ')
+  } catch (error) {
+    return null
+  }
+}
+
+/**
  * 获取销售订单列表
  * GET /api/sales-orders
  */
@@ -219,18 +236,18 @@ router.post('/', async (req, res) => {
           status, created_by
         ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       `, [
-        id, internalOrderNo, customerOrderNo, customerName, customerId,
-        salesperson, quotationNo, orderType,
-        orderTime, promisedDelivery, customerDelivery, estimatedCompletionDate,
-        salesDepartment, deliveryMethod, returnOrderNo,
+        id, internalOrderNo, customerOrderNo || null, customerName, customerId || null,
+        salesperson || null, quotationNo || null, orderType || null,
+        formatDateForMySQL(orderTime), formatDateForMySQL(promisedDelivery), formatDateForMySQL(customerDelivery), formatDateForMySQL(estimatedCompletionDate),
+        salesDepartment || null, deliveryMethod || null, returnOrderNo || null,
         orderCurrency, currentExchangeRate, taxRate, fees,
         totalAmount, totalAmountExcludingTax, totalTax,
-        orderAttachment, packagingAttachment, orderNotes,
-        packagingMethod, packagingRequirements,
-        consignee, deliveryAddress, billRecipient, billAddress,
-        paymentMethod, advancePaymentRatio, advancePaymentAmount,
-        plannedPaymentAccount, totalReceivable,
-        hasAfterSales, afterSalesOrderNo, afterSalesDetails,
+        orderAttachment || null, packagingAttachment || null, orderNotes || null,
+        packagingMethod || null, packagingRequirements || null,
+        consignee || null, deliveryAddress || null, billRecipient || null, billAddress || null,
+        paymentMethod || null, advancePaymentRatio, advancePaymentAmount,
+        plannedPaymentAccount || null, totalReceivable,
+        hasAfterSales, afterSalesOrderNo || null, afterSalesDetails || null,
         status, createdBy
       ])
       
@@ -244,9 +261,18 @@ router.post('/', async (req, res) => {
               total_price_excluding_tax, total_tax, total_price, accessories
             ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
           `, [
-            id, product.productCode, product.productName, product.productSpec, product.productColor,
-            product.productUnit, product.orderQuantity, product.unitPriceExcludingTax, product.taxRate,
-            product.totalPriceExcludingTax, product.totalTax, product.totalPrice,
+            id, 
+            product.productCode || null, 
+            product.productName || null, 
+            product.productSpec || null, 
+            product.productColor || null,
+            product.productUnit || null, 
+            product.orderQuantity || 0, 
+            product.unitPriceExcludingTax || 0, 
+            product.taxRate || 0,
+            product.totalPriceExcludingTax || 0, 
+            product.totalTax || 0, 
+            product.totalPrice || 0,
             product.accessories ? JSON.stringify(product.accessories) : null
           ])
         }
@@ -260,7 +286,11 @@ router.post('/', async (req, res) => {
               order_id, payment_ratio, payment_amount, payment_date, payment_account
             ) VALUES (?, ?, ?, ?, ?)
           `, [
-            id, payment.paymentRatio, payment.paymentAmount, payment.paymentDate, payment.paymentAccount
+            id, 
+            payment.paymentRatio || 0, 
+            payment.paymentAmount || 0, 
+            formatDateForMySQL(payment.paymentDate), 
+            payment.paymentAccount || null
           ])
         }
       }
@@ -512,6 +542,66 @@ router.post('/batch-delete', async (req, res) => {
     res.status(500).json({
       success: false,
       message: '批量删除订单失败',
+      error: error.message
+    })
+  } finally {
+    if (connection) connection.release()
+  }
+})
+
+/**
+ * 获取订单产品明细
+ * GET /api/sales-orders/:id/products
+ */
+router.get('/:id/products', async (req, res) => {
+  let connection
+  try {
+    const { id } = req.params
+    console.log('=== 获取订单产品明细 ===', id)
+    
+    connection = await pool.getConnection()
+    const [products] = await connection.execute('SELECT * FROM sales_order_products WHERE order_id = ?', [id])
+    
+    console.log('✅ 获取产品明细成功')
+    res.json({
+      success: true,
+      data: products
+    })
+  } catch (error) {
+    console.error('❌ 获取产品明细失败:', error)
+    res.status(500).json({
+      success: false,
+      message: '获取产品明细失败',
+      error: error.message
+    })
+  } finally {
+    if (connection) connection.release()
+  }
+})
+
+/**
+ * 获取订单回款计划
+ * GET /api/sales-orders/:id/payments
+ */
+router.get('/:id/payments', async (req, res) => {
+  let connection
+  try {
+    const { id } = req.params
+    console.log('=== 获取订单回款计划 ===', id)
+    
+    connection = await pool.getConnection()
+    const [payments] = await connection.execute('SELECT * FROM sales_order_payment_schedule WHERE order_id = ?', [id])
+    
+    console.log('✅ 获取回款计划成功')
+    res.json({
+      success: true,
+      data: payments
+    })
+  } catch (error) {
+    console.error('❌ 获取回款计划失败:', error)
+    res.status(500).json({
+      success: false,
+      message: '获取回款计划失败',
       error: error.message
     })
   } finally {
