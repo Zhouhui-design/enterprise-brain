@@ -389,7 +389,7 @@ const updateLayout = () => {
   })
 }
 
-// 绘制连接线
+// 绘制连接线（直线90转弯样式）
 const drawConnections = () => {
   if (!showConnections.value) {
     if (connectionLayer.value) {
@@ -489,23 +489,45 @@ const drawLevelConnections = (parentLevel, childLevel) => {
   }
 }
 
-// 绘制箭头
+// 绘制直线90转弯连接（组织架构样式）
 const drawArrow = (svg, x1, y1, x2, y2) => {
-  // 创建连接线
-  const line = document.createElementNS('http://www.w3.org/2000/svg', 'line')
-  line.setAttribute('x1', x1)
-  line.setAttribute('y1', y1)
-  line.setAttribute('x2', x2)
-  line.setAttribute('y2', y2)
-  line.setAttribute('stroke', '#409EFF')
-  line.setAttribute('stroke-width', '1.5')
-  line.setAttribute('opacity', '0.6')
-  svg.appendChild(line)
+  // 计算转弯点（水平线终点，垂直线起点）
+  const midX = x2 - 20 // 留20px空间给箭头
+  
+  // 创建水平线（从父节点右侧到转弯点）
+  const horizontalLine = document.createElementNS('http://www.w3.org/2000/svg', 'line')
+  horizontalLine.setAttribute('x1', x1)
+  horizontalLine.setAttribute('y1', y1)
+  horizontalLine.setAttribute('x2', midX)
+  horizontalLine.setAttribute('y2', y1)
+  horizontalLine.setAttribute('stroke', '#409EFF')
+  horizontalLine.setAttribute('stroke-width', '1.5')
+  horizontalLine.setAttribute('opacity', '0.6')
+  svg.appendChild(horizontalLine)
+  
+  // 创建垂直线（从转弯点到子节点）
+  const verticalLine = document.createElementNS('http://www.w3.org/2000/svg', 'line')
+  verticalLine.setAttribute('x1', midX)
+  verticalLine.setAttribute('y1', y1)
+  verticalLine.setAttribute('x2', midX)
+  verticalLine.setAttribute('y2', y2)
+  svg.appendChild(verticalLine)
+  
+  // 创建水平线（从转弯点到子节点左侧）
+  const finalHorizontalLine = document.createElementNS('http://www.w3.org/2000/svg', 'line')
+  finalHorizontalLine.setAttribute('x1', midX)
+  finalHorizontalLine.setAttribute('y1', y2)
+  finalHorizontalLine.setAttribute('x2', x2)
+  finalHorizontalLine.setAttribute('y2', y2)
+  finalHorizontalLine.setAttribute('stroke', '#409EFF')
+  finalHorizontalLine.setAttribute('stroke-width', '1.5')
+  finalLine.setAttribute('opacity', '0.6')
+  svg.appendChild(finalHorizontalLine)
 
-  // 创建箭头头部
+  // 创建箭头头部（指向子节点）
   const arrowSize = 6
   const polygon = document.createElementNS('http://www.w3.org/2000/svg', 'polygon')
-  const points = `${x2},${y2} ${x2 + arrowSize},${y2 - arrowSize} ${x2 + arrowSize},${y2 + arrowSize}`
+  const points = `${x2},${y2} ${x2 - arrowSize},${y2 - arrowSize/2} ${x2 - arrowSize},${y2 + arrowSize/2}`
   polygon.setAttribute('points', points)
   polygon.setAttribute('fill', '#409EFF')
   polygon.setAttribute('opacity', '0.6')

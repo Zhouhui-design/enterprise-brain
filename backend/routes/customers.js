@@ -1,6 +1,6 @@
 const express = require('express')
 const router = express.Router()
-const db = require('../config/database')
+const pool = require('../config/database')
 
 // ==================== 客户管理API ====================
 
@@ -9,6 +9,7 @@ const db = require('../config/database')
  * GET /api/customers
  */
 router.get('/', async (req, res) => {
+  let connection
   try {
     console.log('=== 获取客户列表 ===')
     
@@ -48,20 +49,23 @@ router.get('/', async (req, res) => {
     
     const whereSQL = whereClause.length > 0 ? 'WHERE ' + whereClause.join(' AND ') : ''
     
+    connection = await pool.getConnection()
+    
     // 获取总数
     const countSQL = `SELECT COUNT(*) as total FROM customers ${whereSQL}`
-    const countResult = db.prepare(countSQL).get(...params)
-    const total = countResult.total
+    const [countResult] = await connection.execute(countSQL, params)
+    const total = countResult[0].total
     
     // 获取分页数据
-    const offset = (page - 1) * pageSize
+    const offset = (parseInt(page) - 1) * parseInt(pageSize)
+    const limitPageSize = parseInt(pageSize)
     const dataSQL = `
       SELECT * FROM customers 
       ${whereSQL}
       ORDER BY created_at DESC 
-      LIMIT ? OFFSET ?
+      LIMIT ${limitPageSize} OFFSET ${offset}
     `
-    const customers = db.prepare(dataSQL).all(...params, parseInt(pageSize), offset)
+    const [customers] = await connection.execute(dataSQL, params)
     
     console.log(`✅ 查询成功，共 ${total} 条记录，当前页 ${customers.length} 条`)
     
@@ -81,6 +85,8 @@ router.get('/', async (req, res) => {
       message: '获取客户列表失败',
       error: error.message
     })
+  } finally {
+    if (connection) connection.release()
   }
 })
 
@@ -88,12 +94,15 @@ router.get('/', async (req, res) => {
  * 根据ID获取客户详情
  * GET /api/customers/:id
  */
-router.get('/:id', (req, res) => {
+router.get('/:id', async (req, res) => {
+  let connection
   try {
     const { id } = req.params
     console.log('=== 获取客户详情 ===', id)
     
-    const customer = db.prepare('SELECT * FROM customers WHERE id = ?').get(id)
+    connection = await pool.getConnection()
+    const [customers] = await connection.execute('SELECT * FROM customers WHERE id = ?', [id])
+    const customer = customers[0]
     
     if (!customer) {
       return res.status(404).json({
@@ -114,6 +123,8 @@ router.get('/:id', (req, res) => {
       message: '获取客户详情失败',
       error: error.message
     })
+  } finally {
+    if (connection) connection.release()
   }
 })
 

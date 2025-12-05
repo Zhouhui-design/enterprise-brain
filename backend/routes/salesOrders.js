@@ -1,12 +1,14 @@
 const express = require('express')
 const router = express.Router()
-const db = require('../config/database')
+const pool = require('../config/database')
+const { v4: uuidv4 } = require('uuid')
 
 /**
  * 获取销售订单列表
  * GET /api/sales-orders
  */
-router.get('/', (req, res) => {
+router.get('/', async (req, res) => {
+  let connection
   try {
     const { page = 1, pageSize = 20, status, customerName, search } = req.query
     
@@ -32,17 +34,23 @@ router.get('/', (req, res) => {
     
     const whereSQL = whereClause.length > 0 ? 'WHERE ' + whereClause.join(' AND ') : ''
     
-    const countSQL = `SELECT COUNT(*) as total FROM sales_orders ${whereSQL}`
-    const total = db.prepare(countSQL).get(...params).total
+    connection = await pool.getConnection()
     
-    const offset = (page - 1) * pageSize
+    // 查询总数
+    const countSQL = `SELECT COUNT(*) as total FROM sales_orders ${whereSQL}`
+    const [countResult] = await connection.execute(countSQL, params)
+    const total = countResult[0].total
+    
+    // 分页查询
+    const offset = (parseInt(page) - 1) * parseInt(pageSize)
+    const limitPageSize = parseInt(pageSize)
     const dataSQL = `
       SELECT * FROM sales_orders 
       ${whereSQL}
       ORDER BY created_at DESC 
-      LIMIT ? OFFSET ?
+      LIMIT ${limitPageSize} OFFSET ${offset}
     `
-    const orders = db.prepare(dataSQL).all(...params, parseInt(pageSize), offset)
+    const [orders] = await connection.execute(dataSQL, params)
     
     console.log(`✅ 查询成功，共 ${total} 条记录，当前页 ${orders.length} 条`)
     
@@ -62,6 +70,8 @@ router.get('/', (req, res) => {
       message: '获取销售订单列表失败',
       error: error.message
     })
+  } finally {
+    if (connection) connection.release()
   }
 })
 
@@ -69,25 +79,30 @@ router.get('/', (req, res) => {
  * 根据ID获取订单详情
  * GET /api/sales-orders/:id
  */
-router.get('/:id', (req, res) => {
+router.get('/:id', async (req, res) => {
+  let connection
   try {
     const { id } = req.params
     console.log('=== 获取订单详情 ===', id)
     
-    const order = db.prepare('SELECT * FROM sales_orders WHERE id = ?').get(id)
+    connection = await pool.getConnection()
     
-    if (!order) {
+    const [orders] = await connection.execute('SELECT * FROM sales_orders WHERE id = ?', [id])
+    
+    if (!orders || orders.length === 0) {
       return res.status(404).json({
         success: false,
         message: '订单不存在'
       })
     }
     
+    const order = orders[0]
+    
     // 获取产品明细
-    const products = db.prepare('SELECT * FROM sales_order_products WHERE order_id = ?').all(id)
+    const [products] = await connection.execute('SELECT * FROM sales_order_products WHERE order_id = ?', [id])
     
     // 获取回款计划
-    const paymentSchedule = db.prepare('SELECT * FROM sales_order_payment_schedule WHERE order_id = ?').all(id)
+    const [paymentSchedule] = await connection.execute('SELECT * FROM sales_order_payment_schedule WHERE order_id = ?', [id])
     
     console.log('✅ 获取成功')
     res.json({
@@ -105,6 +120,8 @@ router.get('/:id', (req, res) => {
       message: '获取订单详情失败',
       error: error.message
     })
+  } finally {
+    if (connection) connection.release()
   }
 })
 
@@ -112,17 +129,20 @@ router.get('/:id', (req, res) => {
  * 创建销售订单
  * POST /api/sales-orders
  */
-router.post('/', (req, res) => {
+router.post('/', async (req, res) => {
+  let connection
   try {
     console.log('=== 创建销售订单 ===')
     console.log('请求数据:', JSON.stringify(req.body, null, 2))
     
-    const { v4: uuidv4 } = require('uuid')
     const id = uuidv4()
+    
+    connection = await pool.getConnection()
     
     // 自动生成内部订单编号
     const year = new Date().getFullYear()
-    const count = db.prepare('SELECT COUNT(*) as count FROM sales_orders').get().count
+    const [countResult] = await connection.execute('SELECT COUNT(*) as count FROM sales_orders')
+    const count = countResult[0].count
     const internalOrderNo = `SO${year}${String(count + 1).padStart(6, '0')}`
     
     const {
@@ -177,87 +197,92 @@ router.post('/', (req, res) => {
       })
     }
     
-    // 插入主订单
-    const stmt = db.prepare(`
-      INSERT INTO sales_orders (
-        id, internal_order_no, customer_order_no, customer_name, customer_id,
-        salesperson, quotation_no, order_type,
-        order_time, promised_delivery, customer_delivery, estimated_completion_date,
-        sales_department, delivery_method, return_order_no,
-        order_currency, current_exchange_rate, tax_rate, fees,
-        total_amount, total_amount_excluding_tax, total_tax,
-        order_attachment, packaging_attachment, order_notes,
-        packaging_method, packaging_requirements,
-        consignee, delivery_address, bill_recipient, bill_address,
-        payment_method, advance_payment_ratio, advance_payment_amount,
-        planned_payment_account, total_receivable,
-        has_after_sales, after_sales_order_no, after_sales_details,
-        status, created_by,
-        created_at, updated_at
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'), datetime('now'))
-    `)
+    // 开始事务
+    await connection.beginTransaction()
     
-    stmt.run(
-      id, internalOrderNo, customerOrderNo, customerName, customerId,
-      salesperson, quotationNo, orderType,
-      orderTime, promisedDelivery, customerDelivery, estimatedCompletionDate,
-      salesDepartment, deliveryMethod, returnOrderNo,
-      orderCurrency, currentExchangeRate, taxRate, fees,
-      totalAmount, totalAmountExcludingTax, totalTax,
-      orderAttachment, packagingAttachment, orderNotes,
-      packagingMethod, packagingRequirements,
-      consignee, deliveryAddress, billRecipient, billAddress,
-      paymentMethod, advancePaymentRatio, advancePaymentAmount,
-      plannedPaymentAccount, totalReceivable,
-      hasAfterSales, afterSalesOrderNo, afterSalesDetails,
-      status, createdBy
-    )
-    
-    // 插入产品明细
-    if (products && products.length > 0) {
-      const productStmt = db.prepare(`
-        INSERT INTO sales_order_products (
-          order_id, product_code, product_name, product_spec, product_color,
-          product_unit, order_quantity, unit_price_excluding_tax, tax_rate,
-          total_price_excluding_tax, total_tax, total_price, accessories
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-      `)
+    try {
+      // 插入主订单
+      await connection.execute(`
+        INSERT INTO sales_orders (
+          id, internal_order_no, customer_order_no, customer_name, customer_id,
+          salesperson, quotation_no, order_type,
+          order_time, promised_delivery, customer_delivery, estimated_completion_date,
+          sales_department, delivery_method, return_order_no,
+          order_currency, current_exchange_rate, tax_rate, fees,
+          total_amount, total_amount_excluding_tax, total_tax,
+          order_attachment, packaging_attachment, order_notes,
+          packaging_method, packaging_requirements,
+          consignee, delivery_address, bill_recipient, bill_address,
+          payment_method, advance_payment_ratio, advance_payment_amount,
+          planned_payment_account, total_receivable,
+          has_after_sales, after_sales_order_no, after_sales_details,
+          status, created_by
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      `, [
+        id, internalOrderNo, customerOrderNo, customerName, customerId,
+        salesperson, quotationNo, orderType,
+        orderTime, promisedDelivery, customerDelivery, estimatedCompletionDate,
+        salesDepartment, deliveryMethod, returnOrderNo,
+        orderCurrency, currentExchangeRate, taxRate, fees,
+        totalAmount, totalAmountExcludingTax, totalTax,
+        orderAttachment, packagingAttachment, orderNotes,
+        packagingMethod, packagingRequirements,
+        consignee, deliveryAddress, billRecipient, billAddress,
+        paymentMethod, advancePaymentRatio, advancePaymentAmount,
+        plannedPaymentAccount, totalReceivable,
+        hasAfterSales, afterSalesOrderNo, afterSalesDetails,
+        status, createdBy
+      ])
       
-      for (const product of products) {
-        productStmt.run(
-          id, product.productCode, product.productName, product.productSpec, product.productColor,
-          product.productUnit, product.orderQuantity, product.unitPriceExcludingTax, product.taxRate,
-          product.totalPriceExcludingTax, product.totalTax, product.totalPrice,
-          product.accessories ? JSON.stringify(product.accessories) : null
-        )
+      // 插入产品明细
+      if (products && products.length > 0) {
+        for (const product of products) {
+          await connection.execute(`
+            INSERT INTO sales_order_products (
+              order_id, product_code, product_name, product_spec, product_color,
+              product_unit, order_quantity, unit_price_excluding_tax, tax_rate,
+              total_price_excluding_tax, total_tax, total_price, accessories
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+          `, [
+            id, product.productCode, product.productName, product.productSpec, product.productColor,
+            product.productUnit, product.orderQuantity, product.unitPriceExcludingTax, product.taxRate,
+            product.totalPriceExcludingTax, product.totalTax, product.totalPrice,
+            product.accessories ? JSON.stringify(product.accessories) : null
+          ])
+        }
       }
-    }
-    
-    // 插入回款计划
-    if (paymentSchedule && paymentSchedule.length > 0) {
-      const paymentStmt = db.prepare(`
-        INSERT INTO sales_order_payment_schedule (
-          order_id, payment_ratio, payment_amount, payment_date, payment_account
-        ) VALUES (?, ?, ?, ?, ?)
-      `)
       
-      for (const payment of paymentSchedule) {
-        paymentStmt.run(
-          id, payment.paymentRatio, payment.paymentAmount, payment.paymentDate, payment.paymentAccount
-        )
+      // 插入回款计划
+      if (paymentSchedule && paymentSchedule.length > 0) {
+        for (const payment of paymentSchedule) {
+          await connection.execute(`
+            INSERT INTO sales_order_payment_schedule (
+              order_id, payment_ratio, payment_amount, payment_date, payment_account
+            ) VALUES (?, ?, ?, ?, ?)
+          `, [
+            id, payment.paymentRatio, payment.paymentAmount, payment.paymentDate, payment.paymentAccount
+          ])
+        }
       }
+      
+      // 提交事务
+      await connection.commit()
+      
+      // 获取创建的订单
+      const [newOrders] = await connection.execute('SELECT * FROM sales_orders WHERE id = ?', [id])
+      
+      console.log('✅ 创建成功，订单号:', internalOrderNo)
+      
+      res.json({
+        success: true,
+        message: '创建订单成功',
+        data: newOrders[0]
+      })
+    } catch (error) {
+      // 回滚事务
+      await connection.rollback()
+      throw error
     }
-    
-    // 获取创建的订单
-    const newOrder = db.prepare('SELECT * FROM sales_orders WHERE id = ?').get(id)
-    
-    console.log('✅ 创建成功，订单号:', internalOrderNo)
-    
-    res.json({
-      success: true,
-      message: '创建订单成功',
-      data: newOrder
-    })
   } catch (error) {
     console.error('❌ 创建订单失败:', error)
     res.status(500).json({
@@ -265,6 +290,8 @@ router.post('/', (req, res) => {
       message: '创建订单失败',
       error: error.message
     })
+  } finally {
+    if (connection) connection.release()
   }
 })
 
@@ -272,14 +299,17 @@ router.post('/', (req, res) => {
  * 更新销售订单
  * PUT /api/sales-orders/:id
  */
-router.put('/:id', (req, res) => {
+router.put('/:id', async (req, res) => {
+  let connection
   try {
     const { id } = req.params
     console.log('=== 更新销售订单 ===', id)
     
+    connection = await pool.getConnection()
+    
     // 检查订单是否存在
-    const existing = db.prepare('SELECT id FROM sales_orders WHERE id = ?').get(id)
-    if (!existing) {
+    const [existing] = await connection.execute('SELECT id FROM sales_orders WHERE id = ?', [id])
+    if (!existing || existing.length === 0) {
       return res.status(404).json({
         success: false,
         message: '订单不存在'
@@ -304,89 +334,95 @@ router.put('/:id', (req, res) => {
       updatedBy = 'admin'
     } = req.body
     
-    // 更新主订单
-    const stmt = db.prepare(`
-      UPDATE sales_orders SET
-        customer_order_no = ?, customer_name = ?, customer_id = ?,
-        salesperson = ?, quotation_no = ?, order_type = ?,
-        order_time = ?, promised_delivery = ?, customer_delivery = ?, estimated_completion_date = ?,
-        sales_department = ?, delivery_method = ?, return_order_no = ?,
-        order_currency = ?, current_exchange_rate = ?, tax_rate = ?, fees = ?,
-        total_amount = ?, total_amount_excluding_tax = ?, total_tax = ?,
-        order_attachment = ?, packaging_attachment = ?, order_notes = ?,
-        packaging_method = ?, packaging_requirements = ?,
-        consignee = ?, delivery_address = ?, bill_recipient = ?, bill_address = ?,
-        payment_method = ?, advance_payment_ratio = ?, advance_payment_amount = ?,
-        planned_payment_account = ?, total_receivable = ?,
-        has_after_sales = ?, after_sales_order_no = ?, after_sales_details = ?,
-        status = ?, updated_by = ?, updated_at = datetime('now')
-      WHERE id = ?
-    `)
+    // 开始事务
+    await connection.beginTransaction()
     
-    stmt.run(
-      customerOrderNo, customerName, customerId, salesperson, quotationNo, orderType,
-      orderTime, promisedDelivery, customerDelivery, estimatedCompletionDate,
-      salesDepartment, deliveryMethod, returnOrderNo,
-      orderCurrency, currentExchangeRate, taxRate, fees,
-      totalAmount, totalAmountExcludingTax, totalTax,
-      orderAttachment, packagingAttachment, orderNotes,
-      packagingMethod, packagingRequirements,
-      consignee, deliveryAddress, billRecipient, billAddress,
-      paymentMethod, advancePaymentRatio, advancePaymentAmount,
-      plannedPaymentAccount, totalReceivable,
-      hasAfterSales, afterSalesOrderNo, afterSalesDetails,
-      status, updatedBy, id
-    )
-    
-    // 删除旧的产品明细和回款计划
-    db.prepare('DELETE FROM sales_order_products WHERE order_id = ?').run(id)
-    db.prepare('DELETE FROM sales_order_payment_schedule WHERE order_id = ?').run(id)
-    
-    // 重新插入产品明细
-    if (products && products.length > 0) {
-      const productStmt = db.prepare(`
-        INSERT INTO sales_order_products (
-          order_id, product_code, product_name, product_spec, product_color,
-          product_unit, order_quantity, unit_price_excluding_tax, tax_rate,
-          total_price_excluding_tax, total_tax, total_price, accessories
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-      `)
+    try {
+      // 更新主订单
+      await connection.execute(`
+        UPDATE sales_orders SET
+          customer_order_no = ?, customer_name = ?, customer_id = ?,
+          salesperson = ?, quotation_no = ?, order_type = ?,
+          order_time = ?, promised_delivery = ?, customer_delivery = ?, estimated_completion_date = ?,
+          sales_department = ?, delivery_method = ?, return_order_no = ?,
+          order_currency = ?, current_exchange_rate = ?, tax_rate = ?, fees = ?,
+          total_amount = ?, total_amount_excluding_tax = ?, total_tax = ?,
+          order_attachment = ?, packaging_attachment = ?, order_notes = ?,
+          packaging_method = ?, packaging_requirements = ?,
+          consignee = ?, delivery_address = ?, bill_recipient = ?, bill_address = ?,
+          payment_method = ?, advance_payment_ratio = ?, advance_payment_amount = ?,
+          planned_payment_account = ?, total_receivable = ?,
+          has_after_sales = ?, after_sales_order_no = ?, after_sales_details = ?,
+          status = ?, updated_by = ?
+        WHERE id = ?
+      `, [
+        customerOrderNo, customerName, customerId, salesperson, quotationNo, orderType,
+        orderTime, promisedDelivery, customerDelivery, estimatedCompletionDate,
+        salesDepartment, deliveryMethod, returnOrderNo,
+        orderCurrency, currentExchangeRate, taxRate, fees,
+        totalAmount, totalAmountExcludingTax, totalTax,
+        orderAttachment, packagingAttachment, orderNotes,
+        packagingMethod, packagingRequirements,
+        consignee, deliveryAddress, billRecipient, billAddress,
+        paymentMethod, advancePaymentRatio, advancePaymentAmount,
+        plannedPaymentAccount, totalReceivable,
+        hasAfterSales, afterSalesOrderNo, afterSalesDetails,
+        status, updatedBy, id
+      ])
       
-      for (const product of products) {
-        productStmt.run(
-          id, product.productCode, product.productName, product.productSpec, product.productColor,
-          product.productUnit, product.orderQuantity, product.unitPriceExcludingTax, product.taxRate,
-          product.totalPriceExcludingTax, product.totalTax, product.totalPrice,
-          product.accessories ? JSON.stringify(product.accessories) : null
-        )
-      }
-    }
-    
-    // 重新插入回款计划
-    if (paymentSchedule && paymentSchedule.length > 0) {
-      const paymentStmt = db.prepare(`
-        INSERT INTO sales_order_payment_schedule (
-          order_id, payment_ratio, payment_amount, payment_date, payment_account
-        ) VALUES (?, ?, ?, ?, ?)
-      `)
+      // 删除旧的产品明细和回款计划
+      await connection.execute('DELETE FROM sales_order_products WHERE order_id = ?', [id])
+      await connection.execute('DELETE FROM sales_order_payment_schedule WHERE order_id = ?', [id])
       
-      for (const payment of paymentSchedule) {
-        paymentStmt.run(
-          id, payment.paymentRatio, payment.paymentAmount, payment.paymentDate, payment.paymentAccount
-        )
+      // 重新插入产品明细
+      if (products && products.length > 0) {
+        for (const product of products) {
+          await connection.execute(`
+            INSERT INTO sales_order_products (
+              order_id, product_code, product_name, product_spec, product_color,
+              product_unit, order_quantity, unit_price_excluding_tax, tax_rate,
+              total_price_excluding_tax, total_tax, total_price, accessories
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+          `, [
+            id, product.productCode, product.productName, product.productSpec, product.productColor,
+            product.productUnit, product.orderQuantity, product.unitPriceExcludingTax, product.taxRate,
+            product.totalPriceExcludingTax, product.totalTax, product.totalPrice,
+            product.accessories ? JSON.stringify(product.accessories) : null
+          ])
+        }
       }
+      
+      // 重新插入回款计划
+      if (paymentSchedule && paymentSchedule.length > 0) {
+        for (const payment of paymentSchedule) {
+          await connection.execute(`
+            INSERT INTO sales_order_payment_schedule (
+              order_id, payment_ratio, payment_amount, payment_date, payment_account
+            ) VALUES (?, ?, ?, ?, ?)
+          `, [
+            id, payment.paymentRatio, payment.paymentAmount, payment.paymentDate, payment.paymentAccount
+          ])
+        }
+      }
+      
+      // 提交事务
+      await connection.commit()
+      
+      // 获取更新后的订单
+      const [updatedOrders] = await connection.execute('SELECT * FROM sales_orders WHERE id = ?', [id])
+      
+      console.log('✅ 更新成功')
+      
+      res.json({
+        success: true,
+        message: '更新订单成功',
+        data: updatedOrders[0]
+      })
+    } catch (error) {
+      // 回滚事务
+      await connection.rollback()
+      throw error
     }
-    
-    // 获取更新后的订单
-    const updatedOrder = db.prepare('SELECT * FROM sales_orders WHERE id = ?').get(id)
-    
-    console.log('✅ 更新成功')
-    
-    res.json({
-      success: true,
-      message: '更新订单成功',
-      data: updatedOrder
-    })
   } catch (error) {
     console.error('❌ 更新订单失败:', error)
     res.status(500).json({
@@ -394,6 +430,8 @@ router.put('/:id', (req, res) => {
       message: '更新订单失败',
       error: error.message
     })
+  } finally {
+    if (connection) connection.release()
   }
 })
 
@@ -401,13 +439,16 @@ router.put('/:id', (req, res) => {
  * 删除销售订单
  * DELETE /api/sales-orders/:id
  */
-router.delete('/:id', (req, res) => {
+router.delete('/:id', async (req, res) => {
+  let connection
   try {
     const { id } = req.params
     console.log('=== 删除销售订单 ===', id)
     
-    const existing = db.prepare('SELECT id FROM sales_orders WHERE id = ?').get(id)
-    if (!existing) {
+    connection = await pool.getConnection()
+    
+    const [existing] = await connection.execute('SELECT id FROM sales_orders WHERE id = ?', [id])
+    if (!existing || existing.length === 0) {
       return res.status(404).json({
         success: false,
         message: '订单不存在'
@@ -415,7 +456,7 @@ router.delete('/:id', (req, res) => {
     }
     
     // 删除订单(级联删除产品和回款计划)
-    db.prepare('DELETE FROM sales_orders WHERE id = ?').run(id)
+    await connection.execute('DELETE FROM sales_orders WHERE id = ?', [id])
     
     console.log('✅ 删除成功')
     
@@ -430,6 +471,8 @@ router.delete('/:id', (req, res) => {
       message: '删除订单失败',
       error: error.message
     })
+  } finally {
+    if (connection) connection.release()
   }
 })
 
@@ -437,7 +480,8 @@ router.delete('/:id', (req, res) => {
  * 批量删除
  * POST /api/sales-orders/batch-delete
  */
-router.post('/batch-delete', (req, res) => {
+router.post('/batch-delete', async (req, res) => {
+  let connection
   try {
     const { ids } = req.body
     console.log('=== 批量删除销售订单 ===', ids)
@@ -449,17 +493,18 @@ router.post('/batch-delete', (req, res) => {
       })
     }
     
-    const placeholders = ids.map(() => '?').join(',')
-    const stmt = db.prepare(`DELETE FROM sales_orders WHERE id IN (${placeholders})`)
-    const result = stmt.run(...ids)
+    connection = await pool.getConnection()
     
-    console.log('✅ 批量删除成功，删除数量:', result.changes)
+    const placeholders = ids.map(() => '?').join(',')
+    const [result] = await connection.execute(`DELETE FROM sales_orders WHERE id IN (${placeholders})`, ids)
+    
+    console.log('✅ 批量删除成功，删除数量:', result.affectedRows)
     
     res.json({
       success: true,
-      message: `成功删除 ${result.changes} 个订单`,
+      message: `成功删除 ${result.affectedRows} 个订单`,
       data: {
-        deletedCount: result.changes
+        deletedCount: result.affectedRows
       }
     })
   } catch (error) {
@@ -469,6 +514,8 @@ router.post('/batch-delete', (req, res) => {
       message: '批量删除订单失败',
       error: error.message
     })
+  } finally {
+    if (connection) connection.release()
   }
 })
 

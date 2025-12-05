@@ -143,13 +143,13 @@ class BOMAPIService {
         level: item.level,
         childCode: item.component_code,
         childName: item.component_name,
-        standardQty: item.standard_quantity,
+        standardQty: parseFloat(item.standard_quantity) || 0,
         outputProcess: item.output_process,
         source: item.component_source,
-        processWage: item.process_wage,
-        materialLoss: item.material_loss,
-        materialPrice: item.material_price,
-        materialCost: item.material_cost
+        processWage: parseFloat(item.process_wage) || 0,
+        materialLoss: parseFloat(item.material_loss) || 0,
+        materialPrice: parseFloat(item.material_price) || 0,
+        materialCost: parseFloat(item.material_cost) || 0
       }))
     }
     

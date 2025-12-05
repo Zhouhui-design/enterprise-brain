@@ -245,6 +245,135 @@ async function initializeDatabase() {
       ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='BOM树结构表'
     `);
 
+    // 创建销售订单表
+    await connection.execute(`
+      CREATE TABLE IF NOT EXISTS sales_orders (
+        id VARCHAR(100) PRIMARY KEY COMMENT '订单ID',
+        internal_order_no VARCHAR(100) UNIQUE NOT NULL COMMENT '内部订单编号',
+        customer_order_no VARCHAR(100) COMMENT '客户订单编号',
+        customer_name VARCHAR(200) NOT NULL COMMENT '客户名称',
+        customer_id VARCHAR(100) COMMENT '客户ID',
+        salesperson VARCHAR(100) COMMENT '业务员',
+        quotation_no VARCHAR(100) COMMENT '报价单号',
+        order_type VARCHAR(50) COMMENT '订单类型',
+        order_time DATETIME COMMENT '下单时间',
+        promised_delivery DATETIME COMMENT '承诺交期',
+        customer_delivery DATETIME COMMENT '客户要求交期',
+        estimated_completion_date DATETIME COMMENT '预计完工日期',
+        sales_department VARCHAR(100) COMMENT '销售部门',
+        delivery_method VARCHAR(50) COMMENT '发货方式',
+        return_order_no VARCHAR(100) COMMENT '退货订单编号',
+        order_currency VARCHAR(20) DEFAULT 'CNY' COMMENT '订单币种',
+        current_exchange_rate DECIMAL(10,4) DEFAULT 1.0000 COMMENT '当前汇率',
+        tax_rate DECIMAL(5,2) DEFAULT 13.00 COMMENT '税率',
+        fees DECIMAL(10,2) DEFAULT 0.00 COMMENT '费用',
+        total_amount DECIMAL(10,2) DEFAULT 0.00 COMMENT '订单总金额',
+        total_amount_excluding_tax DECIMAL(10,2) DEFAULT 0.00 COMMENT '订单不含税总金额',
+        total_tax DECIMAL(10,2) DEFAULT 0.00 COMMENT '订单税额',
+        order_attachment VARCHAR(500) COMMENT '订单附件',
+        packaging_attachment VARCHAR(500) COMMENT '包装附件',
+        order_notes TEXT COMMENT '订单备注',
+        packaging_method VARCHAR(100) COMMENT '包装方式',
+        packaging_requirements TEXT COMMENT '包装要求',
+        consignee VARCHAR(100) COMMENT '收货人',
+        delivery_address VARCHAR(500) COMMENT '发货地址',
+        bill_recipient VARCHAR(100) COMMENT '开票人',
+        bill_address VARCHAR(500) COMMENT '开票地址',
+        payment_method VARCHAR(50) COMMENT '付款方式',
+        advance_payment_ratio DECIMAL(5,2) DEFAULT 0.00 COMMENT '预付款比例',
+        advance_payment_amount DECIMAL(10,2) DEFAULT 0.00 COMMENT '预付款金额',
+        planned_payment_account VARCHAR(100) COMMENT '计划回款账户',
+        total_receivable DECIMAL(10,2) DEFAULT 0.00 COMMENT '应收总金额',
+        has_after_sales TINYINT DEFAULT 0 COMMENT '是否有售后',
+        after_sales_order_no VARCHAR(100) COMMENT '售后订单编号',
+        after_sales_details TEXT COMMENT '售后详情',
+        status VARCHAR(50) DEFAULT 'draft' COMMENT '订单状态',
+        created_by VARCHAR(100) DEFAULT 'admin' COMMENT '创建人',
+        updated_by VARCHAR(100) COMMENT '更新人',
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+        INDEX idx_internal_order_no (internal_order_no),
+        INDEX idx_customer_order_no (customer_order_no),
+        INDEX idx_customer_name (customer_name),
+        INDEX idx_status (status),
+        INDEX idx_created_at (created_at)
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='销售订单表'
+    `);
+
+    // 创建销售订单产品明细表
+    await connection.execute(`
+      CREATE TABLE IF NOT EXISTS sales_order_products (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        order_id VARCHAR(100) NOT NULL COMMENT '订单ID',
+        product_code VARCHAR(100) NOT NULL COMMENT '产品编码',
+        product_name VARCHAR(200) NOT NULL COMMENT '产品名称',
+        product_spec VARCHAR(200) COMMENT '产品规格',
+        product_color VARCHAR(100) COMMENT '产品颜色',
+        product_unit VARCHAR(20) COMMENT '产品单位',
+        order_quantity DECIMAL(10,2) NOT NULL COMMENT '订单数量',
+        unit_price_excluding_tax DECIMAL(10,2) DEFAULT 0.00 COMMENT '不含税单价',
+        tax_rate DECIMAL(5,2) DEFAULT 13.00 COMMENT '税率',
+        total_price_excluding_tax DECIMAL(10,2) DEFAULT 0.00 COMMENT '不含税总价',
+        total_tax DECIMAL(10,2) DEFAULT 0.00 COMMENT '税额',
+        total_price DECIMAL(10,2) DEFAULT 0.00 COMMENT '含税总价',
+        accessories TEXT COMMENT '配件（JSON格式）',
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+        INDEX idx_order_id (order_id),
+        INDEX idx_product_code (product_code),
+        FOREIGN KEY (order_id) REFERENCES sales_orders(id) ON DELETE CASCADE
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='销售订单产品明细表'
+    `);
+
+    // 创建销售订单回款计划表
+    await connection.execute(`
+      CREATE TABLE IF NOT EXISTS sales_order_payment_schedule (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        order_id VARCHAR(100) NOT NULL COMMENT '订单ID',
+        payment_ratio DECIMAL(5,2) NOT NULL COMMENT '回款比例',
+        payment_amount DECIMAL(10,2) NOT NULL COMMENT '回款金额',
+        payment_date DATE NOT NULL COMMENT '回款日期',
+        payment_account VARCHAR(100) COMMENT '回款账户',
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+        INDEX idx_order_id (order_id),
+        INDEX idx_payment_date (payment_date),
+        FOREIGN KEY (order_id) REFERENCES sales_orders(id) ON DELETE CASCADE
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='销售订单回款计划表'
+    `);
+
+    // 创建客户表
+    await connection.execute(`
+      CREATE TABLE IF NOT EXISTS customers (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        customer_code VARCHAR(100) UNIQUE NOT NULL COMMENT '客户编码',
+        customer_name VARCHAR(200) NOT NULL COMMENT '客户名称',
+        customer_type VARCHAR(50) DEFAULT 'regular' COMMENT '客户类型',
+        status VARCHAR(50) DEFAULT 'active' COMMENT '状态',
+        contact_person VARCHAR(100) COMMENT '联系人',
+        contact_phone VARCHAR(50) COMMENT '联系电话',
+        contact_email VARCHAR(100) COMMENT '联系邮箱',
+        company VARCHAR(200) COMMENT '公司名称',
+        industry VARCHAR(100) COMMENT '行业',
+        region VARCHAR(100) COMMENT '地区',
+        contact_address VARCHAR(500) COMMENT '联系地址',
+        credit_limit DECIMAL(15,2) DEFAULT 0.00 COMMENT '信用额度',
+        sales_person VARCHAR(100) COMMENT '销售人员',
+        tax_number VARCHAR(100) COMMENT '税号',
+        remark TEXT COMMENT '备注',
+        created_by VARCHAR(100) DEFAULT 'admin' COMMENT '创建人',
+        updated_by VARCHAR(100) COMMENT '更新人',
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+        INDEX idx_customer_code (customer_code),
+        INDEX idx_customer_name (customer_name),
+        INDEX idx_customer_type (customer_type),
+        INDEX idx_status (status),
+        INDEX idx_region (region),
+        INDEX idx_created_at (created_at)
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='客户表'
+    `);
+
     console.log('✅ 数据库表结构初始化完成');
     
   } catch (error) {

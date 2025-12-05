@@ -435,7 +435,7 @@
           row-key="id"
         >
           <el-table-column type="selection" width="55" align="center" />
-          <el-table-column type="index" label="序号" width="60" align="center" />
+          <el-table-column type="index" label="序号" width="60" align="center" :index="getChildRowIndex" />
           <el-table-column prop="level" label="层阶" min-width="80" align="center">
             <template #default="{ row }">
               <el-input 
@@ -1336,6 +1336,14 @@ const handleAddChildLevelForRow = (row, index) => {
   const currentIndent = row.indent || 0
   const currentLevel = parseInt(row.level) || 1
   
+  // 计算在完整列表中的实际索引（而不是分页后的索引）
+  const actualIndex = formData.value.childItems.findIndex(item => item.id === row.id)
+  
+  if (actualIndex === -1) {
+    ElMessage.error('找不到当前行数据')
+    return
+  }
+  
   const newItem = {
     id: `child_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`, // 唯一ID
     level: String(currentLevel + 1),
@@ -1349,17 +1357,28 @@ const handleAddChildLevelForRow = (row, index) => {
     materialLoss: 0,
     materialPrice: 0,
     indent: currentIndent + 1,
-    parentIndex: index // 记录父级索引
+    parentIndex: actualIndex // 记录父级在完整列表中的索引
   }
   
-  formData.value.childItems.splice(index + 1, 0, newItem)
+  // 在完整列表中插入新行
+  formData.value.childItems.splice(actualIndex + 1, 0, newItem)
   
   // 计算层阶地址
   nextTick(() => {
     recalculateAllLevelPaths()
+    
+    // 计算新行应该在哪一页
+    const newRowIndex = actualIndex + 1
+    const targetPage = Math.floor(newRowIndex / childPageSize.value) + 1
+    
+    // 如果新行不在当前页，跳转到目标页
+    if (targetPage !== childCurrentPage.value) {
+      childCurrentPage.value = targetPage
+      ElMessage.success(`已添加下层子件，已跳转到第${targetPage}页`)
+    } else {
+      ElMessage.success('已添加下层子件')
+    }
   })
-  
-  ElMessage.success('已添加下层子件')
 }
 
 // 删除本层（表格上方按钮）
@@ -1980,7 +1999,7 @@ const handleCreate = () => {
   editDialogVisible.value = true
 }
 
-// 编辑BOM（优化：浅拷贝）
+// 编辑BOM（优化：浅拷贝，不重算层阶地址）
 const handleEdit = async (row) => {
   try {
     isEdit.value = true
@@ -1989,16 +2008,29 @@ const handleEdit = async (row) => {
     // 从后端加载完整数据（包含子件）
     const bomDetail = await bomApiService.getBomDetail(row.id)
     
+    console.log('✏️ 编辑BOM - API返回数据:', {
+      id: bomDetail.id,
+      productCode: bomDetail.productCode,
+      productName: bomDetail.productName,
+      childItemsCount: bomDetail.childItems?.length || 0,
+      childItems: bomDetail.childItems
+    })
+    
     // 只拷贝顶层属性，childItems保持引用
     formData.value = {
       ...bomDetail,
       childItems: bomDetail.childItems || []
     }
     
-    // 计算层阶地址
-    nextTick(() => {
-      recalculateAllLevelPaths()
+    console.log('✏️ 编辑BOM - formData赋值后:', {
+      productCode: formData.value.productCode,
+      productName: formData.value.productName,
+      childItemsCount: formData.value.childItems?.length || 0
     })
+    
+    // ⚡ 性能优化：不重新计算层阶地址，使用数据库已保存的levelPath
+    // 数据库中的levelPath已经是正确的，无需重新计算
+    // recalculateAllLevelPaths() // ❌ 移除这个调用，避免递归计算卡顿
     
     editDialogVisible.value = true
   } catch (error) {
@@ -2012,7 +2044,22 @@ const handleView = async (row) => {
   try {
     // 从后端加载完整数据（包含子件）
     const bomDetail = await bomApiService.getBomDetail(row.id)
+    console.log('🔍 查看BOM - API返回数据:', {
+      id: bomDetail.id,
+      productCode: bomDetail.productCode,
+      productName: bomDetail.productName,
+      childItemsCount: bomDetail.childItems?.length || 0,
+      childItems: bomDetail.childItems
+    })
+    
     currentBom.value = bomDetail
+    
+    console.log('🔍 查看BOM - currentBom赋值后:', {
+      id: currentBom.value.id,
+      productCode: currentBom.value.productCode,
+      productName: currentBom.value.productName,
+      childItemsCount: currentBom.value.childItems?.length || 0
+    })
     
     // 计算层阶地址
     if (currentBom.value.childItems && currentBom.value.childItems.length > 0) {
@@ -2999,6 +3046,11 @@ const handleChildSizeChange = (val) => {
 
 const handleChildCurrentChange = (val) => {
   childCurrentPage.value = val
+}
+
+// 计算子表格序号（跨页连续）
+const getChildRowIndex = (index) => {
+  return (childCurrentPage.value - 1) * childPageSize.value + index + 1
 }
 
 // 生命周期

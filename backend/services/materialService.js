@@ -93,6 +93,9 @@ class MaterialService {
 
   // 批量创建物料
   static async createMaterials(materialsData) {
+    console.log(`========== 开始批量导入物料 ==========`)
+    console.log(`接收到 ${materialsData.length} 条数据`)
+    
     const connection = await db.getConnection();
     let successCount = 0;
     let errorCount = 0;
@@ -100,6 +103,7 @@ class MaterialService {
 
     try {
       await connection.beginTransaction();
+      console.log('事务已开始')
 
       for (const materialData of materialsData) {
         try {
@@ -118,6 +122,7 @@ class MaterialService {
           
           if (existing.length > 0) {
             // 更新现有物料
+            console.log(`更新物料: ${materialCode}`)
             const updateSql = `
               UPDATE materials SET
                 bom_number = ?, material_name = ?, size_spec = ?,
@@ -164,6 +169,7 @@ class MaterialService {
             ]);
           } else {
             // 插入新物料
+            console.log(`新增物料: ${materialCode}`)
             const insertSql = `
               INSERT INTO materials (
                 material_code, bom_number, material_name, size_spec, color, material,
@@ -209,6 +215,7 @@ class MaterialService {
           }
           successCount++;
         } catch (error) {
+          console.error(`处理物料 ${materialData.material_code} 失败:`, error.message)
           errorCount++;
           errors.push({
             materialCode: materialData.material_code || materialData.materialCode,
@@ -218,9 +225,12 @@ class MaterialService {
       }
 
       await connection.commit();
+      console.log(`事务已提交: 成功 ${successCount} 条, 失败 ${errorCount} 条`)
+      console.log(`========== 批量导入完成 ==========`)
       return { successCount, errorCount, errors };
     } catch (error) {
       await connection.rollback();
+      console.error(`批量导入失败，事务已回滚:`, error.message)
       throw new Error(`批量创建物料失败: ${error.message}`);
     } finally {
       connection.release();
