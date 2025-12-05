@@ -15,7 +15,7 @@
           <el-icon><Close /></el-icon>
           批量驳回
         </el-button>
-        <el-button @click="handleRefresh">
+        <el-button type="danger" @click="handleRefresh">
           <el-icon><Refresh /></el-icon>
           刷新
         </el-button>
@@ -89,6 +89,7 @@
         :height="tableHeight"
         :show-toolbar="true"
         :show-add="false"
+        :show-batch-delete="true"
         :show-export="true"
         :show-import="false"
         :show-print="true"
@@ -102,6 +103,8 @@
         @selection-change="handleSelectionChange"
         @export="handleExport"
         @refresh="handleRefresh"
+        @delete="handleBatchDelete"
+        @delete-single="handleSingleDelete"
       >
         <!-- 自定义列 -->
         <template #column-demandType="{ row }">
@@ -172,7 +175,6 @@
       :show-print="true"
       @save="handleSaveSettings"
     />
-    </div>
 
     <!-- 详情对话框 -->
     <el-dialog v-model="detailDialogVisible" title="MRP计划详情" width="900px">
@@ -200,9 +202,9 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, nextTick } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { Select, Close, Refresh, Setting } from '@element-plus/icons-vue'
+import { Select, Close, Refresh, Setting, Delete } from '@element-plus/icons-vue'
 import EnhancedTable from '@/components/common/EnhancedTable.vue'
 import PageSettings from '@/components/common/PageSettings.vue'
 
@@ -279,69 +281,8 @@ const batchList = ref([
   { batchNo: 'MRP-20251203-001', runTime: '2025-12-03 09:00:00' }
 ])
 
-// 表格数据（模拟数据）
-const tableData = ref([
-  {
-    id: '1',
-    batchNo: 'MRP-20251205-001',
-    runTime: '2025-12-05 10:00:00',
-    materialCode: 'M001',
-    materialName: '铝合金板材',
-    materialSpec: '6061-T6 2mm',
-    demandType: 'production',
-    demandQty: 500,
-    currentStock: 200,
-    onOrderQty: 100,
-    suggestedQty: 200,
-    adjustedQty: 200,
-    requiredDate: '2025-12-15',
-    planDate: '2025-12-10',
-    status: 'pending',
-    approver: '',
-    approveTime: '',
-    remark: ''
-  },
-  {
-    id: '2',
-    batchNo: 'MRP-20251205-001',
-    runTime: '2025-12-05 10:00:00',
-    materialCode: 'M002',
-    materialName: '不锈钢管',
-    materialSpec: '304 Φ50×3',
-    demandType: 'purchase',
-    demandQty: 1000,
-    currentStock: 50,
-    onOrderQty: 0,
-    suggestedQty: 950,
-    adjustedQty: 950,
-    requiredDate: '2025-12-20',
-    planDate: '2025-12-12',
-    status: 'pending',
-    approver: '',
-    approveTime: '',
-    remark: ''
-  },
-  {
-    id: '3',
-    batchNo: 'MRP-20251204-001',
-    runTime: '2025-12-04 15:30:00',
-    materialCode: 'M003',
-    materialName: '电机',
-    materialSpec: 'AC220V 1.5KW',
-    demandType: 'production',
-    demandQty: 50,
-    currentStock: 30,
-    onOrderQty: 20,
-    suggestedQty: 0,
-    adjustedQty: 0,
-    requiredDate: '2025-12-18',
-    planDate: '2025-12-13',
-    status: 'approved',
-    approver: '张三',
-    approveTime: '2025-12-04 16:00:00',
-    remark: '库存充足'
-  }
-])
+// 表格数据（从localStorage加载或使用默认空数组）
+const tableData = ref([])
 
 // 统计数据
 const statistics = computed(() => {
@@ -445,11 +386,6 @@ const tableRowClassName = ({ row }) => {
 // 选择变化
 const handleSelectionChange = (selection) => {
   selectedRows.value = selection
-}
-
-// 数量调整
-const onQtyAdjust = (row) => {
-  console.log('调整数量:', row.materialCode, row.adjustedQty)
 }
 
 // 审核通过
@@ -564,6 +500,60 @@ const handleBatchReject = async () => {
   }
 }
 
+// 批量删除
+const handleBatchDelete = async (rowsToDelete) => {
+  try {
+    await ElMessageBox.confirm(`确定删除选中的 ${rowsToDelete.length} 条计划吗？`, '批量删除', {
+      confirmButtonText: '确定',
+      cancelButtonText: '取消',
+      type: 'warning'
+    })
+    
+    // 从表格数据中移除选中的行
+    const selectedIds = rowsToDelete.map(row => row.id)
+    const originalLength = tableData.value.length;
+    tableData.value = tableData.value.filter(row => !selectedIds.includes(row.id))
+    const deletedCount = originalLength - tableData.value.length;
+    
+    // 清空选中项
+    selectedRows.value = []
+    
+    // 强制更新统计数据
+    await nextTick();
+    
+    // 保存到localStorage
+    saveMRPPlans()
+    
+    ElMessage.success(`成功删除 ${deletedCount} 条计划`)
+  } catch (error) {
+    // 取消删除
+  }
+}
+
+// 单条删除
+const handleSingleDelete = async (row) => {
+  try {
+    await ElMessageBox.confirm(`确定删除这条计划吗？`, '删除确认', {
+      confirmButtonText: '确定',
+      cancelButtonText: '取消',
+      type: 'warning'
+    })
+    
+    // 从表格数据中移除行
+    const index = tableData.value.findIndex(item => item.id === row.id)
+    if (index !== -1) {
+      tableData.value.splice(index, 1)
+      
+      // 保存到localStorage
+      saveMRPPlans()
+      
+      ElMessage.success('删除成功')
+    }
+  } catch (error) {
+    // 取消删除
+  }
+}
+
 // 查看详情
 const handleViewDetail = (row) => {
   currentPlan.value = { ...row }
@@ -587,11 +577,6 @@ const handleAdjust = async (row) => {
   } catch {
     // 取消
   }
-}
-
-// 数量调整回调
-const onQtyAdjust = (row) => {
-  saveMRPPlans()
 }
 
 // 查询
@@ -647,6 +632,70 @@ const loadMRPPlans = () => {
   const data = localStorage.getItem('mrpPlanApproveData')
   if (data) {
     tableData.value = JSON.parse(data)
+  } else {
+    // 如果localStorage中没有数据，则使用默认的模拟数据
+    tableData.value = [
+      {
+        id: '1',
+        batchNo: 'MRP-20251205-001',
+        runTime: '2025-12-05 10:00:00',
+        materialCode: 'M001',
+        materialName: '铝合金板材',
+        materialSpec: '6061-T6 2mm',
+        demandType: 'production',
+        demandQty: 500,
+        currentStock: 200,
+        onOrderQty: 100,
+        suggestedQty: 200,
+        adjustedQty: 200,
+        requiredDate: '2025-12-15',
+        planDate: '2025-12-10',
+        status: 'pending',
+        approver: '',
+        approveTime: '',
+        remark: ''
+      },
+      {
+        id: '2',
+        batchNo: 'MRP-20251205-001',
+        runTime: '2025-12-05 10:00:00',
+        materialCode: 'M002',
+        materialName: '不锈钢管',
+        materialSpec: '304 Φ50×3',
+        demandType: 'purchase',
+        demandQty: 1000,
+        currentStock: 50,
+        onOrderQty: 0,
+        suggestedQty: 950,
+        adjustedQty: 950,
+        requiredDate: '2025-12-20',
+        planDate: '2025-12-12',
+        status: 'pending',
+        approver: '',
+        approveTime: '',
+        remark: ''
+      },
+      {
+        id: '3',
+        batchNo: 'MRP-20251204-001',
+        runTime: '2025-12-04 15:30:00',
+        materialCode: 'M003',
+        materialName: '电机',
+        materialSpec: 'AC220V 1.5KW',
+        demandType: 'production',
+        demandQty: 50,
+        currentStock: 30,
+        onOrderQty: 20,
+        suggestedQty: 0,
+        adjustedQty: 0,
+        requiredDate: '2025-12-18',
+        planDate: '2025-12-13',
+        status: 'approved',
+        approver: '张三',
+        approveTime: '2025-12-04 16:00:00',
+        remark: '库存充足'
+      }
+    ]
   }
 }
 

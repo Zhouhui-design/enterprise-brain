@@ -8,7 +8,7 @@
             <el-icon><Plus /></el-icon>
             新增
           </el-button>
-          <el-button @click="$emit('delete', selectedRows)" :disabled="selectedRows.length === 0" size="small" v-if="showBatchDelete">
+          <el-button @click="handleBatchDelete" :disabled="selectedRows.length === 0" size="small" v-if="showBatchDelete">
             <el-icon><Delete /></el-icon>
             批量删除
           </el-button>
@@ -83,7 +83,7 @@
         <template #default="{ row, $index }">
           <slot name="operation" :row="row" :index="$index">
             <el-button type="primary" size="small" @click="$emit('edit', row)">编辑</el-button>
-            <el-button type="danger" size="small" @click="$emit('delete-single', row)">删除</el-button>
+            <el-button type="danger" size="small" @click="handleSingleDelete(row)">删除</el-button>
           </slot>
         </template>
       </el-table-column>
@@ -140,6 +140,7 @@
 import { ref, computed, watch } from 'vue'
 import { Plus, Delete, Download, Upload, Printer, Setting, Refresh, Filter, Rank } from '@element-plus/icons-vue'
 import draggable from 'vuedraggable'
+import { ElMessage, ElMessageBox } from 'element-plus'
 
 const props = defineProps({
   // 表格数据
@@ -286,11 +287,49 @@ const formatSummaryValue = (column, value) => {
   return value || 0
 }
 
+// 批量删除
+const handleBatchDelete = async () => {
+  if (selectedRows.value.length === 0) {
+    ElMessage.warning('请至少选择一条记录')
+    return
+  }
+  
+  try {
+    await ElMessageBox.confirm(
+      `确定要删除选中的 ${selectedRows.value.length} 条记录吗？`,
+      '删除确认',
+      {
+        type: 'warning'
+      }
+    )
+    emit('delete', selectedRows.value)
+  } catch {
+    // 用户取消删除
+  }
+}
+
+// 单条删除
+const handleSingleDelete = async (row) => {
+  try {
+    await ElMessageBox.confirm(
+      '确定要删除这条记录吗？',
+      '删除确认',
+      {
+        type: 'warning'
+      }
+    )
+    emit('delete-single', row)
+  } catch {
+    // 用户取消删除
+  }
+}
+
 // 暴露方法
 defineExpose({
   clearSelection: () => tableRef.value?.clearSelection(),
   toggleRowSelection: (row, selected) => tableRef.value?.toggleRowSelection(row, selected),
-  toggleAllSelection: () => tableRef.value?.toggleAllSelection()
+  toggleAllSelection: () => tableRef.value?.toggleAllSelection(),
+  getSelectedRows: () => selectedRows.value
 })
 </script>
 
