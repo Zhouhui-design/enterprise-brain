@@ -423,146 +423,157 @@
           </el-space>
         </div>
         
-        <TreeTable
-          ref="childTableRef"
-          :data="childItemsTree"
-          :columns="childTableColumns"
-          row-key="id"
-          :tree-props="{ children: 'children', hasChildren: 'hasChildren' }"
-          :default-expand-all="false"
-          :show-expand-btn="false"
-          :show-add-child-btn="false"
-          :show-delete-btn="false"
-          :height="400"
+        <el-table 
+          :data="paginatedChildItems" 
+          border 
+          stripe
+          height="400"
+          class="child-table"
           @selection-change="handleChildSelectionChange"
+          :row-class-name="getRowClassName"
           @row-click="handleRowClick"
+          row-key="id"
         >
-          <!-- 层阶地址列 -->
-          <template #column-levelPath="{ row }">
-            <span style="font-weight: bold; color: #409EFF;">{{ row.levelPath || '-' }}</span>
-          </template>
-          
-          <!-- 子件编码列 -->
-          <template #column-childCode="{ row }">
-            <el-select
-              v-model="row.childCode"
-              filterable
-              clearable
-              placeholder="选择子件编码"
-              size="small"
-              @change="(val) => handleChildCodeChange(val, row)"
-              @focus="handleCellFocus(row, 'childCode')"
-              style="width: 100%;"
-            >
-              <el-option
-                v-for="item in filteredChildMaterialList"
-                :key="item.materialCode"
-                :label="item.materialCode"
-                :value="item.materialCode"
+          <el-table-column type="selection" width="55" align="center" />
+          <el-table-column type="index" label="序号" width="60" align="center" :index="getChildRowIndex" />
+          <el-table-column prop="level" label="层阶" min-width="80" align="center">
+            <template #default="{ row }">
+              <el-input 
+                v-model="row.level" 
+                placeholder="层阶" 
+                size="small"
+                @focus="handleCellFocus(row, 'level')"
+                @change="updateLevelPath(row)"
+              />
+            </template>
+          </el-table-column>
+          <el-table-column prop="levelPath" label="层阶地址" min-width="120" align="center">
+            <template #default="{ row }">
+              <span style="font-weight: bold; color: #409EFF;">{{ row.levelPath || '-' }}</span>
+            </template>
+          </el-table-column>
+          <el-table-column prop="childCode" label="子件编码" min-width="150">
+            <template #default="{ row }">
+              <el-select
+                v-model="row.childCode"
+                filterable
+                clearable
+                placeholder="选择子件编码"
+                size="small"
+                @change="(val) => handleChildCodeChange(val, row)"
+                @focus="handleCellFocus(row, 'childCode')"
+                style="width: 100%;"
               >
-                <span>{{ item.materialCode }}</span>
-                <span style="color: #8492a6; font-size: 12px; margin-left: 8px;">{{ item.materialName }}</span>
-              </el-option>
-            </el-select>
-          </template>
-          
-          <!-- 子件名称列 -->
-          <template #column-childName="{ row }">
-            <el-select
-              v-model="row.childName"
-              filterable
-              clearable
-              placeholder="选择子件名称"
-              size="small"
-              @change="(val) => handleChildNameChange(val, row)"
-              @focus="handleCellFocus(row, 'childName')"
-              style="width: 100%;"
-            >
-              <el-option
-                v-for="item in filteredChildMaterialList"
-                :key="item.materialName"
-                :label="item.materialName"
-                :value="item.materialName"
+                <el-option
+                  v-for="item in filteredChildMaterialList"
+                  :key="item.materialCode"
+                  :label="item.materialCode"
+                  :value="item.materialCode"
+                >
+                  <span>{{ item.materialCode }}</span>
+                  <span style="color: #8492a6; font-size: 12px; margin-left: 8px;">{{ item.materialName }}</span>
+                </el-option>
+              </el-select>
+            </template>
+          </el-table-column>
+          <el-table-column prop="childName" label="子件名称" min-width="180">
+            <template #default="{ row }">
+              <el-select
+                v-model="row.childName"
+                filterable
+                clearable
+                placeholder="选择子件名称"
+                size="small"
+                @change="(val) => handleChildNameChange(val, row)"
+                @focus="handleCellFocus(row, 'childName')"
+                style="width: 100%;"
               >
-                <span>{{ item.materialName }}</span>
-                <span style="color: #8492a6; font-size: 12px; margin-left: 8px;">{{ item.materialCode }}</span>
-              </el-option>
-            </el-select>
-          </template>
-          
-          <!-- 标准用量列 -->
-          <template #column-standardQty="{ row }">
-            <el-input-number 
-              v-model="row.standardQty" 
-              :min="0" 
-              :precision="4" 
-              size="small"
-              controls-position="right"
-              @focus="handleCellFocus(row, 'standardQty')"
-              style="width: 100%;" 
-            />
-          </template>
-          
-          <!-- 0层阶标准用量列 -->
-          <template #column-level0Qty="{ row }">
-            <span>{{ calculateLevel0Qty(row) }}</span>
-          </template>
-          
-          <!-- 产出工序列 -->
-          <template #column-outputProcess="{ row }">
-            <span>{{ row.outputProcess || '-' }}</span>
-          </template>
-          
-          <!-- 子件来源列 -->
-          <template #column-source="{ row }">
-            <span>{{ row.source || '-' }}</span>
-          </template>
-          
-          <!-- 工序工资列 -->
-          <template #column-processWage="{ row }">
-            <span>{{ row.processWage !== undefined ? row.processWage.toFixed(2) : '0.00' }}</span>
-          </template>
-          
-          <!-- 材料损耗列 -->
-          <template #column-materialLoss="{ row }">
-            <span>{{ row.materialLoss !== undefined ? row.materialLoss.toFixed(2) + '%' : '0.00%' }}</span>
-          </template>
-          
-          <!-- 材料单价列 -->
-          <template #column-materialPrice="{ row }">
-            <span>{{ row.materialPrice !== undefined ? row.materialPrice.toFixed(2) : '0.00' }}</span>
-          </template>
-          
-          <!-- 材料费用列 -->
-          <template #column-materialCost="{ row }">
-            <span>{{ calculateMaterialCost(row) }}</span>
-          </template>
-          
-          <!-- 0阶人工列 -->
-          <template #column-level0Labor="{ row }">
-            <span>{{ calculateLevel0Labor(row) }}</span>
-          </template>
-          
-          <!-- 操作列 -->
-          <template #action="{ row, $index }">
-            <el-button link type="success" size="small" @click="handleAddChildLevelForRow(row, $index)">
-              <el-icon><Plus /></el-icon>
-              增加下层
-            </el-button>
-            <el-button link type="danger" size="small" @click="handleDeleteCurrentLevelForRow(row, $index)">
-              <el-icon><Delete /></el-icon>
-              删除本层
-            </el-button>
-            <el-button link type="warning" size="small" @click="handleDeleteChildLevelForRow(row, $index)">
-              <el-icon><Delete /></el-icon>
-              删除下层
-            </el-button>
-            <el-button link type="danger" @click="handleDeleteChild($index)">
-              <el-icon><Delete /></el-icon>
-              删除
-            </el-button>
-          </template>
-        </TreeTable>
+                <el-option
+                  v-for="item in filteredChildMaterialList"
+                  :key="item.materialName"
+                  :label="item.materialName"
+                  :value="item.materialName"
+                >
+                  <span>{{ item.materialName }}</span>
+                  <span style="color: #8492a6; font-size: 12px; margin-left: 8px;">{{ item.materialCode }}</span>
+                </el-option>
+              </el-select>
+            </template>
+          </el-table-column>
+          <el-table-column prop="standardQty" label="标准用量" min-width="120">
+            <template #default="{ row }">
+              <el-input-number 
+                v-model="row.standardQty" 
+                :min="0" 
+                :precision="4" 
+                size="small"
+                controls-position="right"
+                @focus="handleCellFocus(row, 'standardQty')"
+                style="width: 100%;" 
+              />
+            </template>
+          </el-table-column>
+          <el-table-column prop="level0Qty" label="0层阶标准用量" min-width="140" align="right">
+            <template #default="{ row }">
+              <span>{{ calculateLevel0Qty(row) }}</span>
+            </template>
+          </el-table-column>
+          <el-table-column prop="outputProcess" label="产出工序" min-width="150">
+            <template #default="{ row }">
+              <span>{{ row.outputProcess || '-' }}</span>
+            </template>
+          </el-table-column>
+          <el-table-column prop="source" label="子件来源" min-width="150">
+            <template #default="{ row }">
+              <span>{{ row.source || '-' }}</span>
+            </template>
+          </el-table-column>
+          <el-table-column prop="processWage" label="工序工资" min-width="120" align="right">
+            <template #default="{ row }">
+              <span>{{ row.processWage !== undefined ? row.processWage.toFixed(2) : '0.00' }}</span>
+            </template>
+          </el-table-column>
+          <el-table-column prop="materialLoss" label="材料损耗" min-width="120" align="right">
+            <template #default="{ row }">
+              <span>{{ row.materialLoss !== undefined ? row.materialLoss.toFixed(2) + '%' : '0.00%' }}</span>
+            </template>
+          </el-table-column>
+          <el-table-column prop="materialPrice" label="材料单价" min-width="120" align="right">
+            <template #default="{ row }">
+              <span>{{ row.materialPrice !== undefined ? row.materialPrice.toFixed(2) : '0.00' }}</span>
+            </template>
+          </el-table-column>
+          <el-table-column prop="materialCost" label="材料费用" min-width="120" align="right">
+            <template #default="{ row }">
+              <span>{{ calculateMaterialCost(row) }}</span>
+            </template>
+          </el-table-column>
+          <el-table-column prop="level0Labor" label="0阶人工" min-width="120" align="right">
+            <template #default="{ row }">
+              <span>{{ calculateLevel0Labor(row) }}</span>
+            </template>
+          </el-table-column>
+          <el-table-column label="操作" width="240" fixed="right" align="center">
+            <template #default="{ row, $index }">
+              <el-button link type="success" size="small" @click="handleAddChildLevelForRow(row, $index)">
+                <el-icon><Plus /></el-icon>
+                增加下层
+              </el-button>
+              <el-button link type="danger" size="small" @click="handleDeleteCurrentLevelForRow(row, $index)">
+                <el-icon><Delete /></el-icon>
+                删除本层
+              </el-button>
+              <el-button link type="warning" size="small" @click="handleDeleteChildLevelForRow(row, $index)">
+                <el-icon><Delete /></el-icon>
+                删除下层
+              </el-button>
+              <el-button link type="danger" @click="handleDeleteChild($index)">
+                <el-icon><Delete /></el-icon>
+                删除
+              </el-button>
+            </template>
+          </el-table-column>
+        </el-table>
         
         <!-- 子件分页 -->
         <div style="margin-top: 10px; text-align: center;">
@@ -883,7 +894,6 @@ import {
   Setting, Operation, PriceTag, Money, Coin, User, Grid, Files, Folder, DataAnalysis
 } from '@element-plus/icons-vue'
 import SmartSelect from '@/components/SmartSelect.vue'
-import TreeTable from '@/components/common/tables/TreeTable.vue'
 import { copyToClipboard, getCopyableColumnProps } from '@/utils/clipboard'
 // 使用后端API服务
 import materialApiService from '@/services/api/materialApiService'
@@ -891,6 +901,7 @@ import bomApiService from '@/services/api/bomApiService'
 import bomDraftApiService from '@/services/api/bomDraftApiService'
 import databaseService from '@/services/DatabaseService.js' // 仅用于数据迁移
 import bomTreeStructureApi from '@/api/bomTreeStructure'
+import productManualAPI from '@/api/productManual'
 
 // 组织架构树节点组件
 const OrgTreeNode = defineComponent({
@@ -1001,23 +1012,6 @@ const formData = ref({
   childItems: [] // 子件列表
 })
 
-// 子件表格列配置
-const childTableColumns = ref([
-  { prop: 'level', label: '层阶', width: 80, align: 'center', sortable: true },
-  { prop: 'levelPath', label: '层阶地址', width: 120, align: 'center' },
-  { prop: 'childCode', label: '子件编码', width: 150, sortable: true },
-  { prop: 'childName', label: '子件名称', width: 180 },
-  { prop: 'standardQty', label: '标准用量', width: 120, align: 'right' },
-  { prop: 'level0Qty', label: '0层阶标准用量', width: 140, align: 'right' },
-  { prop: 'outputProcess', label: '产出工序', width: 150 },
-  { prop: 'source', label: '子件来源', width: 150 },
-  { prop: 'processWage', label: '工序工资', width: 120, align: 'right' },
-  { prop: 'materialLoss', label: '材料损耗', width: 120, align: 'right' },
-  { prop: 'materialPrice', label: '材料单价', width: 120, align: 'right' },
-  { prop: 'materialCost', label: '材料费用', width: 120, align: 'right' },
-  { prop: 'level0Labor', label: '0阶人工', width: 120, align: 'right' }
-])
-
 // 统计数据
 const stats = ref({
   total: 0,
@@ -1090,73 +1084,6 @@ const paginatedChildItems = computed(() => {
   const start = (childCurrentPage.value - 1) * childPageSize.value
   const end = start + childPageSize.value
   return formData.value.childItems.slice(start, end)
-})
-
-// 树形数据转换函数
-const convertToTreeData = (flatData) => {
-  if (!flatData || flatData.length === 0) return []
-  
-  // 创建数据副本并添加children字段
-  const items = flatData.map(item => ({ 
-    ...item, 
-    children: [],
-    hasChildren: false
-  }))
-  
-  // 构建层级映射
-  const levelMap = {}
-  items.forEach(item => {
-    if (item.levelPath) {
-      levelMap[item.levelPath] = item
-    }
-  })
-  
-  // 构建树形结构
-  const tree = []
-  items.forEach(item => {
-    if (!item.levelPath) {
-      tree.push(item)
-      return
-    }
-    
-    const pathParts = item.levelPath.toString().split('.')
-    if (pathParts.length === 1) {
-      // 顶层节点
-      tree.push(item)
-    } else {
-      // 子节点，找到父节点
-      const parentPath = pathParts.slice(0, -1).join('.')
-      const parent = levelMap[parentPath]
-      if (parent) {
-        parent.children.push(item)
-        parent.hasChildren = true
-      } else {
-        // 如果找不到父节点，放到顶层
-        tree.push(item)
-      }
-    }
-  })
-  
-  return tree
-}
-
-// 树形数据转扁平数据（保存时使用）
-const convertToFlatData = (treeData, result = []) => {
-  if (!treeData || treeData.length === 0) return result
-  
-  treeData.forEach(item => {
-    const { children, hasChildren, ...flatItem } = item
-    result.push(flatItem)
-    if (children && children.length > 0) {
-      convertToFlatData(children, result)
-    }
-  })
-  return result
-}
-
-// 计算属性：树形子件数据
-const childItemsTree = computed(() => {
-  return convertToTreeData(formData.value.childItems || [])
 })
 
 // 计算属性：子件总数
@@ -2984,92 +2911,72 @@ const handlePushToManual = async (row) => {
       isEnabled: true,
       designer: row.designer || '',
       bomMaintainer: row.designer || '',
-      createTime: new Date().toLocaleString('zh-CN'),
-      updateTime: new Date().toLocaleString('zh-CN'),
       remark: `由生产BOM ${row.bomCode} 推送生成`
     }
     
-    // 保存到产品手册（localStorage）
-    const existingData = localStorage.getItem('productManualData')
-    let productList = []
-    let nextId = 1
-    
-    if (existingData) {
-      try {
-        productList = JSON.parse(existingData)
-        if (Array.isArray(productList) && productList.length > 0) {
-          // 检查是否已存在相同产品编号
-          const existingIndex = productList.findIndex(p => p.productCode === row.productCode)
-          if (existingIndex !== -1) {
-            // 已存在，提示用户
-            const overwrite = await ElMessageBox.confirm(
-              `产品手册中已存在相同产品编号（${row.productCode}），是否覆盖？`,
-              '提示',
-              {
-                confirmButtonText: '覆盖',
-                cancelButtonText: '取消',
-                type: 'warning'
-              }
-            )
-            
-            if (!overwrite) {
-              return
-            }
-            
-            // 覆盖更新
-            productList[existingIndex] = Object.assign({}, productList[existingIndex], productManualData, {
-              id: productList[existingIndex].id, // 保持原有ID
-              updateTime: new Date().toLocaleString('zh-CN')
-            })
-          } else {
-            // 不存在，添加新记录
-            nextId = Math.max(...productList.map(p => p.id || 0)) + 1
-            productList.unshift({
-              ...productManualData,
-              id: nextId
-            })
-          }
-        } else {
-          // 空数组，添加第一条
-          productList = [{
-            ...productManualData,
-            id: 1
-          }]
+    // 使用API保存到MySQL数据库
+    try {
+      const response = await productManualAPI.create(productManualData)
+      
+      if (response.code === 200) {
+        // 推送成功
+        console.log('产品推送成功:', response)
+        
+        // 更新BOM的推送状态
+        const bomIndex = tableData.value.findIndex(b => b.id === row.id)
+        if (bomIndex !== -1) {
+          tableData.value[bomIndex].isPushedToManual = 1
         }
-      } catch (e) {
-        console.error('解析产品手册数据失败:', e)
-        productList = [{
-          ...productManualData,
-          id: 1
-        }]
+        
+        // 使用普通消息通知（避免appContext错误）
+        setTimeout(() => {
+          ElMessage({
+            type: 'success',
+            message: `推送成功！\n产品编号：${row.productCode}\n请到产品手册页面查看`,
+            duration: 3000
+          })
+        }, 100)
+      } else {
+        throw new Error(response.message || '推送失败')
       }
-    } else {
-      // localStorage为空，创建第一条记录
-      productList = [{
-        ...productManualData,
-        id: 1
-      }]
-    }
-    
-    // 保存到localStorage
-    localStorage.setItem('productManualData', JSON.stringify(productList))
-    localStorage.setItem('productManualNextId', String(productList.length + 1))
-    
-    // 更新BOM的推送状态
-    const bomIndex = tableData.value.findIndex(b => b.id === row.id)
-    if (bomIndex !== -1) {
-      tableData.value[bomIndex].isPushedToManual = 1
-    }
-    
-    ElMessage.success(
-      `推送成功！<br/>` +
-      `产品编号：${row.productCode}<br/>` +
-      `请到产品手册页面查看`,
-      {
-        dangerouslyUseHTMLString: true,
-        duration: 3000
+    } catch (apiError) {
+      // 如果是产品编号已存在错误，提示用户是否覆盖
+      if (apiError.response && apiError.response.status === 400) {
+        try {
+          await ElMessageBox.confirm(
+            `产品手册中已存在相同产品编号（${row.productCode}），是否覆盖？`,
+            '提示',
+            {
+              confirmButtonText: '覆盖',
+              cancelButtonText: '取消',
+              type: 'warning'
+            }
+          )
+          
+          // 用户选择覆盖，查找并更新
+          const allProducts = await productManualAPI.getAll()
+          if (allProducts.code === 200) {
+            const existing = allProducts.data.find(p => p.productCode === row.productCode)
+            if (existing) {
+              await productManualAPI.update(existing.id, productManualData)
+              
+              setTimeout(() => {
+                ElMessage({
+                  type: 'success',
+                  message: `覆盖成功！\n产品编号：${row.productCode}`,
+                  duration: 3000
+                })
+              }, 100)
+            }
+          }
+        } catch (confirmError) {
+          // 用户取消覆盖
+          return
+        }
+      } else {
+        throw apiError
       }
-    )
+    }
   } catch (error) {
     if (error !== 'cancel') {
       console.error('推送到产品手册失败:', error)

@@ -907,6 +907,12 @@ export default {
               icon: 'el-icon-s-home',
               children: [
                 {
+                  path: '/warehouse/manage',
+                  name: 'WarehouseManage',
+                  meta: { title: '仓库管理' },
+                  icon: 'el-icon-s-home'
+                },
+                {
                   path: '/warehouse/in',
                   name: 'WarehouseIn',
                   meta: { title: '入库管理' },
@@ -935,6 +941,38 @@ export default {
                   name: 'LocationManagement',
                   meta: { title: '库位管理' },
                   icon: 'el-icon-s-grid'
+                }
+              ]
+            },
+            {
+              path: '/inventory',
+              name: 'InventoryManagement',
+              meta: { title: '库存管理' },
+              icon: 'el-icon-s-data',
+              children: [
+                {
+                  path: '/inventory/list',
+                  name: 'InventoryList',
+                  meta: { title: '库存列表' },
+                  icon: 'el-icon-document'
+                },
+                {
+                  path: '/inventory/detail',
+                  name: 'InventoryDetail',
+                  meta: { title: '库存明细' },
+                  icon: 'el-icon-tickets'
+                },
+                {
+                  path: '/inventory/report',
+                  name: 'InventoryReport',
+                  meta: { title: '库存报表' },
+                  icon: 'el-icon-s-marketing'
+                },
+                {
+                  path: '/inventory/stock-movement',
+                  name: 'StockMovement',
+                  meta: { title: '库存移动' },
+                  icon: 'el-icon-sort'
                 }
               ]
             },

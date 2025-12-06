@@ -7,17 +7,32 @@
         <p class="subtitle">拆分MRP需求，关联采购/库存状态</p>
       </div>
       <div class="header-right">
+        <el-button type="primary" @click="handleCreate">
+          <el-icon><Plus /></el-icon>
+          新增
+        </el-button>
+        <el-button type="danger" :disabled="!hasSelection" @click="handleBatchDelete">
+          <el-icon><Delete /></el-icon>
+          删除
+        </el-button>
+        <el-button type="success" @click="handleImport">
+          <el-icon><Upload /></el-icon>
+          导入
+        </el-button>
         <el-button type="primary" @click="handleExport">
           <el-icon><Download /></el-icon>
-          导出明细
+          导出
+        </el-button>
+        <el-button @click="handlePrint">
+          <el-icon><Printer /></el-icon>
+          打印
         </el-button>
         <el-button @click="handleRefresh">
           <el-icon><Refresh /></el-icon>
           刷新
         </el-button>
-        <el-button @click="pageSettingsVisible = true">
+        <el-button @click="pageSettingsVisible = true" circle>
           <el-icon><Setting /></el-icon>
-          页面设置
         </el-button>
       </div>
     </div>
@@ -101,80 +116,117 @@
       </div>
     </div>
 
-    <!-- 主表格 -->
+    <!-- 主表格1：产品名称及需求计算 -->
     <div class="table-container">
+      <div class="table-title">
+        <h3>产品名称及需求计算</h3>
+      </div>
+      <!-- MRP运算控制区 -->
+      <div class="mrp-control-panel">
+        <el-form :inline="true" size="default">
+          <el-form-item label="选择订单编号">
+            <el-select 
+              v-model="selectedOrderNo" 
+              placeholder="请选择销售订单" 
+              clearable 
+              filterable
+              style="width: 300px;"
+              @change="handleOrderChange"
+            >
+              <el-option
+                v-for="order in salesOrderList"
+                :key="order.id"
+                :label="order.internalOrderNo"
+                :value="order.internalOrderNo"
+              >
+                <span style="float: left">{{ order.internalOrderNo }}</span>
+                <span style="float: right; color: #8492a6; font-size: 12px; margin-left: 10px">{{ order.customerName }}</span>
+              </el-option>
+            </el-select>
+          </el-form-item>
+          <el-form-item>
+            <el-button 
+              type="success" 
+              :disabled="!selectedOrderNo || mrpCalculating"
+              :loading="mrpCalculating"
+              @click="handleExecuteMRP"
+            >
+              <el-icon><Tools /></el-icon>
+              执行MRP运算
+            </el-button>
+          </el-form-item>
+        </el-form>
+      </div>
       <EnhancedTable
-        ref="tableRef"
-        :data="filteredTableData"
-        :columns="tableColumns"
+        ref="productTableRef"
+        :data="productTableData"
+        :columns="productTableColumns"
         :loading="loading"
-        :height="tableHeight"
+        :height="350"
         :show-toolbar="true"
         :show-add="false"
         :show-export="true"
         :show-import="false"
         :show-print="true"
-        :show-selection="false"
+        :show-selection="true"
         :show-operation="true"
-        :operation-width="240"
+        :operation-width="200"
         :show-summary="true"
-        :summary-columns="summaryColumns"
-        :summary-data="summaryData"
-        :row-class-name="tableRowClassName"
-        @export="handleExport"
+        :summary-columns="productSummaryColumns"
+        :summary-data="productSummaryData"
+        @selection-change="handleProductSelectionChange"
+        @export="handleProductExport"
         @refresh="handleRefresh"
       >
-        <!-- 自定义列 -->
-        <template #column-sourceType="{ row }">
-          <el-tag :type="getSourceTypeColor(row.sourceType)" size="small">
-            {{ getSourceTypeText(row.sourceType) }}
-          </el-tag>
-        </template>
-        
-        <template #column-execStatus="{ row }">
-          <el-tag :type="getExecStatusType(row.execStatus)" size="small">
-            {{ getExecStatusText(row.execStatus) }}
-          </el-tag>
-        </template>
-        
-        <template #column-suggestType="{ row }">
-          <el-tag :type="getSuggestTypeColor(row.suggestType)" size="small">
-            {{ getSuggestTypeText(row.suggestType) }}
-          </el-tag>
-        </template>
-        
-        <template #column-demandQty="{ row }">
-          <span class="qty-demand">{{ row.demandQty }}</span>
-        </template>
-        
-        <template #column-shortageQty="{ row }">
-          <span :class="row.shortageQty > 0 ? 'qty-shortage' : 'qty-normal'">
-            {{ row.shortageQty }}
-          </span>
-        </template>
-        
-        <template #column-suggestedQty="{ row }">
-          <span class="qty-suggested">{{ row.suggestedQty }}</span>
-        </template>
-        
         <!-- 操作列 -->
         <template #operation="{ row }">
-          <el-button size="small" @click="handleViewDetail(row)">详情</el-button>
-          <el-button 
-            v-if="row.execStatus === 'pending' && row.suggestType === 'purchase'"
-            type="primary" 
-            size="small" 
-            @click="handleCreatePurchase(row)"
-          >
-            生成采购单
+          <el-button link type="primary" size="small" @click="handleProductEdit(row)">
+            <el-icon><Edit /></el-icon>
+            编辑
           </el-button>
-          <el-button 
-            v-if="row.execStatus === 'pending' && row.suggestType === 'production'"
-            type="success" 
-            size="small" 
-            @click="handleCreateProduction(row)"
-          >
-            生成生产单
+          <el-button link type="danger" size="small" @click="handleProductDelete(row)">
+            <el-icon><Delete /></el-icon>
+            删除
+          </el-button>
+        </template>
+      </EnhancedTable>
+    </div>
+
+    <!-- 主表格2：半成品及物料需求计算 -->
+    <div class="table-container" style="margin-top: 20px;">
+      <div class="table-title">
+        <h3>半成品及物料需求计算</h3>
+      </div>
+      <EnhancedTable
+        ref="materialTableRef"
+        :data="materialTableData"
+        :columns="materialTableColumns"
+        :loading="loading"
+        :height="350"
+        :show-toolbar="true"
+        :show-add="false"
+        :show-export="true"
+        :show-import="false"
+        :show-print="true"
+        :show-selection="true"
+        :show-operation="true"
+        :operation-width="200"
+        :show-summary="true"
+        :summary-columns="materialSummaryColumns"
+        :summary-data="materialSummaryData"
+        @selection-change="handleMaterialSelectionChange"
+        @export="handleMaterialExport"
+        @refresh="handleRefresh"
+      >
+        <!-- 操作列 -->
+        <template #operation="{ row }">
+          <el-button link type="primary" size="small" @click="handleMaterialEdit(row)">
+            <el-icon><Edit /></el-icon>
+            编辑
+          </el-button>
+          <el-button link type="danger" size="small" @click="handleMaterialDelete(row)">
+            <el-icon><Delete /></el-icon>
+            删除
           </el-button>
         </template>
       </EnhancedTable>
@@ -258,21 +310,57 @@
 <script setup>
 import { ref, computed, onMounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { Download, Refresh, Tools, ShoppingCart, Box, Warning, Setting } from '@element-plus/icons-vue'
+import { Download, Refresh, Tools, ShoppingCart, Box, Warning, Setting, Plus, Delete, Upload, Printer, Edit } from '@element-plus/icons-vue'
 import EnhancedTable from '@/components/common/EnhancedTable.vue'
 import PageSettings from '@/components/common/PageSettings.vue'
+import salesOrderApi from '@/api/salesOrder.js'
+import mrpAPI from '@/api/mrp.js'
 
 // ========== 数据定义 ==========
-const tableRef = ref(null)
+// MRP运算相关
+const selectedOrderNo = ref('') // 选中的订单编号
+const salesOrderList = ref([]) // 销售订单列表
+const mrpCalculating = ref(false) // MRP运算中
+
+// 表格1：产品名称及需求计算
+const productTableRef = ref(null)
+const productTableData = ref([])
+const selectedProductRows = ref([])
+
+// 表格2：半成品及物料需求计算
+const materialTableRef = ref(null)
+const materialTableData = ref([])
+const selectedMaterialRows = ref([])
+
 const currentPage = ref(1)
 const pageSize = ref(20)
 const totalCount = ref(0)
-const tableHeight = ref(600)
 const detailDialogVisible = ref(false)
 const currentDemand = ref(null)
 const activeTab = ref('basic')
 const loading = ref(false)
 const pageSettingsVisible = ref(false)
+
+// 选中的行（兼容旧代码）
+const selectedRows = ref([])
+
+// 是否有选中
+const hasSelection = computed(() => selectedProductRows.value.length > 0 || selectedMaterialRows.value.length > 0)
+
+// 处理表格1选择变化
+const handleProductSelectionChange = (selection) => {
+  selectedProductRows.value = selection
+}
+
+// 处理表格2选择变化
+const handleMaterialSelectionChange = (selection) => {
+  selectedMaterialRows.value = selection
+}
+
+// 兼容旧的handleSelectionChange
+const handleSelectionChange = (selection) => {
+  selectedRows.value = selection
+}
 
 // 筛选表单
 const filterForm = ref({
@@ -283,27 +371,85 @@ const filterForm = ref({
 })
 
 // 表格列配置
+// 表格1：产品名称及需求计算
+const productTableColumns = ref([
+  { prop: 'sourceNo', label: '来源单号', width: 160, fixed: 'left', sortable: true, filterable: true },
+  { prop: 'materialCode', label: '物料编号', width: 140, fixed: 'left', sortable: true, filterable: true },
+  { prop: 'materialName', label: '物料名称', width: 180, sortable: true, filterable: true },
+  { prop: 'materialUnit', label: '单位', width: 80, align: 'center', filterable: true, filterType: 'select' },
+  { prop: 'sourceType', label: '需求来源', width: 120, filterable: true, filterType: 'select' },
+  { prop: 'demandQty', label: '需求数量', width: 120, align: 'right', sortable: true },
+  { prop: 'requiredDate', label: '需求日期', width: 120, sortable: true, filterable: true, filterType: 'date' },
+  // 新增库存相关字段
+  { prop: 'currentStock', label: '当前库存', width: 120, align: 'right', sortable: true },
+  { prop: 'inTransitStock', label: '在途库存', width: 120, align: 'right', sortable: true },
+  { prop: 'inProductionStock', label: '在制库存', width: 120, align: 'right', sortable: true },
+  { prop: 'productionReservedStock', label: '生产预扣库存', width: 140, align: 'right', sortable: true },
+  { prop: 'toBeShippedStock', label: '待发货库存', width: 120, align: 'right', sortable: true },
+  // 新增数量相关字段
+  { prop: 'suggestedQty', label: '建议数量', width: 120, align: 'right', sortable: true },
+  { prop: 'adjustedQty', label: '调整数量', width: 120, align: 'right', sortable: true, editable: true },
+  { prop: 'executeQty', label: '执行数量', width: 120, align: 'right', sortable: true }
+])
+
+// 表格2：半成品及物料需求计算
+const materialTableColumns = ref([
+  { prop: 'materialCode', label: '物料编码', width: 140, fixed: 'left', sortable: true, filterable: true },
+  { prop: 'materialName', label: '物料名称', width: 180, sortable: true, filterable: true },
+  { prop: 'materialUnit', label: '单位', width: 80, align: 'center', filterable: true, filterType: 'select' },
+  { prop: 'sourceType', label: '需求来源', width: 120, filterable: true, filterType: 'select' },
+  { prop: 'demandQty', label: '需求数量', width: 120, align: 'right', sortable: true },
+  { prop: 'requiredDate', label: '需求日期', width: 120, sortable: true, filterable: true, filterType: 'date' }
+])
+
+// 旧表格列配置（兼容）
 const tableColumns = ref([
-  { prop: 'materialCode', label: '物料编号', width: 140, fixed: 'left', sortable: true },
-  { prop: 'materialName', label: '物料名称', width: 180, sortable: true },
-  { prop: 'materialSpec', label: '规格型号', width: 150 },
-  { prop: 'materialUnit', label: '单位', width: 80, align: 'center' },
-  { prop: 'sourceType', label: '需求来源', width: 120 },
-  { prop: 'sourceNo', label: '来源单号', width: 160 },
+  { prop: 'materialCode', label: '物料编号', width: 140, fixed: 'left', sortable: true, filterable: true },
+  { prop: 'materialName', label: '物料名称', width: 180, sortable: true, filterable: true },
+  { prop: 'materialSpec', label: '规格型号', width: 150, filterable: true },
+  { prop: 'materialUnit', label: '单位', width: 80, align: 'center', filterable: true, filterType: 'select' },
+  { prop: 'sourceType', label: '需求来源', width: 120, filterable: true, filterType: 'select' },
+  { prop: 'sourceNo', label: '来源单号', width: 160, filterable: true },
   { prop: 'demandQty', label: '需求数量', width: 120, align: 'right', sortable: true },
   { prop: 'currentStock', label: '当前库存', width: 120, align: 'right', sortable: true },
   { prop: 'availableStock', label: '可用库存', width: 120, align: 'right' },
   { prop: 'onOrderQty', label: '在途数量', width: 120, align: 'right' },
   { prop: 'shortageQty', label: '缺货数量', width: 120, align: 'right', sortable: true },
-  { prop: 'requiredDate', label: '需求日期', width: 120, sortable: true },
-  { prop: 'execStatus', label: '执行状态', width: 100 },
-  { prop: 'suggestType', label: '建议类型', width: 100 },
+  { prop: 'requiredDate', label: '需求日期', width: 120, sortable: true, filterable: true, filterType: 'date' },
+  { prop: 'execStatus', label: '执行状态', width: 100, filterable: true, filterType: 'select' },
+  { prop: 'suggestType', label: '建议类型', width: 100, filterable: true, filterType: 'select' },
   { prop: 'suggestedQty', label: '建议数量', width: 120, align: 'right', sortable: true },
-  { prop: 'purchaseNo', label: '关联采购单', width: 160 },
-  { prop: 'productionNo', label: '关联生产单', width: 160 },
-  { prop: 'executor', label: '执行人', width: 100 },
-  { prop: 'execTime', label: '执行时间', width: 160 }
+  { prop: 'purchaseNo', label: '关联采购单', width: 160, filterable: true },
+  { prop: 'productionNo', label: '关联生产单', width: 160, filterable: true },
+  { prop: 'executor', label: '执行人', width: 100, filterable: true },
+  { prop: 'execTime', label: '执行时间', width: 160, filterable: true, filterType: 'date' }
 ])
+
+// 表格1统计列配置
+const productSummaryColumns = ref([
+  { prop: 'demandQty', label: '总需求数量', format: 'number' }
+])
+
+// 表格1统计数据
+const productSummaryData = computed(() => {
+  const data = productTableData.value
+  return {
+    demandQty: data.reduce((sum, item) => sum + (item.demandQty || 0), 0)
+  }
+})
+
+// 表格2统计列配置
+const materialSummaryColumns = ref([
+  { prop: 'demandQty', label: '总需求数量', format: 'number' }
+])
+
+// 表格2统计数据
+const materialSummaryData = computed(() => {
+  const data = materialTableData.value
+  return {
+    demandQty: data.reduce((sum, item) => sum + (item.demandQty || 0), 0)
+  }
+})
 
 // 统计列配置
 const summaryColumns = ref([
@@ -332,97 +478,36 @@ const pageSettings = ref({
   printOrientation: 'landscape'
 })
 
-// 表格数据（模拟数据）
-const tableData = ref([
-  {
-    id: '1',
-    materialCode: 'M001',
-    materialName: '铝合金板材',
-    materialSpec: '6061-T6 2mm',
-    materialUnit: 'kg',
-    sourceType: 'production',
-    sourceNo: 'MO-20251205-001',
-    demandQty: 500,
-    currentStock: 200,
-    availableStock: 150,
-    onOrderQty: 100,
-    shortageQty: 250,
-    requiredDate: '2025-12-15',
-    execStatus: 'pending',
-    suggestType: 'purchase',
-    suggestedQty: 300,
-    suggestedDate: '2025-12-10',
-    purchaseNo: '',
-    productionNo: '',
-    executor: '',
-    execTime: '',
-    safetyStock: 100,
-    minOrderQty: 50,
-    lotSize: 10,
-    leadTime: 7,
-    bomUsage: [
-      { parentCode: 'P001', parentName: '机箱', usageQty: 2.5, parentDemandQty: 200, totalUsage: 500 }
-    ]
-  },
-  {
-    id: '2',
-    materialCode: 'M002',
-    materialName: '不锈钢管',
-    materialSpec: '304 Φ50×3',
-    materialUnit: 'm',
-    sourceType: 'sales',
-    sourceNo: 'SO-20251205-001',
-    demandQty: 1000,
-    currentStock: 50,
-    availableStock: 30,
-    onOrderQty: 0,
-    shortageQty: 970,
-    requiredDate: '2025-12-20',
-    execStatus: 'pending',
-    suggestType: 'purchase',
-    suggestedQty: 1000,
-    suggestedDate: '2025-12-12',
-    purchaseNo: '',
-    productionNo: '',
-    executor: '',
-    execTime: '',
-    safetyStock: 50,
-    minOrderQty: 100,
-    lotSize: 50,
-    leadTime: 10,
-    bomUsage: []
-  },
-  {
-    id: '3',
-    materialCode: 'M003',
-    materialName: '电机',
-    materialSpec: 'AC220V 1.5KW',
-    materialUnit: '台',
-    sourceType: 'production',
-    sourceNo: 'MO-20251204-001',
-    demandQty: 50,
-    currentStock: 30,
-    availableStock: 25,
-    onOrderQty: 20,
-    shortageQty: 5,
-    requiredDate: '2025-12-18',
-    execStatus: 'purchased',
-    suggestType: 'purchase',
-    suggestedQty: 20,
-    suggestedDate: '2025-12-13',
-    purchaseNo: 'PO-20251205-001',
-    productionNo: '',
-    executor: '张三',
-    execTime: '2025-12-05 10:00:00',
-    safetyStock: 10,
-    minOrderQty: 5,
-    lotSize: 1,
-    leadTime: 5,
-    bomUsage: [
-      { parentCode: 'P002', parentName: '风机', usageQty: 1, parentDemandQty: 50, totalUsage: 50 }
-    ]
+// 表格数据
+const tableData = ref([])
+
+// 加载物料需求数据
+const loadMaterialDemands = async () => {
+  loading.value = true
+  try {
+    // TODO: 调用后端API获取数据
+    // const response = await materialDemandAPI.getList()
+    // tableData.value = response.data
+    
+    // 临时使用空数据
+    tableData.value = []
+    ElMessage.success('数据加载成功')
+  } catch (error) {
+    console.error('加载物料需求数据失败:', error)
+    ElMessage.error('加载数据失败')
+  } finally {
+    loading.value = false
   }
-])
+}
+
+// 保存数据到localStorage
+const saveMaterialDemands = () => {
+  try {
+    localStorage.setItem('materialDemands', JSON.stringify(tableData.value))
+  } catch (error) {
+    console.error('保存数据失败:', error)
+  }
+}
 
 // 汇总数据
 const summary = computed(() => {
@@ -621,9 +706,86 @@ const handleCreateProduction = async (row) => {
   }
 }
 
+// 新增
+const handleCreate = () => {
+  // TODO: 打开新增对话框
+  ElMessage.info('新增功能开发中...')
+}
+
+// 编辑
+const handleEdit = (row) => {
+  // TODO: 打开编辑对话框
+  ElMessage.info(`编辑功能开发中: ${row.materialCode}`)
+}
+
+// 删除
+const handleDelete = async (row) => {
+  try {
+    await ElMessageBox.confirm(
+      `确定要删除物料《${row.materialName}》的需求明细吗？`,
+      '删除确认',
+      {
+        confirmButtonText: '确定',
+        cancelButtonText: '取消',
+        type: 'warning'
+      }
+    )
+    
+    // TODO: 调用API删除
+    tableData.value = tableData.value.filter(item => item.id !== row.id)
+    ElMessage.success('删除成功')
+  } catch {
+    // 用户取消
+  }
+}
+
+// 批量删除
+const handleBatchDelete = async () => {
+  if (!hasSelection.value) {
+    ElMessage.warning('请选择要删除的数据')
+    return
+  }
+  
+  try {
+    await ElMessageBox.confirm(
+      `确定要删除选中的 ${selectedRows.value.length} 条记录吗？`,
+      '批量删除确认',
+      {
+        confirmButtonText: '确定',
+        cancelButtonText: '取消',
+        type: 'warning'
+      }
+    )
+    
+    // TODO: 调用API批量删除
+    const idsToDelete = selectedRows.value.map(row => row.id)
+    tableData.value = tableData.value.filter(item => !idsToDelete.includes(item.id))
+    selectedRows.value = []
+    ElMessage.success(`已删除 ${idsToDelete.length} 条记录`)
+  } catch {
+    // 用户取消
+  }
+}
+
+// 导入
+const handleImport = () => {
+  // TODO: 打开导入对话框
+  ElMessage.info('导入功能开发中...')
+}
+
 // 导出
 const handleExport = () => {
-  ElMessage.info('导出功能开发中...')
+  if (tableData.value.length === 0) {
+    ElMessage.warning('暂无数据可导出')
+    return
+  }
+  // TODO: 实现导出Excel功能
+  ElMessage.success(`导出 ${tableData.value.length} 条记录`)
+}
+
+// 打印
+const handlePrint = () => {
+  window.print()
 }
 
 // 查询
@@ -665,30 +827,252 @@ const handleCurrentChange = (val) => {
   currentPage.value = val
 }
 
-// 保存到localStorage
-const saveMaterialDemands = () => {
-  localStorage.setItem('materialDemandData', JSON.stringify(tableData.value))
-}
-
-// 从localStorage加载
-const loadMaterialDemands = () => {
-  const data = localStorage.getItem('materialDemandData')
-  if (data) {
-    tableData.value = JSON.parse(data)
-  }
-}
-
 // ========== 生命周期 ==========
 onMounted(() => {
   loadMaterialDemands()
-  
-  // 计算表格高度
-  const updateTableHeight = () => {
-    tableHeight.value = window.innerHeight - 480
-  }
-  updateTableHeight()
-  window.addEventListener('resize', updateTableHeight)
+  loadSalesOrders() // 加载销售订单列表
 })
+
+// ========== MRP运算功能 ==========
+// 加载销售订单列表
+const loadSalesOrders = async () => {
+  try {
+    const response = await salesOrderApi.getSalesOrders({
+      page: 1,
+      pageSize: 1000 // 加载所有订单
+    })
+    
+    if (response.data && response.data.success) {
+      const orders = response.data.data.list || []
+      
+      // 筛选状态为"待下单"或"模拟排程失效"的订单，并映射字段
+      salesOrderList.value = orders
+        .filter(order => {
+          const status = order.status || order.orderStatus
+          return status === 'pending' || status === '待下单' || status === '模拟排程失效'
+        })
+        .map(order => ({
+          id: order.id,
+          internalOrderNo: order.internal_order_no || order.internalOrderNo,
+          customerOrderNo: order.customer_order_no || order.customerOrderNo,
+          customerName: order.customer_name || order.customerName,
+          orderStatus: order.status || order.orderStatus,
+          productList: order.productList || order.product_list,
+          deliveryDate: order.customer_delivery || order.customerDelivery || order.promised_delivery || order.promisedDelivery
+        }))
+      
+      console.log('✅ 加载销售订单列表:', salesOrderList.value.length, '条')
+    }
+  } catch (error) {
+    console.error('❌ 加载销售订单列表失败:', error)
+    ElMessage.error('加载销售订单列表失败')
+  }
+}
+
+// 订单选择变化
+const handleOrderChange = (value) => {
+  console.log('选择订单:', value)
+}
+
+// 执行MRP运算
+const handleExecuteMRP = async () => {
+  if (!selectedOrderNo.value) {
+    ElMessage.warning('请先选择销售订单')
+    return
+  }
+
+  // 查找选中的订单
+  const selectedOrder = salesOrderList.value.find(order => order.internalOrderNo === selectedOrderNo.value)
+  if (!selectedOrder) {
+    ElMessage.error('未找到选中的订单')
+    return
+  }
+
+  try {
+    await ElMessageBox.confirm(
+      `确定要对订单《${selectedOrderNo.value}》执行MRP运算吗？<br/><br/>` +
+      `<span style="color: #909399;">运算将根据生产BOM计算每个半成品、成品的生产需求和采购需求，并将结果保存到物料需求明细</span>`,
+      'MRP运算确认',
+      { dangerouslyUseHTMLString: true, confirmButtonText: '开始运算', cancelButtonText: '取消', type: 'info' }
+    )
+  } catch (error) {
+    return // 用户取消
+  }
+
+  mrpCalculating.value = true
+
+  try {
+    console.log('开始MRP运算，订单:', selectedOrder)
+
+    // 解析订单产品列表
+    let productList = []
+    try {
+      productList = typeof selectedOrder.productList === 'string' 
+        ? JSON.parse(selectedOrder.productList) 
+        : selectedOrder.productList || []
+    } catch (e) {
+      console.warn('订单产品列表解析失败:', e.message)
+      ElMessage.error('订单产品数据解析失败')
+      return
+    }
+
+    if (!productList || productList.length === 0) {
+      ElMessage.warning('该订单没有产品明细')
+      return
+    }
+
+    // 表格1：产品名称及需求计算（按照数据流规则映射）
+    const productDemands = productList.map((product, index) => {
+      // 格式化需求日期：只保留年月日
+      let formattedDate = ''
+      const deliveryDate = selectedOrder.deliveryDate
+      if (deliveryDate) {
+        try {
+          const date = new Date(deliveryDate)
+          if (!isNaN(date.getTime())) {
+            const year = date.getFullYear()
+            const month = String(date.getMonth() + 1).padStart(2, '0')
+            const day = String(date.getDate()).padStart(2, '0')
+            formattedDate = `${year}-${month}-${day}`
+          }
+        } catch (e) {
+          console.warn('日期格式化失败:', e.message)
+        }
+      }
+
+      return {
+        id: `prod-${Date.now()}-${index}`,
+        // 来源单号 = 内部销售订单编号
+        sourceNo: selectedOrder.internalOrderNo,
+        // 物料编号 = 产品编号
+        materialCode: product.product_code || product.productCode || '',
+        // 物料名称 = 产品名称
+        materialName: product.product_name || product.productName || '',
+        // 单位 = 产品单位
+        materialUnit: product.product_unit || product.productUnit || '个',
+        // 需求来源 = 为空
+        sourceType: '',
+        // 需求数量 = 订单数量
+        demandQty: parseFloat(product.order_quantity || product.orderQuantity || 0),
+        // 需求日期 = 客户交期（年月日格式）
+        requiredDate: formattedDate,
+        // 库存相关字段（初始值为0，后续从库存系统获取）
+        currentStock: 0,              // 当前库存
+        inTransitStock: 0,            // 在途库存
+        inProductionStock: 0,         // 在制库存
+        productionReservedStock: 0,   // 生产预扣库存
+        toBeShippedStock: 0,          // 待发货库存
+        // 数量相关字段
+        suggestedQty: 0,              // 建议数量（后续根据库存计算）
+        adjustedQty: 0,               // 调整数量（用户可编辑）
+        executeQty: 0                 // 执行数量（最终执行数量）
+      }
+    })
+
+    // 填充表格1
+    productTableData.value = productDemands
+    console.log('✅ 表格1填充完成:', productDemands)
+
+    // 调用MRP运算API（用于表格2）
+    const response = await mrpAPI.calculate([selectedOrder.id])
+    
+    if (response.code === 200) {
+      const result = response.data
+      console.log('MRP运算结果:', result)
+      
+      // 表格2：半成品及物料需求计算（从BOM展开）
+      if (result.allRequirements && result.allRequirements.length > 0) {
+        const materialDemands = result.allRequirements.map((req, index) => ({
+          id: `mat-${Date.now()}-${index}`,
+          materialCode: req.materialCode,
+          materialName: req.materialName,
+          materialUnit: req.materialUnit || '件',
+          sourceType: req.source || '未知',
+          demandQty: req.demandQty || 0,
+          requiredDate: productDemands[0]?.requiredDate || '',
+          currentStock: req.currentStock || 0,
+          netDemandQty: req.netDemandQty || 0
+        }))
+
+        materialTableData.value = materialDemands
+        console.log('✅ 表格2填充完成:', materialDemands)
+      } else {
+        materialTableData.value = []
+      }
+
+      ElMessage.success(`MRP运算完成！计算出 ${productDemands.length} 个产品需求和 ${materialTableData.value.length} 个物料需求`)
+    } else {
+      ElMessage.warning('MRP运算失败，仅填充产品需求表')
+    }
+  } catch (error) {
+    console.error('❌ MRP运算失败:', error)
+    ElMessage.error(`MRP运算失败: ${error.message || '未知错误'}`)
+  } finally {
+    mrpCalculating.value = false
+  }
+}
+
+// ========== 表格1：产品名称及需求计算 ==========
+const handleProductEdit = (row) => {
+  ElMessage.info(`编辑产品需求: ${row.materialCode}`)
+}
+
+const handleProductDelete = async (row) => {
+  try {
+    await ElMessageBox.confirm(
+      `确定要删除产品《${row.materialName}》的需求明细吗？`,
+      '删除确认',
+      {
+        confirmButtonText: '确定',
+        cancelButtonText: '取消',
+        type: 'warning'
+      }
+    )
+    
+    const index = productTableData.value.findIndex(item => item.id === row.id)
+    if (index !== -1) {
+      productTableData.value.splice(index, 1)
+      ElMessage.success('删除成功')
+    }
+  } catch (error) {
+    // 用户取消
+  }
+}
+
+const handleProductExport = () => {
+  ElMessage.success('导出产品需求计算数据...')
+}
+
+// ========== 表格2：半成品及物料需求计算 ==========
+const handleMaterialEdit = (row) => {
+  ElMessage.info(`编辑物料需求: ${row.materialCode}`)
+}
+
+const handleMaterialDelete = async (row) => {
+  try {
+    await ElMessageBox.confirm(
+      `确定要删除物料《${row.materialName}》的需求明细吗？`,
+      '删除确认',
+      {
+        confirmButtonText: '确定',
+        cancelButtonText: '取消',
+        type: 'warning'
+      }
+    )
+    
+    const index = materialTableData.value.findIndex(item => item.id === row.id)
+    if (index !== -1) {
+      materialTableData.value.splice(index, 1)
+      ElMessage.success('删除成功')
+    }
+  } catch (error) {
+    // 用户取消
+  }
+}
+
+const handleMaterialExport = () => {
+  ElMessage.success('导出物料需求计算数据...')
+}
 </script>
 
 <style scoped lang="scss">
@@ -810,6 +1194,35 @@ onMounted(() => {
   padding: 20px;
   border-radius: 8px;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+.table-title {
+  margin-bottom: 16px;
+  padding-bottom: 12px;
+  border-bottom: 2px solid #e4e7ed;
+}
+
+.table-title h3 {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 600;
+  color: #303133;
+}
+
+// MRP运算控制面板
+.mrp-control-panel {
+  margin-bottom: 16px;
+  padding: 16px;
+  background: #f5f7fa;
+  border-radius: 4px;
+  
+  :deep(.el-form) {
+    margin-bottom: 0;
+  }
+  
+  :deep(.el-form-item) {
+    margin-bottom: 0;
+  }
 }
 
 .qty-demand {

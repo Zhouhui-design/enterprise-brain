@@ -69,12 +69,52 @@ router.get('/', async (req, res) => {
     `
     const [orders] = await connection.execute(dataSQL, params)
     
+    // 为每个订单查询产品明细
+    const ordersWithProducts = await Promise.all(orders.map(async (order) => {
+      const [products] = await connection.execute(
+        'SELECT * FROM sales_order_products WHERE order_id = ?',
+        [order.id]
+      )
+      
+      // 为每个产品查询图片（从物料表中获取）
+      const productsWithImage = await Promise.all(products.map(async (product) => {
+        try {
+          const [materials] = await connection.execute(
+            'SELECT material_image FROM materials WHERE material_code = ? LIMIT 1',
+            [product.product_code]
+          )
+          
+          return {
+            ...product,
+            product_image: materials.length > 0 ? materials[0].material_image : null
+          }
+        } catch (err) {
+          console.warn(`查询产品图片失败 (${product.product_code}):`, err.message)
+          return product
+        }
+      }))
+      
+      // 将产品列表添加到订单中
+      return {
+        ...order,
+        productList: JSON.stringify(productsWithImage), // 存储为JSON字符串，与前端期望一致
+        // 同时提取第一个产品的信息到主字段（便于表格显示）
+        productCode: productsWithImage.length > 0 ? productsWithImage[0].product_code : null,
+        productName: productsWithImage.length > 0 ? productsWithImage[0].product_name : null,
+        productImage: productsWithImage.length > 0 ? productsWithImage[0].product_image : null,
+        productSpec: productsWithImage.length > 0 ? productsWithImage[0].product_spec : null,
+        productColor: productsWithImage.length > 0 ? productsWithImage[0].product_color : null,
+        productUnit: productsWithImage.length > 0 ? productsWithImage[0].product_unit : null,
+        orderQuantity: productsWithImage.length > 0 ? productsWithImage[0].order_quantity : null
+      }
+    }))
+    
     console.log(`✅ 查询成功，共 ${total} 条记录，当前页 ${orders.length} 条`)
     
     res.json({
       success: true,
       data: {
-        list: orders,
+        list: ordersWithProducts,
         total,
         page: parseInt(page),
         pageSize: parseInt(pageSize)

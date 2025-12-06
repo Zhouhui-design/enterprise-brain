@@ -1,54 +1,74 @@
 <template>
   <div class="tree-table-wrapper">
-    <BaseTable
+    <el-table
       ref="baseTableRef"
       :data="treeData"
-      :columns="columns"
       :row-key="rowKey"
       :tree-props="treeProps"
       :default-expand-all="defaultExpandAll"
       v-bind="$attrs"
       @row-click="handleRowClick"
     >
-      <!-- 自定义插槽透传 -->
-      <template v-for="(_, slot) in $slots" #[slot]="scope">
-        <slot :name="slot" v-bind="scope" />
+      <template v-for="column in columns" :key="column.prop">
+        <el-table-column
+          v-bind="column"
+          :prop="column.prop"
+          :label="column.label"
+          :width="column.width"
+          :min-width="column.minWidth"
+          :fixed="column.fixed"
+          :sortable="column.sortable"
+          :align="column.align || 'left'"
+          :header-align="column.headerAlign"
+          :show-overflow-tooltip="column.showOverflowTooltip"
+        >
+          <template #default="scope" v-if="column.slot">
+            <slot :name="`column-${column.prop}`" v-bind="scope" />
+          </template>
+        </el-table-column>
       </template>
       
       <!-- 操作列 -->
-      <template #action="{ row, $index }">
-        <el-button
-          v-if="showExpandBtn && hasChildren(row)"
-          type="primary"
-          size="small"
-          link
-          @click="toggleExpand(row)"
-        >
-          {{ isExpanded(row) ? '收起' : '展开' }}
-        </el-button>
-        <el-button
-          v-if="showAddChildBtn"
-          type="primary"
-          size="small"
-          :icon="Plus"
-          link
-          @click="handleAddChild(row)"
-        >
-          添加子节点
-        </el-button>
-        <el-button
-          v-if="showDeleteBtn"
-          type="danger"
-          size="small"
-          :icon="Delete"
-          link
-          @click="handleDelete(row, $index)"
-        >
-          删除
-        </el-button>
-        <slot name="action" :row="row" :index="$index" />
+      <el-table-column label="操作" fixed="right" v-if="showExpandBtn || showAddChildBtn || showDeleteBtn">
+        <template #default="scope">
+          <el-button
+            v-if="showExpandBtn && hasChildren(scope.row)"
+            type="primary"
+            size="small"
+            link
+            @click="toggleExpand(scope.row)"
+          >
+            {{ isExpanded(scope.row) ? '收起' : '展开' }}
+          </el-button>
+          <el-button
+            v-if="showAddChildBtn"
+            type="primary"
+            size="small"
+            :icon="Plus"
+            link
+            @click="handleAddChild(scope.row)"
+          >
+            添加子节点
+          </el-button>
+          <el-button
+            v-if="showDeleteBtn"
+            type="danger"
+            size="small"
+            :icon="Delete"
+            link
+            @click="handleDelete(scope.row, scope.$index)"
+          >
+            删除
+          </el-button>
+          <slot name="action" :row="scope.row" :index="scope.$index" />
+        </template>
+      </el-table-column>
+      
+      <!-- 自定义插槽透传 -->
+      <template v-for="(_, slot) in $slots" #[slot]="scope" v-if="!slot.startsWith('column-') && slot !== 'action'">
+        <slot :name="slot" v-bind="scope" />
       </template>
-    </BaseTable>
+    </el-table>
   </div>
 </template>
 
@@ -56,7 +76,6 @@
 import { ref, computed, watch } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Plus, Delete } from '@element-plus/icons-vue'
-import BaseTable from './BaseTable.vue'
 
 const props = defineProps({
   // 树形数据

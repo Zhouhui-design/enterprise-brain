@@ -274,12 +274,27 @@ const pageSettings = ref({
   printOrientation: 'landscape'
 })
 
-// 批次列表
-const batchList = ref([
-  { batchNo: 'MRP-20251205-001', runTime: '2025-12-05 10:00:00' },
-  { batchNo: 'MRP-20251204-001', runTime: '2025-12-04 15:30:00' },
-  { batchNo: 'MRP-20251203-001', runTime: '2025-12-03 09:00:00' }
-])
+// 批次列表（动态加载）
+const batchList = ref([])
+
+// 加载批次列表
+const loadBatchList = () => {
+  // 从表格数据中提取唯一的批次
+  const batches = new Map()
+  tableData.value.forEach(item => {
+    if (item.batchNo && !batches.has(item.batchNo)) {
+      batches.set(item.batchNo, {
+        batchNo: item.batchNo,
+        runTime: item.runTime || ''
+      })
+    }
+  })
+  
+  // 转换为数组并按批次号降序排序（最新的在前）
+  batchList.value = Array.from(batches.values()).sort((a, b) => {
+    return b.batchNo.localeCompare(a.batchNo)
+  })
+}
 
 // 表格数据（从localStorage加载或使用默认空数组）
 const tableData = ref([])
@@ -627,13 +642,13 @@ const saveMRPPlans = () => {
   localStorage.setItem('mrpPlanApproveData', JSON.stringify(tableData.value))
 }
 
-// 从localStorage加载
+// 从 localStorage 加载
 const loadMRPPlans = () => {
   const data = localStorage.getItem('mrpPlanApproveData')
   if (data) {
     tableData.value = JSON.parse(data)
   } else {
-    // 如果localStorage中没有数据，则使用默认的模拟数据
+    // 如果 localStorage 中没有数据，则使用默认的模拟数据
     tableData.value = [
       {
         id: '1',
@@ -697,6 +712,9 @@ const loadMRPPlans = () => {
       }
     ]
   }
+  
+  // 加载批次列表
+  loadBatchList()
 }
 
 // ========== 生命周期 ==========

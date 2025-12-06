@@ -78,33 +78,25 @@
       </el-card>
     </div>
 
-    <!-- 主表格 - 使用FilterTable组件 -->
-    <FilterTable
-      ref="filterTableRef"
-      :data="tableData"
-      :columns="tableColumns"
-      :show-selection="true"
-      :show-index="true"
-      :show-pagination="true"
-      :total="totalCount"
-      :page-num="currentPage"
-      :page-size="pageSize"
-      :page-sizes="[10, 20, 50, 100]"
+    <!-- 主表格 -->
+    <el-table
+      ref="tableRef"
+      :data="paginatedTableData"
       stripe
       border
       :height="tableHeight"
       highlight-current-row
       @selection-change="handleSelectionChange"
-      @page-change="handlePageChange"
-      @size-change="handleTableSizeChange"
-      @filter-change="handleFilterChange"
     >
-      <!-- 物料名称列 -->
+      <el-table-column type="selection" width="55" fixed="left" />
+      <el-table-column type="index" label="序号" width="60" fixed="left" />
+      <el-table-column prop="materialCode" label="物料编号" width="150" fixed="left" sortable />
+      <el-table-column prop="materialName" label="物料名称" width="200" sortable>
       <template #materialName="{ row }">
         <el-link type="primary" @click="handleView(row)">{{ row.materialName }}</el-link>
       </template>
-
-      <!-- 图片列 -->
+      </el-table-column>
+      <el-table-column prop="materialImage" label="图片" width="100">
       <template #materialImage="{ row }">
         <el-image 
           v-if="row.materialImage"
@@ -117,8 +109,11 @@
         />
         <span v-else style="color: #909399;">无图片</span>
       </template>
-
-      <!-- 来源列 -->
+      </el-table-column>
+      <el-table-column prop="specification" label="规格" width="150" />
+      <el-table-column prop="unit" label="单位" width="80" />
+      <el-table-column prop="category" label="分类" width="120" sortable />
+      <el-table-column prop="source" label="来源" width="120">
       <template #source="{ row }">
         <span v-if="row.source && row.source.length > 0">
           <el-tag 
@@ -132,28 +127,44 @@
         </span>
         <span v-else>-</span>
       </template>
-
-      <!-- 工序单价列 -->
+      </el-table-column>
+      <el-table-column prop="status" label="状态" width="100">
+        <template #default="{ row }">
+          <el-tag :type="row.status === '在用' ? 'success' : 'info'">{{ row.status }}</el-tag>
+        </template>
+      </el-table-column>
+      <el-table-column prop="stockQuantity" label="库存" width="100" align="right" />
+      <el-table-column prop="processPrice" label="工序单价" width="120" align="right">
       <template #processPrice="{ row }">
         ¥{{ row.processPrice?.toFixed(2) }}
       </template>
-
-      <!-- 采购单价列 -->
+      </el-table-column>
+      <el-table-column prop="purchasePrice" label="采购单价" width="120" align="right">
       <template #purchasePrice="{ row }">
         ¥{{ row.purchasePrice?.toFixed(2) }}
       </template>
+      </el-table-column>
+      <el-table-column label="操作" width="200" fixed="right">
+        <template #default="{ row }">
+          <el-button link type="primary" size="small" @click="handleEdit(row)">编辑</el-button>
+          <el-button link type="success" size="small" @click="handleView(row)">查看</el-button>
+          <el-button link type="danger" size="small" @click="handleDelete(row)">删除</el-button>
+        </template>
+      </el-table-column>
+    </el-table>
 
-      <!-- 操作列 -->
-      <template #actions>
-        <el-table-column label="操作" width="200" fixed="right">
-          <template #default="{ row }">
-            <el-button link type="primary" @click="handleEdit(row)">编辑</el-button>
-            <el-button link type="success" @click="handleView(row)">查看</el-button>
-            <el-button link type="danger" @click="handleDelete(row)">删除</el-button>
-          </template>
-        </el-table-column>
-      </template>
-    </FilterTable>
+    <!-- 分页 -->
+    <div class="pagination-container">
+      <el-pagination
+        v-model:current-page="currentPage"
+        v-model:page-size="pageSize"
+        :page-sizes="[10, 20, 50, 100]"
+        :total="totalCount"
+        layout="total, sizes, prev, pager, next, jumper"
+        @size-change="handleSizeChange"
+        @current-change="handlePageChange"
+      />
+    </div>
 
     <!-- 新增/编辑物料对话框 -->
     <el-dialog 
@@ -226,7 +237,6 @@ import {
 import * as XLSX from 'xlsx' // 静态导入XLSX库
 import MaterialEdit from './MaterialEdit.vue'
 import MaterialView from './MaterialView.vue'
-import FilterTable from '@/components/common/tables/FilterTable.vue'
 // import databaseService from '@/services/DatabaseService.js' // 不再使用IndexedDB
 import materialApiService from '@/services/api/materialApiService' // 使用后端API服务
 
