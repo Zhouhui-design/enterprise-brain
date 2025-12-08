@@ -1,11 +1,11 @@
 const express = require('express');
 const router = express.Router();
-const db = require('../config/database');
+const { pool } = require('../config/database');
 
 // 获取所有工序
 router.get('/list', async (req, res) => {
   try {
-    const [rows] = await db.execute('SELECT * FROM processes ORDER BY created_at DESC');
+    const [rows] = await pool.execute('SELECT * FROM processes ORDER BY created_at DESC');
     res.json({
       code: 200,
       data: rows,
@@ -32,7 +32,7 @@ router.post('/create', async (req, res) => {
       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
     `;
     
-    const [result] = await db.execute(sql, [
+    const [result] = await pool.execute(sql, [
       processData.process_code || processData.processCode,
       processData.process_name || processData.processName,
       processData.responsible_person || processData.responsiblePerson,
@@ -66,7 +66,7 @@ router.post('/create', async (req, res) => {
 
 // 批量创建工序
 router.post('/batch-create', async (req, res) => {
-  const connection = await db.getConnection();
+  const connection = await pool.getConnection();
   let successCount = 0;
   let errorCount = 0;
   const errors = [];
@@ -167,7 +167,7 @@ router.put('/update/:id', async (req, res) => {
       WHERE id = ?
     `;
     
-    const [result] = await db.execute(sql, [
+    const [result] = await pool.execute(sql, [
       processData.process_code || processData.processCode,
       processData.process_name || processData.processName,
       processData.responsible_person || processData.responsiblePerson,
@@ -211,7 +211,7 @@ router.put('/update/:id', async (req, res) => {
 router.delete('/delete/:id', async (req, res) => {
   try {
     const id = req.params.id;
-    const [result] = await db.execute('DELETE FROM processes WHERE id = ?', [id]);
+    const [result] = await pool.execute('DELETE FROM processes WHERE id = ?', [id]);
     
     if (result.affectedRows === 0) {
       res.status(404).json({
@@ -236,7 +236,7 @@ router.delete('/delete/:id', async (req, res) => {
 
 // 批量删除工序
 router.post('/batch-delete', async (req, res) => {
-  const connection = await db.getConnection();
+  const connection = await pool.getConnection();
   try {
     await connection.beginTransaction();
     

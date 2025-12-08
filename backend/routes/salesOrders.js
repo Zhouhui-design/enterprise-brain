@@ -1,6 +1,6 @@
 const express = require('express')
 const router = express.Router()
-const pool = require('../config/database')
+const { pool } = require('../config/database')
 const { v4: uuidv4 } = require('uuid')
 
 /**
@@ -13,8 +13,16 @@ function formatDateForMySQL(isoDate) {
   try {
     const date = new Date(isoDate)
     if (isNaN(date.getTime())) return null
-    // 格式: YYYY-MM-DD HH:MM:SS
-    return date.toISOString().slice(0, 19).replace('T', ' ')
+    
+    // ✅ 修复：使用本地时间而非UTC时间，避免日期减1天
+    const year = date.getFullYear()
+    const month = String(date.getMonth() + 1).padStart(2, '0')
+    const day = String(date.getDate()).padStart(2, '0')
+    const hours = String(date.getHours()).padStart(2, '0')
+    const minutes = String(date.getMinutes()).padStart(2, '0')
+    const seconds = String(date.getSeconds()).padStart(2, '0')
+    
+    return `${year}-${month}-${day} ${hours}:${minutes}:${seconds}`
   } catch (error) {
     return null
   }
@@ -105,7 +113,8 @@ router.get('/', async (req, res) => {
         productSpec: productsWithImage.length > 0 ? productsWithImage[0].product_spec : null,
         productColor: productsWithImage.length > 0 ? productsWithImage[0].product_color : null,
         productUnit: productsWithImage.length > 0 ? productsWithImage[0].product_unit : null,
-        orderQuantity: productsWithImage.length > 0 ? productsWithImage[0].order_quantity : null
+        orderQuantity: productsWithImage.length > 0 ? productsWithImage[0].order_quantity : null,
+        output_process: productsWithImage.length > 0 ? productsWithImage[0].output_process : null // ✅ 添加产出工序字段
       }
     }))
     
@@ -298,8 +307,8 @@ router.post('/', async (req, res) => {
             INSERT INTO sales_order_products (
               order_id, product_code, product_name, product_spec, product_color,
               product_unit, order_quantity, unit_price_excluding_tax, tax_rate,
-              total_price_excluding_tax, total_tax, total_price, accessories
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+              total_price_excluding_tax, total_tax, total_price, accessories, output_process
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
           `, [
             id, 
             product.productCode || null, 
@@ -313,7 +322,8 @@ router.post('/', async (req, res) => {
             product.totalPriceExcludingTax || 0, 
             product.totalTax || 0, 
             product.totalPrice || 0,
-            product.accessories ? JSON.stringify(product.accessories) : null
+            product.accessories ? JSON.stringify(product.accessories) : null,
+            product.outputProcess || null  // ✅ 关键：保存产出工序
           ])
         }
       }
@@ -374,15 +384,34 @@ router.put('/:id', async (req, res) => {
   try {
     const { id } = req.params
     console.log('=== 更新销售订单 ===', id)
+    console.log('请求数据:', req.body)
     
     connection = await pool.getConnection()
     
     // 检查订单是否存在
-    const [existing] = await connection.execute('SELECT id FROM sales_orders WHERE id = ?', [id])
+    const [existing] = await connection.execute('SELECT * FROM sales_orders WHERE id = ?', [id])
     if (!existing || existing.length === 0) {
       return res.status(404).json({
         success: false,
         message: '订单不存在'
+      })
+    }
+    
+    // 如果只有status字段，只更新状态
+    if (Object.keys(req.body).length === 1 && req.body.status) {
+      await connection.execute(
+        'UPDATE sales_orders SET status = ?, updated_by = ? WHERE id = ?',
+        [req.body.status, 'admin', id]
+      )
+      
+      const [updatedOrders] = await connection.execute('SELECT * FROM sales_orders WHERE id = ?', [id])
+      
+      console.log('✅ 更新状态成功:', req.body.status)
+      
+      return res.json({
+        success: true,
+        message: '更新订单状态成功',
+        data: updatedOrders[0]
       })
     }
     
@@ -451,13 +480,14 @@ router.put('/:id', async (req, res) => {
             INSERT INTO sales_order_products (
               order_id, product_code, product_name, product_spec, product_color,
               product_unit, order_quantity, unit_price_excluding_tax, tax_rate,
-              total_price_excluding_tax, total_tax, total_price, accessories
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+              total_price_excluding_tax, total_tax, total_price, accessories, output_process
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
           `, [
             id, product.productCode, product.productName, product.productSpec, product.productColor,
             product.productUnit, product.orderQuantity, product.unitPriceExcludingTax, product.taxRate,
             product.totalPriceExcludingTax, product.totalTax, product.totalPrice,
-            product.accessories ? JSON.stringify(product.accessories) : null
+            product.accessories ? JSON.stringify(product.accessories) : null,
+            product.outputProcess || null  // ✅ 关键：保存产出工序
           ])
         }
       }
@@ -517,7 +547,12 @@ router.delete('/:id', async (req, res) => {
     
     connection = await pool.getConnection()
     
-    const [existing] = await connection.execute('SELECT id FROM sales_orders WHERE id = ?', [id])
+    // ✅ 需求2：先查询订单的internal_order_no，用于级联删除主生产计划
+    const [existing] = await connection.execute(
+      'SELECT id, internal_order_no FROM sales_orders WHERE id = ?',
+      [id]
+    )
+    
     if (!existing || existing.length === 0) {
       return res.status(404).json({
         success: false,
@@ -525,14 +560,25 @@ router.delete('/:id', async (req, res) => {
       })
     }
     
+    const internalOrderNo = existing[0].internal_order_no;
+    console.log('🗑️ 删除订单:', { id, internalOrderNo });
+    
+    // ✅ 级联删除主生产计划（internal_order_no = 订单的internal_order_no）
+    const [masterPlanResult] = await connection.execute(
+      'DELETE FROM master_production_plans WHERE internal_order_no = ?',
+      [internalOrderNo]
+    );
+    
+    console.log(`✅ 级联删除主生产计划: ${masterPlanResult.affectedRows} 条`);
+    
     // 删除订单(级联删除产品和回款计划)
     await connection.execute('DELETE FROM sales_orders WHERE id = ?', [id])
     
-    console.log('✅ 删除成功')
+    console.log('✅ 订单删除成功')
     
     res.json({
       success: true,
-      message: '删除订单成功'
+      message: `删除订单成功（同时删除 ${masterPlanResult.affectedRows} 条主生产计划）`
     })
   } catch (error) {
     console.error('❌ 删除订单失败:', error)

@@ -1,0 +1,1722 @@
+<template>
+  <div class="sales-order-list-container">
+    <!-- 顶部工具栏 -->
+    <div class="toolbar">
+      <div class="toolbar-left">
+        <h2>销售订单管理</h2>
+      </div>
+      <div class="toolbar-right">
+        <el-button type="primary" @click="handleCreate">
+          <el-icon><Plus /></el-icon>
+          新增
+        </el-button>
+        <el-button type="success" @click="handleConfirmOrder">
+          <el-icon><CircleCheck /></el-icon>
+          正式下单
+        </el-button>
+        <el-button type="danger" :disabled="!hasSelection" @click="handleManualTerminate">手动终止</el-button>
+        <el-button type="success" :disabled="!canExecuteMRP" @click="handleMRPCalculation">
+          <el-icon><DataAnalysis /></el-icon>
+          执行MRP运算
+        </el-button>
+        <el-button @click="handleDraft">草稿箱</el-button>
+        <el-button type="danger" :disabled="!hasSelection" @click="handleDelete">删除</el-button>
+        <el-button @click="handleFieldManagement">字段管理</el-button>
+        <el-button @click="handleImport">导入</el-button>
+        <el-button @click="handleExport">导出</el-button>
+        <el-button @click="handleRefresh">刷新</el-button>
+        <el-button @click="handleChange">变更</el-button>
+        <el-button @click="handlePrint">打印</el-button>
+        <el-button @click="handlePause">暂停</el-button>
+        <el-button type="primary" @click="handleSettings" circle>
+          <el-icon><Setting /></el-icon>
+        </el-button>
+      </div>
+    </div>
+
+    <!-- 搜索筛选区 -->
+    <div class="search-area">
+      <el-input 
+        v-model="searchText" 
+        placeholder="搜索订单编号、客户名称..." 
+        clearable
+        style="width: 300px; margin-right: 10px;"
+      >
+        <template #prefix>
+          <el-icon><Search /></el-icon>
+        </template>
+      </el-input>
+      <el-select v-model="statusFilter" placeholder="订单状态" clearable style="width: 180px; margin-right: 10px;">
+        <el-option label="全部" value="" />
+        <el-option label="待下单" value="待下单" />
+        <el-option label="已模拟排程待下单" value="已模拟排程待下单" />
+        <el-option label="草稿" value="draft" />
+        <el-option label="待审核" value="pending" />
+        <el-option label="已审核" value="approved" />
+        <el-option label="生产中" value="production" />
+        <el-option label="已发货" value="shipped" />
+        <el-option label="已完成" value="completed" />
+        <el-option label="已取消" value="cancelled" />
+        <el-option label="手动终止" value="terminated" />
+      </el-select>
+      
+      <!-- 模拟排程订单提示 -->
+      <el-tag v-if="simulatedOrders.length > 0" type="warning" style="margin-right: 10px;">
+        当前有 {{ simulatedOrders.length }} 个模拟排程订单未下单
+      </el-tag>
+    </div>
+
+    <!-- 主表格 -->
+    <div class="table-container">
+      <el-table
+        ref="tableRef"
+        :data="filteredTableData"
+        stripe
+        border
+        :height="tableHeight"
+        @selection-change="handleSelectionChange"
+        :row-style="getRowStyle"
+        :span-method="spanMethod"
+      >
+        <el-table-column type="selection" width="55" fixed="left" />
+        <el-table-column prop="orderStatus" label="订单状态" width="100" fixed="left">
+          <template #default="{ row }">
+            <el-tag :type="getStatusType(row.orderStatus)">{{ row.orderStatus || '-' }}</el-tag>
+          </template>
+        </el-table-column>
+        <el-table-column prop="internalOrderNo" label="内部销售订单编号" width="160" fixed="left" />
+        <el-table-column prop="customerOrderNo" label="客户订单编号" width="150" />
+        <el-table-column prop="customerName" label="客户名称" width="150" />
+        <el-table-column prop="salesperson" label="销售员" width="100" />
+        <el-table-column prop="quotationNo" label="报价单号" width="140" />
+        <el-table-column prop="orderTime" label="下单时间" width="120">
+          <template #default="{ row }">
+            {{ formatDateYMD(row.orderTime) }}
+          </template>
+        </el-table-column>
+        <el-table-column prop="promisedDelivery" label="承诺交期" width="120" />
+        <el-table-column prop="returnOrderNo" label="销售退货单号" width="140" />
+        <el-table-column prop="deliveryMethod" label="送货方式" width="120" />
+        <el-table-column prop="salesDepartment" label="销售部门" width="120" />
+        <el-table-column prop="orderCurrency" label="订单币种" width="100" />
+        <el-table-column prop="currentExchangeRate" label="当前汇率" width="100" />
+        <el-table-column prop="taxRate" label="税率" width="80" />
+        <el-table-column prop="customerDelivery" label="客户交期" width="120">
+          <template #default="{ row }">
+            {{ formatDateYMD(row.customerDelivery) }}
+          </template>
+        </el-table-column>
+        <el-table-column prop="estimatedCompletionDate" label="预计完成日期" width="140" />
+        <el-table-column prop="orderAttachment" label="订单附件" width="100">
+          <template #default="{ row }">
+            <el-button v-if="row.orderAttachment" link type="primary" size="small">查看</el-button>
+            <span v-else>-</span>
+          </template>
+        </el-table-column>
+        <el-table-column prop="orderNotes" label="订单说明" width="150" show-overflow-tooltip />
+        <el-table-column prop="totalAmountExcludingTax" label="订单总金额（未税）" width="160" align="right">
+          <template #default="{ row }">
+            {{ formatCurrency(row.totalAmountExcludingTax) }}
+          </template>
+        </el-table-column>
+        <el-table-column prop="totalAmountIncludingTax" label="订单总金额（含税）" width="160" align="right">
+          <template #default="{ row }">
+            {{ formatCurrency(row.totalAmountIncludingTax) }}
+          </template>
+        </el-table-column>
+        <el-table-column prop="packagingMethod" label="包装方式" width="120" />
+        <el-table-column prop="packagingRequirements" label="包装需求描述" width="150" show-overflow-tooltip />
+        <el-table-column prop="packagingAttachment" label="包装附件" width="100">
+          <template #default="{ row }">
+            <el-button v-if="row.packagingAttachment" link type="primary" size="small">查看</el-button>
+            <span v-else>-</span>
+          </template>
+        </el-table-column>
+        <el-table-column prop="consignee" label="收货人" width="100" />
+        <el-table-column prop="deliveryAddress" label="收货地址" width="200" show-overflow-tooltip />
+        <el-table-column prop="billRecipient" label="账单收件人" width="120" />
+        <el-table-column prop="billAddress" label="账单收件地址" width="200" show-overflow-tooltip />
+        <el-table-column prop="paymentMethod" label="收款方式" width="120" />
+        <el-table-column prop="advancePaymentRatio" label="预收占比" width="100" />
+        <el-table-column prop="fees" label="手续费或其他费用" width="140" align="right">
+          <template #default="{ row }">
+            {{ formatCurrency(row.fees) }}
+          </template>
+        </el-table-column>
+        <el-table-column prop="paymentPlan" label="回款计划" width="120" />
+        <el-table-column prop="totalReceivable" label="应回款总额" width="140" align="right">
+          <template #default="{ row }">
+            {{ formatCurrency(row.totalReceivable) }}
+          </template>
+        </el-table-column>
+        <el-table-column prop="plannedPaymentDate" label="计划回款日期" width="140" />
+        <el-table-column prop="plannedPaymentAmount" label="计划回款金额" width="140" align="right">
+          <template #default="{ row }">
+            {{ formatCurrency(row.plannedPaymentAmount) }}
+          </template>
+        </el-table-column>
+        <el-table-column prop="createTime" label="创建时间" width="160" />
+        <el-table-column prop="orderType" label="订单类型" width="100" />
+        
+        <!-- 产品相关字段 -->
+        <el-table-column prop="productCode" label="产品编号" width="140" />
+        <el-table-column prop="productName" label="产品名称" width="150" />
+        <el-table-column prop="productImage" label="产品图片" width="100">
+          <template #default="{ row }">
+            <el-image v-if="row.productImage" :src="row.productImage" style="width: 50px; height: 50px;" fit="cover" />
+            <span v-else>-</span>
+          </template>
+        </el-table-column>
+        <el-table-column prop="salesBomSelection" label="销售BOM选择" width="140" />
+        <el-table-column prop="majorCategory" label="大类" width="100" />
+        <el-table-column prop="middleCategory" label="中类" width="100" />
+        <el-table-column prop="minorCategory" label="小类" width="100" />
+        <el-table-column prop="productSource" label="产品来源" width="100" />
+        <el-table-column prop="productSpec" label="产品规格" width="150" show-overflow-tooltip />
+        <el-table-column prop="productColor" label="产品颜色" width="100" />
+        <el-table-column prop="productMaterial" label="产品材质" width="120" />
+        <el-table-column prop="productDescription" label="产品详述" width="200" show-overflow-tooltip />
+        <el-table-column prop="outputProcess" label="产出工序" width="120" show-overflow-tooltip />
+        <el-table-column prop="realtimeInventory" label="实时库存" width="100" align="right" />
+        <el-table-column prop="availableInventory" label="可销售库存" width="120" align="right" />
+        <el-table-column prop="effectiveInventory" label="有效库存" width="100" align="right" />
+        <el-table-column prop="estimatedBalance" label="预计结存" width="100" align="right" />
+        <el-table-column prop="productUnit" label="产品单位" width="100" />
+        <el-table-column prop="orderQuantity" label="订单数量" width="100" align="right" />
+        <el-table-column prop="unitPriceExcludingTax" label="销售单价（未税）" width="150" align="right">
+          <template #default="{ row }">
+            {{ formatCurrency(row.unitPriceExcludingTax) }}
+          </template>
+        </el-table-column>
+        <el-table-column prop="productTaxRate" label="税率" width="80" />
+        <el-table-column prop="unitPriceIncludingTax" label="含税单价" width="120" align="right">
+          <template #default="{ row }">
+            {{ formatCurrency(row.unitPriceIncludingTax) }}
+          </template>
+        </el-table-column>
+        <el-table-column prop="amountExcludingTax" label="金额（未税）" width="120" align="right">
+          <template #default="{ row }">
+            {{ formatCurrency(row.amountExcludingTax) }}
+          </template>
+        </el-table-column>
+        <el-table-column prop="amountIncludingTax" label="含税金额" width="120" align="right">
+          <template #default="{ row }">
+            {{ formatCurrency(row.amountIncludingTax) }}
+          </template>
+        </el-table-column>
+        <el-table-column prop="appliedShipmentQty" label="已申请发货数量" width="140" align="right" />
+        <el-table-column prop="unappliedShipmentQty" label="未申请发货数量" width="140" align="right" />
+        <el-table-column prop="shippedQty" label="已发货数量" width="120" align="right" />
+        <el-table-column prop="unshippedQty" label="未发货数量" width="120" align="right" />
+        <el-table-column prop="receivedAmount" label="已回款金额" width="120" align="right">
+          <template #default="{ row }">
+            {{ formatCurrency(row.receivedAmount) }}
+          </template>
+        </el-table-column>
+        <el-table-column prop="unreceivedAmount" label="未回款金额" width="120" align="right">
+          <template #default="{ row }">
+            {{ formatCurrency(row.unreceivedAmount) }}
+          </template>
+        </el-table-column>
+        <el-table-column prop="hasAfterSales" label="是否有售后" width="120">
+          <template #default="{ row }">
+            <el-tag :type="row.hasAfterSales ? 'warning' : 'success'">{{ row.hasAfterSales ? '是' : '否' }}</el-tag>
+          </template>
+        </el-table-column>
+        <el-table-column prop="afterSalesDetails" label="售后详情" width="150" show-overflow-tooltip />
+        <el-table-column prop="afterSalesOrderNo" label="售后订单号" width="140" />
+        
+        <!-- 操作列 -->
+        <el-table-column label="操作" width="320" fixed="right">
+          <template #default="{ row }">
+            <el-button link type="primary" @click="handleEdit(row)">编辑</el-button>
+            <el-button link type="success" @click="handleView(row)">查看</el-button>
+            <el-button 
+              link 
+              type="warning" 
+              @click="handleSimulateScheduling(row)"
+              v-if="row.orderStatus === '待下单' || row.orderStatus === '草稿'"
+            >
+              模拟排程
+            </el-button>
+            <el-button 
+              link 
+              type="success" 
+              @click="handleConfirmOrder(row)"
+              v-if="row.orderStatus === '待下单' || row.orderStatus === '已模拟排程待下单'"
+            >
+              确认下单
+            </el-button>
+            <el-button link type="danger" @click="handleDeleteRow(row)">删除</el-button>
+          </template>
+        </el-table-column>
+      </el-table>
+    </div>
+
+    <!-- 分页 -->
+    <div class="pagination-container">
+      <el-pagination
+        v-model:current-page="currentPage"
+        v-model:page-size="pageSize"
+        :page-sizes="[10, 20, 50, 100]"
+        :total="totalCount"
+        layout="total, sizes, prev, pager, next, jumper"
+        @size-change="handleSizeChange"
+        @current-change="handleCurrentChange"
+      />
+    </div>
+
+    <!-- 页面设置对话框 -->
+    <el-dialog v-model="settingsVisible" title="页面设置" width="800px">
+      <el-tabs v-model="activeTab">
+        <el-tab-pane label="流程设置" name="workflow">
+          <el-form label-width="160px">
+            <el-form-item label="审批流程">
+              <el-select v-model="settings.approvalFlow" style="width: 100%;">
+                <el-option label="单级审批" value="single" />
+                <el-option label="多级审批" value="multi" />
+                <el-option label="自定义" value="custom" />
+              </el-select>
+            </el-form-item>
+          </el-form>
+        </el-tab-pane>
+        
+        <el-tab-pane label="模拟排程设置" name="scheduling">
+          <el-form label-width="200px">
+            <el-form-item label="模拟排程失效天数">
+              <el-input-number 
+                v-model="settings.simulationExpireDays" 
+                :min="1" 
+                :max="30" 
+                style="width: 200px;"
+              />
+              <span style="margin-left: 10px; color: #909399;">天</span>
+            </el-form-item>
+            <el-form-item label="说明">
+              <el-alert 
+                type="info" 
+                :closable="false"
+                show-icon
+              >
+                <template #title>
+                  <div style="line-height: 1.6;">
+                    模拟排程期间，当新增订单的承诺交期减去设置天数小于等于本订单的预计完成日期，<br/>
+                    则本订单的模拟排程结果失效，需要重新模拟排程。
+                  </div>
+                </template>
+              </el-alert>
+            </el-form-item>
+            <el-form-item label="示例">
+              <el-alert type="warning" :closable="false">
+                <template #title>
+                  <div style="line-height: 1.6;">
+                    <b>示例：</b>设置失效天数为 3 天<br/>
+                    A订单：预计完成日期 = 2025-12-10<br/>
+                    B订单（新增）：承诺交期 = 2025-12-12<br/>
+                    <b>计算：</b>2025-12-12 - 3天 = 2025-12-09<br/>
+                    <b>结果：</b>2025-12-09 < 2025-12-10，<span style="color: #E6A23C;">→ A订单模拟排程失效</span>
+                  </div>
+                </template>
+              </el-alert>
+            </el-form-item>
+          </el-form>
+        </el-tab-pane>
+        
+        <el-tab-pane label="业务变量设置" name="variables">
+          <el-form label-width="160px">
+            <el-form-item label="默认币种">
+              <el-select v-model="settings.defaultCurrency" style="width: 200px;">
+                <el-option label="人民币 (CNY)" value="CNY" />
+                <el-option label="美元 (USD)" value="USD" />
+                <el-option label="欧元 (EUR)" value="EUR" />
+              </el-select>
+            </el-form-item>
+            <el-form-item label="默认汇率">
+              <el-input-number v-model="settings.defaultExchangeRate" :min="0.1" :step="0.1" style="width: 200px;" />
+            </el-form-item>
+            <el-form-item label="默认税率">
+              <el-input-number v-model="settings.defaultTaxRate" :min="0" :max="100" style="width: 200px;" />
+              <span style="margin-left: 10px; color: #909399;">%</span>
+            </el-form-item>
+            <el-form-item label="默认付款方式">
+              <el-select v-model="settings.defaultPaymentMethod" style="width: 200px;">
+                <el-option label="预付+尾款" value="预付+尾款" />
+                <el-option label="货到付款" value="货到付款" />
+                <el-option label="月结" value="月结" />
+              </el-select>
+            </el-form-item>
+            <el-form-item label="默认送货方式">
+              <el-select v-model="settings.defaultDeliveryMethod" style="width: 200px;">
+                <el-option label="快递" value="快递" />
+                <el-option label="物流" value="物流" />
+                <el-option label="自提" value="自提" />
+              </el-select>
+            </el-form-item>
+          </el-form>
+        </el-tab-pane>
+        
+        <el-tab-pane label="菜单设置" name="menu">
+          <el-form label-width="120px">
+            <el-form-item label="菜单位置">
+              <el-radio-group v-model="settings.menuPosition">
+                <el-radio label="top">顶部</el-radio>
+                <el-radio label="left">左侧</el-radio>
+              </el-radio-group>
+            </el-form-item>
+          </el-form>
+        </el-tab-pane>
+        
+        <el-tab-pane label="颜色设置" name="color">
+          <el-form label-width="120px">
+            <el-form-item label="主题色">
+              <el-color-picker v-model="settings.themeColor" />
+            </el-form-item>
+            <el-form-item label="页面背景色">
+              <el-color-picker v-model="settings.backgroundColor" />
+            </el-form-item>
+            <el-form-item label="表格行背景色">
+              <el-color-picker v-model="settings.tableRowColor" />
+            </el-form-item>
+          </el-form>
+        </el-tab-pane>
+        
+        <el-tab-pane label="编码设置" name="encoding">
+          <el-form label-width="120px">
+            <el-form-item label="订单编号规则">
+              <el-input v-model="settings.orderNoRule" placeholder="如: SO{YYYY}{MM}{DD}{####}" />
+            </el-form-item>
+          </el-form>
+        </el-tab-pane>
+      </el-tabs>
+      <template #footer>
+        <el-button @click="settingsVisible = false">取消</el-button>
+        <el-button type="primary" @click="handleSaveSettings">保存</el-button>
+      </template>
+    </el-dialog>
+
+    <!-- 字段管理对话框 -->
+    <el-dialog v-model="fieldManagementVisible" title="字段管理" width="600px">
+      <el-checkbox-group v-model="visibleFields">
+        <div v-for="field in allFields" :key="field.prop" style="margin-bottom: 10px;">
+          <el-checkbox :label="field.prop">{{ field.label }}</el-checkbox>
+        </div>
+      </el-checkbox-group>
+      <template #footer>
+        <el-button @click="fieldManagementVisible = false">取消</el-button>
+        <el-button type="primary" @click="handleSaveFieldSettings">保存</el-button>
+      </template>
+    </el-dialog>
+
+    <!-- 新增订单对话框 -->
+    <el-dialog 
+      v-model="createDialogVisible" 
+      title="新增销售订单" 
+      width="90%" 
+      :close-on-click-modal="false"
+      destroy-on-close
+    >
+      <SalesOrderCreate @success="handleCreateSuccess" @cancel="createDialogVisible = false" />
+    </el-dialog>
+
+    <!-- 编辑订单对话框 -->
+    <el-dialog 
+      v-model="editDialogVisible" 
+      title="编辑销售订单" 
+      width="90%" 
+      :close-on-click-modal="false"
+      destroy-on-close
+    >
+      <SalesOrderCreate 
+        :order-data="currentOrder" 
+        :is-edit="true"
+        @success="handleEditSuccess" 
+        @cancel="editDialogVisible = false" 
+      />
+    </el-dialog>
+
+    <!-- 查看订单对话框 -->
+    <el-dialog 
+      v-model="viewDialogVisible" 
+      title="销售订单详情" 
+      width="80%" 
+      :close-on-click-modal="false"
+    >
+      <SalesOrderView 
+        :order-id="currentOrder?.id" 
+        @close="viewDialogVisible = false" 
+      />
+    </el-dialog>
+
+    <!-- 导入对话框 -->
+    <el-dialog v-model="importDialogVisible" title="导入销售订单" width="500px">
+      <el-upload
+        class="upload-demo"
+        drag
+        action="#"
+        :auto-upload="false"
+        :on-change="handleFileChange"
+        accept=".xlsx,.xls"
+      >
+        <el-icon class="el-icon--upload"><UploadFilled /></el-icon>
+        <div class="el-upload__text">
+          将文件拖到此处，或<em>点击上传</em>
+        </div>
+        <template #tip>
+          <div class="el-upload__tip">
+            仅支持 xlsx/xls 格式文件，大小不超过 10MB
+          </div>
+        </template>
+      </el-upload>
+      <template #footer>
+        <el-button @click="importDialogVisible = false">取消</el-button>
+        <el-button type="primary" @click="handleImportConfirm">确定导入</el-button>
+      </template>
+    </el-dialog>
+
+    <!-- MRP运算结果对话框 -->
+    <el-dialog
+      v-model="mrpDialogVisible"
+      title="MRP运算结果"
+      width="90%"
+      :close-on-click-modal="false"
+      @close="closeMRPDialog"
+    >
+      <div v-loading="mrpCalculating" element-loading-text="正在计算MRP...">
+        <div v-if="mrpResult">
+          <!-- 汇总信息 -->
+          <el-card shadow="hover" style="margin-bottom: 20px;">
+            <template #header>
+              <div style="display: flex; align-items: center;">
+                <el-icon style="margin-right: 8px;"><DataAnalysis /></el-icon>
+                <span>运算汇总</span>
+              </div>
+            </template>
+            <el-row :gutter="20">
+              <el-col :span="6">
+                <el-statistic title="已处理订单" :value="mrpResult.summary.ordersProcessed" />
+              </el-col>
+              <el-col :span="6">
+                <el-statistic title="物料种类总数" :value="mrpResult.summary.totalMaterials" />
+              </el-col>
+              <el-col :span="6">
+                <el-statistic title="需要生产" :value="mrpResult.summary.productionCount" suffix="种" />
+              </el-col>
+              <el-col :span="6">
+                <el-statistic title="需要采购" :value="mrpResult.summary.purchaseCount" suffix="种" />
+              </el-col>
+            </el-row>
+          </el-card>
+
+          <!-- 已处理订单 -->
+          <el-card shadow="hover" style="margin-bottom: 20px;">
+            <template #header>已处理订单</template>
+            <el-table :data="mrpResult.processedOrders" border stripe max-height="200">
+              <el-table-column prop="orderNo" label="订单编号" width="180" />
+              <el-table-column prop="customerName" label="客户名称" width="150" />
+              <el-table-column prop="orderStatus" label="订单状态" width="120">
+                <template #default="{ row }">
+                  <el-tag>{{ row.orderStatus }}</el-tag>
+                </template>
+              </el-table-column>
+            </el-table>
+          </el-card>
+
+          <!-- Tabs: 生产需求 & 采购需求 -->
+          <el-tabs type="border-card">
+            <!-- 生产需求 -->
+            <el-tab-pane>
+              <template #label>
+                <span>
+                  <el-icon><Tools /></el-icon>
+                  生产需求 ({{ mrpResult.productionRequirements.length }})
+                </span>
+              </template>
+              <el-table 
+                :data="mrpResult.productionRequirements" 
+                border 
+                stripe
+                max-height="400"
+                :default-sort="{ prop: 'level', order: 'ascending' }"
+              >
+                <el-table-column type="index" label="序号" width="60" />
+                <el-table-column prop="level" label="层阶" width="80" align="center" sortable />
+                <el-table-column prop="materialCode" label="物料编号" width="150" />
+                <el-table-column prop="materialName" label="物料名称" width="180" />
+                <el-table-column prop="demandQty" label="总需求量" width="120" align="right">
+                  <template #default="{ row }">
+                    <span style="font-weight: bold; color: #409EFF;">{{ row.demandQty?.toFixed(4) || 0 }}</span>
+                  </template>
+                </el-table-column>
+                <el-table-column prop="currentStock" label="当前库存" width="120" align="right">
+                  <template #default="{ row }">
+                    {{ row.currentStock?.toFixed(4) || 0 }}
+                  </template>
+                </el-table-column>
+                <el-table-column prop="netDemandQty" label="净需求量" width="120" align="right">
+                  <template #default="{ row }">
+                    <el-tag v-if="row.netDemandQty > 0" type="warning">
+                      {{ row.netDemandQty?.toFixed(4) }}
+                    </el-tag>
+                    <span v-else style="color: #67C23A;">0</span>
+                  </template>
+                </el-table-column>
+                <el-table-column prop="source" label="来源" width="100" />
+                <el-table-column prop="sourceOrders" label="来源BOM" width="200">
+                  <template #default="{ row }">
+                    {{ row.sourceOrders?.join(', ') || '-' }}
+                  </template>
+                </el-table-column>
+              </el-table>
+            </el-tab-pane>
+
+            <!-- 采购需求 -->
+            <el-tab-pane>
+              <template #label>
+                <span>
+                  <el-icon><ShoppingCart /></el-icon>
+                  采购需求 ({{ mrpResult.purchaseRequirements.length }})
+                </span>
+              </template>
+              <el-table 
+                :data="mrpResult.purchaseRequirements" 
+                border 
+                stripe
+                max-height="400"
+                :default-sort="{ prop: 'netDemandQty', order: 'descending' }"
+              >
+                <el-table-column type="index" label="序号" width="60" />
+                <el-table-column prop="materialCode" label="物料编号" width="150" />
+                <el-table-column prop="materialName" label="物料名称" width="180" />
+                <el-table-column prop="demandQty" label="总需求量" width="120" align="right">
+                  <template #default="{ row }">
+                    <span style="font-weight: bold; color: #409EFF;">{{ row.demandQty?.toFixed(4) || 0 }}</span>
+                  </template>
+                </el-table-column>
+                <el-table-column prop="currentStock" label="当前库存" width="120" align="right">
+                  <template #default="{ row }">
+                    {{ row.currentStock?.toFixed(4) || 0 }}
+                  </template>
+                </el-table-column>
+                <el-table-column prop="netDemandQty" label="净需求量" width="120" align="right" sortable>
+                  <template #default="{ row }">
+                    <el-tag v-if="row.netDemandQty > 0" type="danger">
+                      {{ row.netDemandQty?.toFixed(4) }}
+                    </el-tag>
+                    <span v-else style="color: #67C23A;">0</span>
+                  </template>
+                </el-table-column>
+                <el-table-column prop="source" label="来源" width="100" />
+                <el-table-column prop="sourceOrders" label="来源BOM" width="200">
+                  <template #default="{ row }">
+                    {{ row.sourceOrders?.join(', ') || '-' }}
+                  </template>
+                </el-table-column>
+              </el-table>
+            </el-tab-pane>
+          </el-tabs>
+        </div>
+      </div>
+
+      <template #footer>
+        <el-button @click="closeMRPDialog">关闭</el-button>
+        <el-button type="primary" @click="closeMRPDialog">确定</el-button>
+      </template>
+    </el-dialog>
+  </div>
+</template>
+
+<script setup>
+import { ref, computed, onMounted } from 'vue'
+import { ElMessage, ElMessageBox, ElLoading } from 'element-plus'
+import { salesOrderApi } from '@/api/salesOrder'
+import mrpAPI from '@/api/mrp'
+import materialApiService from '@/services/api/materialApiService'
+import { Search, Setting, Plus, UploadFilled, DataAnalysis, Tools, ShoppingCart, CircleCheck } from '@element-plus/icons-vue'
+import SalesOrderCreate from './SalesOrderCreate.vue'
+import SalesOrderView from './SalesOrderView.vue'
+import { useRouter } from 'vue-router'
+
+const router = useRouter()
+
+// 数据
+const tableRef = ref(null)
+const searchText = ref('')
+const statusFilter = ref('')
+const simulatingOrderId = ref(null) // 当前正在模拟排程的订单ID
+const simulatedOrders = ref([]) // 已模拟排程的订单列表
+const selectedRows = ref([])
+const currentPage = ref(1)
+const pageSize = ref(20)
+const totalCount = ref(0)
+const tableHeight = ref(600)
+const settingsVisible = ref(false)
+const fieldManagementVisible = ref(false)
+const createDialogVisible = ref(false)
+const editDialogVisible = ref(false)
+const viewDialogVisible = ref(false)
+const importDialogVisible = ref(false)
+const currentOrder = ref(null)
+const activeTab = ref('workflow')
+
+// 表格数据（模拟数据）
+const tableData = ref([])
+
+// 物料数据缓存（用于lookup产出工序）
+const materialDataMap = ref(new Map())
+
+// 下一个订单ID
+const nextOrderId = ref(2)
+
+// 所有字段配置
+const allFields = ref([
+  { prop: 'orderStatus', label: '订单状态' },
+  { prop: 'internalOrderNo', label: '内部销售订单编号' },
+  { prop: 'customerOrderNo', label: '客户订单编号' },
+  { prop: 'customerName', label: '客户名称' },
+  // ... 其他字段
+])
+
+const visibleFields = ref([])
+
+// 设置
+const settings = ref({
+  approvalFlow: 'single',
+  menuPosition: 'left',
+  themeColor: '#409EFF',
+  backgroundColor: '#f5f7fa',
+  tableRowColor: '#ffffff',
+  orderNoRule: 'SO{YYYY}{MM}{DD}{####}',
+  simulationExpireDays: 1, // 模拟排程失效天数
+  defaultCurrency: 'CNY', // 默认币种
+  defaultExchangeRate: 1.0, // 默认汇率
+  defaultTaxRate: 13, // 默认税率
+  defaultPaymentMethod: '预付+尾款', // 默认付款方式
+  defaultDeliveryMethod: '快递' // 默认送货方式
+})
+
+// 计算属性
+const hasSelection = computed(() => selectedRows.value.length > 0)
+
+const filteredTableData = computed(() => {
+  let data = tableData.value
+  
+  // 搜索过滤
+  if (searchText.value) {
+    data = data.filter(row => 
+      row.internalOrderNo.includes(searchText.value) ||
+      row.customerName.includes(searchText.value)
+    )
+  }
+  
+  // 状态过滤
+  if (statusFilter.value) {
+    data = data.filter(row => row.orderStatus === statusFilter.value)
+  }
+  
+  totalCount.value = data.length
+  return data.slice((currentPage.value - 1) * pageSize.value, currentPage.value * pageSize.value)
+})
+
+// 方法
+const formatCurrency = (value) => {
+  if (!value) return '¥0.00'
+  return `¥${Number(value).toLocaleString('zh-CN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+}
+
+// ✅ 格式化日期为年月日
+const formatDateYMD = (dateStr) => {
+  if (!dateStr) return '-'
+  try {
+    const date = new Date(dateStr)
+    if (isNaN(date.getTime())) return '-'
+    const year = date.getFullYear()
+    const month = String(date.getMonth() + 1).padStart(2, '0')
+    const day = String(date.getDate()).padStart(2, '0')
+    return `${year}-${month}-${day}`
+  } catch (e) {
+    return '-'
+  }
+}
+
+const getStatusType = (status) => {
+  const typeMap = {
+    '草稿': 'info',
+    '待审核': 'warning',
+    '已审核': 'success',
+    '生产中': 'primary',
+    '已发货': 'primary',
+    '已完成': 'success',
+    '已取消': 'danger',
+    '手动终止': 'danger'
+  }
+  return typeMap[status] || 'info'
+}
+
+const getRowStyle = ({ row }) => {
+  return {
+    backgroundColor: settings.value.tableRowColor
+  }
+}
+
+const handleSelectionChange = (selection) => {
+  selectedRows.value = selection
+}
+
+const handleSizeChange = (size) => {
+  pageSize.value = size
+  currentPage.value = 1
+}
+
+const handleCurrentChange = (page) => {
+  currentPage.value = page
+}
+
+// 工具栏操作
+const handleCreate = () => {
+  createDialogVisible.value = true
+}
+
+// 加载订单数据
+const loadOrders = async () => {
+  try {
+    const response = await salesOrderApi.getSalesOrders({
+      page: currentPage.value,
+      pageSize: pageSize.value
+    })
+    
+    if (response.data.success) {
+      const orders = response.data.data.list
+      
+      // 🔄 将订单按产品展开，每个产品一行
+      const expandedRows = []
+      
+      orders.forEach(order => {
+        // 解析产品列表
+        let products = []
+        
+        // 如果有productList字段且是字符串，尝试解析
+        if (order.productList && typeof order.productList === 'string') {
+          try {
+            const parsedProducts = JSON.parse(order.productList)
+            products = parsedProducts.map(p => ({
+              productCode: p.product_code || p.productCode,
+              productName: p.product_name || p.productName,
+              productImage: p.product_image || p.productImage,
+              productSpec: p.product_spec || p.productSpec,
+              productColor: p.product_color || p.productColor,
+              productMaterial: p.product_material || p.productMaterial,
+              productDescription: p.product_description || p.productDescription,
+              productUnit: p.product_unit || p.productUnit,
+              orderQuantity: p.order_quantity || p.orderQuantity,
+              outputProcess: p.output_process || p.outputProcess || '' // ✅ 从数据库读取产出工序
+            }))
+          } catch (e) {
+            console.warn('解析产品列表失败:', e)
+            products = []
+          }
+        } else if (Array.isArray(order.productList)) {
+          products = order.productList.map(p => ({
+            productCode: p.product_code || p.productCode,
+            productName: p.product_name || p.productName,
+            productImage: p.product_image || p.productImage,
+            productSpec: p.product_spec || p.productSpec,
+            productColor: p.product_color || p.productColor,
+            productMaterial: p.product_material || p.productMaterial,
+            productDescription: p.product_description || p.productDescription,
+            productUnit: p.product_unit || p.productUnit,
+            orderQuantity: p.order_quantity || p.orderQuantity,
+            outputProcess: p.output_process || p.outputProcess || '' // ✅ 从数据库读取产出工序
+          }))
+        }
+        
+        // 如果没有产品列表，但有单个产品信息，创建产品数组
+        if (products.length === 0 && order.productCode) {
+          products = [{
+            productCode: order.productCode,
+            productName: order.productName,
+            productImage: order.productImage,
+            productSpec: order.productSpec,
+            productColor: order.productColor,
+            productMaterial: order.productMaterial,
+            productDescription: order.productDescription,
+            productUnit: order.productUnit,
+            orderQuantity: order.orderQuantity,
+            outputProcess: order.output_process || order.outputProcess || '' // ✅ 从数据库读取产出工序
+          }]
+        }
+        
+        // 如果还是没有产品，创建一个空产品
+        if (products.length === 0) {
+          products = [{
+            productCode: '',
+            productName: '',
+            productImage: '',
+            productSpec: '',
+            productColor: '',
+            productMaterial: '',
+            productDescription: '',
+            productUnit: '',
+            orderQuantity: ''
+          }]
+        }
+        
+        // 为每个产品创建一行，但共享相同的订单主字段
+        products.forEach((product, productIndex) => {
+          expandedRows.push({
+            id: order.id,
+            productIndex, // 产品在该订单中的索引
+            productCount: products.length, // 该订单的产品总数
+            
+            // 订单主字段（每个产品行都有，但会被合并）
+            internalOrderNo: order.internal_order_no,
+            customerOrderNo: order.customer_order_no,
+            customerName: order.customer_name,
+            customerId: order.customer_id,
+            salesperson: order.salesperson,
+            quotationNo: order.quotation_no,
+            orderType: order.order_type,
+            orderStatus: order.status || '待下单',
+            
+            // 产品信息（每个产品行都不同）
+            productCode: product.productCode,
+            productName: product.productName,
+            productImage: product.productImage,
+            productSpec: product.productSpec,
+            productColor: product.productColor,
+            productMaterial: product.productMaterial,
+            productDescription: product.productDescription,
+            productUnit: product.productUnit,
+            orderQuantity: product.orderQuantity,
+            outputProcess: product.outputProcess || '', // ✅ 直接从产品数据中读取，无需lookup
+            
+            // 时间信息
+            orderTime: order.order_time,
+            promisedDelivery: order.promised_delivery,
+            customerDelivery: order.customer_delivery,
+            estimatedCompletionDate: order.estimated_completion_date,
+            createTime: new Date(order.created_at).toLocaleString('zh-CN'),
+            updateTime: order.updated_at ? new Date(order.updated_at).toLocaleString('zh-CN') : null,
+            
+            // 销售部门和物流信息
+            salesDepartment: order.sales_department,
+            deliveryMethod: order.delivery_method,
+            returnOrderNo: order.return_order_no,
+            
+            // 金额信息
+            orderCurrency: order.order_currency,
+            currentExchangeRate: order.current_exchange_rate,
+            taxRate: order.tax_rate,
+            totalAmountExcludingTax: order.total_amount_excluding_tax,
+            totalAmountIncludingTax: order.total_amount_including_tax,
+            totalAmount: order.total_amount,
+            
+            // 附件和说明
+            orderAttachment: order.order_attachment,
+            orderNotes: order.order_notes,
+            
+            // 包装信息
+            packagingMethod: order.packaging_method,
+            packagingRequirements: order.packaging_requirements,
+            packagingAttachment: order.packaging_attachment,
+            
+            // 收货信息
+            consignee: order.consignee,
+            deliveryAddress: order.delivery_address,
+            billRecipient: order.bill_recipient,
+            billAddress: order.bill_address,
+            
+            // 回款信息
+            paymentMethod: order.payment_method,
+            advancePaymentRatio: order.advance_payment_ratio,
+            fees: order.fees,
+            paymentPlan: order.payment_plan,
+            totalReceivable: order.total_receivable,
+            plannedPaymentDate: order.planned_payment_date,
+            plannedPaymentAmount: order.planned_payment_amount,
+            receivedAmount: order.received_amount || 0,
+            unreceivedAmount: order.unreceived_amount || 0,
+            
+            // 备注
+            remark: order.remark,
+            
+            // 完整订单数据(用于编辑和查看)
+            orderDetail: order
+          })
+        })
+      })
+      
+      tableData.value = expandedRows
+      totalCount.value = response.data.data.total
+      console.log('✅ 从后端加载订单:', orders.length, '个，展开为', expandedRows.length, '行')
+      
+      // ✅ 产出工序直接从数据库读取，无需lookup
+    }
+  } catch (error) {
+    console.error('❌ 加载订单失败:', error)
+    ElMessage.error('加载订单数据失败')
+  }
+}
+
+const handleCreateSuccess = async (orderData) => {
+  createDialogVisible.value = false
+  ElMessage.success('订单创建成功！')
+  await loadOrders() // 重新加载数据
+}
+
+// ❌ 已废弃：lookup产出工序功能（现在直接从数据库读取）
+// 产出工序在新增订单时已经通过产品手册lookup并保存到数据库
+// 订单列表直接读取数据库中的output_process字段，无需再次lookup
+const lookupOutputProcess_DEPRECATED = async () => {
+  try {
+    console.log('⚠️ 此函数已废弃，产出工序直接从数据库读取')
+    
+    // 加载物料数据（如果还没有加载）
+    if (materialDataMap.value.size === 0) {
+      console.log('📥 正在加载物料数据...')
+      const materials = await materialApiService.getAllMaterials()
+      console.log('📦 获取到物料数据:', materials?.length || 0, '条')
+      
+      if (materials && Array.isArray(materials)) {
+        materials.forEach(material => {
+          materialDataMap.value.set(material.materialCode, {
+            materialCode: material.materialCode,
+            materialName: material.materialName,
+            outputProcessName: material.outputProcessName || '' // 产出工序名称
+          })
+          
+          // 打印前3条物料数据供检查
+          if (materialDataMap.value.size <= 3) {
+            console.log(`  物料样本: ${material.materialCode} -> ${material.outputProcessName || '(无产出工序)'}`,)
+          }
+        })
+        console.log('💾 物料数据加载完成:', materialDataMap.value.size, '条')
+      } else {
+        console.warn('⚠️ 物料数据为空或格式错误')
+      }
+    } else {
+      console.log('✅ 物料数据已缓存:', materialDataMap.value.size, '条')
+    }
+    
+    console.log('🔄 开始遍历订单进行lookup...')
+    let matchCount = 0
+    let processedCount = 0
+    
+    // 对每个订单进行lookup
+    tableData.value.forEach((order, index) => {
+      console.log(`\n📋 订单[${index}]:`, {
+        internalOrderNo: order.internalOrderNo,
+        productCode: order.productCode,
+        currentOutputProcess: order.outputProcess
+      })
+      
+      // 只处理：1) 有内部订单编号  2) 没有产出工序  3) 有产品编号
+      if (order.internalOrderNo && !order.outputProcess && order.productCode) {
+        processedCount++
+        const material = materialDataMap.value.get(order.productCode)
+        
+        console.log(`  🔎 查找物料 ${order.productCode}:`, material ? '找到' : '未找到')
+        
+        if (material) {
+          console.log(`    物料信息:`, {
+            materialCode: material.materialCode,
+            materialName: material.materialName,
+            outputProcessName: material.outputProcessName
+          })
+          
+          if (material.outputProcessName) {
+            order.outputProcess = material.outputProcessName
+            matchCount++
+            console.log(`    ✅ lookup成功: 订单 ${order.internalOrderNo}, 产品 ${order.productCode} -> 产出工序: ${material.outputProcessName}`)
+          } else {
+            console.log(`    ⚠️ 物料没有产出工序名称`)
+          }
+        } else {
+          console.log(`    ❌ 物料库中未找到产品编码: ${order.productCode}`)
+        }
+      } else {
+        const reasons = []
+        if (!order.internalOrderNo) reasons.push('无内部订单编号')
+        if (order.outputProcess) reasons.push('已有产出工序')
+        if (!order.productCode) reasons.push('无产品编号')
+        console.log(`  ⏭️ 跳过: ${reasons.join(', ')}`)
+      }
+    })
+    
+    console.log(`\n✅ lookup完成: 处理 ${processedCount} 个订单，成功匹配 ${matchCount} 个`)
+  } catch (error) {
+    console.error('❌ lookup产出工序失败:', error)
+  }
+}
+
+const handleManualTerminate = async () => {
+  try {
+    await ElMessageBox.confirm(`确定要终止选中的 ${selectedRows.value.length} 个订单吗？`, '提示', {
+      confirmButtonText: '确定',
+      cancelButtonText: '取消',
+      type: 'warning'
+    })
+    
+    // 更新订单状态为手动终止
+    selectedRows.value.forEach(row => {
+      const order = tableData.value.find(o => o.id === row.id)
+      if (order) {
+        order.orderStatus = '手动终止'
+      }
+    })
+    
+    selectedRows.value = []
+    ElMessage.success('订单已手动终止')
+  } catch {}
+}
+
+const handleDraft = () => {
+  ElMessage.info('打开草稿箱')
+}
+
+const handleDelete = async () => {
+  try {
+    await ElMessageBox.confirm(`确定要删除选中的 ${selectedRows.value.length} 个订单吗？`, '提示', {
+      confirmButtonText: '确定',
+      cancelButtonText: '取消',
+      type: 'warning'
+    })
+    
+    const ids = selectedRows.value.map(row => row.id)
+    const response = await salesOrderApi.batchDeleteSalesOrders(ids)
+    
+    if (response.data.success) {
+      selectedRows.value = []
+      ElMessage.success('删除成功')
+      await loadOrders()
+    }
+  } catch (error) {
+    if (error !== 'cancel') {
+      ElMessage.error('删除失败')
+    }
+  }
+}
+
+const handleDeleteRow = async (row) => {
+  try {
+    await ElMessageBox.confirm(`确定要删除订单"${row.internalOrderNo}"吗？`, '提示', {
+      confirmButtonText: '确定',
+      cancelButtonText: '取消',
+      type: 'warning'
+    })
+    
+    const response = await salesOrderApi.deleteSalesOrder(row.id)
+    if (response.data.success) {
+      ElMessage.success('删除成功')
+      await loadOrders()
+    }
+  } catch (error) {
+    if (error !== 'cancel') {
+      ElMessage.error('删除失败')
+    }
+  }
+}
+
+const handleEdit = async (row) => {
+  try {
+    // 从后端重新获取完整数据
+    const response = await salesOrderApi.getSalesOrderById(row.id)
+    if (response.data && response.data.success) {
+      currentOrder.value = response.data.data
+      editDialogVisible.value = true
+    } else {
+      ElMessage.error('获取订单详情失败')
+    }
+  } catch (error) {
+    console.error('❌ 获取订单详情失败:', error)
+    ElMessage.error('获取订单详情失败')
+  }
+}
+
+const handleEditSuccess = (orderData) => {
+  const index = tableData.value.findIndex(o => o.id === orderData.id)
+  if (index !== -1) {
+    tableData.value[index] = {
+      ...orderData,
+      updateTime: new Date().toLocaleString('zh-CN')
+    }
+  }
+  editDialogVisible.value = false
+  ElMessage.success('订单更新成功')
+}
+
+const handleView = async (row) => {
+  // 直接传递订单ID,由查看组件自行加载
+  currentOrder.value = { id: row.id }
+  viewDialogVisible.value = true
+}
+
+const handleFieldManagement = () => {
+  fieldManagementVisible.value = true
+}
+
+const handleImport = () => {
+  importDialogVisible.value = true
+}
+
+const handleFileChange = (file) => {
+  console.log('选择文件:', file)
+}
+
+const handleImportConfirm = () => {
+  ElMessage.success('导入成功')
+  importDialogVisible.value = false
+}
+
+const handleExport = () => {
+  // 导出当前筛选的数据
+  const dataToExport = filteredTableData.value
+  
+  // 模拟CSV导出（实际项目中可使用xlsx库）
+  let csvContent = '订单状态,内部订单编号,客户订单编号,客户名称,销售员\n'
+  dataToExport.forEach(row => {
+    csvContent += `${row.orderStatus},${row.internalOrderNo},${row.customerOrderNo},${row.customerName},${row.salesperson}\n`
+  })
+  
+  // 创建下载链接
+  const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' })
+  const link = document.createElement('a')
+  link.href = URL.createObjectURL(blob)
+  link.download = `销售订单_${new Date().getTime()}.csv`
+  link.click()
+  
+  ElMessage.success(`导出成功，共 ${dataToExport.length} 条记录`)
+}
+
+const handleRefresh = async () => {
+  await loadOrders()
+  ElMessage.success('刷新成功')
+}
+
+// 正式下单
+const canConfirmOrder = computed(() => {
+  const result = selectedRows.value.length > 0 && 
+    selectedRows.value.every(order => 
+      order.orderStatus === '待下单' || order.orderStatus === '已模拟排程待下单'
+    )
+  console.log('🔍 正式下单按钮状态:', {
+    选中订单数: selectedRows.value.length,
+    订单状态: selectedRows.value.map(o => ({ 编号: o.internalOrderNo, 状态: o.orderStatus })),
+    按钮可用: result
+  })
+  return result
+})
+
+const handleConfirmOrder = async () => {
+  console.log('📋 点击正式下单按钮，选中订单:', selectedRows.value)
+  
+  // 检查是否选中订单
+  if (selectedRows.value.length === 0) {
+    ElMessage.warning('请至少选择一个销售订单')
+    return
+  }
+
+  try {
+    await ElMessageBox.confirm(
+      `确定要对选中的 ${selectedRows.value.length} 个订单执行正式下单吗？\n\n正式下单后将自动创建主生产计划。`,
+      '正式下单确认',
+      {
+        confirmButtonText: '确定',
+        cancelButtonText: '取消',
+        type: 'success'
+      }
+    )
+  } catch (error) {
+    return // 用户取消
+  }
+
+  const loading = ElLoading.service({
+    lock: true,
+    text: '正在创建主生产计划...',
+    background: 'rgba(0, 0, 0, 0.7)'
+  })
+
+  try {
+    console.log('📋 开始正式下单流程，选中订单数:', selectedRows.value.length)
+    
+    // ⚠️ 重要：订单列表是按产品展开的，需要先按订单ID去重，收集同一订单的所有产品
+    const orderMap = new Map()
+    
+    selectedRows.value.forEach(row => {
+      const orderId = row.id
+      
+      if (!orderMap.has(orderId)) {
+        // 第一次遇到这个订单，初始化订单数据
+        orderMap.set(orderId, {
+          id: orderId,
+          internalOrderNo: row.internalOrderNo,
+          customerOrderNo: row.customerOrderNo,
+          salesperson: row.salesperson,
+          customerDeliveryDate: row.customerDelivery,
+          promisedDeliveryDate: row.promisedDelivery,
+          products: []
+        })
+      }
+      
+      // 添加当前产品到订单的产品列表
+      if (row.productCode) {
+        orderMap.get(orderId).products.push({
+          productCode: row.productCode,
+          productName: row.productName,
+          orderQuantity: row.orderQuantity,
+          productUnit: row.productUnit,
+          productImage: row.productImage,
+          outputProcess: row.outputProcess || ''
+        })
+      }
+    })
+    
+    // 转换为Map数组
+    const salesOrders = Array.from(orderMap.values())
+    
+    console.log('📦 整理后的订单数据:', salesOrders.map(o => ({
+      internalOrderNo: o.internalOrderNo,
+      产品数量: o.products.length,
+      产品编码: o.products.map(p => p.productCode)
+    })))
+    
+    console.log('📦 构造的销售订单数据:', salesOrders)
+    
+    // ✅ 获取提前入库期设置
+    const advanceStorageDays = settings.value.advanceStorageDays || 0;
+    console.log('📅 提前入库期:', advanceStorageDays, '天');
+    
+    // 调用后端API创建主生产计划
+    const response = await fetch('http://192.168.2.229:3005/api/master-production-plans/from-sales-order', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({ 
+        salesOrders,
+        advanceStorageDays // ✅ 传递提前入库期
+      })
+    })
+    
+    const result = await response.json()
+    
+    if (result.code === 200) {
+      console.log('✅ 主生产计划创建成功:', result.data)
+      
+      // 更新订单状态为"已下单"
+      for (const order of selectedRows.value) {
+        await salesOrderApi.updateSalesOrder(order.id, {
+          status: '已下单'
+        })
+      }
+      
+      ElMessage.success(`已成功下单 ${selectedRows.value.length} 个订单，创建了 ${result.data.length} 条主生产计划`)
+      
+      // 刷新订单列表
+      await loadOrders()
+      
+      // 清空选择
+      selectedRows.value = []
+    } else {
+      throw new Error(result.message || '创建主生产计划失败')
+    }
+    
+  } catch (error) {
+    console.error('❌ 正式下单失败:', error)
+    ElMessage.error(`下单失败: ${error.message || '请检查网络连接'}`)
+  } finally {
+    loading.close()
+  }
+}
+
+// MRP运算按钮启用条件
+const canExecuteMRP = computed(() => {
+  if (selectedRows.value.length !== 1) return false
+  const order = selectedRows.value[0]
+  return order.orderStatus === '待下单' || order.orderStatus === '模拟排程失效'
+})
+
+// MRP运算
+const mrpDialogVisible = ref(false)
+const mrpCalculating = ref(false)
+const mrpResult = ref(null)
+
+const handleMRPCalculation = async () => {
+  if (!canExecuteMRP.value) {
+    if (selectedRows.value.length === 0) {
+      ElMessage.warning('请选择要进行MRP运算的订单')
+    } else if (selectedRows.value.length > 1) {
+      ElMessage.warning('MRP运算只能选择一个订单')
+    } else {
+      ElMessage.warning('请选择状态为“待下单”或“模拟排程失效”的订单')
+    }
+    return
+  }
+
+  // 确认对话框
+  try {
+    await ElMessageBox.confirm(
+      `确定要对订单《${selectedRows.value[0].internalOrderNo}》执行MRP运算吗？<br/><br/>` +
+      `<span style="color: #909399;">运算将根据生产BOM计算每个半成品、成品的生产需求和采购需求，并将结果保存到物料需求明细</span>`,
+      'MRP运算确认',
+      {
+        dangerouslyUseHTMLString: true,
+        confirmButtonText: '开始运算',
+        cancelButtonText: '取消',
+        type: 'info'
+      }
+    )
+  } catch (error) {
+    return // 用户取消
+  }
+
+  mrpCalculating.value = true
+  mrpDialogVisible.value = true
+  mrpResult.value = null
+
+  try {
+    const orderIds = selectedRows.value.map(order => order.id)
+    console.log('开始MRP运算，订单IDs:', orderIds)
+
+    const response = await mrpAPI.calculate(orderIds)
+    
+    if (response.code === 200) {
+      mrpResult.value = response.data
+      console.log('MRP运算结果:', mrpResult.value)
+      
+      // TODO: 将MRP运算结果保存到物料需求明细表
+      // 这里需要调用物料需求明细的API来保存数据
+      
+      ElMessage.success('MRP运算完成，结果已保存到物料需求明细')
+    } else {
+      throw new Error(response.message || 'MRP运算失败')
+    }
+  } catch (error) {
+    console.error('MRP运算错误:', error)
+    ElMessage.error(`MRP运算失败: ${error.message || '请检查网络连接'}`)
+    mrpDialogVisible.value = false
+  } finally {
+    mrpCalculating.value = false
+  }
+}
+
+const closeMRPDialog = () => {
+  mrpDialogVisible.value = false
+  mrpResult.value = null
+}
+
+const handleChange = () => {
+  ElMessage.info('变更功能')
+}
+
+const handlePrint = () => {
+  window.print()
+}
+
+const handlePause = () => {
+  ElMessage.info('暂停功能')
+}
+
+const handleSettings = () => {
+  settingsVisible.value = true
+}
+
+const handleSaveSettings = () => {
+  // 保存设置到localStorage
+  localStorage.setItem('salesOrderSettings', JSON.stringify(settings.value))
+  
+  // 同步保存到业务设置服务
+  import('@/services/businessSettingsService.js').then(({ updateModuleSettings }) => {
+    updateModuleSettings('scheduling', {
+      simulationExpireDays: settings.value.simulationExpireDays
+    })
+    updateModuleSettings('order', {
+      defaultCurrency: settings.value.defaultCurrency,
+      defaultExchangeRate: settings.value.defaultExchangeRate,
+      defaultTaxRate: settings.value.defaultTaxRate,
+      defaultPaymentMethod: settings.value.defaultPaymentMethod,
+      defaultDeliveryMethod: settings.value.defaultDeliveryMethod
+    })
+  })
+  
+  ElMessage.success('设置已保存')
+  settingsVisible.value = false
+  // 应用设置
+  applySettings()
+}
+
+const handleSaveFieldSettings = () => {
+  localStorage.setItem('salesOrderVisibleFields', JSON.stringify(visibleFields.value))
+  ElMessage.success('字段设置已保存')
+  fieldManagementVisible.value = false
+}
+
+const applySettings = () => {
+  // 应用主题色
+  document.documentElement.style.setProperty('--el-color-primary', settings.value.themeColor)
+  // 应用背景色
+  const container = document.querySelector('.sales-order-list-container')
+  if (container) {
+    container.style.backgroundColor = settings.value.backgroundColor
+  }
+}
+
+// 🔀 单元格合并方法：合并同一订单的主字段
+const spanMethod = ({ row, column, rowIndex, columnIndex }) => {
+  // 需要合并的列：勾选框、内部订单编号、客户订单编号、客户交期等主订单字段
+  const mergeColumns = [
+    'internalOrderNo',
+    'customerOrderNo', 
+    'customerName',
+    'salesperson',
+    'quotationNo',              // 报价单号
+    'orderType',
+    'orderStatus',
+    'orderTime',
+    'customerDelivery',
+    'promisedDelivery',
+    'estimatedCompletionDate',  // 预计完成日期
+    'createTime',
+    'returnOrderNo',            // 销售退货单号
+    'deliveryMethod',           // 送货方式
+    'orderCurrency',            // 订单币种
+    'currentExchangeRate',      // 当前汇率
+    'taxRate',                  // 税率
+    'orderAttachment',          // 订单附件
+    'orderNotes',               // 订单说明
+    'totalAmountExcludingTax',  // 订单总金额（未税）
+    'totalAmountIncludingTax',  // 订单总金额（含税）
+    'totalAmount',              // 订单总金额
+    'packagingMethod',          // 包装方式
+    'packagingRequirements',    // 包装需求描述
+    'packagingAttachment',      // 包装附件
+    'consignee',                // 收货人
+    'deliveryAddress',          // 收货地址
+    'billRecipient',            // 账单收件人
+    'billAddress',              // 账单收件地址
+    'paymentMethod',            // 收款方式
+    'advancePaymentRatio',      // 预收占比
+    'fees',                     // 手续费或其他费用
+    'paymentPlan',              // 回款计划
+    'totalReceivable',          // 应回款总额
+    'plannedPaymentDate',       // 计划回款日期
+    'plannedPaymentAmount'      // 计划回款金额
+  ]
+  
+  const columnProp = column.property
+  const columnType = column.type
+  const columnLabel = column.label
+  
+  // 处理勾选框列 (type='selection')
+  if (columnType === 'selection') {
+    if (row.productIndex === 0) {
+      return {
+        rowspan: row.productCount, // 合并的行数=该订单的产品总数
+        colspan: 1
+      }
+    } else {
+      // 非第一行，隐藏该单元格
+      return {
+        rowspan: 0,
+        colspan: 0
+      }
+    }
+  }
+  
+  // 处理操作列 (label='操作')
+  if (columnLabel === '操作') {
+    if (row.productIndex === 0) {
+      return {
+        rowspan: row.productCount, // 合并的行数=该订单的产品总数
+        colspan: 1
+      }
+    } else {
+      // 非第一行，隐藏该单元格
+      return {
+        rowspan: 0,
+        colspan: 0
+      }
+    }
+  }
+  
+  // 处理其他需要合并的列
+  if (mergeColumns.includes(columnProp)) {
+    // 如果是该订单的第一个产品行，合并单元格
+    if (row.productIndex === 0) {
+      return {
+        rowspan: row.productCount, // 合并的行数=该订单的产品总数
+        colspan: 1
+      }
+    } else {
+      // 非第一行，隐藏该单元格
+      return {
+        rowspan: 0,
+        colspan: 0
+      }
+    }
+  }
+  
+  // 其他列不合并
+  return {
+    rowspan: 1,
+    colspan: 1
+  }
+}
+
+// 模拟排程
+const handleSimulateScheduling = async (row) => {
+  try {
+    // 显示模拟排程说明
+    await ElMessageBox.confirm(
+      '模拟排程计算期间不考虑同时期模拟排程的订单，只考虑已确认下单的订单。如有需要请联系开发员增加考虑其他模拟排程模式。',
+      '模拟排程说明',
+      {
+        confirmButtonText: '开始模拟排程',
+        cancelButtonText: '取消',
+        type: 'info',
+        dangerouslyUseHTMLString: true
+      }
+    )
+
+    simulatingOrderId.value = row.id
+    ElMessage.loading('正在模拟排程，请稍候...')
+
+    // 调用模拟排程服务
+    const { simulateScheduling } = await import('@/services/schedulingSimulationService.js')
+    const result = await simulateScheduling({
+      orderId: row.id,
+      orderData: row,
+      excludeSimulatedOrders: true // 不考虑其他模拟排程订单
+    })
+
+    if (result.success) {
+      // 更新订单状态
+      row.orderStatus = '已模拟排程待下单'
+      row.estimatedCompletionDate = result.estimatedCompletionDate
+      row.simulationDate = new Date().toLocaleString('zh-CN')
+
+      // 添加到已模拟列表
+      if (!simulatedOrders.value.find(o => o.id === row.id)) {
+        simulatedOrders.value.push({
+          id: row.id,
+          orderNo: row.internalOrderNo,
+          simulationDate: row.simulationDate,
+          estimatedCompletionDate: row.estimatedCompletionDate
+        })
+      }
+
+      // 保存到数据库
+      await salesOrderApi.updateSalesOrder(row.id, {
+        status: '已模拟排程待下单',
+        estimated_completion_date: result.estimatedCompletionDate,
+        simulation_result: JSON.stringify(result)
+      })
+
+      ElMessage.success(
+        `模拟排程完成！预计完成日期：${result.estimatedCompletionDate}\n` +
+        `当前有 ${simulatedOrders.value.length} 个模拟排程订单待下单`
+      )
+    } else {
+      ElMessage.error(`模拟排程失败：${result.message}`)
+    }
+  } catch (error) {
+    if (error !== 'cancel') {
+      console.error('模拟排程错误:', error)
+      ElMessage.error('模拟排程失败')
+    }
+  } finally {
+    simulatingOrderId.value = null
+  }
+}
+// 生命周期
+onMounted(async () => {
+  // 加载订单数据
+  await loadOrders()
+  
+  // 加载保存的设置
+  const savedSettings = localStorage.getItem('salesOrderSettings')
+  if (savedSettings) {
+    settings.value = JSON.parse(savedSettings)
+    applySettings()
+  }
+  
+  // 加载字段设置
+  const savedFields = localStorage.getItem('salesOrderVisibleFields')
+  if (savedFields) {
+    visibleFields.value = JSON.parse(savedFields)
+  } else {
+    visibleFields.value = allFields.value.map(f => f.prop)
+  }
+  
+  // 计算表格高度
+  const updateTableHeight = () => {
+    const windowHeight = window.innerHeight
+    tableHeight.value = windowHeight - 300
+  }
+  updateTableHeight()
+  window.addEventListener('resize', updateTableHeight)
+})
+</script>
+
+<style scoped>
+.sales-order-list-container {
+  padding: 20px;
+  background-color: #f5f7fa;
+  min-height: 100vh;
+}
+
+.toolbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 20px;
+  padding: 15px 20px;
+  background: white;
+  border-radius: 4px;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+.toolbar-left h2 {
+  margin: 0;
+  font-size: 20px;
+  color: #303133;
+}
+
+.toolbar-right {
+  display: flex;
+  gap: 10px;
+}
+
+.search-area {
+  margin-bottom: 20px;
+  padding: 15px 20px;
+  background: white;
+  border-radius: 4px;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+.table-container {
+  background: white;
+  padding: 20px;
+  border-radius: 4px;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+.pagination-container {
+  margin-top: 20px;
+  display: flex;
+  justify-content: flex-end;
+  padding: 15px 20px;
+  background: white;
+  border-radius: 4px;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+/* 打印样式 */
+@media print {
+  .toolbar,
+  .search-area,
+  .pagination-container {
+    display: none;
+  }
+}
+</style>

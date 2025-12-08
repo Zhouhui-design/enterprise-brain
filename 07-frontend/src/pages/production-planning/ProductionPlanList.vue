@@ -1,35 +1,52 @@
 <template>
-  <div class="production-plan-list">
+  <div class="production-plan-list" :class="{
+    'is-mobile': isMobile,
+    'is-tablet': isTablet,
+    'is-desktop': isDesktop
+  }">
+    <!-- ✅ 面包屑导航 -->
+    <BreadcrumbNav
+      v-if="breadcrumbItems.length > 0"
+      :items="breadcrumbItems"
+      variant="minimal"
+      :show-home="true"
+      class="page-breadcrumb"
+    />
+
     <div class="header">
       <el-page-header :title="'生产计划管理'" :content="'生产计划列表'" />
-      <el-button type="primary" @click="handleCreatePlan">创建生产计划</el-button>
+      <div class="header-actions">
+        <el-button type="primary" @click="handleCreatePlan">创建生产计划</el-button>
+        <el-button @click.stop="settingsVisible = true" circle class="page-settings-trigger">
+          <el-icon><Setting /></el-icon>
+        </el-button>
+      </div>
     </div>
 
     <el-card class="search-card">
       <el-form :inline="true" :model="searchForm" class="search-form">
-        <el-form-item label="计划编号">
-          <el-input v-model="searchForm.planCode" placeholder="请输入计划编号" clearable />
+        <el-form-item label="主生产计划编号">
+          <el-input 
+            ref="searchInputRef"
+            v-model="searchForm.planCode" 
+            placeholder="请输入主生产计划编号" 
+            clearable 
+            @keyup.enter="handleSearch"
+          />
+        </el-form-item>
+        <el-form-item label="产品编号">
+          <el-input v-model="searchForm.productCode" placeholder="请输入产品编号" clearable />
         </el-form-item>
         <el-form-item label="产品名称">
           <el-input v-model="searchForm.productName" placeholder="请输入产品名称" clearable />
         </el-form-item>
-        <el-form-item label="计划状态">
+        <el-form-item label="进度状态">
           <el-select v-model="searchForm.status" placeholder="请选择状态" clearable>
             <el-option label="未开始" value="0" />
             <el-option label="进行中" value="1" />
             <el-option label="已完成" value="2" />
             <el-option label="已暂停" value="3" />
           </el-select>
-        </el-form-item>
-        <el-form-item label="计划周期">
-          <el-date-picker
-            v-model="dateRange"
-            type="daterange"
-            range-separator="至"
-            start-placeholder="开始日期"
-            end-placeholder="结束日期"
-            value-format="yyyy-MM-dd"
-          />
         </el-form-item>
         <el-form-item>
           <el-button type="primary" @click="handleSearch">查询</el-button>
@@ -42,63 +59,116 @@
       <div class="table-header">
         <span>生产计划列表</span>
         <div class="batch-actions">
-          <el-button type="danger" :disabled="selectedPlans.length === 0" @click="handleBatchDelete">批量删除</el-button>
-          <el-button :disabled="selectedPlans.length === 0" @click="handleBatchExport">导出</el-button>
+          <el-button type="success" :disabled="selectedPlans.length !== 1" @click="handleExecuteSchedule">
+            <el-icon><Operation /></el-icon>
+            执行排程
+          </el-button>
         </div>
       </div>
-      
-      <el-table
-        v-loading="loading"
+      <!-- 使用EnhancedTable通用表格组件 -->
+      <EnhancedTable
         :data="planListData"
-        style="width: 100%"
+        :columns="tableColumns"
+        :loading="loading"
+        :show-selection="true"
+        :show-filter="true"
+        :show-pagination="true"
+        :show-toolbar="true"
+        :show-batch-delete="true"
+        :show-export="true"
+        :total="total"
+        :current-page="currentPage"
+        :page-size="pageSize"
         @selection-change="handleSelectionChange"
+        @page-change="handlePageChange"
+        @size-change="handleSizeChange"
+        @batch-delete="handleBatchDelete"
+        @export="handleBatchExport"
       >
-        <el-table-column type="selection" width="55" />
-        <el-table-column prop="planCode" label="计划编号" width="180" />
-        <el-table-column prop="productName" label="产品名称" />
-        <el-table-column prop="orderQuantity" label="计划数量" width="120" align="right">
-          <template slot-scope="scope">{{ scope.row.orderQuantity.toLocaleString() }}</template>
-        </el-table-column>
-        <el-table-column prop="startDate" label="开始日期" width="150" />
-        <el-table-column prop="endDate" label="结束日期" width="150" />
-        <el-table-column prop="status" label="计划状态" width="100">
-          <template slot-scope="scope">
-            <el-tag :type="statusType[scope.row.status]">{{ statusText[scope.row.status] }}</el-tag>
-          </template>
-        </el-table-column>
-        <el-table-column prop="responsiblePerson" label="负责人" width="120" />
-        <el-table-column label="操作" width="200" fixed="right">
-          <template slot-scope="scope">
-            <el-button size="small" @click="handleViewDetail(scope.row)">查看详情</el-button>
-            <el-button size="small" type="primary" @click="handleEditPlan(scope.row)">编辑</el-button>
-            <el-button size="small" type="danger" @click="handleDeletePlan(scope.row)">删除</el-button>
-          </template>
-        </el-table-column>
-      </el-table>
-
-      <div class="pagination">
-        <el-pagination
-          layout="total, sizes, prev, pager, next, jumper"
-          :total="total"
-          :page-sizes="[10, 20, 50, 100]"
-          v-model="currentPage"
-          v-model:page-size="pageSize"
-          @size-change="handleSizeChange"
-          @current-change="handleCurrentChange"
-        />
-      </div>
+        <!-- 产品图片列 -->
+        <template #productImage="{ row }">
+          <el-image
+            v-if="row.productImage"
+            :src="row.productImage"
+            :preview-src-list="[row.productImage]"
+            fit="cover"
+            style="width: 50px; height: 50px; border-radius: 4px;"
+          />
+          <span v-else style="color: #999;">无图片</span>
+        </template>
+        
+        <!-- 进度状态列 -->
+        <template #status="{ row }">
+          <el-tag :type="statusType[row.status]">
+            {{ statusText[row.status] || '未知' }}
+          </el-tag>
+        </template>
+        
+        <!-- 操作列 -->
+        <template #operation="{ row }">
+          <el-button size="small" @click="handleViewDetail(row)">查看详情</el-button>
+          <el-button size="small" type="primary" @click="handleEditPlan(row)">编辑</el-button>
+          <el-button size="small" type="danger" @click="handleDeletePlan(row)">删除</el-button>
+        </template>
+      </EnhancedTable>
     </el-card>
+
+    <!-- 页面设置组件（通用） -->
+    <PageSettings
+      v-model="settingsVisible"
+      settings-key="productionPlanSettings"
+      :available-fields="tableColumns"
+      :show-workflow="true"
+      :show-menu="false"
+      :show-color="false"
+      :show-encoding="true"
+      :show-fields="true"
+      :show-print="true"
+      :show-export="true"
+      :show-business-vars="true"
+      :default-settings="defaultSettings"
+      @save="handleSettingsSave"
+    />
   </div>
 </template>
 
 <script>
+import EnhancedTable from '@/components/common/EnhancedTable.vue';
+import PageSettings from '@/components/common/PageSettings.vue';
+import BreadcrumbNav from '@/components/common/layout/BreadcrumbNav.vue';
+import { Setting, Operation } from '@element-plus/icons-vue';
+import api from '@/api/masterProductionPlan';
+
+// ✅ 日期格式化辅助函数（在组件外部定义）
+const formatDateYMD = (dateStr) => {
+  if (!dateStr) return '-';
+  try {
+    const date = new Date(dateStr);
+    if (isNaN(date.getTime())) return '-';
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  } catch (e) {
+    return '-';
+  }
+};
+
 export default {
   name: 'ProductionPlanList',
+  components: {
+    EnhancedTable,
+    PageSettings,
+    BreadcrumbNav,
+    Setting,
+    Operation
+  },
   data() {
     return {
       loading: false,
       searchForm: {
         planCode: '',
+        productCode: '',
         productName: '',
         status: '',
       },
@@ -108,6 +178,12 @@ export default {
       currentPage: 1,
       pageSize: 10,
       total: 0,
+      settingsVisible: false,
+      defaultSettings: {
+        advanceStorageDays: 3,  // 默认提前3天入库
+        exportFilePrefix: '主生产计划',
+        codePrefix: 'MPS'
+      },
       statusText: {
         0: '未开始',
         1: '进行中',
@@ -119,58 +195,209 @@ export default {
         1: 'primary',
         2: 'success',
         3: 'warning'
-      }
+      },
+      // ✅ 响应式断点
+      isMobile: false,
+      isTablet: false,
+      isDesktop: true,
+      // ✅ 面包屑导航
+      breadcrumbItems: [
+        { label: '生产管理', path: '/production' },
+        { label: '计划管理', path: '/production/planning' },
+        { label: '主生产计划' }
+      ],
+      // 表格列配置
+      tableColumns: [
+        {
+          prop: 'planCode',
+          label: '主生产计划编号',
+          width: 180,
+          fixed: 'left',
+          sortable: true,
+          filterable: true
+        },
+        {
+          prop: 'productCode',
+          label: '产品编号',
+          width: 150,
+          sortable: true,
+          filterable: true
+        },
+        {
+          prop: 'productName',
+          label: '产品名称',
+          width: 180,
+          sortable: true,
+          filterable: true
+        },
+        {
+          prop: 'orderQuantity',
+          label: '订单数量',
+          width: 120,
+          align: 'right',
+          sortable: true,
+          formatter: (row) => row.orderQuantity?.toLocaleString() || 0
+        },
+        {
+          prop: 'salesperson',
+          label: '销售员',
+          width: 120,
+          filterable: true
+        },
+        {
+          prop: 'salesUnit',
+          label: '销售单位',
+          width: 100,
+          filterable: true
+        },
+        {
+          prop: 'availableStock',
+          label: '可用库存',
+          width: 120,
+          align: 'right',
+          sortable: true,
+          formatter: (row) => row.availableStock?.toLocaleString() || 0
+        },
+        {
+          prop: 'currentStock',
+          label: '实时库存',
+          width: 120,
+          align: 'right',
+          sortable: true,
+          formatter: (row) => row.currentStock?.toLocaleString() || 0
+        },
+        {
+          prop: 'planQuantity',
+          label: '计划数量',
+          width: 120,
+          align: 'right',
+          sortable: true,
+          formatter: (row) => row.planQuantity?.toLocaleString() || 0
+        },
+        {
+          prop: 'productImage',
+          label: '产品图片',
+          width: 100,
+          slot: 'productImage'
+        },
+        {
+          prop: 'outputProcess',
+          label: '产出工序',
+          width: 120,
+          filterable: true,
+          showOverflowTooltip: true
+        },
+        {
+          prop: 'promisedDeliveryDate',
+          label: '订单承诺交期',
+          width: 120,
+          sortable: true,
+          formatter: (row) => formatDateYMD(row.promisedDeliveryDate)
+        },
+        {
+          prop: 'status',
+          label: '进度状态',
+          width: 120,
+          filterable: true,
+          slot: 'status'
+        },
+        {
+          prop: 'plannedStorageDate',
+          label: '计划入库日期',
+          width: 120,
+          sortable: true,
+          formatter: (row) => formatDateYMD(row.plannedStorageDate)
+        },
+        {
+          prop: 'productSource',
+          label: '产品来源',
+          width: 120,
+          filterable: true
+        },
+        {
+          prop: 'internalOrderNo',
+          label: '内部销售订单编号',
+          width: 180,
+          filterable: true
+        },
+        {
+          prop: 'customerOrderNo',
+          label: '客户订单编号',
+          width: 180,
+          filterable: true
+        },
+        {
+          prop: 'actions',
+          label: '操作',
+          width: 280,
+          fixed: 'right',
+          slot: 'actions'
+        }
+      ]
     };
   },
   mounted() {
+    // 加载真实数据
     this.fetchPlanList();
+    // ✅ 初始化响应式断点
+    this.initResponsive();
+    // ✅ 初始化键盘导航
+    this.initKeyboardNav();
+  },
+  beforeUnmount() {
+    // ✅ 清理事件监听器
+    this.cleanupResponsive();
+    this.cleanupKeyboardNav();
   },
   methods: {
-    fetchPlanList() {
+    // 从后端API加载主生产计划列表
+    async fetchPlanList() {
       this.loading = true;
-      // 模拟API调用
-      setTimeout(() => {
-        const mockData = this.generateMockData();
-        this.planListData = mockData.data;
-        this.total = mockData.total;
+      try {
+        const params = {
+          page: this.currentPage,
+          pageSize: this.pageSize,
+          ...(this.searchForm.planCode && { planCode: this.searchForm.planCode }),
+          ...(this.searchForm.productCode && { productCode: this.searchForm.productCode }),
+          ...(this.searchForm.productName && { productName: this.searchForm.productName }),
+          ...(this.searchForm.status && { status: this.searchForm.status })
+        };
+        
+        const result = await api.getList(params);
+        
+        this.planListData = result.list || [];
+        this.total = result.total || 0;
+        console.log('✅ 加载主生产计划:', this.planListData.length, '条');
+      } catch (error) {
+        console.error('❌ 加载主生产计划失败:', error);
+        this.$message.error('加载数据失败: ' + (error.message || '未知错误'));
+      } finally {
         this.loading = false;
-      }, 500);
+      }
     },
     
-    generateMockData() {
-      const data = [];
-      const statuses = ['0', '1', '2', '3'];
-      const products = ['智能手机A', '笔记本电脑B', '平板电脑C', '智能手表D'];
-      
-      for (let i = (this.currentPage - 1) * this.pageSize; i < this.currentPage * this.pageSize && i < 100; i++) {
-        const startDate = new Date();
-        startDate.setDate(startDate.getDate() + i);
-        const endDate = new Date(startDate);
-        endDate.setDate(startDate.getDate() + 10);
-        
-        data.push({
-          id: i + 1,
-          planCode: `PP${new Date().getFullYear()}${String(i + 1).padStart(4, '0')}`,
-          productName: products[i % products.length],
-          orderQuantity: Math.floor(Math.random() * 1000) + 500,
-          startDate: this.formatDate(startDate),
-          endDate: this.formatDate(endDate),
-          status: statuses[i % statuses.length],
-          responsiblePerson: `负责人${i + 1}`
-        });
-      }
-      
-      return {
-        data,
-        total: 100
-      };
-    },
+    // 已移除模拟数据生成函数
     
     formatDate(date) {
       const year = date.getFullYear();
       const month = String(date.getMonth() + 1).padStart(2, '0');
       const day = String(date.getDate()).padStart(2, '0');
       return `${year}-${month}-${day}`;
+    },
+    
+    // 格式化日期为年-月-日
+    formatDateYMD(dateStr) {
+      if (!dateStr) return '-';
+      try {
+        const date = new Date(dateStr);
+        if (isNaN(date.getTime())) return '-';
+        const year = date.getFullYear();
+        const month = String(date.getMonth() + 1).padStart(2, '0');
+        const day = String(date.getDate()).padStart(2, '0');
+        return `${year}-${month}-${day}`;
+      } catch (e) {
+        return '-';
+      }
     },
     
     handleSearch() {
@@ -181,6 +408,7 @@ export default {
     handleReset() {
       this.searchForm = {
         planCode: '',
+        productCode: '',
         productName: '',
         status: '',
       };
@@ -195,6 +423,12 @@ export default {
     
     handleSizeChange(size) {
       this.pageSize = size;
+      this.currentPage = 1;
+      this.fetchPlanList();
+    },
+    
+    handlePageChange(page) {
+      this.currentPage = page;
       this.fetchPlanList();
     },
     
@@ -215,36 +449,41 @@ export default {
       this.$router.push(`/production-planning/create?id=${plan.id}`);
     },
     
-    handleDeletePlan(plan) {
+    async handleDeletePlan(plan) {
       this.$confirm(`确定要删除生产计划"${plan.planCode}"吗？`, '提示', {
         confirmButtonText: '确定',
         cancelButtonText: '取消',
         type: 'warning'
-      }).then(() => {
-        // 模拟删除操作
-        this.$message({
-          type: 'success',
-          message: '删除成功'
-        });
-        this.fetchPlanList();
+      }).then(async () => {
+        try {
+          await api.deleteById(plan.id);
+          this.$message.success('删除成功');
+          this.fetchPlanList();
+        } catch (error) {
+          console.error('❌ 删除失败:', error);
+          this.$message.error('删除失败: ' + (error.message || '未知错误'));
+        }
       }).catch(() => {
         // 用户取消操作
       });
     },
     
-    handleBatchDelete() {
+    async handleBatchDelete() {
       this.$confirm(`确定要删除选中的${this.selectedPlans.length}个生产计划吗？`, '提示', {
         confirmButtonText: '确定',
         cancelButtonText: '取消',
         type: 'warning'
-      }).then(() => {
-        // 模拟批量删除操作
-        this.$message({
-          type: 'success',
-          message: '批量删除成功'
-        });
-        this.fetchPlanList();
-        this.selectedPlans = [];
+      }).then(async () => {
+        try {
+          const ids = this.selectedPlans.map(plan => plan.id);
+          await api.batchDelete(ids);
+          this.$message.success(`成功删除${this.selectedPlans.length}条记录`);
+          this.selectedPlans = [];
+          this.fetchPlanList();
+        } catch (error) {
+          console.error('❌ 批量删除失败:', error);
+          this.$message.error('批量删除失败: ' + (error.message || '未知错误'));
+        }
       }).catch(() => {
         // 用户取消操作
       });
@@ -256,6 +495,218 @@ export default {
         type: 'info',
         message: '导出成功'
       });
+    },
+    
+    // 执行排程
+    async handleExecuteSchedule() {
+      const selectedPlan = this.selectedPlans[0];
+      if (!selectedPlan) {
+        this.$message.warning('请选择一条主生产计划');
+        return;
+      }
+      
+      try {
+        await this.$confirm(
+          `确定要执行排程吗？
+
+计划编号: ${selectedPlan.planCode}
+产品名称: ${selectedPlan.productName}
+计划数量: ${selectedPlan.planQuantity}
+
+系统将自动：
+1. 将主计划数据推送到备料计划
+2. 根据产出工序自动生成工序计划`,
+          '执行排程确认',
+          {
+            confirmButtonText: '确定执行',
+            cancelButtonText: '取消',
+            type: 'warning',
+            dangerouslyUseHTMLString: false
+          }
+        );
+        
+        this.loading = true;
+        
+        const result = await api.executeSchedule(selectedPlan.id);
+        
+        this.$message.success(
+          `排程执行成功！\n` +
+          `生成备料计划: ${result.materialPlanCount || 0} 条\n` +
+          `生成工序计划: ${result.processPlanCount || 0} 条`
+        );
+        // 刷新列表
+        this.fetchPlanList();
+      } catch (error) {
+        if (error !== 'cancel') {
+          console.error('❗ 执行排程失败:', error);
+          this.$message.error(error.message || '执行排程失败');
+        }
+      } finally {
+        this.loading = false;
+      }
+    },
+    
+    handleColumnsUpdate(newColumns) {
+      this.tableColumns = newColumns;
+    },
+    
+    handleSettingsSave(settings) {
+      console.log('=== 页面设置保存调试信息 ===')
+      console.log('settings 对象:', settings)
+      console.log('settings.fields:', settings.fields)
+      console.log('当前 tableColumns 数量:', this.tableColumns.length)
+      
+      // ✅ 支持列拖拽：处理 fields 字段（顺序 + 可见性）
+      if (settings.fields && Array.isArray(settings.fields)) {
+        console.log('✅ 收到字段设置，数量:', settings.fields.length)
+        
+        const fieldMap = new Map(settings.fields.map(f => [f.prop, f]))
+        
+        // 重新排序 tableColumns
+        const newColumns = []
+        settings.fields.forEach(field => {
+          const col = this.tableColumns.find(c => c.prop === field.prop)
+          if (col) {
+            // ✅ 保持所有原有属性，只更新可见性
+            const newCol = {
+              ...col,  // 保留 fixed、width 等所有属性
+              visible: field.visible !== false
+            }
+            newColumns.push(newCol)
+            console.log(`✅ 添加列: ${field.label}, visible: ${field.visible}, fixed: ${col.fixed || 'none'}`)
+          }
+        })
+        
+        // 添加未在 settings.fields 中的列
+        this.tableColumns.forEach(col => {
+          if (!fieldMap.has(col.prop)) {
+            newColumns.push({ ...col })  // ✅ 深拷贝
+          }
+        })
+        
+        // ✅ 关键：替换整个数组引用
+        this.tableColumns = newColumns
+        
+        console.log('✅ 列顺序已更新:')
+        console.log('新顺序:', newColumns.map(c => c.label).join(', '))
+        console.log('可见列:', newColumns.filter(c => c.visible).map(c => c.label).join(', '))
+        
+        // ✅ 添加延迟，确保渲染完成
+        setTimeout(() => {
+          console.log('✅ 列更新完成')
+        }, 100)
+      } else if (settings.visibleFields) {
+        // ✅ 兼容旧版本：仅更新可见性
+        this.tableColumns.forEach(col => {
+          col.visible = settings.visibleFields.includes(col.prop)
+        })
+      }
+      
+      // 应用业务变量
+      if (settings.advanceStorageDays !== undefined) {
+        console.log('📅 提前入库期设置为:', settings.advanceStorageDays, '天')
+        // 这里可以在创建主生产计划时使用这个值
+      }
+      
+      this.$message.success('设置已应用')
+    },
+
+    // ✅ 初始化响应式断点系统
+    initResponsive() {
+      const breakpoints = {
+        mobile: '(max-width: 640px)',
+        tablet: '(min-width: 641px) and (max-width: 1024px)',
+        desktop: '(min-width: 1025px)'
+      };
+
+      this.mobileQuery = window.matchMedia(breakpoints.mobile);
+      this.tabletQuery = window.matchMedia(breakpoints.tablet);
+      this.desktopQuery = window.matchMedia(breakpoints.desktop);
+
+      this.updateBreakpoints = () => {
+        this.isMobile = this.mobileQuery?.matches || false;
+        this.isTablet = this.tabletQuery?.matches || false;
+        this.isDesktop = this.desktopQuery?.matches || true;
+      };
+
+      this.updateBreakpoints();
+
+      this.mobileQuery.addEventListener('change', this.updateBreakpoints);
+      this.tabletQuery.addEventListener('change', this.updateBreakpoints);
+      this.desktopQuery.addEventListener('change', this.updateBreakpoints);
+
+      console.log('✅ 响应式断点系统已激活');
+    },
+
+    // ✅ 清理响应式断点
+    cleanupResponsive() {
+      if (this.mobileQuery) this.mobileQuery.removeEventListener('change', this.updateBreakpoints);
+      if (this.tabletQuery) this.tabletQuery.removeEventListener('change', this.updateBreakpoints);
+      if (this.desktopQuery) this.desktopQuery.removeEventListener('change', this.updateBreakpoints);
+      console.log('✅ 响应式断点系统已清理');
+    },
+
+    // ✅ 初始化键盘导航
+    initKeyboardNav() {
+      this.handleKeyDown = (event) => {
+        // ESC 关闭设置弹窗
+        if (event.key === 'Escape' && this.settingsVisible) {
+          this.settingsVisible = false;
+          console.log('✅ ESC 关闭设置弹窗');
+        }
+        
+        // Ctrl+F 聚焦搜索
+        if (event.ctrlKey && event.key === 'f') {
+          event.preventDefault();
+          this.$refs.searchInputRef?.focus();
+          console.log('✅ Ctrl+F 聚焦搜索');
+        }
+        
+        // Ctrl+N 新增
+        if (event.ctrlKey && event.key === 'n') {
+          event.preventDefault();
+          this.handleCreatePlan();
+          console.log('✅ Ctrl+N 创建计划');
+        }
+      };
+
+      this.handleClickOutside = (event) => {
+        // 如果弹窗不可见，直接返回
+        if (!this.settingsVisible) return
+        
+        const target = event.target
+        
+        // ✅ 重要：排除页面设置按钮本身和弹窗内容
+        const isSettingsButton = target.closest('.header-actions') || 
+                               target.closest('.page-settings-trigger') ||
+                               target.closest('button')?.querySelector('.el-icon') ||
+                               target.tagName === 'svg' || 
+                               target.tagName === 'path'
+        
+        const isSettingsDialog = target.closest('.el-dialog') || 
+                                target.closest('.el-dialog__wrapper') ||
+                                target.closest('.page-settings')
+        
+        // 如果点击的是设置按钮或弹窗内部，不关闭
+        if (isSettingsButton || isSettingsDialog) {
+          return
+        }
+        
+        // 否则关闭弹窗
+        this.settingsVisible = false
+        console.log('✅ 点击外部关闭设置弹窗')
+      };
+
+      document.addEventListener('keydown', this.handleKeyDown);
+      document.addEventListener('click', this.handleClickOutside);
+      console.log('✅ 键盘导航已激活');
+    },
+
+    // ✅ 清理键盘导航
+    cleanupKeyboardNav() {
+      if (this.handleKeyDown) document.removeEventListener('keydown', this.handleKeyDown);
+      if (this.handleClickOutside) document.removeEventListener('click', this.handleClickOutside);
+      console.log('✅ 键盘导航已清理');
     }
   }
 };
@@ -266,11 +717,45 @@ export default {
   padding: 20px;
 }
 
+/* ✅ 面包屑导航样式 */
+.page-breadcrumb {
+  margin-bottom: 16px;
+}
+
+.is-mobile .page-breadcrumb {
+  margin-bottom: 12px;
+}
+
+/* ✅ 响应式样式调整 */
+.is-mobile .production-plan-list {
+  padding: 12px;
+}
+
+.is-mobile .search-card :deep(.el-card__body) {
+  padding: 12px;
+}
+
+.is-mobile .header {
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 10px;
+}
+
+.is-tablet .production-plan-list {
+  padding: 16px;
+}
+
 .header {
   display: flex;
   justify-content: space-between;
   align-items: center;
   margin-bottom: 20px;
+}
+
+.header-actions {
+  display: flex;
+  gap: 10px;
+  align-items: center;
 }
 
 .search-card {
@@ -296,11 +781,5 @@ export default {
 .batch-actions {
   display: flex;
   gap: 10px;
-}
-
-.pagination {
-  margin-top: 20px;
-  display: flex;
-  justify-content: flex-end;
 }
 </style>

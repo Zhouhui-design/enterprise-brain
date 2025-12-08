@@ -1,8 +1,12 @@
 /**
  * 发货管理路由模块
  */
+import Layout from '@/layout/index.vue'
+
 export default {
   path: '/shipping',
+  component: Layout,
+  redirect: '/shipping/plan',
   name: 'Shipping',
   meta: { 
     title: '发货管理',
@@ -28,7 +32,7 @@ export default {
       }
     },
     {
-      path: 'execution',
+      path: 'shipping-execution',
       name: 'ShippingExecution',
       component: () => import('@/pages/shipping/ShippingExecution.vue'),
       meta: { 
@@ -46,7 +50,7 @@ export default {
       }
     },
     {
-      path: 'logistics',
+      path: 'logistics-tracking',
       name: 'LogisticsTracking',
       component: () => import('@/pages/shipping/LogisticsTracking.vue'),
       meta: { 

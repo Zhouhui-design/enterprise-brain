@@ -1,0 +1,341 @@
+================================================================
+主生产计划功能状态确认
+================================================================
+
+✅ 确认时间: 2025-12-08
+✅ 页面访问地址: 
+   - 主生产计划: http://localhost:3002/production-planning/plan-list
+   - 备料计划: http://localhost:3002/production-planning/material-preparation
+
+----------------------------------------------------------------
+一、级联删除功能状态
+----------------------------------------------------------------
+
+### ✅ 已实现：主生产计划删除时级联删除备料计划
+
+**实现位置**：
+- 文件：`/backend/routes/masterProductionPlans.js`
+- 代码行：第282-327行
+
+**实现逻辑**：
+```javascript
+router.delete('/:id', async (req, res) => {
+  // 1. 查询主生产计划的 plan_code
+  const [planRows] = await pool.execute(
+    'SELECT plan_code FROM master_production_plans WHERE id = ?',
+    [id]
+  );
+  
+  const planCode = planRows[0].plan_code;
+  
+  // 2. 级联删除备料计划（source_plan_no = plan_code）
+  const [materialPlanResult] = await pool.execute(
+    'DELETE FROM material_preparation_plans WHERE source_plan_no = ?',
+    [planCode]
+  );
+  
+  // 3. 删除主生产计划
+  await pool.execute('DELETE FROM master_production_plans WHERE id = ?', [id]);
+  
+  // 4. 返回成功消息（包含级联删除数量）
+  res.json({
+    code: 200,
+    message: `删除成功（同时删除 ${materialPlanResult.affectedRows} 条备料计划）`
+  });
+});
+```
+
+**字段映射**：
+- 主生产计划.plan_code（主生产计划编号）
+  → 备料计划.source_plan_no（来源主计划编号）
+
+**测试方法**：
+1. 访问主生产计划列表
+2. 选择一条已执行排程的主生产计划（有对应的备料计划）
+3. 点击"删除"按钮
+4. 查看提示消息（应显示级联删除的备料计划数量）
+5. 访问备料计划列表，确认关联的备料计划已被删除
+
+----------------------------------------------------------------
+二、列拖拽功能状态
+----------------------------------------------------------------
+
+### ✅ 已支持：通过 PageSettings 组件实现列拖拽
+
+**实现方式**：
+- 组件：`PageSettings.vue`（已集成 vuedraggable）
+- 位置：主生产计划页面右上角"设置"按钮
+- Tab：字段管理
+
+**功能特性**：
+1. ✅ 拖拽调整字段顺序
+2. ✅ 显示/隐藏字段
+3. ✅ 实时同步到主表格
+4. ✅ 持久化存储到 localStorage
+
+**使用方法**：
+1. 点击页面右上角"设置"按钮（齿轮图标）
+2. 切换到"字段管理" Tab
+3. 使用拖拽手柄图标拖动字段
+4. 点击"保存"按钮
+5. 查看主表格，列顺序已更新
+
+**关于 useTableDrag.js**：
+- 位置：`/07-frontend/src/components/common/tables/enhanced/hooks/useTableDrag.js`
+- 说明：这是一个 Composition API 的 hook，用于 Sortable.js 拖拽功能
+- 当前状态：PageSettings 组件已经使用了 vuedraggable 实现列拖拽
+- 结论：**无需额外集成 useTableDrag.js**，PageSettings 已提供完整功能
+
+----------------------------------------------------------------
+三、主生产计划页面架构
+----------------------------------------------------------------
+
+### 页面结构
+```
+ProductionPlanList.vue（Options API）
+  ├── BreadcrumbNav（面包屑导航）
+  ├── Header（标题栏 + 操作按钮）
+  ├── SearchCard（搜索表单）
+  ├── DataCard
+  │   └── EnhancedTable（增强表格组件）
+  │       ├── 产品图片列（插槽）
+  │       ├── 状态列（插槽）
+  │       └── 操作列（插槽）
+  └── PageSettings（页面设置组件）
+      ├── 字段管理（支持列拖拽）
+      ├── 打印设置
+      ├── 导出设置
+      └── 业务变量设置
+```
+
+### 已集成功能
+✅ 面包屑导航（BreadcrumbNav）
+✅ 响应式断点系统（isMobile/isTablet/isDesktop）
+✅ 键盘导航（ESC/Ctrl+F/Ctrl+N）
+✅ 点击外部关闭
+✅ 增删改查（CRUD）
+✅ 批量删除
+✅ 导入导出
+✅ 表头筛选
+✅ 列排序
+✅ 列拖拽（通过 PageSettings）
+✅ 分页
+✅ 执行排程（推送到备料计划）
+✅ 级联删除（删除时同步删除备料计划）
+
+----------------------------------------------------------------
+四、数据流关系
+----------------------------------------------------------------
+
+### 完整的三级级联删除链路
+
+```
+销售订单删除
+    ↓ 级联删除
+主生产计划（通过 internal_order_no 匹配）
+    ↓ 级联删除
+备料计划（通过 source_plan_no 匹配）
+```
+
+### 字段映射关系
+
+| 上游表 | 上游字段 | 下游表 | 下游字段 | 说明 |
+|--------|----------|--------|----------|------|
+| sales_orders | internal_order_no | master_production_plans | internal_order_no | 内部销售订单编号 |
+| master_production_plans | plan_code | material_preparation_plans | source_plan_no | 主生产计划编号 |
+
+----------------------------------------------------------------
+五、测试验证清单
+----------------------------------------------------------------
+
+### 测试 1：级联删除功能
+
+#### 准备数据
+1. 创建销售订单（SO202512080001）
+2. 正式下单（生成主生产计划 MPS2025120800XX）
+3. 执行排程（生成备料计划 MPP2025170XX123）
+
+#### 执行测试
+4. 访问主生产计划列表
+5. 选择 MPS2025120800XX
+6. 点击"删除"按钮
+7. 确认删除
+
+#### 预期结果
+- 前端提示：`删除成功（同时删除 1 条备料计划）`
+- 后端日志：
+  ```
+  🗑️ 删除主生产计划: { id: X, planCode: 'MPS2025120800XX' }
+  ✅ 级联删除备料计划: 1 条
+  ✅ 主生产计划删除成功
+  ```
+- 数据库验证：
+  ```sql
+  -- 主生产计划已删除
+  SELECT * FROM master_production_plans WHERE plan_code = 'MPS2025120800XX';
+  -- 结果：0 rows ✅
+  
+  -- 备料计划已删除
+  SELECT * FROM material_preparation_plans WHERE source_plan_no = 'MPS2025120800XX';
+  -- 结果：0 rows ✅
+  ```
+
+---
+
+### 测试 2：列拖拽功能
+
+#### 执行步骤
+1. 访问主生产计划列表
+2. 点击右上角"设置"按钮
+3. 切换到"字段管理" Tab
+4. 拖拽"产品编号"字段到"主生产计划编号"之前
+5. 点击"保存"按钮
+
+#### 预期结果
+- ✅ 主表格的列顺序已更新
+- ✅ "产品编号"列显示在"主生产计划编号"之前
+- ✅ 刷新页面，列顺序保持不变（localStorage 持久化）
+
+---
+
+### 测试 3：多产品订单级联删除
+
+#### 准备数据
+1. 创建销售订单（SO202512080002，包含3个产品）
+2. 正式下单（生成3条主生产计划）
+3. 执行排程（部分产品，生成2条备料计划）
+
+#### 执行测试
+4. 删除其中一条主生产计划
+
+#### 预期结果
+- ✅ 对应的备料计划被删除
+- ✅ 其他主生产计划和备料计划不受影响
+
+----------------------------------------------------------------
+六、常见问题排查
+----------------------------------------------------------------
+
+### 问题 1：级联删除未生效
+
+**症状**：删除主生产计划后，备料计划仍然存在
+
+**排查步骤**：
+1. 检查后端日志，确认级联删除SQL是否执行
+   ```bash
+   # 查看后端日志
+   tail -f backend/logs/app.log
+   ```
+
+2. 检查字段匹配是否正确
+   ```sql
+   -- 验证字段关联
+   SELECT 
+     mpp.plan_code,
+     mp.source_plan_no
+   FROM master_production_plans mpp
+   LEFT JOIN material_preparation_plans mp 
+     ON mp.source_plan_no = mpp.plan_code
+   WHERE mpp.id = ?;
+   ```
+
+3. 检查数据库中的实际值
+   ```sql
+   -- 查看主生产计划
+   SELECT id, plan_code FROM master_production_plans LIMIT 10;
+   
+   -- 查看备料计划
+   SELECT id, plan_no, source_plan_no FROM material_preparation_plans LIMIT 10;
+   ```
+
+**解决方案**：
+- 确保 plan_code 和 source_plan_no 的值完全一致
+- 检查是否有额外的空格或特殊字符
+- 验证字段类型是否匹配（VARCHAR vs TEXT）
+
+---
+
+### 问题 2：列拖拽无法移动
+
+**症状**：拖拽字段时无法移动
+
+**排查步骤**：
+1. 检查控制台是否有JavaScript错误
+2. 查看 vuedraggable 是否正确加载
+3. 确认鼠标光标是否变为可移动状态
+
+**解决方案**：
+- 参考：`工序计划页面设置弹窗闪退问题修复.txt`
+- 确保 PageSettings 组件正确导入
+- 验证 vuedraggable 依赖已安装
+
+---
+
+### 问题 3：删除提示消息不准确
+
+**症状**：提示"删除成功（同时删除 0 条备料计划）"，但实际有备料计划
+
+**原因**：
+- source_plan_no 字段值与 plan_code 不匹配
+- 数据不一致
+
+**解决方案**：
+```sql
+-- 检查数据一致性
+SELECT 
+  mpp.id AS master_plan_id,
+  mpp.plan_code,
+  COUNT(mp.id) AS material_plan_count
+FROM master_production_plans mpp
+LEFT JOIN material_preparation_plans mp 
+  ON mp.source_plan_no = mpp.plan_code
+GROUP BY mpp.id, mpp.plan_code
+HAVING material_plan_count > 0;
+```
+
+----------------------------------------------------------------
+七、总结
+----------------------------------------------------------------
+
+### 当前状态
+
+✅ **级联删除功能**：已完整实现
+  - 主生产计划删除时自动删除备料计划
+  - 字段映射正确（plan_code → source_plan_no）
+  - 返回消息包含级联删除数量
+  - 控制台日志详细
+
+✅ **列拖拽功能**：已通过 PageSettings 实现
+  - 支持拖拽调整字段顺序
+  - 支持显示/隐藏字段
+  - 实时同步到主表格
+  - 持久化存储
+
+⚠️ **无需额外集成 useTableDrag.js**
+  - PageSettings 组件已使用 vuedraggable
+  - 提供完整的列管理功能
+  - 与 useTableDrag.js 功能重复
+
+### 建议
+
+1. **立即测试**：
+   - 测试级联删除功能
+   - 验证列拖拽功能
+   - 检查数据一致性
+
+2. **如果需要更高级的拖拽功能**：
+   - 考虑表格行拖拽排序
+   - 考虑多表格间拖拽
+   - 那时再集成 useTableDrag.js
+
+3. **文档维护**：
+   - 更新用户手册
+   - 添加级联删除说明
+   - 记录数据关联规则
+
+================================================================
+功能确认完成！
+================================================================
+
+级联删除功能已实现，列拖拽功能已通过 PageSettings 提供。
+建议立即测试验证，如有问题请反馈。

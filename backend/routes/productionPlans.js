@@ -1,6 +1,6 @@
 const express = require('express')
 const router = express.Router()
-const db = require('../config/database')
+const { pool } = require('../config/database')
 const { v4: uuidv4 } = require('uuid')
 
 // 获取生产计划列表
@@ -31,12 +31,12 @@ router.get('/', (req, res) => {
     sql += ' ORDER BY create_time DESC'
     
     const countSql = sql.replace('SELECT *', 'SELECT COUNT(*) as total')
-    const total = db.prepare(countSql).get(...params).total
+    const total = pool.prepare(countSql).get(...params).total
     
     sql += ' LIMIT ? OFFSET ?'
     params.push(parseInt(pageSize), (parseInt(page) - 1) * parseInt(pageSize))
     
-    const list = db.prepare(sql).all(...params)
+    const list = pool.prepare(sql).all(...params)
     
     res.json({
       success: true,
@@ -57,14 +57,14 @@ router.get('/', (req, res) => {
 router.get('/:id', (req, res) => {
   try {
     const { id } = req.params
-    const plan = db.prepare('SELECT * FROM production_plans WHERE id = ?').get(id)
+    const plan = pool.prepare('SELECT * FROM production_plans WHERE id = ?').get(id)
     
     if (!plan) {
       return res.status(404).json({ success: false, message: '生产计划不存在' })
     }
     
     // 获取工序
-    const processes = db.prepare('SELECT * FROM production_plan_processes WHERE plan_id = ? ORDER BY sequence_no').all(id)
+    const processes = pool.prepare('SELECT * FROM production_plan_processes WHERE plan_id = ? ORDER BY sequence_no').all(id)
     plan.processes = processes
     
     res.json({ success: true, data: plan })
@@ -89,10 +89,10 @@ router.post('/', (req, res) => {
     
     const id = uuidv4()
     const year = new Date().getFullYear()
-    const count = db.prepare('SELECT COUNT(*) as count FROM production_plans').get().count
+    const count = pool.prepare('SELECT COUNT(*) as count FROM production_plans').get().count
     const planNumber = `PP${year}${String(count + 1).padStart(6, '0')}`
     
-    const stmt = db.prepare(`
+    const stmt = pool.prepare(`
       INSERT INTO production_plans (
         id, plan_number, plan_name, product_code, product_name,
         plan_quantity, unit, plan_start_date, plan_end_date,
@@ -108,7 +108,7 @@ router.post('/', (req, res) => {
     
     // 插入工序
     if (processes && processes.length > 0) {
-      const processStmt = db.prepare(`
+      const processStmt = pool.prepare(`
         INSERT INTO production_plan_processes (
           plan_id, process_code, process_name, sequence_no, plan_hours, status
         ) VALUES (?, ?, ?, ?, ?, ?)
@@ -123,7 +123,7 @@ router.post('/', (req, res) => {
       }
     }
     
-    const newPlan = db.prepare('SELECT * FROM production_plans WHERE id = ?').get(id)
+    const newPlan = pool.prepare('SELECT * FROM production_plans WHERE id = ?').get(id)
     
     res.json({
       success: true,
@@ -146,12 +146,12 @@ router.put('/:id', (req, res) => {
       status, priority, workshop, productionLine, remark, processes = []
     } = req.body
     
-    const existing = db.prepare('SELECT * FROM production_plans WHERE id = ?').get(id)
+    const existing = pool.prepare('SELECT * FROM production_plans WHERE id = ?').get(id)
     if (!existing) {
       return res.status(404).json({ success: false, message: '生产计划不存在' })
     }
     
-    const stmt = db.prepare(`
+    const stmt = pool.prepare(`
       UPDATE production_plans SET
         plan_name = ?, product_code = ?, product_name = ?,
         plan_quantity = ?, completed_quantity = ?, unit = ?,
@@ -169,10 +169,10 @@ router.put('/:id', (req, res) => {
     )
     
     // 更新工序
-    db.prepare('DELETE FROM production_plan_processes WHERE plan_id = ?').run(id)
+    pool.prepare('DELETE FROM production_plan_processes WHERE plan_id = ?').run(id)
     
     if (processes && processes.length > 0) {
-      const processStmt = db.prepare(`
+      const processStmt = pool.prepare(`
         INSERT INTO production_plan_processes (
           plan_id, process_code, process_name, sequence_no, plan_hours, actual_hours, status
         ) VALUES (?, ?, ?, ?, ?, ?, ?)
@@ -187,7 +187,7 @@ router.put('/:id', (req, res) => {
       }
     }
     
-    const updatedPlan = db.prepare('SELECT * FROM production_plans WHERE id = ?').get(id)
+    const updatedPlan = pool.prepare('SELECT * FROM production_plans WHERE id = ?').get(id)
     
     res.json({
       success: true,
@@ -205,12 +205,12 @@ router.delete('/:id', (req, res) => {
   try {
     const { id } = req.params
     
-    const existing = db.prepare('SELECT * FROM production_plans WHERE id = ?').get(id)
+    const existing = pool.prepare('SELECT * FROM production_plans WHERE id = ?').get(id)
     if (!existing) {
       return res.status(404).json({ success: false, message: '生产计划不存在' })
     }
     
-    db.prepare('DELETE FROM production_plans WHERE id = ?').run(id)
+    pool.prepare('DELETE FROM production_plans WHERE id = ?').run(id)
     
     res.json({
       success: true,
@@ -234,7 +234,7 @@ router.post('/batch-delete', (req, res) => {
     const placeholders = ids.map(() => '?').join(',')
     const sql = `DELETE FROM production_plans WHERE id IN (${placeholders})`
     
-    const result = db.prepare(sql).run(...ids)
+    const result = pool.prepare(sql).run(...ids)
     
     res.json({
       success: true,

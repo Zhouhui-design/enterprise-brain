@@ -7,6 +7,13 @@ const productManualService = require('../services/productManualService');
  */
 router.get('/', async (req, res) => {
   try {
+    // 禁用缓存，确保每次都获取最新数据
+    res.set({
+      'Cache-Control': 'no-store, no-cache, must-revalidate, private',
+      'Pragma': 'no-cache',
+      'Expires': '0'
+    });
+    
     const products = await productManualService.getAll();
     
     // 解析source字段（JSON字符串转数组）
@@ -72,16 +79,38 @@ router.post('/', async (req, res) => {
   try {
     const productData = req.body;
     
+    console.log('📝 创建产品手册请求:', {
+      productCode: productData.productCode,
+      productName: productData.productName
+    });
+    
     // 检查产品编号是否已存在
     const existing = await productManualService.getByProductCode(productData.productCode);
+    
     if (existing) {
+      console.log('⚠️ 产品编号已存在:', {
+        productCode: productData.productCode,
+        existingId: existing.id,
+        existingName: existing.productName
+      });
+      
       return res.status(400).json({
         code: 400,
-        message: `产品编号 ${productData.productCode} 已存在`
+        message: `产品编号 ${productData.productCode} 已存在（ID: ${existing.id}, 名称: ${existing.productName}）`,
+        data: {
+          existingProduct: {
+            id: existing.id,
+            productCode: existing.productCode,
+            productName: existing.productName
+          }
+        }
       });
     }
     
+    console.log('✅ 产品编号不存在，开始创建...');
     const insertId = await productManualService.create(productData);
+    
+    console.log('✅ 产品手册创建成功:', { id: insertId, productCode: productData.productCode });
     
     res.json({
       code: 200,
@@ -89,7 +118,7 @@ router.post('/', async (req, res) => {
       message: '创建成功'
     });
   } catch (error) {
-    console.error('创建产品手册失败:', error);
+    console.error('❌ 创建产品手册失败:', error);
     res.status(500).json({
       code: 500,
       message: `创建失败: ${error.message}`

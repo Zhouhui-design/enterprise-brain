@@ -5,6 +5,13 @@
         <el-tab-pane label="基本信息" name="basic">
           <el-row :gutter="20">
             <el-col :span="12">
+              <el-form-item label="产品编号" prop="productCode">
+                <el-input 
+                  v-model="formData.productCode" 
+                  placeholder="请输入产品编号" 
+                  @blur="handleProductCodeChange"
+                />
+              </el-form-item>
               <el-form-item label="产品名称" prop="productName">
                 <el-input v-model="formData.productName" placeholder="请输入产品名称" />
               </el-form-item>
@@ -35,6 +42,18 @@
                   <el-option label="外购" value="外购" />
                   <el-option label="外协" value="外协" />
                 </el-select>
+              </el-form-item>
+              <el-form-item label="产出工序名称">
+                <el-input 
+                  v-model="formData.outputProcessName" 
+                  placeholder="从产品物料库自动获取" 
+                  disabled
+                  style="background-color: #f5f7fa;"
+                />
+                <div v-if="lookupLoading" style="margin-top: 5px; color: #409eff; font-size: 12px;">
+                  <el-icon class="is-loading"><Loading /></el-icon>
+                  正在查询产出工序...
+                </div>
               </el-form-item>
             </el-col>
             <el-col :span="12">
@@ -138,7 +157,8 @@
 <script setup>
 import { ref, reactive, watch } from 'vue'
 import { ElMessage } from 'element-plus'
-import { Plus } from '@element-plus/icons-vue'
+import { Plus, Loading } from '@element-plus/icons-vue'
+import materialApiService from '@/services/api/materialApiService'
 
 const props = defineProps({
   productData: {
@@ -155,8 +175,10 @@ const emit = defineEmits(['success', 'cancel'])
 
 const formRef = ref(null)
 const activeTab = ref('basic')
+const lookupLoading = ref(false)
 
 const formData = reactive({
+  productCode: '',
   productName: '',
   category: '',
   subCategory: '',
@@ -164,6 +186,7 @@ const formData = reactive({
   unit: '个',
   status: '在售',
   source: [], // 来源（多选）
+  outputProcessName: '', // 产出工序名称
   material: '',
   color: '',
   weight: 0,
@@ -182,6 +205,9 @@ const formData = reactive({
 })
 
 const rules = {
+  productCode: [
+    { required: true, message: '请输入产品编号', trigger: 'blur' }
+  ],
   productName: [
     { required: true, message: '请输入产品名称', trigger: 'blur' }
   ],
@@ -191,6 +217,44 @@ const rules = {
   specification: [
     { required: true, message: '请输入规格型号', trigger: 'blur' }
   ]
+}
+
+/**
+ * 处理产品编号变化 - 执行lookup
+ */
+const handleProductCodeChange = async () => {
+  const productCode = formData.productCode?.trim()
+  
+  // 产品编号为空时，清空产出工序名称
+  if (!productCode) {
+    formData.outputProcessName = ''
+    return
+  }
+  
+  try {
+    lookupLoading.value = true
+    console.log('🔍 开始查询产出工序:', productCode)
+    
+    // 从materials表查询产出工序名称
+    const materials = await materialApiService.getAllMaterials()
+    const foundMaterial = materials.find(m => m.materialCode === productCode)
+    
+    if (foundMaterial && foundMaterial.processName) {
+      formData.outputProcessName = foundMaterial.processName
+      console.log('✅ 查询到产出工序:', foundMaterial.processName)
+      ElMessage.success(`已自动获取产出工序: ${foundMaterial.processName}`)
+    } else {
+      formData.outputProcessName = ''
+      console.log('⚠️ 未找到对应的产出工序')
+      ElMessage.warning(`产品编号 ${productCode} 在产品物料库中未找到对应的产出工序`)
+    }
+  } catch (error) {
+    console.error('❌ 查询产出工序失败:', error)
+    ElMessage.error('查询产出工序失败')
+    formData.outputProcessName = ''
+  } finally {
+    lookupLoading.value = false
+  }
 }
 
 // 监听 props 变化

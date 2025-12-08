@@ -1,6 +1,6 @@
 const express = require('express')
 const router = express.Router()
-const db = require('../config/database')
+const { pool } = require('../config/database')
 const { v4: uuidv4 } = require('uuid')
 
 // 获取发货计划列表
@@ -31,12 +31,12 @@ router.get('/', (req, res) => {
     sql += ' ORDER BY create_time DESC'
     
     const countSql = sql.replace('SELECT *', 'SELECT COUNT(*) as total')
-    const total = db.prepare(countSql).get(...params).total
+    const total = pool.prepare(countSql).get(...params).total
     
     sql += ' LIMIT ? OFFSET ?'
     params.push(parseInt(pageSize), (parseInt(page) - 1) * parseInt(pageSize))
     
-    const list = db.prepare(sql).all(...params)
+    const list = pool.prepare(sql).all(...params)
     
     res.json({
       success: true,
@@ -57,14 +57,14 @@ router.get('/', (req, res) => {
 router.get('/:id', (req, res) => {
   try {
     const { id } = req.params
-    const plan = db.prepare('SELECT * FROM shipping_plans WHERE id = ?').get(id)
+    const plan = pool.prepare('SELECT * FROM shipping_plans WHERE id = ?').get(id)
     
     if (!plan) {
       return res.status(404).json({ success: false, message: '发货计划不存在' })
     }
     
     // 获取明细
-    const items = db.prepare('SELECT * FROM shipping_plan_items WHERE plan_id = ?').all(id)
+    const items = pool.prepare('SELECT * FROM shipping_plan_items WHERE plan_id = ?').all(id)
     plan.items = items
     
     res.json({ success: true, data: plan })
@@ -89,10 +89,10 @@ router.post('/', (req, res) => {
     
     const id = uuidv4()
     const year = new Date().getFullYear()
-    const count = db.prepare('SELECT COUNT(*) as count FROM shipping_plans').get().count
+    const count = pool.prepare('SELECT COUNT(*) as count FROM shipping_plans').get().count
     const planNumber = `SP${year}${String(count + 1).padStart(6, '0')}`
     
-    const stmt = db.prepare(`
+    const stmt = pool.prepare(`
       INSERT INTO shipping_plans (
         id, plan_number, order_number, customer_name, customer_contact,
         customer_phone, ship_to_address, plan_ship_date, actual_ship_date,
@@ -108,7 +108,7 @@ router.post('/', (req, res) => {
     
     // 插入明细
     if (items && items.length > 0) {
-      const itemStmt = db.prepare(`
+      const itemStmt = pool.prepare(`
         INSERT INTO shipping_plan_items (
           plan_id, product_code, product_name, quantity, unit, unit_price, total_price
         ) VALUES (?, ?, ?, ?, ?, ?, ?)
@@ -122,7 +122,7 @@ router.post('/', (req, res) => {
       }
     }
     
-    const newPlan = db.prepare('SELECT * FROM shipping_plans WHERE id = ?').get(id)
+    const newPlan = pool.prepare('SELECT * FROM shipping_plans WHERE id = ?').get(id)
     
     res.json({
       success: true,
@@ -145,12 +145,12 @@ router.put('/:id', (req, res) => {
       status, remark, items = []
     } = req.body
     
-    const existing = db.prepare('SELECT * FROM shipping_plans WHERE id = ?').get(id)
+    const existing = pool.prepare('SELECT * FROM shipping_plans WHERE id = ?').get(id)
     if (!existing) {
       return res.status(404).json({ success: false, message: '发货计划不存在' })
     }
     
-    const stmt = db.prepare(`
+    const stmt = pool.prepare(`
       UPDATE shipping_plans SET
         order_number = ?, customer_name = ?, customer_contact = ?,
         customer_phone = ?, ship_to_address = ?, plan_ship_date = ?,
@@ -166,10 +166,10 @@ router.put('/:id', (req, res) => {
     )
     
     // 更新明细：先删除后插入
-    db.prepare('DELETE FROM shipping_plan_items WHERE plan_id = ?').run(id)
+    pool.prepare('DELETE FROM shipping_plan_items WHERE plan_id = ?').run(id)
     
     if (items && items.length > 0) {
-      const itemStmt = db.prepare(`
+      const itemStmt = pool.prepare(`
         INSERT INTO shipping_plan_items (
           plan_id, product_code, product_name, quantity, unit, unit_price, total_price
         ) VALUES (?, ?, ?, ?, ?, ?, ?)
@@ -183,7 +183,7 @@ router.put('/:id', (req, res) => {
       }
     }
     
-    const updatedPlan = db.prepare('SELECT * FROM shipping_plans WHERE id = ?').get(id)
+    const updatedPlan = pool.prepare('SELECT * FROM shipping_plans WHERE id = ?').get(id)
     
     res.json({
       success: true,
@@ -201,12 +201,12 @@ router.delete('/:id', (req, res) => {
   try {
     const { id } = req.params
     
-    const existing = db.prepare('SELECT * FROM shipping_plans WHERE id = ?').get(id)
+    const existing = pool.prepare('SELECT * FROM shipping_plans WHERE id = ?').get(id)
     if (!existing) {
       return res.status(404).json({ success: false, message: '发货计划不存在' })
     }
     
-    db.prepare('DELETE FROM shipping_plans WHERE id = ?').run(id)
+    pool.prepare('DELETE FROM shipping_plans WHERE id = ?').run(id)
     
     res.json({
       success: true,
@@ -230,7 +230,7 @@ router.post('/batch-delete', (req, res) => {
     const placeholders = ids.map(() => '?').join(',')
     const sql = `DELETE FROM shipping_plans WHERE id IN (${placeholders})`
     
-    const result = db.prepare(sql).run(...ids)
+    const result = pool.prepare(sql).run(...ids)
     
     res.json({
       success: true,

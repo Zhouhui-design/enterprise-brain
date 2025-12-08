@@ -31,6 +31,7 @@ const materialsRouter = require('./routes/materials');
 const productionBomsRouter = require('./routes/productionBoms');
 const productionBomDraftsRouter = require('./routes/productionBomDrafts');
 const customersRouter = require('./routes/customers');
+const mrpDemandsRouter = require('./routes/mrpDemands');
 const salesOrdersRouter = require('./routes/salesOrders');
 const shippingPlansRouter = require('./routes/shippingPlans');
 const productionPlansRouter = require('./routes/productionPlans');
@@ -39,11 +40,16 @@ const bomTreeStructuresRouter = require('./routes/bomTreeStructures');
 const processesRouter = require('./routes/processes');
 const mrpCalculationRouter = require('./routes/mrpCalculation');
 const productManualRouter = require('./routes/productManual');
+const inventoryRouter = require('./routes/inventory');
+const masterProductionPlansRouter = require('./routes/masterProductionPlans');
+const materialPreparationPlansRouter = require('./routes/materialPreparationPlans');
+const processPlansRouter = require('./routes/processPlans');
 
 app.use('/api/materials', materialsRouter);
 app.use('/api/production-boms', productionBomsRouter);
 app.use('/api/production-bom-drafts', productionBomDraftsRouter);
 app.use('/api/customers', customersRouter);
+app.use('/api/mrp-demands', mrpDemandsRouter);
 app.use('/api/sales-orders', salesOrdersRouter);
 app.use('/api/shipping-plans', shippingPlansRouter);
 app.use('/api/production-plans', productionPlansRouter);
@@ -52,6 +58,10 @@ app.use('/api/projected-balances', projectedBalancesRouter);
 app.use('/api/bom-tree-structures', bomTreeStructuresRouter);
 app.use('/api/processes', processesRouter);
 app.use('/api/mrp', mrpCalculationRouter);
+app.use('/api/inventory', inventoryRouter);
+app.use('/api/master-production-plans', masterProductionPlansRouter);
+app.use('/api/material-preparation-plans', materialPreparationPlansRouter);
+app.use('/api/process-plans', processPlansRouter);
 
 // 健康检查接口
 app.get('/health', (req, res) => {

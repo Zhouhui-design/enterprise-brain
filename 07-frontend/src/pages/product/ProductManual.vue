@@ -163,6 +163,12 @@
           <span v-else style="color: #909399;">-</span>
         </template>
       </el-table-column>
+      <el-table-column prop="outputProcessName" label="产出工序名称" width="140">
+        <template #default="{ row }">
+          <span v-if="row.outputProcessName">{{ row.outputProcessName }}</span>
+          <span v-else style="color: #909399;">-</span>
+        </template>
+      </el-table-column>
       <el-table-column prop="status" label="产品状态" width="100">
         <template #default="{ row }">
           <el-tag v-if="row.status === '在售'" type="success">在售</el-tag>
@@ -312,6 +318,7 @@ import {
 } from '@element-plus/icons-vue'
 import ProductManualEdit from './ProductManualEdit.vue'
 import ProductManualView from './ProductManualView.vue'
+import productManualAPI from '@/api/productManual'
 
 // 数据
 const tableRef = ref(null)
@@ -428,21 +435,39 @@ const handleView = (row) => {
 // 删除产品
 const handleDelete = async (row) => {
   try {
-    await ElMessageBox.confirm(`确定要删除产品"${row.productName}"吗？`, '提示', {
+    await ElMessageBox.confirm(`确定要删除产品“${row.productName}”吗？`, '提示', {
       confirmButtonText: '确定',
       cancelButtonText: '取消',
       type: 'warning'
     })
     
-    const index = tableData.value.findIndex(item => item.id === row.id)
-    if (index !== -1) {
-      tableData.value.splice(index, 1)
-      // 保存到localStorage
-      localStorage.setItem('productManualData', JSON.stringify(tableData.value))
-      updateStats()
-      ElMessage.success('删除成功')
+    // 调用后端API删除数据
+    try {
+      const response = await productManualAPI.delete(row.id)
+      
+      if (response.code === 200) {
+        // 后端删除成功，更新前端数据
+        const index = tableData.value.findIndex(item => item.id === row.id)
+        if (index !== -1) {
+          tableData.value.splice(index, 1)
+          // 同步到localStorage
+          localStorage.setItem('productManualData', JSON.stringify(tableData.value))
+          updateStats()
+        }
+        ElMessage.success('删除成功')
+      } else {
+        throw new Error(response.message || '删除失败')
+      }
+    } catch (apiError) {
+      console.error('调用删除API失败:', apiError)
+      ElMessage.error('删除失败: ' + (apiError.response?.data?.message || apiError.message))
     }
-  } catch {}
+  } catch (error) {
+    // 用户取消删除
+    if (error !== 'cancel') {
+      console.error('删除操作失败:', error)
+    }
+  }
 }
 
 // 批量删除
@@ -455,13 +480,32 @@ const handleBatchDelete = async () => {
     })
     
     const deleteIds = selectedRows.value.map(row => row.id)
-    tableData.value = tableData.value.filter(row => !deleteIds.includes(row.id))
-    selectedRows.value = []
-    // 保存到localStorage
-    localStorage.setItem('productManualData', JSON.stringify(tableData.value))
-    updateStats()
-    ElMessage.success('批量删除成功')
-  } catch {}
+    
+    // 调用后端API批量删除
+    try {
+      const response = await productManualAPI.batchDelete(deleteIds)
+      
+      if (response.code === 200) {
+        // 后端删除成功，更新前端数据
+        tableData.value = tableData.value.filter(row => !deleteIds.includes(row.id))
+        selectedRows.value = []
+        // 同步到localStorage
+        localStorage.setItem('productManualData', JSON.stringify(tableData.value))
+        updateStats()
+        ElMessage.success(`批量删除成功，共删除 ${response.data.deletedCount} 条记录`)
+      } else {
+        throw new Error(response.message || '批量删除失败')
+      }
+    } catch (apiError) {
+      console.error('调用批量删除API失败:', apiError)
+      ElMessage.error('批量删除失败: ' + (apiError.response?.data?.message || apiError.message))
+    }
+  } catch (error) {
+    // 用户取消删除
+    if (error !== 'cancel') {
+      console.error('批量删除操作失败:', error)
+    }
+  }
 }
 
 // 研发打样 - 将选中的产品转化为研发项目
@@ -610,7 +654,8 @@ const handlePrint = () => {
 }
 
 // 刷新
-const handleRefresh = () => {
+const handleRefresh = async () => {
+  await loadData()
   ElMessage.success('刷新成功')
 }
 
@@ -623,20 +668,53 @@ const handleCurrentChange = (val) => {
   currentPage.value = val
 }
 
-// 生命周期
-onMounted(() => {
-  // 从localStorage加载产品数据
-  const storedData = localStorage.getItem('productManualData')
-  if (storedData) {
-    try {
-      const parsedData = JSON.parse(storedData)
-      if (Array.isArray(parsedData) && parsedData.length > 0) {
-        tableData.value = parsedData
-      }
-    } catch (e) {
-      console.error('加载产品数据失败:', e)
+// 从后端加载数据
+const loadData = async () => {
+  try {  
+    console.log('🔄 开始从后端加载产品手册数据...')
+    const response = await productManualAPI.getAll()
+    
+    if (response.code === 200 && Array.isArray(response.data)) {
+      tableData.value = response.data
+      console.log('✅ 产品手册数据加载成功，共', response.data.length, '条')
+      
+      // 同步到localStorage作为缓存
+      localStorage.setItem('productManualData', JSON.stringify(response.data))
+      
+      // 更新统计
+      updateStats()
+    } else {
+      console.warn('⚠️ 后端返回数据格式异常:', response)
+      ElMessage.warning('数据加载异常')
     }
+  } catch (error) {
+    console.error('❌ 加载产品手册数据失败:', error)
+    
+    // 失败时尝试从localStorage加载缓存
+    const storedData = localStorage.getItem('productManualData')
+    if (storedData) {
+      try {
+        const parsedData = JSON.parse(storedData)
+        if (Array.isArray(parsedData) && parsedData.length > 0) {
+          tableData.value = parsedData
+          console.log('📦 从缓存加载产品数据:', parsedData.length, '条')
+          ElMessage.info('已从缓存加载数据')
+          updateStats()
+          return
+        }
+      } catch (e) {
+        console.error('缓存数据解析失败:', e)
+      }
+    }
+    
+    ElMessage.error('加载数据失败: ' + error.message)
   }
+}
+
+// 生命周期
+onMounted(async () => {
+  // 首先从后端加载最新数据
+  await loadData()
   
   // 加载下一个产品ID
   const storedNextId = localStorage.getItem('productManualNextId')
@@ -650,7 +728,6 @@ onMounted(() => {
   }
   updateTableHeight()
   window.addEventListener('resize', updateTableHeight)
-  updateStats()
 })
 </script>
 

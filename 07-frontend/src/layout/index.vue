@@ -248,7 +248,23 @@ export default {
     
     // 处理菜单选择
     handleMenuSelect(key, keyPath) {
+      console.log('📡 菜单点击:', key, keyPath)
+      console.log('📋 当前路由:', this.$route.path)
+      
+      // 如果点击的是当前路由，不需要跳转
+      if (key === this.$route.path) {
+        console.log('⚠️ 已经在该页面，不需要跳转')
+        return
+      }
+      
+      // 跳转到新路由
       this.$router.push(key)
+        .then(() => {
+          console.log('✅ 路由跳转成功:', key)
+        })
+        .catch(err => {
+          console.error('❌ 路由跳转失败:', err)
+        })
     },
     
     // 加载菜单
@@ -541,21 +557,31 @@ export default {
               icon: 'el-icon-s-order',
               children: [
                 {
-                  path: '/production-planning/list',
+                  path: '/production-planning/plan-list',
                   name: 'ProductionPlanList',
                   meta: { title: '主生产计划' },
-                  icon: 'el-icon-document',
-                  children: [
-                    {
-                      path: '/production-planning/adjustment',
-                      name: 'PlanAdjustment',
-                      meta: { title: '主生产计划调整' },
-                      icon: 'el-icon-edit'
-                    }
-                  ]
+                  icon: 'el-icon-document'
                 },
                 {
-                  path: '/production-planning/capacity',
+                  path: '/production-planning/adjustment',
+                  name: 'PlanAdjustment',
+                  meta: { title: '主生产计划调整' },
+                  icon: 'el-icon-edit'
+                },
+                {
+                  path: '/production-planning/material-preparation',
+                  name: 'MaterialPreparationPlan',
+                  meta: { title: '备料计划' },
+                  icon: 'el-icon-s-grid'
+                },
+                {
+                  path: '/production-planning/process-plan',
+                  name: 'ProcessPlanList',
+                  meta: { title: '工序计划' },
+                  icon: 'el-icon-s-order'
+                },
+                {
+                  path: '/production-planning/capacity-planning',
                   name: 'CapacityPlanning',
                   meta: { title: '产能规划' },
                   icon: 'el-icon-s-data'

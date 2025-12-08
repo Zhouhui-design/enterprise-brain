@@ -1,10 +1,10 @@
-const db = require('../config/database');
+const { pool } = require('../config/database');
 
 class MaterialService {
   // 获取所有物料
   static async getAllMaterials() {
     try {
-      const [rows] = await db.execute('SELECT * FROM materials ORDER BY created_at DESC');
+      const [rows] = await pool.execute('SELECT * FROM materials ORDER BY created_at DESC');
       return rows;
     } catch (error) {
       throw new Error(`获取物料列表失败: ${error.message}`);
@@ -14,7 +14,7 @@ class MaterialService {
   // 根据ID获取物料
   static async getMaterialById(id) {
     try {
-      const [rows] = await db.execute('SELECT * FROM materials WHERE id = ?', [id]);
+      const [rows] = await pool.execute('SELECT * FROM materials WHERE id = ?', [id]);
       return rows[0];
     } catch (error) {
       throw new Error(`获取物料失败: ${error.message}`);
@@ -24,7 +24,7 @@ class MaterialService {
   // 根据物料编码获取物料
   static async getMaterialByCode(materialCode) {
     try {
-      const [rows] = await db.execute('SELECT * FROM materials WHERE material_code = ?', [materialCode]);
+      const [rows] = await pool.execute('SELECT * FROM materials WHERE material_code = ?', [materialCode]);
       return rows[0];
     } catch (error) {
       throw new Error(`获取物料失败: ${error.message}`);
@@ -50,7 +50,7 @@ class MaterialService {
         ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       `;
 
-      const [result] = await db.execute(sql, [
+      const [result] = await pool.execute(sql, [
         materialData.material_code || materialData.materialCode,
         materialData.bom_number || materialData.bomNumber || '',
         materialData.material_name || materialData.materialName,
@@ -96,7 +96,7 @@ class MaterialService {
     console.log(`========== 开始批量导入物料 ==========`)
     console.log(`接收到 ${materialsData.length} 条数据`)
     
-    const connection = await db.getConnection();
+    const connection = await pool.getConnection();
     let successCount = 0;
     let errorCount = 0;
     const errors = [];
@@ -258,7 +258,7 @@ class MaterialService {
         WHERE id = ?
       `;
 
-      const [result] = await db.execute(sql, [
+      const [result] = await pool.execute(sql, [
         materialData.material_code || materialData.materialCode,
         materialData.bom_number || materialData.bomNumber || '',
         materialData.material_name || materialData.materialName,
@@ -321,7 +321,7 @@ class MaterialService {
 
   // 批量删除物料
   static async deleteMaterials(ids) {
-    const connection = await db.getConnection();
+    const connection = await pool.getConnection();
     try {
       await connection.beginTransaction();
 
@@ -349,7 +349,7 @@ class MaterialService {
         WHERE material_code LIKE ? OR material_name LIKE ? OR description LIKE ?
         ORDER BY created_at DESC
       `;
-      const [rows] = await db.execute(sql, [`%${keyword}%`, `%${keyword}%`, `%${keyword}%`]);
+      const [rows] = await pool.execute(sql, [`%${keyword}%`, `%${keyword}%`, `%${keyword}%`]);
       return rows;
     } catch (error) {
       throw new Error(`搜索物料失败: ${error.message}`);

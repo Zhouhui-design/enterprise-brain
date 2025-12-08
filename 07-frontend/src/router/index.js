@@ -16,11 +16,13 @@ import demoRouter from './modules/demo.js';
 import shippingRouter from './modules/shipping.js';
 import productionPlanningRouter from './modules/production-planning.js';
 import inventoryRouter from './modules/inventory.js';
+import warehouseRouter from './modules/warehouse.js';
 import costCenterRouter from './modules/cost-center.js';
 import purchaseManagementRouter from './modules/purchase-management.js';
 import bomTreeStructureRouter from './modules/bom-tree-structure.js';
 import mrpRouter from './modules/mrp.js';
 import processPlanningRouter from './modules/process-planning.js';
+import productionResourcesRouter from './modules/production-resources.js';
 
 const routes = [
   {
@@ -112,6 +114,10 @@ const routes = [
   productionPlanningRouter,
   // 库存管理路由
   inventoryRouter,
+  // 仓库管理路由
+  warehouseRouter,
+  // 生产资源管理路由
+  productionResourcesRouter,
   // 成本中心路由
   costCenterRouter,
   // 采购管理路由
@@ -163,45 +169,6 @@ const routes = [
         name: 'InspectionForm',
         component: () => import('@/pages/receipt/components/InspectionForm.vue'),
         meta: { title: '检验表单' }
-      }
-    ]
-  },
-  // 仓库管理相关路由
-  {
-    path: '/warehouse',
-    component: Layout,
-    redirect: '/warehouse/in',
-    meta: { title: '仓库管理', icon: 'el-icon-warehouse' },
-    children: [
-      {
-        path: 'in',
-        name: 'WarehouseIn',
-        component: () => import('@/pages/warehouse/WarehouseIn.vue'),
-        meta: { title: '入库管理' }
-      },
-      {
-        path: 'out',
-        name: 'WarehouseOut',
-        component: () => import('@/pages/warehouse/WarehouseOut.vue'),
-        meta: { title: '出库管理' }
-      },
-      {
-        path: 'stock-transfer',
-        name: 'StockTransfer',
-        component: () => import('@/pages/warehouse/StockTransfer.vue'),
-        meta: { title: '库存转移' }
-      },
-      {
-        path: 'inventory-count',
-        name: 'InventoryCount',
-        component: () => import('@/pages/warehouse/InventoryCount.vue'),
-        meta: { title: '库存盘点' }
-      },
-      {
-        path: 'location-management',
-        name: 'LocationManagement',
-        component: () => import('@/pages/warehouse/LocationManagement.vue'),
-        meta: { title: '库位管理' }
       }
     ]
   },

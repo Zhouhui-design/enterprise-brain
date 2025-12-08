@@ -1100,12 +1100,12 @@ const filteredTableData = computed(() => {
   
   if (searchForm.value.bomCode) {
     data = data.filter(item => 
-      item.bomCode.toLowerCase().includes(searchForm.value.bomCode.toLowerCase())
+      item.bomCode && item.bomCode.toLowerCase().includes(searchForm.value.bomCode.toLowerCase())
     )
   }
   if (searchForm.value.productName) {
     data = data.filter(item => 
-      item.productName.toLowerCase().includes(searchForm.value.productName.toLowerCase())
+      item.productName && item.productName.toLowerCase().includes(searchForm.value.productName.toLowerCase())
     )
   }
   if (searchForm.value.status) {

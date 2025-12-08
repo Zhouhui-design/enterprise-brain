@@ -241,11 +241,46 @@
 
     <!-- 列控制对话框 -->
     <el-dialog v-model="columnControlVisible" title="列设置" width="500px">
-      <el-checkbox-group v-model="selectedColumnProps">
-        <div v-for="column in allColumns" :key="column.prop" class="column-item">
-          <el-checkbox :label="column.prop">{{ column.label }}</el-checkbox>
+      <div class="column-control-panel">
+        <el-alert 
+          title="拖拽调整列顺序，勾选控制显示/隐藏" 
+          type="info" 
+          :closable="false"
+          style="margin-bottom: 15px;"
+        />
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+          <span style="font-weight: 600; color: #303133;">列列表</span>
+          <el-button type="primary" link size="small" @click="resetColumns">重置</el-button>
         </div>
-      </el-checkbox-group>
+        
+        <el-divider style="margin: 10px 0;" />
+        
+        <!-- 使用 draggable 实现拖拽排序 -->
+        <div class="column-list">
+          <draggable
+            v-model="localColumnsList"
+            item-key="prop"
+            handle=".drag-handle"
+            @end="handleColumnDragEnd"
+          >
+            <template #item="{ element }">
+              <div class="column-item">
+                <div class="column-item-left">
+                  <el-icon class="drag-handle"><Rank /></el-icon>
+                  <el-checkbox
+                    :model-value="element.visible"
+                    @update:model-value="(val) => updateColumnVisibility(element, val)"
+                    :label="element.label"
+                  />
+                </div>
+                <div class="column-item-right">
+                  <el-tag v-if="element.fixed" size="small" type="info">固定</el-tag>
+                </div>
+              </div>
+            </template>
+          </draggable>
+        </div>
+      </div>
       <template #footer>
         <el-button @click="columnControlVisible = false">取消</el-button>
         <el-button type="primary" @click="applyColumnSettings">确定</el-button>
@@ -258,9 +293,10 @@
 import { ref, computed, onMounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import {
-  Plus, Search, Delete, Download, Upload, Printer, Setting, Refresh, Filter
+  Plus, Search, Delete, Download, Upload, Printer, Setting, Refresh, Filter, Rank
 } from '@element-plus/icons-vue'
 import { projectedBalanceApi } from '@/api/projectedBalance'
+import draggable from 'vuedraggable'
 
 // 数据
 const loading = ref(false)
@@ -310,27 +346,28 @@ const formRules = {
 
 // 列配置
 const allColumns = ref([
-  { prop: 'index', label: '序号', width: 80, fixed: 'left' },
-  { prop: 'submitTime', label: '提交时间', width: 180, sortable: true, filterable: true },
-  { prop: 'projectedDate', label: '预计发生日期', width: 150, sortable: true, filterable: true },
-  { prop: 'salesOrderNo', label: '销售订单编号', width: 180, filterable: true },
-  { prop: 'productCode', label: '产品(物料)编码', width: 150, filterable: true },
-  { prop: 'productName', label: '产品(物料)名称', width: 180, filterable: true },
-  { prop: 'transactionNo', label: '预计发生编号', width: 180, filterable: true },
-  { prop: 'quantity', label: '预计发生数量', width: 120, sortable: true },
-  { prop: 'baseUnit', label: '基础单位', width: 100 },
-  { prop: 'currentInventory', label: '实时库存', width: 120, sortable: true },
-  { prop: 'projectedBalance', label: '预计结存', width: 120, sortable: true },
-  { prop: 'availableInventory', label: '发生前可用库存', width: 150, sortable: true },
-  { prop: 'actions', label: '操作', width: 180, fixed: 'right' }
+  { prop: 'index', label: '序号', width: 80, fixed: 'left', visible: true },
+  { prop: 'submitTime', label: '提交时间', width: 180, sortable: true, filterable: true, visible: true },
+  { prop: 'projectedDate', label: '预计发生日期', width: 150, sortable: true, filterable: true, visible: true },
+  { prop: 'salesOrderNo', label: '销售订单编号', width: 180, filterable: true, visible: true },
+  { prop: 'productCode', label: '产品(物料)编码', width: 150, filterable: true, visible: true },
+  { prop: 'productName', label: '产品(物料)名称', width: 180, filterable: true, visible: true },
+  { prop: 'transactionNo', label: '预计发生编号', width: 180, filterable: true, visible: true },
+  { prop: 'quantity', label: '预计发生数量', width: 120, sortable: true, visible: true },
+  { prop: 'baseUnit', label: '基础单位', width: 100, visible: true },
+  { prop: 'currentInventory', label: '实时库存', width: 120, sortable: true, visible: true },
+  { prop: 'projectedBalance', label: '预计结存', width: 120, sortable: true, visible: true },
+  { prop: 'availableInventory', label: '发生前可用库存', width: 150, sortable: true, visible: true },
+  { prop: 'actions', label: '操作', width: 180, fixed: 'right', visible: true }
 ])
 
 const columnControlVisible = ref(false)
 const selectedColumnProps = ref([])
+const localColumnsList = ref([])
 
 // 可见列
 const visibleColumns = computed(() => {
-  return allColumns.value.filter(col => selectedColumnProps.value.includes(col.prop))
+  return localColumnsList.value.filter(col => col.visible)
 })
 
 // 方法
@@ -499,8 +536,41 @@ const showFilterDialog = (column) => {
 }
 
 const applyColumnSettings = () => {
+  // 保存列配置到 allColumns
+  allColumns.value = localColumnsList.value.map(col => ({ ...col }))
   columnControlVisible.value = false
   ElMessage.success('列设置已应用')
+}
+
+// 重置列配置
+const resetColumns = () => {
+  localColumnsList.value = [
+    { prop: 'index', label: '序号', width: 80, fixed: 'left', visible: true },
+    { prop: 'submitTime', label: '提交时间', width: 180, sortable: true, filterable: true, visible: true },
+    { prop: 'projectedDate', label: '预计发生日期', width: 150, sortable: true, filterable: true, visible: true },
+    { prop: 'salesOrderNo', label: '销售订单编号', width: 180, filterable: true, visible: true },
+    { prop: 'productCode', label: '产品(物料)编码', width: 150, filterable: true, visible: true },
+    { prop: 'productName', label: '产品(物料)名称', width: 180, filterable: true, visible: true },
+    { prop: 'transactionNo', label: '预计发生编号', width: 180, filterable: true, visible: true },
+    { prop: 'quantity', label: '预计发生数量', width: 120, sortable: true, visible: true },
+    { prop: 'baseUnit', label: '基础单位', width: 100, visible: true },
+    { prop: 'currentInventory', label: '实时库存', width: 120, sortable: true, visible: true },
+    { prop: 'projectedBalance', label: '预计结存', width: 120, sortable: true, visible: true },
+    { prop: 'availableInventory', label: '发生前可用库存', width: 150, sortable: true, visible: true },
+    { prop: 'actions', label: '操作', width: 180, fixed: 'right', visible: true }
+  ]
+  allColumns.value = localColumnsList.value.map(col => ({ ...col }))
+  ElMessage.success('已重置为默认设置')
+}
+
+// 拖拽结束事件
+const handleColumnDragEnd = () => {
+  console.log('👾 列拖拽结束')
+}
+
+// 更新列可见性
+const updateColumnVisibility = (column, visible) => {
+  column.visible = visible
 }
 
 const handleSizeChange = (size) => {
@@ -566,6 +636,8 @@ const loadData = async () => {
 
 // 初始化
 onMounted(() => {
+  // 初始化本地列列表
+  localColumnsList.value = allColumns.value.map(col => ({ ...col }))
   // 初始化所有列为可见
   selectedColumnProps.value = allColumns.value.map(col => col.prop)
   loadData()
@@ -638,7 +710,49 @@ onMounted(() => {
 }
 
 .column-item {
-  padding: 8px 0;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 12px;
+  border-radius: 4px;
+  transition: all 0.3s ease;
+  cursor: move;
+}
+
+.column-item:hover {
+  background-color: #f5f7fa;
+}
+
+.column-item-left {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.column-item-right {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.drag-handle {
+  cursor: grab;
+  color: #909399;
+  font-size: 16px;
+  transition: color 0.3s;
+}
+
+.drag-handle:hover {
+  color: #409eff;
+}
+
+.drag-handle:active {
+  cursor: grabbing;
+}
+
+.column-list {
+  max-height: 400px;
+  overflow-y: auto;
 }
 
 .text-danger {

@@ -73,21 +73,48 @@
       
       <!-- 字段管理 -->
       <el-tab-pane label="字段管理" name="fields" v-if="showFields">
-        <el-alert 
-          title="可以控制表格中显示哪些字段" 
-          type="info" 
-          :closable="false"
-          style="margin-bottom: 20px;"
-        />
-        <el-checkbox-group v-model="localSettings.visibleFields">
-          <el-row>
-            <el-col :span="8" v-for="field in availableFields" :key="field.prop">
-              <el-checkbox :label="field.prop" style="margin-bottom: 10px;">
-                {{ field.label }}
-              </el-checkbox>
-            </el-col>
-          </el-row>
-        </el-checkbox-group>
+        <div class="fields-panel">
+          <div class="panel-header">
+            <el-alert 
+              title="拖拽调整字段顺序，勾选控制显示/隐藏" 
+              type="info" 
+              :closable="false"
+              style="margin-bottom: 15px;"
+            />
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+              <span style="font-weight: 600; color: #303133;">字段列表</span>
+              <el-button type="primary" link size="small" @click="resetFields">重置</el-button>
+            </div>
+          </div>
+          
+          <el-divider style="margin: 10px 0;" />
+          
+          <!-- ✅ 使用 draggable 替换原有的 checkbox-group -->
+          <div class="column-list">
+            <draggable
+              v-model="localFieldsList"
+              item-key="prop"
+              handle=".drag-handle"
+              @end="handleFieldDragEnd"
+            >
+              <template #item="{ element }">
+                <div class="field-item">
+                  <div class="field-item-left">
+                    <el-icon class="drag-handle"><Rank /></el-icon>
+                    <el-checkbox
+                      :model-value="element.visible"
+                      @update:model-value="(val) => updateFieldVisibility(element, val)"
+                      :label="element.label"
+                    />
+                  </div>
+                  <div class="field-item-right">
+                    <el-tag v-if="element.fixed" size="small" type="info">固定</el-tag>
+                  </div>
+                </div>
+              </template>
+            </draggable>
+          </div>
+        </div>
       </el-tab-pane>
       
       <!-- 打印设置 -->
@@ -150,6 +177,25 @@
             :closable="false"
             style="margin-top: 10px;"
           />
+          
+          <el-divider />
+          
+          <el-form-item label="提前入库期">
+            <el-input-number 
+              v-model="localSettings.advanceStorageDays" 
+              :min="0" 
+              :max="365" 
+              placeholder="请输入提前天数"
+              style="width: 200px;"
+            />
+            <span style="margin-left: 10px; color: #909399;">天</span>
+          </el-form-item>
+          <el-alert 
+            title="提前入库期：计划入库日期 = 订单承诺交期 - 提前入库期" 
+            type="info" 
+            :closable="false"
+            style="margin-top: 10px;"
+          />
         </el-form>
       </el-tab-pane>
     </el-tabs>
@@ -165,6 +211,8 @@
 <script setup>
 import { ref, watch, computed } from 'vue'
 import { ElMessage } from 'element-plus'
+import { Rank } from '@element-plus/icons-vue'
+import draggable from 'vuedraggable'
 
 const props = defineProps({
   modelValue: {
@@ -267,6 +315,7 @@ const getDefaultSettings = () => ({
   
   // 业务变量设置
   displayDays: 30,
+  advanceStorageDays: 0,
   
   // 合并用户提供的默认设置
   ...props.defaultSettings
@@ -274,6 +323,47 @@ const getDefaultSettings = () => ({
 
 // 本地设置
 const localSettings = ref(loadSettings())
+
+// ✅ 新增：字段列表（包含visible属性）
+const localFieldsList = ref([])
+const originalFieldsList = ref([])
+
+// ✅ 初始化字段列表
+const initFieldsList = () => {
+  if (props.availableFields && props.availableFields.length > 0) {
+    const visibleFields = localSettings.value.visibleFields || []
+    localFieldsList.value = props.availableFields.map(field => ({
+      ...field,
+      visible: visibleFields.includes(field.prop)
+    }))
+    originalFieldsList.value = JSON.parse(JSON.stringify(localFieldsList.value))
+    console.log('✅ 字段列表初始化:', localFieldsList.value.length, '个字段')
+  }
+}
+
+// ✅ 监听字段变化
+watch(() => [props.availableFields, visible.value], ([newFields, isVisible]) => {
+  if (isVisible && newFields && newFields.length > 0) {
+    initFieldsList()
+  }
+}, { immediate: true, deep: true })
+
+// ✅ 更新字段可见性
+const updateFieldVisibility = (field, visible) => {
+  field.visible = visible
+  console.log(`✅ 字段可见性更新: ${field.label} -> ${visible}`)
+}
+
+// ✅ 拖拽结束事件
+const handleFieldDragEnd = () => {
+  console.log('✅ 字段顺序已更新:', localFieldsList.value.map(f => f.label).join(', '))
+}
+
+// ✅ 重置字段
+const resetFields = () => {
+  localFieldsList.value = JSON.parse(JSON.stringify(originalFieldsList.value))
+  ElMessage.info('已重置字段设置')
+}
 
 // 从localStorage加载设置
 function loadSettings() {
@@ -292,6 +382,20 @@ function loadSettings() {
 // 保存设置
 function handleSave() {
   try {
+    // ✅ 保存字段顺序和可见性
+    if (localFieldsList.value.length > 0) {
+      localSettings.value.fields = localFieldsList.value
+      localSettings.value.visibleFields = localFieldsList.value
+        .filter(f => f.visible)
+        .map(f => f.prop)
+      
+      console.log('✅ 保存字段设置:', {
+        字段总数: localFieldsList.value.length,
+        可见字段: localSettings.value.visibleFields.length,
+        字段顺序: localFieldsList.value.map(f => f.label)
+      })
+    }
+    
     localStorage.setItem(props.settingsKey, JSON.stringify(localSettings.value))
     ElMessage.success('设置已保存')
     emit('save', localSettings.value)
@@ -327,5 +431,63 @@ watch(visible, (newVal) => {
 .el-form {
   max-height: 500px;
   overflow-y: auto;
+}
+
+/* ✅ 新增：字段管理样式 */
+.fields-panel {
+  padding: 5px;
+}
+
+.panel-header {
+  margin-bottom: 10px;
+}
+
+.column-list {
+  max-height: 400px;
+  overflow-y: auto;
+}
+
+.field-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 8px 5px;
+  border-radius: 4px;
+  cursor: move;
+  transition: background-color 0.2s;
+}
+
+.field-item:hover {
+  background-color: #f5f7fa;
+}
+
+.field-item-left {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: 1;
+}
+
+.drag-handle {
+  cursor: move;
+  color: #909399;
+  font-size: 16px;
+}
+
+.drag-handle:hover {
+  color: #409eff;
+}
+
+.field-item-right {
+  margin-left: 10px;
+}
+
+.column-list :deep(.el-checkbox) {
+  width: 100%;
+}
+
+.column-list :deep(.el-checkbox__label) {
+  color: #606266;
+  font-size: 14px;
 }
 </style>

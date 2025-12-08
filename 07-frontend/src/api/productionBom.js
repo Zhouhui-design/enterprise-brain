@@ -33,6 +33,11 @@ export default {
     return request.get(`/production-boms/detail/${id}`)
   },
 
+  // ✅ 根据产品编码获取BOM（用于MRP加载）
+  getBOMByProductCode(productCode) {
+    return request.get(`/production-boms/by-product/${productCode}`)
+  },
+
   // 创建生产BOM
   createBOM(bomData) {
     return request.post('/production-boms/create', bomData)

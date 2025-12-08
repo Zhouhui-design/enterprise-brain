@@ -11,7 +11,7 @@ export default defineConfig({
     }
   },
   server: {
-    port: 3001,
+    port: 3002,
     host: '0.0.0.0',
     open: '/auth/login', // 自动打开登录页面
     proxy: {

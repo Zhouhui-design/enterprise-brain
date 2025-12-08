@@ -23,6 +23,12 @@ const dbConfig = {
 // 创建连接池
 const pool = mysql.createPool(dbConfig);
 
+// 封装查询函数，自动解构结果
+const query = async (sql, params) => {
+  const [rows] = await pool.execute(sql, params);
+  return rows;
+};
+
 // 测试连接
 pool.getConnection()
   .then(connection => {
@@ -382,6 +388,7 @@ async function initializeDatabase() {
         productName VARCHAR(255) NOT NULL COMMENT '产品名称',
         productImage TEXT COMMENT '产品图片URL',
         source TEXT COMMENT '来源（JSON数组）',
+        outputProcessName VARCHAR(100) COMMENT '产出工序名称',
         category VARCHAR(100) COMMENT '产品分类',
         specification VARCHAR(255) COMMENT '规格型号',
         unit VARCHAR(50) DEFAULT '个' COMMENT '单位',
@@ -400,6 +407,199 @@ async function initializeDatabase() {
       ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='产品手册表'
     `);
 
+    // 创建库存主表
+    await connection.execute(`
+      CREATE TABLE IF NOT EXISTS inventory (
+        id INT AUTO_INCREMENT PRIMARY KEY COMMENT 'ID',
+        material_code VARCHAR(100) NOT NULL COMMENT '物料编号',
+        material_name VARCHAR(255) NOT NULL COMMENT '物料名称',
+        warehouse_code VARCHAR(100) DEFAULT 'WH001' COMMENT '仓库编号',
+        warehouse_name VARCHAR(100) DEFAULT '默认仓库' COMMENT '仓库名称',
+        location VARCHAR(100) COMMENT '库位',
+        batch_no VARCHAR(100) COMMENT '批次号',
+        quantity DECIMAL(15,4) DEFAULT 0 COMMENT '库存数量',
+        available_quantity DECIMAL(15,4) DEFAULT 0 COMMENT '可用数量',
+        frozen_quantity DECIMAL(15,4) DEFAULT 0 COMMENT '冻结数量',
+        in_transit_quantity DECIMAL(15,4) DEFAULT 0 COMMENT '在途数量',
+        in_production_quantity DECIMAL(15,4) DEFAULT 0 COMMENT '在制数量',
+        reserved_quantity DECIMAL(15,4) DEFAULT 0 COMMENT '预留数量',
+        unit VARCHAR(50) DEFAULT '个' COMMENT '单位',
+        unit_price DECIMAL(15,2) DEFAULT 0 COMMENT '单价',
+        total_amount DECIMAL(15,2) DEFAULT 0 COMMENT '总金额',
+        safety_stock DECIMAL(15,4) DEFAULT 0 COMMENT '安全库存',
+        max_stock DECIMAL(15,4) DEFAULT 0 COMMENT '最大库存',
+        min_stock DECIMAL(15,4) DEFAULT 0 COMMENT '最小库存',
+        production_date DATE COMMENT '生产日期',
+        expire_date DATE COMMENT '到期日期',
+        supplier VARCHAR(200) COMMENT '供应商',
+        status VARCHAR(50) DEFAULT 'normal' COMMENT '状态: normal-正常, warning-预警, shortage-短缺, expired-过期',
+        last_in_date DATETIME COMMENT '最后入库日期',
+        last_out_date DATETIME COMMENT '最后出库日期',
+        remark TEXT COMMENT '备注',
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+        updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+        INDEX idx_material_code (material_code),
+        INDEX idx_warehouse_code (warehouse_code),
+        INDEX idx_batch_no (batch_no),
+        INDEX idx_status (status),
+        UNIQUE KEY uk_material_warehouse_batch (material_code, warehouse_code, batch_no)
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='库存主表'
+    `);
+
+    // 创建库存明细表（流水记录）
+    await connection.execute(`
+      CREATE TABLE IF NOT EXISTS inventory_details (
+        id INT AUTO_INCREMENT PRIMARY KEY COMMENT 'ID',
+        transaction_no VARCHAR(100) UNIQUE NOT NULL COMMENT '事务单号',
+        material_code VARCHAR(100) NOT NULL COMMENT '物料编号',
+        material_name VARCHAR(255) NOT NULL COMMENT '物料名称',
+        warehouse_code VARCHAR(100) DEFAULT 'WH001' COMMENT '仓库编号',
+        warehouse_name VARCHAR(100) DEFAULT '默认仓库' COMMENT '仓库名称',
+        location VARCHAR(100) COMMENT '库位',
+        batch_no VARCHAR(100) COMMENT '批次号',
+        transaction_type VARCHAR(50) NOT NULL COMMENT '事务类型: in-入库, out-出库, transfer-调拨, adjust-盘点调整',
+        quantity DECIMAL(15,4) NOT NULL COMMENT '数量',
+        unit VARCHAR(50) DEFAULT '个' COMMENT '单位',
+        unit_price DECIMAL(15,2) DEFAULT 0 COMMENT '单价',
+        total_amount DECIMAL(15,2) DEFAULT 0 COMMENT '总金额',
+        before_quantity DECIMAL(15,4) DEFAULT 0 COMMENT '变动前数量',
+        after_quantity DECIMAL(15,4) DEFAULT 0 COMMENT '变动后数量',
+        related_order_no VARCHAR(100) COMMENT '关联单号（采购单/销售单/生产单）',
+        operator VARCHAR(100) COMMENT '操作人',
+        operator_time DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT '操作时间',
+        remark TEXT COMMENT '备注',
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+        INDEX idx_transaction_no (transaction_no),
+        INDEX idx_material_code (material_code),
+        INDEX idx_warehouse_code (warehouse_code),
+        INDEX idx_transaction_type (transaction_type),
+        INDEX idx_operator_time (operator_time)
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='库存明细表（流水记录）'
+    `);
+
+    // 创建库存移动记录表
+    await connection.execute(`
+      CREATE TABLE IF NOT EXISTS inventory_movements (
+        id INT AUTO_INCREMENT PRIMARY KEY COMMENT 'ID',
+        movement_no VARCHAR(100) UNIQUE NOT NULL COMMENT '移动单号',
+        material_code VARCHAR(100) NOT NULL COMMENT '物料编号',
+        material_name VARCHAR(255) NOT NULL COMMENT '物料名称',
+        from_warehouse_code VARCHAR(100) COMMENT '源仓库编号',
+        from_warehouse_name VARCHAR(100) COMMENT '源仓库名称',
+        from_location VARCHAR(100) COMMENT '源库位',
+        to_warehouse_code VARCHAR(100) COMMENT '目标仓库编号',
+        to_warehouse_name VARCHAR(100) COMMENT '目标仓库名称',
+        to_location VARCHAR(100) COMMENT '目标库位',
+        batch_no VARCHAR(100) COMMENT '批次号',
+        quantity DECIMAL(15,4) NOT NULL COMMENT '移动数量',
+        unit VARCHAR(50) DEFAULT '个' COMMENT '单位',
+        movement_type VARCHAR(50) NOT NULL COMMENT '移动类型: warehouse_transfer-仓库间转移, location_transfer-库位转移',
+        status VARCHAR(50) DEFAULT 'pending' COMMENT '状态: pending-待审核, approved-已审核, completed-已完成, cancelled-已取消',
+        applicant VARCHAR(100) COMMENT '申请人',
+        apply_time DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT '申请时间',
+        approver VARCHAR(100) COMMENT '审核人',
+        approve_time DATETIME COMMENT '审核时间',
+        executor VARCHAR(100) COMMENT '执行人',
+        execute_time DATETIME COMMENT '执行时间',
+        remark TEXT COMMENT '备注',
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+        updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+        INDEX idx_movement_no (movement_no),
+        INDEX idx_material_code (material_code),
+        INDEX idx_status (status),
+        INDEX idx_apply_time (apply_time)
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='库存移动记录表'
+    `);
+
+    // 创建MRP产品需求表
+    await connection.execute(`
+      CREATE TABLE IF NOT EXISTS mrp_product_demands (
+        id INT AUTO_INCREMENT PRIMARY KEY COMMENT '主键ID',
+        mrp_code VARCHAR(50) NOT NULL UNIQUE COMMENT 'MRP编码（唯一标识）',
+        source_no VARCHAR(50) COMMENT '来源单号（内部销售订单编号）',
+        material_code VARCHAR(50) COMMENT '物料编号（产品编号）',
+        material_name VARCHAR(200) COMMENT '物料名称（产品名称）',
+        material_unit VARCHAR(20) DEFAULT '个' COMMENT '单位',
+        source_type VARCHAR(50) COMMENT '需求来源',
+        demand_qty DECIMAL(15, 4) DEFAULT 0 COMMENT '需求数量',
+        required_date DATE COMMENT '需求日期',
+        current_stock DECIMAL(15, 4) DEFAULT 0 COMMENT '当前库库存',
+        in_transit_stock DECIMAL(15, 4) DEFAULT 0 COMMENT '在途库存',
+        in_production_stock DECIMAL(15, 4) DEFAULT 0 COMMENT '在制库存',
+        production_reserved_stock DECIMAL(15, 4) DEFAULT 0 COMMENT '生产预扣库存',
+        to_be_shipped_stock DECIMAL(15, 4) DEFAULT 0 COMMENT '待发货库存',
+        suggested_qty DECIMAL(15, 4) DEFAULT 0 COMMENT '建议数量（自动计算）',
+        adjusted_qty DECIMAL(15, 4) DEFAULT 0 COMMENT '调整数量（用户可编辑）',
+        execute_qty DECIMAL(15, 4) DEFAULT 0 COMMENT '执行数量（自动计算）',
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+        INDEX idx_mrp_code (mrp_code),
+        INDEX idx_material_code (material_code),
+        INDEX idx_source_no (source_no)
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='MRP产品需求表'
+    `);
+
+    // 创建MRP物料需求表
+    await connection.execute(`
+      CREATE TABLE IF NOT EXISTS mrp_material_demands (
+        id INT AUTO_INCREMENT PRIMARY KEY COMMENT '主键ID',
+        source_mrp_code VARCHAR(50) COMMENT '来源MRP编号',
+        material_code VARCHAR(50) COMMENT '物料编码',
+        material_name VARCHAR(200) COMMENT '物料名称',
+        material_unit VARCHAR(20) DEFAULT '件' COMMENT '单位',
+        source_type VARCHAR(50) COMMENT '需求来源',
+        demand_qty DECIMAL(15, 4) DEFAULT 0 COMMENT '需求数量',
+        required_date DATE COMMENT '需求日期',
+        current_stock DECIMAL(15, 4) DEFAULT 0 COMMENT '当前库存',
+        in_transit_stock DECIMAL(15, 4) DEFAULT 0 COMMENT '在途库存',
+        in_production_stock DECIMAL(15, 4) DEFAULT 0 COMMENT '在制库存',
+        production_reserved_stock DECIMAL(15, 4) DEFAULT 0 COMMENT '生产预扣库存',
+        to_be_shipped_stock DECIMAL(15, 4) DEFAULT 0 COMMENT '待发货库存',
+        suggested_qty DECIMAL(15, 4) DEFAULT 0 COMMENT '建议数量',
+        adjusted_qty DECIMAL(15, 4) DEFAULT 0 COMMENT '调整数量',
+        execute_qty DECIMAL(15, 4) DEFAULT 0 COMMENT '执行数量',
+        level INT DEFAULT 1 COMMENT 'BOM层级',
+        output_process VARCHAR(100) COMMENT '产出工序',
+        component_source VARCHAR(50) COMMENT '子件来源（自制/外购）',
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+        INDEX idx_source_mrp_code (source_mrp_code),
+        INDEX idx_material_code (material_code),
+        INDEX idx_level (level),
+        UNIQUE KEY unique_material_demand (source_mrp_code, material_code, level)
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='MRP物料需求表'
+    `);
+
+    // 创建主生产计划表
+    await connection.execute(`
+      CREATE TABLE IF NOT EXISTS master_production_plans (
+        id INT AUTO_INCREMENT PRIMARY KEY COMMENT '主键ID',
+        plan_code VARCHAR(50) NOT NULL UNIQUE COMMENT '主生产计划编号',
+        product_code VARCHAR(100) COMMENT '产品编号',
+        product_name VARCHAR(200) COMMENT '产品名称',
+        order_quantity DECIMAL(15, 4) DEFAULT 0 COMMENT '订单数量',
+        salesperson VARCHAR(100) COMMENT '销售员',
+        sales_unit VARCHAR(20) COMMENT '销售单位',
+        available_stock DECIMAL(15, 4) DEFAULT 0 COMMENT '可用库存',
+        current_stock DECIMAL(15, 4) DEFAULT 0 COMMENT '实时库存',
+        plan_quantity DECIMAL(15, 4) DEFAULT 0 COMMENT '计划数量',
+        product_image VARCHAR(500) COMMENT '产品图片',
+        promised_delivery_date DATE COMMENT '订单承诺交期',
+        status VARCHAR(50) DEFAULT '已下单' COMMENT '进度状态',
+        planned_storage_date DATE COMMENT '计划入库日期',
+        product_source VARCHAR(100) COMMENT '产品来源',
+        internal_order_no VARCHAR(100) COMMENT '内部销售订单编号',
+        customer_order_no VARCHAR(100) COMMENT '客户订单编号',
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+        INDEX idx_plan_code (plan_code),
+        INDEX idx_product_code (product_code),
+        INDEX idx_internal_order_no (internal_order_no),
+        INDEX idx_status (status),
+        INDEX idx_created_at (created_at)
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='主生产计划表'
+    `);
+
     console.log('✅ 数据库表结构初始化完成');
     
   } catch (error) {
@@ -416,4 +616,4 @@ initializeDatabase().catch(err => {
   process.exit(1);
 });
 
-module.exports = pool;
+module.exports = { pool, query };

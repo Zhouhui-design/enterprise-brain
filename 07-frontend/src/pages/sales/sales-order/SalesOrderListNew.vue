@@ -10,7 +10,7 @@
           <el-icon><Plus /></el-icon>
           新增
         </el-button>
-        <el-button type="success" :disabled="!canConfirmOrder" @click="handleConfirmOrder">
+        <el-button type="success" @click="handleConfirmOrder">
           <el-icon><CircleCheck /></el-icon>
           正式下单
         </el-button>
@@ -76,6 +76,7 @@
         :height="tableHeight"
         @selection-change="handleSelectionChange"
         :row-style="getRowStyle"
+        :span-method="spanMethod"
       >
         <el-table-column type="selection" width="55" fixed="left" />
         <el-table-column prop="orderStatus" label="订单状态" width="100" fixed="left">
@@ -88,7 +89,11 @@
         <el-table-column prop="customerName" label="客户名称" width="150" />
         <el-table-column prop="salesperson" label="销售员" width="100" />
         <el-table-column prop="quotationNo" label="报价单号" width="140" />
-        <el-table-column prop="orderTime" label="下单时间" width="160" />
+        <el-table-column prop="orderTime" label="下单时间" width="120">
+          <template #default="{ row }">
+            {{ formatDateYMD(row.orderTime) }}
+          </template>
+        </el-table-column>
         <el-table-column prop="promisedDelivery" label="承诺交期" width="120" />
         <el-table-column prop="returnOrderNo" label="销售退货单号" width="140" />
         <el-table-column prop="deliveryMethod" label="送货方式" width="120" />
@@ -96,7 +101,11 @@
         <el-table-column prop="orderCurrency" label="订单币种" width="100" />
         <el-table-column prop="currentExchangeRate" label="当前汇率" width="100" />
         <el-table-column prop="taxRate" label="税率" width="80" />
-        <el-table-column prop="customerDelivery" label="客户交期" width="120" />
+        <el-table-column prop="customerDelivery" label="客户交期" width="120">
+          <template #default="{ row }">
+            {{ formatDateYMD(row.customerDelivery) }}
+          </template>
+        </el-table-column>
         <el-table-column prop="estimatedCompletionDate" label="预计完成日期" width="140" />
         <el-table-column prop="orderAttachment" label="订单附件" width="100">
           <template #default="{ row }">
@@ -167,6 +176,7 @@
         <el-table-column prop="productColor" label="产品颜色" width="100" />
         <el-table-column prop="productMaterial" label="产品材质" width="120" />
         <el-table-column prop="productDescription" label="产品详述" width="200" show-overflow-tooltip />
+        <el-table-column prop="outputProcess" label="产出工序" width="120" show-overflow-tooltip />
         <el-table-column prop="realtimeInventory" label="实时库存" width="100" align="right" />
         <el-table-column prop="availableInventory" label="可销售库存" width="120" align="right" />
         <el-table-column prop="effectiveInventory" label="有效库存" width="100" align="right" />
@@ -617,9 +627,10 @@
 
 <script setup>
 import { ref, computed, onMounted } from 'vue'
-import { ElMessage, ElMessageBox } from 'element-plus'
+import { ElMessage, ElMessageBox, ElLoading } from 'element-plus'
 import { salesOrderApi } from '@/api/salesOrder'
 import mrpAPI from '@/api/mrp'
+import materialApiService from '@/services/api/materialApiService'
 import { Search, Setting, Plus, UploadFilled, DataAnalysis, Tools, ShoppingCart, CircleCheck } from '@element-plus/icons-vue'
 import SalesOrderCreate from './SalesOrderCreate.vue'
 import SalesOrderView from './SalesOrderView.vue'
@@ -649,6 +660,9 @@ const activeTab = ref('workflow')
 
 // 表格数据（模拟数据）
 const tableData = ref([])
+
+// 物料数据缓存（用于lookup产出工序）
+const materialDataMap = ref(new Map())
 
 // 下一个订单ID
 const nextOrderId = ref(2)
@@ -709,6 +723,21 @@ const formatCurrency = (value) => {
   return `¥${Number(value).toLocaleString('zh-CN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
 }
 
+// ✅ 格式化日期为年月日
+const formatDateYMD = (dateStr) => {
+  if (!dateStr) return '-'
+  try {
+    const date = new Date(dateStr)
+    if (isNaN(date.getTime())) return '-'
+    const year = date.getFullYear()
+    const month = String(date.getMonth() + 1).padStart(2, '0')
+    const day = String(date.getDate()).padStart(2, '0')
+    return `${year}-${month}-${day}`
+  } catch (e) {
+    return '-'
+  }
+}
+
 const getStatusType = (status) => {
   const typeMap = {
     '草稿': 'info',
@@ -757,83 +786,170 @@ const loadOrders = async () => {
     
     if (response.data.success) {
       const orders = response.data.data.list
-      tableData.value = orders.map(order => ({
-        // 基本信息
-        id: order.id,
-        internalOrderNo: order.internal_order_no,
-        customerOrderNo: order.customer_order_no,
-        customerName: order.customer_name,
-        customerId: order.customer_id,
-        salesperson: order.salesperson,
-        quotationNo: order.quotation_no,
-        orderType: order.order_type,
-        orderStatus: order.status || '待下单',
+      
+      // 🔄 将订单按产品展开，每个产品一行
+      const expandedRows = []
+      
+      orders.forEach(order => {
+        // 解析产品列表
+        let products = []
         
-        // 产品信息（从client端返回的数据中映射）
-        productList: order.productList, // JSON字符串或数组
-        productCode: order.productCode,
-        productName: order.productName,
-        productImage: order.productImage,
-        productSpec: order.productSpec,
-        productColor: order.productColor,
-        productUnit: order.productUnit,
-        orderQuantity: order.orderQuantity,
+        // 如果有productList字段且是字符串，尝试解析
+        if (order.productList && typeof order.productList === 'string') {
+          try {
+            const parsedProducts = JSON.parse(order.productList)
+            products = parsedProducts.map(p => ({
+              productCode: p.product_code || p.productCode,
+              productName: p.product_name || p.productName,
+              productImage: p.product_image || p.productImage,
+              productSpec: p.product_spec || p.productSpec,
+              productColor: p.product_color || p.productColor,
+              productMaterial: p.product_material || p.productMaterial,
+              productDescription: p.product_description || p.productDescription,
+              productUnit: p.product_unit || p.productUnit,
+              orderQuantity: p.order_quantity || p.orderQuantity,
+              outputProcess: p.output_process || p.outputProcess || '' // ✅ 从数据库读取产出工序
+            }))
+          } catch (e) {
+            console.warn('解析产品列表失败:', e)
+            products = []
+          }
+        } else if (Array.isArray(order.productList)) {
+          products = order.productList.map(p => ({
+            productCode: p.product_code || p.productCode,
+            productName: p.product_name || p.productName,
+            productImage: p.product_image || p.productImage,
+            productSpec: p.product_spec || p.productSpec,
+            productColor: p.product_color || p.productColor,
+            productMaterial: p.product_material || p.productMaterial,
+            productDescription: p.product_description || p.productDescription,
+            productUnit: p.product_unit || p.productUnit,
+            orderQuantity: p.order_quantity || p.orderQuantity,
+            outputProcess: p.output_process || p.outputProcess || '' // ✅ 从数据库读取产出工序
+          }))
+        }
         
-        // 时间信息
-        orderTime: order.order_time,
-        promisedDelivery: order.promised_delivery,
-        customerDelivery: order.customer_delivery,
-        estimatedCompletionDate: order.estimated_completion_date,
-        createTime: new Date(order.created_at).toLocaleString('zh-CN'),
-        updateTime: order.updated_at ? new Date(order.updated_at).toLocaleString('zh-CN') : null,
+        // 如果没有产品列表，但有单个产品信息，创建产品数组
+        if (products.length === 0 && order.productCode) {
+          products = [{
+            productCode: order.productCode,
+            productName: order.productName,
+            productImage: order.productImage,
+            productSpec: order.productSpec,
+            productColor: order.productColor,
+            productMaterial: order.productMaterial,
+            productDescription: order.productDescription,
+            productUnit: order.productUnit,
+            orderQuantity: order.orderQuantity,
+            outputProcess: order.output_process || order.outputProcess || '' // ✅ 从数据库读取产出工序
+          }]
+        }
         
-        // 销售部门和物流信息
-        salesDepartment: order.sales_department,
-        deliveryMethod: order.delivery_method,
-        returnOrderNo: order.return_order_no,
+        // 如果还是没有产品，创建一个空产品
+        if (products.length === 0) {
+          products = [{
+            productCode: '',
+            productName: '',
+            productImage: '',
+            productSpec: '',
+            productColor: '',
+            productMaterial: '',
+            productDescription: '',
+            productUnit: '',
+            orderQuantity: ''
+          }]
+        }
         
-        // 金额信息
-        orderCurrency: order.order_currency,
-        currentExchangeRate: order.current_exchange_rate,
-        taxRate: order.tax_rate,
-        totalAmountExcludingTax: order.total_amount_excluding_tax,
-        totalAmountIncludingTax: order.total_amount_including_tax,
-        totalAmount: order.total_amount,
-        
-        // 附件和说明
-        orderAttachment: order.order_attachment,
-        orderNotes: order.order_notes,
-        
-        // 包装信息
-        packagingMethod: order.packaging_method,
-        packagingRequirements: order.packaging_requirements,
-        packagingAttachment: order.packaging_attachment,
-        
-        // 收货信息
-        consignee: order.consignee,
-        deliveryAddress: order.delivery_address,
-        billRecipient: order.bill_recipient,
-        billAddress: order.bill_address,
-        
-        // 回款信息
-        paymentMethod: order.payment_method,
-        advancePaymentRatio: order.advance_payment_ratio,
-        fees: order.fees,
-        paymentPlan: order.payment_plan,
-        totalReceivable: order.total_receivable,
-        plannedPaymentDate: order.planned_payment_date,
-        plannedPaymentAmount: order.planned_payment_amount,
-        receivedAmount: order.received_amount || 0,
-        unreceivedAmount: order.unreceived_amount || 0,
-        
-        // 备注
-        remark: order.remark,
-        
-        // 完整订单数据(用于编辑和查看)
-        orderDetail: order
-      }))
+        // 为每个产品创建一行，但共享相同的订单主字段
+        products.forEach((product, productIndex) => {
+          expandedRows.push({
+            id: order.id,
+            productIndex, // 产品在该订单中的索引
+            productCount: products.length, // 该订单的产品总数
+            
+            // 订单主字段（每个产品行都有，但会被合并）
+            internalOrderNo: order.internal_order_no,
+            customerOrderNo: order.customer_order_no,
+            customerName: order.customer_name,
+            customerId: order.customer_id,
+            salesperson: order.salesperson,
+            quotationNo: order.quotation_no,
+            orderType: order.order_type,
+            orderStatus: order.status || '待下单',
+            
+            // 产品信息（每个产品行都不同）
+            productCode: product.productCode,
+            productName: product.productName,
+            productImage: product.productImage,
+            productSpec: product.productSpec,
+            productColor: product.productColor,
+            productMaterial: product.productMaterial,
+            productDescription: product.productDescription,
+            productUnit: product.productUnit,
+            orderQuantity: product.orderQuantity,
+            outputProcess: product.outputProcess || '', // ✅ 直接从产品数据中读取，无需lookup
+            
+            // 时间信息
+            orderTime: order.order_time,
+            promisedDelivery: order.promised_delivery,
+            customerDelivery: order.customer_delivery,
+            estimatedCompletionDate: order.estimated_completion_date,
+            createTime: new Date(order.created_at).toLocaleString('zh-CN'),
+            updateTime: order.updated_at ? new Date(order.updated_at).toLocaleString('zh-CN') : null,
+            
+            // 销售部门和物流信息
+            salesDepartment: order.sales_department,
+            deliveryMethod: order.delivery_method,
+            returnOrderNo: order.return_order_no,
+            
+            // 金额信息
+            orderCurrency: order.order_currency,
+            currentExchangeRate: order.current_exchange_rate,
+            taxRate: order.tax_rate,
+            totalAmountExcludingTax: order.total_amount_excluding_tax,
+            totalAmountIncludingTax: order.total_amount_including_tax,
+            totalAmount: order.total_amount,
+            
+            // 附件和说明
+            orderAttachment: order.order_attachment,
+            orderNotes: order.order_notes,
+            
+            // 包装信息
+            packagingMethod: order.packaging_method,
+            packagingRequirements: order.packaging_requirements,
+            packagingAttachment: order.packaging_attachment,
+            
+            // 收货信息
+            consignee: order.consignee,
+            deliveryAddress: order.delivery_address,
+            billRecipient: order.bill_recipient,
+            billAddress: order.bill_address,
+            
+            // 回款信息
+            paymentMethod: order.payment_method,
+            advancePaymentRatio: order.advance_payment_ratio,
+            fees: order.fees,
+            paymentPlan: order.payment_plan,
+            totalReceivable: order.total_receivable,
+            plannedPaymentDate: order.planned_payment_date,
+            plannedPaymentAmount: order.planned_payment_amount,
+            receivedAmount: order.received_amount || 0,
+            unreceivedAmount: order.unreceived_amount || 0,
+            
+            // 备注
+            remark: order.remark,
+            
+            // 完整订单数据(用于编辑和查看)
+            orderDetail: order
+          })
+        })
+      })
+      
+      tableData.value = expandedRows
       totalCount.value = response.data.data.total
-      console.log('✅ 从后端加载订单:', tableData.value.length, '条')
+      console.log('✅ 从后端加载订单:', orders.length, '个，展开为', expandedRows.length, '行')
+      
+      // ✅ 产出工序直接从数据库读取，无需lookup
     }
   } catch (error) {
     console.error('❌ 加载订单失败:', error)
@@ -845,6 +961,91 @@ const handleCreateSuccess = async (orderData) => {
   createDialogVisible.value = false
   ElMessage.success('订单创建成功！')
   await loadOrders() // 重新加载数据
+}
+
+// ❌ 已废弃：lookup产出工序功能（现在直接从数据库读取）
+// 产出工序在新增订单时已经通过产品手册lookup并保存到数据库
+// 订单列表直接读取数据库中的output_process字段，无需再次lookup
+const lookupOutputProcess_DEPRECATED = async () => {
+  try {
+    console.log('⚠️ 此函数已废弃，产出工序直接从数据库读取')
+    
+    // 加载物料数据（如果还没有加载）
+    if (materialDataMap.value.size === 0) {
+      console.log('📥 正在加载物料数据...')
+      const materials = await materialApiService.getAllMaterials()
+      console.log('📦 获取到物料数据:', materials?.length || 0, '条')
+      
+      if (materials && Array.isArray(materials)) {
+        materials.forEach(material => {
+          materialDataMap.value.set(material.materialCode, {
+            materialCode: material.materialCode,
+            materialName: material.materialName,
+            outputProcessName: material.outputProcessName || '' // 产出工序名称
+          })
+          
+          // 打印前3条物料数据供检查
+          if (materialDataMap.value.size <= 3) {
+            console.log(`  物料样本: ${material.materialCode} -> ${material.outputProcessName || '(无产出工序)'}`,)
+          }
+        })
+        console.log('💾 物料数据加载完成:', materialDataMap.value.size, '条')
+      } else {
+        console.warn('⚠️ 物料数据为空或格式错误')
+      }
+    } else {
+      console.log('✅ 物料数据已缓存:', materialDataMap.value.size, '条')
+    }
+    
+    console.log('🔄 开始遍历订单进行lookup...')
+    let matchCount = 0
+    let processedCount = 0
+    
+    // 对每个订单进行lookup
+    tableData.value.forEach((order, index) => {
+      console.log(`\n📋 订单[${index}]:`, {
+        internalOrderNo: order.internalOrderNo,
+        productCode: order.productCode,
+        currentOutputProcess: order.outputProcess
+      })
+      
+      // 只处理：1) 有内部订单编号  2) 没有产出工序  3) 有产品编号
+      if (order.internalOrderNo && !order.outputProcess && order.productCode) {
+        processedCount++
+        const material = materialDataMap.value.get(order.productCode)
+        
+        console.log(`  🔎 查找物料 ${order.productCode}:`, material ? '找到' : '未找到')
+        
+        if (material) {
+          console.log(`    物料信息:`, {
+            materialCode: material.materialCode,
+            materialName: material.materialName,
+            outputProcessName: material.outputProcessName
+          })
+          
+          if (material.outputProcessName) {
+            order.outputProcess = material.outputProcessName
+            matchCount++
+            console.log(`    ✅ lookup成功: 订单 ${order.internalOrderNo}, 产品 ${order.productCode} -> 产出工序: ${material.outputProcessName}`)
+          } else {
+            console.log(`    ⚠️ 物料没有产出工序名称`)
+          }
+        } else {
+          console.log(`    ❌ 物料库中未找到产品编码: ${order.productCode}`)
+        }
+      } else {
+        const reasons = []
+        if (!order.internalOrderNo) reasons.push('无内部订单编号')
+        if (order.outputProcess) reasons.push('已有产出工序')
+        if (!order.productCode) reasons.push('无产品编号')
+        console.log(`  ⏭️ 跳过: ${reasons.join(', ')}`)
+      }
+    })
+    
+    console.log(`\n✅ lookup完成: 处理 ${processedCount} 个订单，成功匹配 ${matchCount} 个`)
+  } catch (error) {
+    console.error('❌ lookup产出工序失败:', error)
+  }
 }
 
 const handleManualTerminate = async () => {
@@ -993,21 +1194,30 @@ const handleRefresh = async () => {
 
 // 正式下单
 const canConfirmOrder = computed(() => {
-  return selectedRows.value.length > 0 && 
+  const result = selectedRows.value.length > 0 && 
     selectedRows.value.every(order => 
       order.orderStatus === '待下单' || order.orderStatus === '已模拟排程待下单'
     )
+  console.log('🔍 正式下单按钮状态:', {
+    选中订单数: selectedRows.value.length,
+    订单状态: selectedRows.value.map(o => ({ 编号: o.internalOrderNo, 状态: o.orderStatus })),
+    按钮可用: result
+  })
+  return result
 })
 
 const handleConfirmOrder = async () => {
-  if (!canConfirmOrder.value) {
-    ElMessage.warning('请选择状态为“待下单”或“已模拟排程待下单”的订单')
+  console.log('📋 点击正式下单按钮，选中订单:', selectedRows.value)
+  
+  // 检查是否选中订单
+  if (selectedRows.value.length === 0) {
+    ElMessage.warning('请至少选择一个销售订单')
     return
   }
 
   try {
     await ElMessageBox.confirm(
-      `确定要对选中的 ${selectedRows.value.length} 个订单执行正式下单吗？`,
+      `确定要对选中的 ${selectedRows.value.length} 个订单执行正式下单吗？\n\n正式下单后将自动创建主生产计划。`,
       '正式下单确认',
       {
         confirmButtonText: '确定',
@@ -1019,22 +1229,104 @@ const handleConfirmOrder = async () => {
     return // 用户取消
   }
 
+  const loading = ElLoading.service({
+    lock: true,
+    text: '正在创建主生产计划...',
+    background: 'rgba(0, 0, 0, 0.7)'
+  })
+
   try {
-    // 更新订单状态为“已下单”
-    for (const order of selectedRows.value) {
-      await salesOrderApi.update(order.id, {
-        ...order,
-        orderStatus: '已下单'
+    console.log('📋 开始正式下单流程，选中订单数:', selectedRows.value.length)
+    
+    // ⚠️ 重要：订单列表是按产品展开的，需要先按订单ID去重，然后从后端获取完整的产品列表
+    // 收集唯一的订单ID
+    const orderIds = [...new Set(selectedRows.value.map(row => row.id))]
+    console.log('📦 唯一订单ID:', orderIds)
+    
+    // 从后端获取每个订单的完整信息（包括所有产品）
+    const orderPromises = orderIds.map(async orderId => {
+      // 获取订单基本信息
+      const orderResponse = await salesOrderApi.getSalesOrderById(orderId)
+      const orderData = orderResponse.data.data
+      
+      // 获取订单产品列表
+      const productsResponse = await salesOrderApi.getOrderProducts(orderId)
+      const products = productsResponse.data || []
+      
+      console.log(`📦 订单 ${orderData.internal_order_no} 产品数量:`, products.length)
+      
+      return {
+        id: orderData.id,
+        internalOrderNo: orderData.internal_order_no,
+        customerOrderNo: orderData.customer_order_no,
+        salesperson: orderData.salesperson,
+        customerDeliveryDate: orderData.customer_delivery,
+        promisedDeliveryDate: orderData.promised_delivery,
+        products: products.map(p => ({
+          productCode: p.product_code,
+          productName: p.product_name,
+          orderQuantity: p.order_quantity,
+          productUnit: p.product_unit,
+          productImage: p.product_image || '',
+          outputProcess: p.output_process || ''
+        }))
+      }
+    })
+    
+    const salesOrders = await Promise.all(orderPromises)
+    
+    console.log('📦 整理后的订单数据:', salesOrders.map(o => ({
+      internalOrderNo: o.internalOrderNo,
+      产品数量: o.products.length,
+      产品编码: o.products.map(p => p.productCode)
+    })))
+    
+    console.log('📦 构造的销售订单数据:', salesOrders)
+    
+    // ✅ 获取提前入库期设置
+    const advanceStorageDays = settings.value.advanceStorageDays || 0;
+    console.log('📅 提前入库期:', advanceStorageDays, '天');
+    
+    // 调用后端API创建主生产计划
+    const response = await fetch('http://192.168.2.229:3005/api/master-production-plans/from-sales-order', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({ 
+        salesOrders,
+        advanceStorageDays // ✅ 传递提前入库期
       })
+    })
+    
+    const result = await response.json()
+    
+    if (result.code === 200) {
+      console.log('✅ 主生产计划创建成功:', result.data)
+      
+      // 更新订单状态为"已下单"
+      for (const order of selectedRows.value) {
+        await salesOrderApi.updateSalesOrder(order.id, {
+          status: '已下单'
+        })
+      }
+      
+      ElMessage.success(`已成功下单 ${selectedRows.value.length} 个订单，创建了 ${result.data.length} 条主生产计划`)
+      
+      // 刷新订单列表
+      await loadOrders()
+      
+      // 清空选择
+      selectedRows.value = []
+    } else {
+      throw new Error(result.message || '创建主生产计划失败')
     }
     
-    ElMessage.success(`已成功下单 ${selectedRows.value.length} 个订单`)
-    
-    // 刷新订单列表
-    await loadOrders()
   } catch (error) {
-    console.error('正式下单失败:', error)
+    console.error('❌ 正式下单失败:', error)
     ElMessage.error(`下单失败: ${error.message || '请检查网络连接'}`)
+  } finally {
+    loading.close()
   }
 }
 
@@ -1167,6 +1459,108 @@ const applySettings = () => {
   const container = document.querySelector('.sales-order-list-container')
   if (container) {
     container.style.backgroundColor = settings.value.backgroundColor
+  }
+}
+
+// 🔀 单元格合并方法：合并同一订单的主字段
+const spanMethod = ({ row, column, rowIndex, columnIndex }) => {
+  // 需要合并的列：勾选框、内部订单编号、客户订单编号、客户交期等主订单字段
+  const mergeColumns = [
+    'internalOrderNo',
+    'customerOrderNo', 
+    'customerName',
+    'salesperson',
+    'quotationNo',              // 报价单号
+    'orderType',
+    'orderStatus',
+    'orderTime',
+    'customerDelivery',
+    'promisedDelivery',
+    'estimatedCompletionDate',  // 预计完成日期
+    'createTime',
+    'returnOrderNo',            // 销售退货单号
+    'deliveryMethod',           // 送货方式
+    'orderCurrency',            // 订单币种
+    'currentExchangeRate',      // 当前汇率
+    'taxRate',                  // 税率
+    'orderAttachment',          // 订单附件
+    'orderNotes',               // 订单说明
+    'totalAmountExcludingTax',  // 订单总金额（未税）
+    'totalAmountIncludingTax',  // 订单总金额（含税）
+    'totalAmount',              // 订单总金额
+    'packagingMethod',          // 包装方式
+    'packagingRequirements',    // 包装需求描述
+    'packagingAttachment',      // 包装附件
+    'consignee',                // 收货人
+    'deliveryAddress',          // 收货地址
+    'billRecipient',            // 账单收件人
+    'billAddress',              // 账单收件地址
+    'paymentMethod',            // 收款方式
+    'advancePaymentRatio',      // 预收占比
+    'fees',                     // 手续费或其他费用
+    'paymentPlan',              // 回款计划
+    'totalReceivable',          // 应回款总额
+    'plannedPaymentDate',       // 计划回款日期
+    'plannedPaymentAmount'      // 计划回款金额
+  ]
+  
+  const columnProp = column.property
+  const columnType = column.type
+  const columnLabel = column.label
+  
+  // 处理勾选框列 (type='selection')
+  if (columnType === 'selection') {
+    if (row.productIndex === 0) {
+      return {
+        rowspan: row.productCount, // 合并的行数=该订单的产品总数
+        colspan: 1
+      }
+    } else {
+      // 非第一行，隐藏该单元格
+      return {
+        rowspan: 0,
+        colspan: 0
+      }
+    }
+  }
+  
+  // 处理操作列 (label='操作')
+  if (columnLabel === '操作') {
+    if (row.productIndex === 0) {
+      return {
+        rowspan: row.productCount, // 合并的行数=该订单的产品总数
+        colspan: 1
+      }
+    } else {
+      // 非第一行，隐藏该单元格
+      return {
+        rowspan: 0,
+        colspan: 0
+      }
+    }
+  }
+  
+  // 处理其他需要合并的列
+  if (mergeColumns.includes(columnProp)) {
+    // 如果是该订单的第一个产品行，合并单元格
+    if (row.productIndex === 0) {
+      return {
+        rowspan: row.productCount, // 合并的行数=该订单的产品总数
+        colspan: 1
+      }
+    } else {
+      // 非第一行，隐藏该单元格
+      return {
+        rowspan: 0,
+        colspan: 0
+      }
+    }
+  }
+  
+  // 其他列不合并
+  return {
+    rowspan: 1,
+    colspan: 1
   }
 }
 

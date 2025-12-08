@@ -67,10 +67,128 @@
       >
         <template #header v-if="column.filterable && showFilter">
           <div class="filter-header">
-            <span>{{ column.label }}</span>
-            <el-icon class="filter-icon" @click="showFilterDialog(column)">
-              <Filter />
-            </el-icon>
+            <span class="header-label">{{ column.label }}</span>
+            <el-popover
+              :visible="activeFilterColumn === column.prop"
+              placement="bottom"
+              width="280"
+              trigger="click"
+              @show="handleFilterShow(column.prop, column.filterType)"
+              @hide="handleFilterHide"
+            >
+              <template #reference>
+                <el-icon
+                  class="filter-icon"
+                  :class="{ 'is-filtered': hasFilter(column.prop) }"
+                  @click.stop="toggleFilter(column.prop)"
+                >
+                  <Filter />
+                </el-icon>
+              </template>
+
+              <!-- 筛选内容 -->
+              <div class="filter-content">
+                <!-- 文本筛选 -->
+                <div v-if="getFilterType(column) === 'input'" class="filter-input-group">
+                  <el-select
+                    v-model="filterConfigs[column.prop].operator"
+                    size="small"
+                    style="width: 100px; margin-bottom: 8px;"
+                  >
+                    <el-option label="包含" value="contains" />
+                    <el-option label="等于" value="equals" />
+                    <el-option label="不等于" value="notEquals" />
+                    <el-option label="开头是" value="startsWith" />
+                    <el-option label="结尾是" value="endsWith" />
+                  </el-select>
+                  <el-input
+                    v-model="filterConfigs[column.prop].value"
+                    size="small"
+                    placeholder="输入筛选内容"
+                    clearable
+                  />
+                </div>
+
+                <!-- 选择筛选 -->
+                <div v-if="getFilterType(column) === 'select'" class="filter-select-group">
+                  <el-checkbox-group
+                    v-model="filterConfigs[column.prop].values"
+                    class="filter-checkbox-group"
+                  >
+                    <el-checkbox
+                      v-for="option in getColumnOptions(column.prop)"
+                      :key="option"
+                      :label="option"
+                    >
+                      {{ option }}
+                    </el-checkbox>
+                  </el-checkbox-group>
+                </div>
+
+                <!-- 数字筛选 -->
+                <div v-if="getFilterType(column) === 'number'" class="filter-number-group">
+                  <el-select
+                    v-model="filterConfigs[column.prop].operator"
+                    size="small"
+                    style="width: 100px; margin-bottom: 8px;"
+                  >
+                    <el-option label="等于" value="equals" />
+                    <el-option label="不等于" value="notEquals" />
+                    <el-option label="大于" value="greaterThan" />
+                    <el-option label="小于" value="lessThan" />
+                    <el-option label="区间" value="between" />
+                  </el-select>
+                  <el-input-number
+                    v-if="filterConfigs[column.prop].operator !== 'between'"
+                    v-model="filterConfigs[column.prop].value"
+                    size="small"
+                    style="width: 100%;"
+                  />
+                  <div v-else class="filter-range">
+                    <el-input-number
+                      v-model="filterConfigs[column.prop].minValue"
+                      size="small"
+                      placeholder="最小值"
+                      style="width: 48%;"
+                    />
+                    <span>~</span>
+                    <el-input-number
+                      v-model="filterConfigs[column.prop].maxValue"
+                      size="small"
+                      placeholder="最大值"
+                      style="width: 48%;"
+                    />
+                  </div>
+                </div>
+
+                <!-- 日期筛选 -->
+                <div v-if="getFilterType(column) === 'date'" class="filter-date-group">
+                  <el-date-picker
+                    v-model="filterConfigs[column.prop].dateRange"
+                    type="daterange"
+                    range-separator="至"
+                    start-placeholder="开始日期"
+                    end-placeholder="结束日期"
+                    size="small"
+                    style="width: 100%;"
+                  />
+                </div>
+
+                <!-- 操作按钮 -->
+                <div class="filter-actions">
+                  <el-button size="small" @click="clearFilter(column.prop)">
+                    清除
+                  </el-button>
+                  <el-button
+                    type="primary"
+                    size="small"
+                    @click="applyFilter(column.prop)"
+                  >
+                    应用
+                  </el-button>
+                </div>
+              </div>
+            </el-popover>
           </div>
         </template>
         <template #default="{ row, $index }">
@@ -199,7 +317,7 @@ const props = defineProps({
 
 const emit = defineEmits([
   'add', 'edit', 'delete', 'delete-single', 'export', 'import', 'refresh',
-  'selection-change', 'sort-change', 'page-change', 'size-change'
+  'selection-change', 'sort-change', 'page-change', 'size-change', 'filter-change'
 ])
 
 const tableRef = ref(null)
@@ -207,6 +325,11 @@ const selectedRows = ref([])
 const columnControlVisible = ref(false)
 const selectedColumnProps = ref([])
 const draggableColumns = ref([])
+
+// 筛选相关状态
+const activeFilterColumn = ref(null)
+const filterConfigs = ref({})
+const activeFilters = ref({})
 
 const currentPage = ref(props.page)
 const currentPageSize = ref(props.pageSize)
@@ -221,6 +344,20 @@ const visibleColumns = computed(() => {
 watch(() => props.columns, (newColumns) => {
   draggableColumns.value = [...newColumns]
   selectedColumnProps.value = newColumns.map(col => col.prop)
+  // 初始化筛选配置
+  newColumns.forEach(col => {
+    if (col.filterable && !filterConfigs.value[col.prop]) {
+      filterConfigs.value[col.prop] = {
+        type: col.filterType || 'input',
+        operator: 'contains',
+        value: '',
+        values: [],
+        minValue: null,
+        maxValue: null,
+        dateRange: null
+      }
+    }
+  })
 }, { immediate: true })
 
 // 选择变化
@@ -250,10 +387,89 @@ const handlePrint = () => {
   window.print()
 }
 
-// 显示筛选对话框
+// 筛选相关方法
+const toggleFilter = (prop) => {
+  activeFilterColumn.value = activeFilterColumn.value === prop ? null : prop
+}
+
+const handleFilterShow = (prop, filterType) => {
+  activeFilterColumn.value = prop
+  if (!filterConfigs.value[prop]) {
+    filterConfigs.value[prop] = {
+      type: filterType || 'input',
+      operator: 'contains',
+      value: '',
+      values: [],
+      minValue: null,
+      maxValue: null,
+      dateRange: null
+    }
+  }
+}
+
+const handleFilterHide = () => {
+  activeFilterColumn.value = null
+}
+
+const getFilterType = (column) => {
+  return column.filterType || 'input'
+}
+
+const hasFilter = (prop) => {
+  return !!activeFilters.value[prop]
+}
+
+const getColumnOptions = (prop) => {
+  const options = new Set()
+  props.data.forEach(row => {
+    const value = row[prop]
+    if (value !== null && value !== undefined && value !== '') {
+      options.add(value)
+    }
+  })
+  return Array.from(options).slice(0, 100) // 限制100个选项
+}
+
+const applyFilter = (prop) => {
+  const config = filterConfigs.value[prop]
+  
+  // 根据筛选类型构建筛选条件
+  if (config.type === 'input' && config.value) {
+    activeFilters.value[prop] = { ...config }
+  } else if (config.type === 'select' && config.values.length > 0) {
+    activeFilters.value[prop] = { ...config }
+  } else if (config.type === 'number' && (config.value !== null || (config.minValue !== null && config.maxValue !== null))) {
+    activeFilters.value[prop] = { ...config }
+  } else if (config.type === 'date' && config.dateRange) {
+    activeFilters.value[prop] = { ...config }
+  } else {
+    delete activeFilters.value[prop]
+  }
+  
+  activeFilterColumn.value = null
+  // 发送筛选事件
+  emit('filter-change', activeFilters.value)
+}
+
+const clearFilter = (prop) => {
+  // 清除筛选配置
+  const config = filterConfigs.value[prop]
+  if (config) {
+    config.value = ''
+    config.values = []
+    config.minValue = null
+    config.maxValue = null
+    config.dateRange = null
+  }
+  
+  delete activeFilters.value[prop]
+  activeFilterColumn.value = null
+  emit('filter-change', activeFilters.value)
+}
+
+// 显示筛选对话框（兼容旧版本）
 const showFilterDialog = (column) => {
-  console.log('筛选列:', column)
-  // TODO: 实现筛选对话框
+  toggleFilter(column.prop)
 }
 
 // 应用列设置
@@ -360,13 +576,65 @@ defineExpose({
   justify-content: space-between;
 }
 
+.header-label {
+  flex: 1;
+}
+
 .filter-icon {
   margin-left: 4px;
   cursor: pointer;
+  font-size: 14px;
+  color: #909399;
+  transition: color 0.3s;
 }
 
 .filter-icon:hover {
   color: var(--el-color-primary);
+}
+
+.filter-icon.is-filtered {
+  color: var(--el-color-primary);
+}
+
+/* 筛选内容样式 */
+.filter-content {
+  padding: 8px;
+}
+
+.filter-type-selector {
+  margin-bottom: 12px;
+}
+
+.filter-input-group,
+.filter-select-group,
+.filter-number-group,
+.filter-date-group {
+  margin-bottom: 12px;
+}
+
+.filter-checkbox-group {
+  max-height: 200px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+}
+
+.filter-checkbox-group .el-checkbox {
+  margin: 4px 0;
+}
+
+.filter-range {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.filter-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  padding-top: 8px;
+  border-top: 1px solid #ebeef5;
 }
 
 .table-summary {

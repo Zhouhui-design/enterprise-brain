@@ -1,4 +1,4 @@
-const db = require('../config/database');
+const { pool } = require('../config/database');
 
 /**
  * 生产BOM草稿服务 - MySQL版本
@@ -9,7 +9,7 @@ class BOMDraftService {
    */
   static async getAllDrafts() {
     try {
-      const [rows] = await db.execute('SELECT * FROM production_bom_drafts ORDER BY updated_at DESC');
+      const [rows] = await pool.execute('SELECT * FROM production_bom_drafts ORDER BY updated_at DESC');
       return rows;
     } catch (error) {
       console.error('获取草稿列表失败:', error);
@@ -22,7 +22,7 @@ class BOMDraftService {
    */
   static async getDraftById(id) {
     try {
-      const [rows] = await db.execute('SELECT * FROM production_bom_drafts WHERE id = ?', [id]);
+      const [rows] = await pool.execute('SELECT * FROM production_bom_drafts WHERE id = ?', [id]);
       const draft = rows[0];
       
       if (!draft) {
@@ -30,7 +30,7 @@ class BOMDraftService {
       }
       
       // 获取子件
-      const [components] = await db.execute(
+      const [components] = await pool.execute(
         'SELECT * FROM bom_draft_components WHERE draft_id = ? ORDER BY sequence',
         [id]
       );
@@ -47,7 +47,7 @@ class BOMDraftService {
    * 创建草稿
    */
   static async createDraft(draftData) {
-    const connection = await db.getConnection();
+    const connection = await pool.getConnection();
     try {
       const { childItems, ...draftInfo } = draftData;
       
@@ -119,7 +119,7 @@ class BOMDraftService {
    * 更新草稿
    */
   static async updateDraft(id, draftData) {
-    const connection = await db.getConnection();
+    const connection = await pool.getConnection();
     try {
       const { childItems, ...draftInfo } = draftData;
       const draftId = parseInt(id); // 确保ID是整数
@@ -195,7 +195,7 @@ class BOMDraftService {
    * 删除草稿
    */
   static async deleteDraft(id) {
-    const connection = await db.getConnection();
+    const connection = await pool.getConnection();
     try {
       const draftId = parseInt(id); // 确保ID是整数
       
@@ -226,7 +226,7 @@ class BOMDraftService {
    * 批量删除草稿
    */
   static async batchDeleteDrafts(ids) {
-    const connection = await db.getConnection();
+    const connection = await pool.getConnection();
     try {
       await connection.beginTransaction();
       

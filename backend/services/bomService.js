@@ -1,4 +1,4 @@
-const db = require('../config/database');
+const { pool } = require('../config/database');
 
 class BOMService {
   /**
@@ -6,7 +6,7 @@ class BOMService {
    */
   static async getAllProductionBOMs() {
     try {
-      const [rows] = await db.execute('SELECT * FROM production_boms ORDER BY created_at DESC');
+      const [rows] = await pool.execute('SELECT * FROM production_boms ORDER BY created_at DESC');
       return rows;
     } catch (error) {
       console.error('获取生产BOM列表失败:', error);
@@ -19,12 +19,12 @@ class BOMService {
    */
   static async getBOMById(id) {
     try {
-      const [rows] = await db.execute('SELECT * FROM production_boms WHERE id = ?', [id]);
+      const [rows] = await pool.execute('SELECT * FROM production_boms WHERE id = ?', [id]);
       const bom = rows[0];
       
       if (bom) {
         // 获取子件列表
-        const [components] = await db.execute(
+        const [components] = await pool.execute(
           'SELECT * FROM bom_components WHERE bom_id = ? ORDER BY sequence',
           [id]
         );
@@ -39,10 +39,39 @@ class BOMService {
   }
 
   /**
+   * ✅ 根据产品编码获取BOM（用于MRP加载）
+   */
+  static async getBOMByProductCode(productCode) {
+    try {
+      // 查找最新的生产BOM
+      const [rows] = await pool.execute(
+        'SELECT * FROM production_boms WHERE product_code = ? ORDER BY created_at DESC LIMIT 1',
+        [productCode]
+      );
+      const bom = rows[0];
+      
+      if (bom) {
+        // 获取子件列表
+        const [components] = await pool.execute(
+          'SELECT * FROM bom_components WHERE bom_id = ? ORDER BY sequence',
+          [bom.id]
+        );
+        bom.childItems = components;
+        console.log(`✅ 产品 ${productCode} 的BOM包含 ${components.length} 个子件`);
+      }
+      
+      return bom;
+    } catch (error) {
+      console.error('根据产品编码获取BOM失败:', error);
+      throw error;
+    }
+  }
+
+  /**
    * 创建生产BOM
    */
   static async createProductionBOM(bomData) {
-    const connection = await db.getConnection();
+    const connection = await pool.getConnection();
     try {
       const { childItems, ...bomInfo } = bomData;
       
@@ -118,7 +147,7 @@ class BOMService {
    * 更新生产BOM
    */
   static async updateProductionBOM(id, bomData) {
-    const connection = await db.getConnection();
+    const connection = await pool.getConnection();
     try {
       const { childItems, ...bomInfo } = bomData;
       const bomId = parseInt(id); // 确保ID是整数
@@ -199,7 +228,7 @@ class BOMService {
    * 删除生产BOM
    */
   static async deleteProductionBOM(id) {
-    const connection = await db.getConnection();
+    const connection = await pool.getConnection();
     try {
       const bomId = parseInt(id); // 确保ID是整数
       
@@ -227,7 +256,7 @@ class BOMService {
    * 批量删除生产BOM
    */
   static async batchDeleteProductionBOMs(ids) {
-    const connection = await db.getConnection();
+    const connection = await pool.getConnection();
     try {
       await connection.beginTransaction();
       

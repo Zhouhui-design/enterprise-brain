@@ -78,25 +78,25 @@
       </el-card>
     </div>
 
-    <!-- 主表格 -->
-    <el-table
-      ref="tableRef"
-      :data="paginatedTableData"
+    <!-- 主表格 - 使用FilterTable组件 -->
+    <FilterTable
+      ref="filterTableRef"
+      :data="tableData"
+      :columns="filterTableColumns"
+      :height="tableHeight"
+      show-selection
+      show-index
       stripe
       border
-      :height="tableHeight"
-      highlight-current-row
       @selection-change="handleSelectionChange"
+      @filter-change="handleFilterChange"
     >
-      <el-table-column type="selection" width="55" fixed="left" />
-      <el-table-column type="index" label="序号" width="60" fixed="left" />
-      <el-table-column prop="materialCode" label="物料编号" width="150" fixed="left" sortable />
-      <el-table-column prop="materialName" label="物料名称" width="200" sortable>
+      <!-- 物料名称自定义渲染 -->
       <template #materialName="{ row }">
         <el-link type="primary" @click="handleView(row)">{{ row.materialName }}</el-link>
       </template>
-      </el-table-column>
-      <el-table-column prop="materialImage" label="图片" width="100">
+      
+      <!-- 图片自定义渲染 -->
       <template #materialImage="{ row }">
         <el-image 
           v-if="row.materialImage"
@@ -109,11 +109,8 @@
         />
         <span v-else style="color: #909399;">无图片</span>
       </template>
-      </el-table-column>
-      <el-table-column prop="specification" label="规格" width="150" />
-      <el-table-column prop="unit" label="单位" width="80" />
-      <el-table-column prop="category" label="分类" width="120" sortable />
-      <el-table-column prop="source" label="来源" width="120">
+      
+      <!-- 来源自定义渲染 -->
       <template #source="{ row }">
         <span v-if="row.source && row.source.length > 0">
           <el-tag 
@@ -127,44 +124,32 @@
         </span>
         <span v-else>-</span>
       </template>
-      </el-table-column>
-      <el-table-column prop="status" label="状态" width="100">
-        <template #default="{ row }">
-          <el-tag :type="row.status === '在用' ? 'success' : 'info'">{{ row.status }}</el-tag>
-        </template>
-      </el-table-column>
-      <el-table-column prop="stockQuantity" label="库存" width="100" align="right" />
-      <el-table-column prop="processPrice" label="工序单价" width="120" align="right">
+      
+      <!-- 状态自定义渲染 -->
+      <template #status="{ row }">
+        <el-tag :type="row.status === '在用' ? 'success' : 'info'">{{ row.status }}</el-tag>
+      </template>
+      
+      <!-- 工序单价自定义渲染 -->
       <template #processPrice="{ row }">
         ¥{{ row.processPrice?.toFixed(2) }}
       </template>
-      </el-table-column>
-      <el-table-column prop="purchasePrice" label="采购单价" width="120" align="right">
+      
+      <!-- 采购单价自定义渲染 -->
       <template #purchasePrice="{ row }">
         ¥{{ row.purchasePrice?.toFixed(2) }}
       </template>
-      </el-table-column>
-      <el-table-column label="操作" width="200" fixed="right">
-        <template #default="{ row }">
-          <el-button link type="primary" size="small" @click="handleEdit(row)">编辑</el-button>
-          <el-button link type="success" size="small" @click="handleView(row)">查看</el-button>
-          <el-button link type="danger" size="small" @click="handleDelete(row)">删除</el-button>
-        </template>
-      </el-table-column>
-    </el-table>
+      
+      <!-- 操作列 -->
+      <template #operation="{ row }">
+        <el-button link type="primary" size="small" @click="handleEdit(row)">编辑</el-button>
+        <el-button link type="success" size="small" @click="handleView(row)">查看</el-button>
+        <el-button link type="danger" size="small" @click="handleDelete(row)">删除</el-button>
+      </template>
+    </FilterTable>
 
     <!-- 分页 -->
-    <div class="pagination-container">
-      <el-pagination
-        v-model:current-page="currentPage"
-        v-model:page-size="pageSize"
-        :page-sizes="[10, 20, 50, 100]"
-        :total="totalCount"
-        layout="total, sizes, prev, pager, next, jumper"
-        @size-change="handleSizeChange"
-        @current-change="handlePageChange"
-      />
-    </div>
+    <!-- 分页 - FilterTable内部处理分页，不需要单独的分页组件 -->
 
     <!-- 新增/编辑物料对话框 -->
     <el-dialog 
@@ -235,6 +220,7 @@ import {
   Box, CircleCheck, Warning
 } from '@element-plus/icons-vue'
 import * as XLSX from 'xlsx' // 静态导入XLSX库
+import FilterTable from '@/components/common/tables/FilterTable.vue'
 import MaterialEdit from './MaterialEdit.vue'
 import MaterialView from './MaterialView.vue'
 // import databaseService from '@/services/DatabaseService.js' // 不再使用IndexedDB
@@ -252,7 +238,30 @@ const searchForm = ref({
   majorCategory: ''
 })
 
-// 表格列配置
+// FilterTable列配置
+const filterTableColumns = ref([
+  { prop: 'materialCode', label: '物料编号', width: 150, fixed: 'left', sortable: true, filterable: true },
+  { prop: 'materialName', label: '物料名称', width: 200, sortable: true, filterable: true, showCustom: true },
+  { prop: 'materialImage', label: '图片', width: 100, showCustom: true },
+  { prop: 'sizeSpec', label: '尺寸规格', width: 150, filterable: true },
+  { prop: 'color', label: '颜色', width: 100, filterable: true },
+  { prop: 'material', label: '材质', width: 120, filterable: true },
+  { prop: 'majorCategory', label: '大类', width: 120, sortable: true, filterable: true },
+  { prop: 'middleCategory', label: '中类', width: 120, filterable: true },
+  { prop: 'minorCategory', label: '小类', width: 120, filterable: true },
+  { prop: 'model', label: '型号', width: 120, filterable: true },
+  { prop: 'series', label: '系列', width: 120, filterable: true },
+  { prop: 'source', label: '来源', width: 120, filterable: true, showCustom: true },
+  { prop: 'status', label: '状态', width: 100, filterable: true, showCustom: true },
+  { prop: 'stockQuantity', label: '库存', width: 100, align: 'right', sortable: true },
+  { prop: 'processPrice', label: '工序单价', width: 120, align: 'right', sortable: true, showCustom: true },
+  { prop: 'purchasePrice', label: '采购单价', width: 120, align: 'right', sortable: true, showCustom: true },
+  { prop: 'baseUnit', label: '基础单位', width: 100, filterable: true },
+  { prop: 'processName', label: '产出工序名称', width: 150, filterable: true },
+  { prop: 'createTime', label: '创建时间', width: 160, sortable: true, filterable: true }
+])
+
+// 旧的表格列配置（保留用于导出等功能）
 const tableColumns = ref([
   { prop: 'materialCode', label: '物料编码', width: 140, fixed: 'left' },
   { prop: 'bomNumber', label: 'BOM编号', width: 140 },

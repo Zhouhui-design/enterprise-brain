@@ -45,6 +45,38 @@ router.get('/detail/:id', async (req, res) => {
   }
 });
 
+// ✅ 根据产品编码获取生产BOM（用于MRP加载）
+router.get('/by-product/:productCode', async (req, res) => {
+  try {
+    const { productCode } = req.params;
+    console.log(`🔍 查找产品BOM, 产品编码: ${productCode}`);
+    
+    const bom = await BOMService.getBOMByProductCode(productCode);
+    
+    if (!bom) {
+      console.log(`⚠️ 未找到产品BOM: ${productCode}`);
+      return res.json({
+        code: 404,
+        data: null,
+        message: `产品 ${productCode} 没有对应的生产BOM`
+      });
+    }
+    
+    console.log(`✅ 找到BOM: ${bom.bomCode}, 子件数: ${bom.childItems?.length || 0}`);
+    res.json({
+      code: 200,
+      data: bom,
+      message: '获取BOM成功'
+    });
+  } catch (error) {
+    console.error('获取BOM失败:', error);
+    res.status(500).json({
+      code: 500,
+      message: error.message
+    });
+  }
+});
+
 // 创建生产BOM
 router.post('/create', async (req, res) => {
   try {

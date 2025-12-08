@@ -1,6 +1,6 @@
 const express = require('express');
 const router = express.Router();
-const db = require('../config/database');
+const { pool } = require('../config/database');
 const { v4: uuidv4 } = require('uuid');
 
 // 生成BOM树结构数据
@@ -19,11 +19,11 @@ router.post('/generate', (req, res) => {
     const treeData = buildBomTreeData(bomData);
     
     // 检查是否已存在
-    const existing = db.prepare('SELECT id FROM bom_tree_structures WHERE bom_code = ?').get(bomData.bomCode);
+    const existing = pool.prepare('SELECT id FROM bom_tree_structures WHERE bom_code = ?').get(bomData.bomCode);
     
     if (existing) {
       // 更新现有记录
-      const stmt = db.prepare(`
+      const stmt = pool.prepare(`
         UPDATE bom_tree_structures
         SET bom_name = ?,
             product_code = ?,
@@ -55,7 +55,7 @@ router.post('/generate', (req, res) => {
     } else {
       // 创建新记录
       const id = uuidv4();
-      const stmt = db.prepare(`
+      const stmt = pool.prepare(`
         INSERT INTO bom_tree_structures (
           id, bom_code, bom_name, product_code, product_name,
           version, status, max_level, tree_data, create_by
@@ -95,7 +95,7 @@ router.get('/:bomCode', (req, res) => {
   try {
     const { bomCode } = req.params;
     
-    const stmt = db.prepare('SELECT * FROM bom_tree_structures WHERE bom_code = ?');
+    const stmt = pool.prepare('SELECT * FROM bom_tree_structures WHERE bom_code = ?');
     const record = stmt.get(bomCode);
     
     if (!record) {
@@ -136,7 +136,7 @@ router.get('/:bomCode', (req, res) => {
 // 获取所有BOM树结构列表
 router.get('/', (req, res) => {
   try {
-    const stmt = db.prepare('SELECT * FROM bom_tree_structures ORDER BY create_time DESC');
+    const stmt = pool.prepare('SELECT * FROM bom_tree_structures ORDER BY create_time DESC');
     const records = stmt.all();
     
     const list = records.map(record => ({
@@ -170,7 +170,7 @@ router.delete('/:bomCode', (req, res) => {
   try {
     const { bomCode } = req.params;
     
-    const stmt = db.prepare('DELETE FROM bom_tree_structures WHERE bom_code = ?');
+    const stmt = pool.prepare('DELETE FROM bom_tree_structures WHERE bom_code = ?');
     const result = stmt.run(bomCode);
     
     if (result.changes === 0) {

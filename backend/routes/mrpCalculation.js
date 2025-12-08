@@ -1,6 +1,6 @@
 const express = require('express');
 const router = express.Router();
-const db = require('../config/database');
+const { pool } = require('../config/database');
 
 /**
  * MRP运算：根据销售订单和生产BOM计算物料需求
@@ -32,7 +32,7 @@ router.post('/calculate', async (req, res) => {
       SELECT * FROM sales_orders 
       WHERE id IN (${placeholders})
     `;
-    const orders = await db.query(ordersQuery, orderIds);
+    const orders = await pool.query(ordersQuery, orderIds);
     console.log(`获取到${orders.length}个订单`);
 
     // 2. 解析订单中的产品明细
@@ -74,7 +74,7 @@ router.post('/calculate', async (req, res) => {
         ORDER BY createTime DESC 
         LIMIT 1
       `;
-      const boms = await db.query(bomQuery, [productCode]);
+      const boms = await pool.query(bomQuery, [productCode]);
       
       if (boms.length === 0) {
         console.warn(`产品${productCode}没有对应的BOM`);
@@ -152,7 +152,7 @@ router.post('/calculate', async (req, res) => {
         FROM materials 
         WHERE materialCode IN (${materialPlaceholders})
       `;
-      const materials = await db.query(materialsQuery, materialCodes);
+      const materials = await pool.query(materialsQuery, materialCodes);
       
       // 更新物料信息和计算净需求
       for (const material of materials) {
@@ -225,6 +225,215 @@ router.post('/calculate', async (req, res) => {
     res.status(500).json({
       code: 500,
       message: `MRP运算失败: ${error.message}`
+    });
+  }
+});
+
+/**
+ * 保存物料需求明细（产品需求）
+ */
+router.post('/material-demands/save', async (req, res) => {
+  try {
+    const { demands } = req.body;
+    
+    if (!demands || !Array.isArray(demands) || demands.length === 0) {
+      return res.status(400).json({
+        code: 400,
+        message: '请提供需求数据'
+      });
+    }
+
+    console.log(`保存${demands.length}条物料需求明细`);
+
+    // 创建表（如果不存在）
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS material_demand_details (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        mrp_code VARCHAR(50) UNIQUE COMMENT 'MRP编码',
+        source_no VARCHAR(100) COMMENT '来源单号',
+        material_code VARCHAR(100) COMMENT '物料编号',
+        material_name VARCHAR(255) COMMENT '物料名称',
+        material_unit VARCHAR(50) DEFAULT '个' COMMENT '单位',
+        source_type VARCHAR(100) COMMENT '需求来源',
+        demand_qty DECIMAL(15,4) DEFAULT 0 COMMENT '需求数量',
+        required_date DATE COMMENT '需求日期',
+        current_stock DECIMAL(15,4) DEFAULT 0 COMMENT '当前库库存',
+        in_transit_stock DECIMAL(15,4) DEFAULT 0 COMMENT '在途库存',
+        in_production_stock DECIMAL(15,4) DEFAULT 0 COMMENT '在制库存',
+        production_reserved_stock DECIMAL(15,4) DEFAULT 0 COMMENT '生产预扣库存',
+        to_be_shipped_stock DECIMAL(15,4) DEFAULT 0 COMMENT '待发货库存',
+        suggested_qty DECIMAL(15,4) DEFAULT 0 COMMENT '建议数量',
+        adjusted_qty DECIMAL(15,4) DEFAULT 0 COMMENT '调整数量',
+        execute_qty DECIMAL(15,4) DEFAULT 0 COMMENT '执行数量',
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+        INDEX idx_mrp_code (mrp_code),
+        INDEX idx_source_no (source_no),
+        INDEX idx_material_code (material_code)
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='物料需求明细表'
+    `);
+
+    // ✅ 检查并添加mrp_code字段（如果不存在）
+    try {
+      // 检查字段是否存在
+      const columns = await pool.query(`
+        SHOW COLUMNS FROM material_demand_details LIKE 'mrp_code'
+      `);
+      
+      if (columns.length === 0) {
+        // 字段不存在，添加它
+        await pool.query(`
+          ALTER TABLE material_demand_details 
+          ADD COLUMN mrp_code VARCHAR(50) UNIQUE COMMENT 'MRP编码' AFTER id
+        `);
+        console.log('✅ 已添加 mrp_code 字段');
+      }
+    } catch (error) {
+      console.warn('检查/添加mrp_code字段失败:', error.message);
+    }
+
+    // ✅ 检查并添加索引（如果不存在）
+    try {
+      const indexes = await pool.query(`
+        SHOW INDEX FROM material_demand_details WHERE Key_name = 'idx_mrp_code'
+      `);
+      
+      if (indexes.length === 0) {
+        await pool.query(`
+          ALTER TABLE material_demand_details 
+          ADD INDEX idx_mrp_code (mrp_code)
+        `);
+        console.log('✅ 已添加 idx_mrp_code 索引');
+      }
+    } catch (error) {
+      console.warn('检查/添加mrp_code索引失败:', error.message);
+    }
+
+    // 删除同一来源单号的旧数据（避免重复）
+    const sourceNos = [...new Set(demands.map(d => d.sourceNo).filter(Boolean))];
+    if (sourceNos.length > 0) {
+      const placeholders = sourceNos.map(() => '?').join(',');
+      await pool.query(`DELETE FROM material_demand_details WHERE source_no IN (${placeholders})`, sourceNos);
+    }
+
+    // 插入新数据
+    const insertQuery = `
+      INSERT INTO material_demand_details (
+        mrp_code, source_no, material_code, material_name, material_unit, source_type,
+        demand_qty, required_date, current_stock, in_transit_stock, in_production_stock,
+        production_reserved_stock, to_be_shipped_stock, suggested_qty, adjusted_qty, execute_qty
+      ) VALUES ?
+    `;
+
+    const values = demands.map(d => [
+      d.mrpCode || '',
+      d.sourceNo || '',
+      d.materialCode || '',
+      d.materialName || '',
+      d.materialUnit || '个',
+      d.sourceType || '',
+      d.demandQty || 0,
+      d.requiredDate || null,
+      d.currentStock || 0,
+      d.inTransitStock || 0,
+      d.inProductionStock || 0,
+      d.productionReservedStock || 0,
+      d.toBeShippedStock || 0,
+      d.suggestedQty || 0,
+      d.adjustedQty || 0,
+      d.executeQty || 0
+    ]);
+
+    await pool.query(insertQuery, [values]);
+
+    console.log(`✅ 成功保存${demands.length}条物料需求明细`);
+
+    res.json({
+      code: 200,
+      data: { savedCount: demands.length },
+      message: `成功保存${demands.length}条记录`
+    });
+
+  } catch (error) {
+    console.error('保存物料需求明细失败:', error);
+    res.status(500).json({
+      code: 500,
+      message: `保存失败: ${error.message}`
+    });
+  }
+});
+
+/**
+ * 查询物料需求明细
+ */
+router.get('/material-demands', async (req, res) => {
+  try {
+    const { sourceNo, materialCode, page = 1, pageSize = 100 } = req.query;
+
+    let whereClause = [];
+    let params = [];
+
+    if (sourceNo) {
+      whereClause.push('source_no = ?');
+      params.push(sourceNo);
+    }
+
+    if (materialCode) {
+      whereClause.push('material_code LIKE ?');
+      params.push(`%${materialCode}%`);
+    }
+
+    const where = whereClause.length > 0 ? `WHERE ${whereClause.join(' AND ')}` : '';
+
+    const query = `
+      SELECT * FROM material_demand_details
+      ${where}
+      ORDER BY created_at DESC
+      LIMIT ? OFFSET ?
+    `;
+
+    const offset = (page - 1) * pageSize;
+    params.push(parseInt(pageSize), parseInt(offset));
+
+    const demands = await pool.query(query, params);
+
+    // 转换字段名为驼峰命名
+    const result = demands.map(d => ({
+      id: d.id,
+      mrpCode: d.mrp_code,
+      sourceNo: d.source_no,
+      materialCode: d.material_code,
+      materialName: d.material_name,
+      materialUnit: d.material_unit,
+      sourceType: d.source_type,
+      demandQty: parseFloat(d.demand_qty || 0),
+      requiredDate: d.required_date,
+      currentStock: parseFloat(d.current_stock || 0),
+      inTransitStock: parseFloat(d.in_transit_stock || 0),
+      inProductionStock: parseFloat(d.in_production_stock || 0),
+      productionReservedStock: parseFloat(d.production_reserved_stock || 0),
+      toBeShippedStock: parseFloat(d.to_be_shipped_stock || 0),
+      suggestedQty: parseFloat(d.suggested_qty || 0),
+      adjustedQty: parseFloat(d.adjusted_qty || 0),
+      executeQty: parseFloat(d.execute_qty || 0),
+      createdAt: d.created_at,
+      updatedAt: d.updated_at
+    }));
+
+    res.json({
+      code: 200,
+      data: {
+        list: result,
+        total: result.length
+      },
+      message: '查询成功'
+    });
+
+  } catch (error) {
+    console.error('查询物料需求明细失败:', error);
+    res.status(500).json({
+      code: 500,
+      message: `查询失败: ${error.message}`
     });
   }
 });

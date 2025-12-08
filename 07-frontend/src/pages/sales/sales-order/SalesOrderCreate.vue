@@ -299,6 +299,11 @@
                     <el-input v-model="row.productName" size="small" disabled />
                   </template>
                 </el-table-column>
+                <el-table-column label="产出工序" width="120">
+                  <template #default="{ row }">
+                    <el-input v-model="row.outputProcess" size="small" disabled />
+                  </template>
+                </el-table-column>
                 <el-table-column label="产品规格" width="150">
                   <template #default="{ row }">
                     <el-input v-model="row.productSpec" size="small" disabled />
@@ -569,6 +574,7 @@ import {
 } from '@element-plus/icons-vue'
 import { customerApi } from '@/api/customer'
 import { salesOrderApi } from '@/api/salesOrder'
+import productManualAPI from '@/api/productManual'
 
 // 接收props - 支持编辑模式
 const props = defineProps({
@@ -677,7 +683,8 @@ const formData = reactive({
     orderQuantity: 1,
     unitPriceExcludingTax: 0,
     taxRate: 13,
-    accessories: []
+    accessories: [],
+    outputProcess: ''
   }]
 })
 
@@ -855,7 +862,8 @@ watch(
               orderQuantity: p.order_quantity || 0,
               unitPriceExcludingTax: p.unit_price_excluding_tax || 0,
               taxRate: p.tax_rate || 13,
-              accessories: []
+              accessories: [],
+              outputProcess: p.output_process || ''
             }))
             console.log('✅ 产品明细加载成功:', formData.products.length, '个产品')
           } else {
@@ -869,7 +877,8 @@ watch(
               orderQuantity: 1,
               unitPriceExcludingTax: 0,
               taxRate: 13,
-              accessories: []
+              accessories: [],
+              outputProcess: ''
             }]
           }
           
@@ -934,12 +943,13 @@ const addProduct = () => {
     orderQuantity: 1,
     unitPriceExcludingTax: 0,
     taxRate: formData.taxRate || 13,
-    accessories: []
+    accessories: [],
+    outputProcess: ''
   })
 }
 
 // 产品选择事件（lookup逻辑）
-const handleProductSelect = (row, index) => {
+const handleProductSelect = async (row, index) => {
   const selectedProduct = productManualList.value.find(p => p.productCode === row.productCode)
   if (selectedProduct) {
     // 自动填充产品信息
@@ -948,6 +958,72 @@ const handleProductSelect = (row, index) => {
     row.productColor = selectedProduct.productColor || ''
     row.productUnit = selectedProduct.unit || '个'
     row.unitPriceExcludingTax = selectedProduct.unitPriceExcludingTax || 0
+    
+    // 🔍 Lookup产出工序：从产品手册获取
+    await lookupOutputProcess(row)
+  }
+}
+
+// Lookup产出工序从产品手册
+const lookupOutputProcess = async (row) => {
+  if (!row.productCode) {
+    row.outputProcess = ''
+    return
+  }
+  
+  try {
+    console.log('🔍 开始lookup产出工序, 产品编码:', row.productCode)
+    
+    // 从产品手册API获取数据
+    const response = await productManualAPI.getAll()
+    console.log('📦 产品手册API响应:', response)
+    
+    // 处理不同的响应格式
+    let productList = []
+    if (response.success && response.data) {
+      productList = response.data
+    } else if (Array.isArray(response)) {
+      productList = response
+    } else if (response.data && Array.isArray(response.data)) {
+      productList = response.data
+    }
+    
+    console.log('📋 产品手册列表:', productList.length, '条')
+    
+    if (productList.length > 0) {
+      // 查找匹配的产品（支持多种字段名格式）
+      const matchedProduct = productList.find(p => {
+        const code = p.product_code || p.productCode || p.code
+        return code === row.productCode
+      })
+      
+      console.log('🔎 查找产品编码:', row.productCode, '匹配结果:', matchedProduct)
+      
+      if (matchedProduct) {
+        // 产出工序名称字段可能是output_process_name或outputProcessName
+        const outputProcessName = matchedProduct.output_process_name || 
+                                  matchedProduct.outputProcessName || 
+                                  matchedProduct.output_process || 
+                                  matchedProduct.process_name || ''
+        row.outputProcess = outputProcessName
+        
+        console.log('✅ Lookup成功:', {
+          productCode: row.productCode,
+          outputProcess: outputProcessName,
+          matchedProduct: matchedProduct
+        })
+      } else {
+        console.log('⚠️ 未找到匹配的产品:', row.productCode)
+        console.log('可用的产品编码:', productList.map(p => p.product_code || p.productCode || p.code))
+        row.outputProcess = ''
+      }
+    } else {
+      console.log('⚠️ 产品手册数据为空或格式不正确')
+      row.outputProcess = ''
+    }
+  } catch (error) {
+    console.error('❌ Lookup产出工序失败:', error)
+    row.outputProcess = ''
   }
 }
 
@@ -1144,8 +1220,21 @@ const saveOrderData = async (closeAfterSave = false) => {
     // 状态
     status: closeAfterSave ? 'pending' : 'draft',
     
-    // 产品列表
-    products: formData.products.filter(p => p.productCode),
+    // 产品列表（⚠️ 重要：必须包含outputProcess字段）
+    products: formData.products
+      .filter(p => p.productCode)
+      .map(p => ({
+        productCode: p.productCode,
+        productName: p.productName,
+        productSpec: p.productSpec,
+        productColor: p.productColor,
+        productUnit: p.productUnit,
+        orderQuantity: p.orderQuantity,
+        unitPriceExcludingTax: p.unitPriceExcludingTax,
+        taxRate: p.taxRate,
+        accessories: p.accessories,
+        outputProcess: p.outputProcess || ''  // ✅ 关键：保存产出工序
+      })),
     
     // 回款计划
     paymentSchedule: formData.paymentSchedule,

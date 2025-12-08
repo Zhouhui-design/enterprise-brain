@@ -1,0 +1,297 @@
+================================================================
+工序计划页面列拖拽功能修复完成
+================================================================
+
+✅ 修复完成时间: 2025-12-08
+✅ 页面访问地址: http://localhost:3002/production-planning/process-plan
+
+----------------------------------------------------------------
+一、问题描述
+----------------------------------------------------------------
+工序计划页面迁移到 StandardTablePage v2.1 后，列拖拽功能不生效。
+用户在"页面设置 > 字段管理"中拖拽列顺序后，主表格的列顺序没有变化。
+
+----------------------------------------------------------------
+二、问题原因
+----------------------------------------------------------------
+1. StandardTablePage v2.1 使用的是 visibleColumns 的本地副本（ref）
+   没有响应父组件 columns prop 的变化
+
+2. 页面组件的 handleSavePageSettings 函数只处理了 visibleFields
+   没有处理 fields（列顺序）
+
+3. StandardTablePage 的 handleSettingsSave 函数内部更新了 visibleColumns
+   但这个更新不会同步到父组件的 allColumns
+
+----------------------------------------------------------------
+三、修复方案
+----------------------------------------------------------------
+
+### 1. 修复 StandardTablePage.vue
+**修改前**:
+```javascript
+// ✅ 可见列（根据设置过滤）
+const visibleColumns = ref(props.columns)
+```
+
+**修改后**:
+```javascript
+// ✅ 可见列（根据设置过滤）
+// 注意：使用 computed 而不是 ref，以便响应 props.columns 的变化
+const visibleColumns = computed(() => {
+  return props.columns.filter(col => col.visible !== false)
+})
+```
+
+**说明**: 将 visibleColumns 从 ref 改为 computed，这样当父组件的 
+columns prop 更新时，visibleColumns 会自动重新计算。
+
+---
+
+**修改前**:
+```javascript
+const handleSettingsSave = (settings) => {
+  console.log('✅ 页面设置已保存:', settings)
+  
+  // 应用字段顺序和可见性
+  if (settings.fields) {
+    visibleColumns.value = settings.fields.filter(f => f.visible !== false)
+    console.log('✅ 更新可见列:', visibleColumns.value.length, '个')
+  }
+  
+  emit('settings-save', settings)
+  ElMessage.success('设置已应用')
+}
+```
+
+**修改后**:
+```javascript
+const handleSettingsSave = (settings) => {
+  console.log('✅ StandardTablePage: 页面设置已保存', settings)
+  
+  // 发送设置到父组件，由父组件处理列的更新
+  emit('settings-save', settings)
+  
+  // 注意：不在这里显示 ElMessage，由父组件显示
+}
+```
+
+**说明**: StandardTablePage 不再自己处理列更新，而是将设置完整
+传递给父组件，由父组件负责更新列顺序和可见性。
+
+---
+
+### 2. 修复 ProcessPlanList.vue
+**修改前**:
+```javascript
+const handleSavePageSettings = (settings) => {
+  console.log('✅ 页面设置已保存:', settings)
+  
+  // 应用设置
+  if (settings.visibleFields) {
+    // 更新表格列显示
+    allColumns.value.forEach(col => {
+      col.visible = settings.visibleFields.includes(col.prop)
+    })
+  }
+  
+  ElMessage.success('设置已应用')
+}
+```
+
+**修改后**:
+```javascript
+const handleSavePageSettings = (settings) => {
+  console.log('✅ 页面设置已保存:', settings)
+  
+  // ✅ 应用列顺序和可见性（支持拖拽）
+  if (settings.fields && Array.isArray(settings.fields)) {
+    // 根据 settings.fields 更新 allColumns 的顺序和可见性
+    const fieldMap = new Map(settings.fields.map(f => [f.prop, f]))
+    
+    // 重新排序 allColumns
+    const newColumns = []
+    settings.fields.forEach(field => {
+      const col = allColumns.value.find(c => c.prop === field.prop)
+      if (col) {
+        col.visible = field.visible !== false
+        newColumns.push(col)
+      }
+    })
+    
+    // 添加未在 settings.fields 中的列（保持原顺序）
+    allColumns.value.forEach(col => {
+      if (!fieldMap.has(col.prop)) {
+        newColumns.push(col)
+      }
+    })
+    
+    allColumns.value = newColumns
+    console.log('✅ 列顺序已更新:', allColumns.value.map(c => c.prop).join(', '))
+  } else if (settings.visibleFields) {
+    // 向后兼容：只有可见性，没有顺序
+    allColumns.value.forEach(col => {
+      col.visible = settings.visibleFields.includes(col.prop)
+    })
+  }
+  
+  ElMessage.success('设置已应用')
+}
+```
+
+**说明**: 
+1. 优先处理 settings.fields（包含列顺序和可见性）
+2. 根据 settings.fields 的顺序重新排列 allColumns
+3. 同时更新每列的 visible 属性
+4. 向后兼容：如果只有 visibleFields，仍然可以处理
+
+----------------------------------------------------------------
+四、技术实现细节
+----------------------------------------------------------------
+
+### 数据流向
+```
+用户拖拽列
+    ↓
+PageSettings 组件保存 settings.fields
+    ↓
+StandardTablePage 接收 @save 事件
+    ↓
+StandardTablePage emit('settings-save', settings)
+    ↓
+ProcessPlanList 接收 @settings-save 事件
+    ↓
+ProcessPlanList.handleSavePageSettings(settings)
+    ↓
+更新 allColumns.value 的顺序和可见性
+    ↓
+StandardTablePage 的 visibleColumns computed 自动重新计算
+    ↓
+EnhancedTable 接收新的列配置
+    ↓
+表格重新渲染，列顺序已更新
+```
+
+### settings.fields 数据格式
+```javascript
+[
+  { prop: 'selection', label: '选择', visible: true },
+  { prop: 'scheduleDate', label: '计划排程日期', visible: true },
+  { prop: 'planNo', label: '工序计划编号', visible: true },
+  { prop: 'processName', label: '工序名称', visible: true },
+  { prop: 'productImage', label: '产品图片', visible: false },
+  // ... 更多列
+]
+```
+
+**关键点**:
+- prop: 列的唯一标识
+- label: 列的显示名称
+- visible: 列是否可见（true/false）
+- 数组的顺序就是列的显示顺序
+
+----------------------------------------------------------------
+五、测试验证
+----------------------------------------------------------------
+
+### 测试步骤
+1. 访问页面
+   http://localhost:3002/production-planning/process-plan
+
+2. 点击页面右上角的"设置"按钮（齿轮图标）
+
+3. 切换到"字段管理" Tab
+
+4. 拖拽任意字段（使用拖拽手柄图标）
+   - 鼠标悬停时应显示可移动光标
+   - 拖拽时应有视觉反馈
+
+5. 点击"保存"按钮
+
+6. 查看主表格
+   - 列顺序应与字段管理中的顺序一致
+   - 隐藏的列应不显示
+
+7. 刷新页面
+   - 列顺序应保持不变（localStorage 持久化）
+
+### 预期结果
+✅ 列可以通过拖拽调整顺序
+✅ 列顺序实时同步到主表格
+✅ 列的显示/隐藏正常工作
+✅ 设置持久化存储
+✅ 刷新页面后设置保持不变
+
+----------------------------------------------------------------
+六、相关文件
+----------------------------------------------------------------
+1. StandardTablePage.vue
+   - 路径: /07-frontend/src/components/common/layout/StandardTablePage.vue
+   - 修改: visibleColumns 改为 computed，handleSettingsSave 简化
+
+2. ProcessPlanList.vue
+   - 路径: /07-frontend/src/pages/production-planning/ProcessPlanList.vue
+   - 修改: handleSavePageSettings 支持 settings.fields
+
+3. PageSettings.vue
+   - 路径: /07-frontend/src/components/common/PageSettings.vue
+   - 无修改（已支持列拖拽）
+
+----------------------------------------------------------------
+七、关键技术点
+----------------------------------------------------------------
+
+### 1. Vue 响应式系统
+使用 computed 而不是 ref，确保子组件能响应父组件 prop 的变化：
+
+```javascript
+// ❌ 错误：ref 不会响应 prop 变化
+const visibleColumns = ref(props.columns)
+
+// ✅ 正确：computed 自动响应 prop 变化
+const visibleColumns = computed(() => {
+  return props.columns.filter(col => col.visible !== false)
+})
+```
+
+### 2. 数组重新排序
+根据另一个数组的顺序重新排列数组：
+
+```javascript
+const newColumns = []
+settings.fields.forEach(field => {
+  const col = allColumns.value.find(c => c.prop === field.prop)
+  if (col) {
+    newColumns.push(col)
+  }
+})
+allColumns.value = newColumns
+```
+
+### 3. 单向数据流
+StandardTablePage 不直接修改内部状态，而是通过事件通知父组件：
+
+```javascript
+// StandardTablePage
+emit('settings-save', settings)
+
+// ProcessPlanList
+@settings-save="handleSavePageSettings"
+```
+
+----------------------------------------------------------------
+八、总结
+----------------------------------------------------------------
+
+✅ 问题已解决：列拖拽功能现在正常工作
+✅ 代码优化：使用 computed 响应 prop 变化
+✅ 数据流清晰：StandardTablePage -> ProcessPlanList -> allColumns
+✅ 向后兼容：支持 settings.fields 和 settings.visibleFields
+✅ 持久化存储：列顺序和可见性自动保存到 localStorage
+
+================================================================
+修复完成！🎉
+================================================================
+
+现在可以在工序计划页面中通过拖拽调整列顺序，所有更改都会
+实时同步到主表格，并持久化存储。

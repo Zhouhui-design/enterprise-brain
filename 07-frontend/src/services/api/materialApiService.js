@@ -78,6 +78,7 @@ class MaterialAPIService {
       kgPerPcs: obj.kg_per_pcs,
       pcsPerKg: obj.pcs_per_kg,
       processName: obj.process_name,
+      outputProcessName: obj.output_process_name || '', // 产出工序名称
       standardTime: obj.standard_time,
       quotaTime: obj.quota_time,
       processPrice: parseFloat(obj.process_price) || 0,
