@@ -1,496 +1,166 @@
-http://localhost:3002/bom/production 生产BOM 页面
-进入浏览器页面，页面提示：
-加载物料数据失败: Request failed with status code 500
+这个错误是因为您尝试在浏览器控制台重新声明 `handleAdd` 常量。让我提供正确的调试方法：
 
-控制台输出结果：
-API请求失败: 
-Object { message: "Request failed with status code 500", name: "AxiosError", code: "ERR_BAD_RESPONSE", config: {…}, request: XMLHttpRequest, response: {…}, status: 500, stack: "", … }
-material.js:37:13
-    <anonymous> http://localhost:3002/src/api/material.js:37
-获取物料列表失败: 
-Object { message: "Request failed with status code 500", name: "AxiosError", code: "ERR_BAD_RESPONSE", config: {…}, request: XMLHttpRequest, response: {…}, status: 500, stack: "", … }
-materialApiService.js:24:15
-    getAllMaterials http://localhost:3002/src/services/api/materialApiService.js:24
-加载物料数据失败: 
-Object { message: "Request failed with status code 500", name: "AxiosError", code: "ERR_BAD_RESPONSE", config: {…}, request: XMLHttpRequest, response: {…}, status: 500, stack: "", … }
-ProductionBom.vue:3047:13
-    setup ProductionBom.vue:3047
-解析 'right' 的值时出错。  声明被丢弃。 3 production:1:1
-解析 'left' 的值时出错。  声明被丢弃。 production:1:1
-数据库初始化成功 DatabaseService.js:30:17
-生产BOM API请求失败: 
-Object { message: "Request failed with status code 500", name: "AxiosError", code: "ERR_BAD_RESPONSE", config: {…}, request: XMLHttpRequest, response: {…}, status: 500, stack: "", … }
+## 正确的调试方法
 
+### 方法一：直接调用现有函数（推荐）
 
-后端API接口返回500服务器内部错误
+在浏览器控制台中执行：
 
+```javascript
+// 1. 检查组件实例
+console.log('组件实例:', $vm0) // 或 window.vm
 
-项目只有前端，没有后端目录。3005端口运行的是另一个独立的服务。
+// 2. 直接调用 handleAdd 方法
+$vm0.handleAdd() // 如果 $vm0 可用
 
+// 3. 或者通过 Vue Devtools
+// - 打开 Vue Devtools
+// - 找到 ProcessPlanList 组件
+// - 在控制台输入 $vm 来引用当前选中的组件
+```
 
-当前情况分析：
+### 方法二：修改源代码并重新加载
 
-    只有前端目录：/home/sardenesy/ai_workspaces/ai_desktop_3/07-frontend/
+在您的 `ProcessPlanList.vue` 文件中直接修改代码：
 
-    后端独立运行：在3005端口监听
-
-    前后端分离：前端通过Vite代理到后端
-
-解决方案：
-步骤1：创建后端路由文件
-
-在前端项目中创建后端路由：/home/sardenesy/ai_workspaces/ai_desktop_3/07-frontend/src/server/index.js
-
-# 创建后端目录
-mkdir -p /home/sardenesy/ai_workspaces/ai_desktop_3/07-frontend/server
-cd /home/sardenesy/ai_workspaces/ai_desktop_3/07-frontend/server
-
-# 创建服务器主文件
-cat > server.js << 'EOF'
-const express = require('express');
-const cors = require('cors');
-const mysql = require('mysql2/promise');
-
-const app = express();
-
-// 中间件
-app.use(cors());
-app.use(express.json());
-
-// 数据库配置
-const dbConfig = {
-  host: 'localhost',
-  port: 3306,
-  user: 'root',
-  password: 'zH754277289hUi~197547',
-  database: 'enterprise_brain',
-  charset: 'utf8mb4',
-  waitForConnections: true,
-  connectionLimit: 10,
-  queueLimit: 0
-};
-
-// 创建连接池
-const pool = mysql.createPool(dbConfig);
-
-// 测试数据库连接
-pool.getConnection()
-  .then(connection => {
-    console.log('✅ MySQL数据库连接成功');
-    connection.release();
+```javascript
+// 修改 handleAdd 函数
+const handleAdd = () => {
+  console.log('=== handleAdd 被调用 ===')
+  console.log('formData.value 初始值:', JSON.parse(JSON.stringify(formData.value)))
+  
+  isEdit.value = false
+  formData.value = {
+    planNo: generatePlanNo(),
+    scheduleDate: new Date(),
+    scheduleQuantity: 0,
+    scheduledWorkHours: 0,
+    standardWorkHours: 0,
+    replenishmentQty: 500,  // ✅ 设置测试值
+    standardWorkQuota: 6,   // ✅ 设置测试值
+    requiredWorkHours: 0
+  }
+  dialogVisible.value = true
+  
+  // 立即测试计算
+  console.log('设置后的 formData:', JSON.parse(JSON.stringify(formData.value)))
+  
+  // 测试计算
+  const testReplenishmentQty = formData.value.replenishmentQty
+  const testStandardWorkQuota = formData.value.standardWorkQuota
+  if (testReplenishmentQty > 0 && testStandardWorkQuota > 0) {
+    const calculated = testReplenishmentQty / testStandardWorkQuota
+    const result = parseFloat(calculated.toFixed(2))
+    console.log(`✅ 手动计算: ${testReplenishmentQty} / ${testStandardWorkQuota} = ${result}`)
+  }
+  
+  // 触发计算函数
+  nextTick(() => {
+    console.log('nextTick 中调用 calculateRequiredWorkHours')
+    calculateRequiredWorkHours()
   })
-  .catch(err => {
-    console.error('❌ MySQL数据库连接失败:', err.message);
-    process.exit(1);
-  });
+}
+```
 
-// ====================
-// 物料API路由
-// ====================
-app.get('/api/materials/list', async (req, res) => {
-  try {
-    const sql = 'SELECT * FROM materials ORDER BY created_at DESC';
-    const results = await pool.query(sql);
-    res.json({
-      code: 200,
-      data: results,
-      message: '获取成功'
-    });
-  } catch (error) {
-    console.error('获取物料列表失败:', error);
-    res.status(500).json({
-      code: 500,
-      message: `获取失败: ${error.message}`
-    });
-  }
-});
+### 方法三：在控制台测试计算逻辑
 
-app.get('/api/materials/search', async (req, res) => {
-  try {
-    const { keyword } = req.query;
-    let sql = 'SELECT * FROM materials WHERE 1=1';
-    const params = [];
-    
-    if (keyword) {
-      sql += ' AND (material_code LIKE ? OR material_name LIKE ?)';
-      params.push(`%${keyword}%`, `%${keyword}%`);
-    }
-    
-    sql += ' ORDER BY created_at DESC';
-    const results = await pool.query(sql, params);
-    
-    res.json({
-      code: 200,
-      data: results,
-      message: '搜索成功'
-    });
-  } catch (error) {
-    console.error('搜索物料失败:', error);
-    res.status(500).json({
-      code: 500,
-      message: `搜索失败: ${error.message}`
-    });
-  }
-});
-
-// ====================
-// 生产BOM API路由
-// ====================
-app.get('/api/production-boms/list', async (req, res) => {
-  try {
-    const sql = 'SELECT * FROM production_boms ORDER BY created_at DESC';
-    const results = await pool.query(sql);
-    res.json({
-      code: 200,
-      data: results,
-      message: '获取成功'
-    });
-  } catch (error) {
-    console.error('获取生产BOM列表失败:', error);
-    res.status(500).json({
-      code: 500,
-      message: `获取失败: ${error.message}`
-    });
-  }
-});
-
-app.get('/api/production-boms/detail/:id', async (req, res) => {
-  try {
-    const { id } = req.params;
-    
-    // 获取BOM基本信息
-    const [bomResults] = await pool.query('SELECT * FROM production_boms WHERE id = ?', [id]);
-    
-    if (bomResults.length === 0) {
-      return res.status(404).json({
-        code: 404,
-        message: 'BOM不存在'
-      });
-    }
-    
-    // 获取子件信息
-    const [childResults] = await pool.query(
-      'SELECT * FROM bom_components WHERE bom_id = ? ORDER BY sequence',
-      [id]
-    );
-    
-    const bomDetail = {
-      ...bomResults[0],
-      childItems: childResults
-    };
-    
-    res.json({
-      code: 200,
-      data: bomDetail,
-      message: '获取成功'
-    });
-  } catch (error) {
-    console.error('获取BOM详情失败:', error);
-    res.status(500).json({
-      code: 500,
-      message: `获取失败: ${error.message}`
-    });
-  }
-});
-
-app.post('/api/production-boms/create', async (req, res) => {
-  try {
-    const bomData = req.body;
-    
-    // 插入BOM基本信息
-    const [result] = await pool.query(
-      `INSERT INTO production_boms 
-      (bom_code, bom_name, product_code, product_name, version, status, 
-       designer, material_count, remark, auditor, effective_date, 
-       total_labor, total_material, product_image, is_pushed_to_manual)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      [
-        bomData.bomCode,
-        bomData.bomName,
-        bomData.productCode,
-        bomData.productName,
-        bomData.version || 'V1.0',
-        bomData.status || 'draft',
-        bomData.designer || '',
-        bomData.itemCount || 1,
-        bomData.remark || '',
-        bomData.reviewer || '',
-        bomData.effectiveDate || null,
-        bomData.totalLabor || 0,
-        bomData.totalMaterial || 0,
-        bomData.productImage || '',
-        bomData.isPushedToManual || 0
-      ]
-    );
-    
-    const bomId = result.insertId;
-    
-    // 插入子件信息
-    if (bomData.childItems && bomData.childItems.length > 0) {
-      for (const [index, child] of bomData.childItems.entries()) {
-        await pool.query(
-          `INSERT INTO bom_components 
-          (bom_id, sequence, level, component_code, component_name, 
-           standard_quantity, output_process, component_source,
-           process_wage, material_loss, material_price, material_cost)
-          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-          [
-            bomId,
-            index + 1,
-            child.level || 1,
-            child.childCode,
-            child.childName,
-            child.standardQty || 1,
-            child.outputProcess || '',
-            child.source || '',
-            child.processWage || 0,
-            child.materialLoss || 0,
-            child.materialPrice || 0,
-            child.materialCost || 0
-          ]
-        );
-      }
-    }
-    
-    res.json({
-      code: 200,
-      data: { id: bomId },
-      message: '创建成功'
-    });
-  } catch (error) {
-    console.error('创建BOM失败:', error);
-    res.status(500).json({
-      code: 500,
-      message: `创建失败: ${error.message}`
-    });
-  }
-});
-
-// 404处理
-app.use('/api/*', (req, res) => {
-  res.status(404).json({
-    code: 404,
-    message: 'Endpoint not found'
-  });
-});
-
-// 错误处理
-app.use((err, req, res, next) => {
-  console.error('服务器错误:', err);
-  res.status(500).json({
-    code: 500,
-    message: '服务器内部错误'
-  });
-});
-
-const PORT = 3005;
-app.listen(PORT, () => {
-  console.log(`🚀 企业大脑后端服务运行在 http://localhost:${PORT}`);
-  console.log(`📡 API地址: http://localhost:${PORT}/api`);
-});
-EOF
-
-# 创建package.json
-cat > package.json << 'EOF'
-{
-  "name": "enterprise-brain-server",
-  "version": "1.0.0",
-  "description": "企业大脑后端服务",
-  "main": "server.js",
-  "scripts": {
-    "start": "node server.js",
-    "dev": "nodemon server.js"
-  },
-  "dependencies": {
-    "express": "^4.18.2",
-    "cors": "^2.8.5",
-    "mysql2": "^3.6.1"
-  },
-  "devDependencies": {
-    "nodemon": "^3.0.1"
+```javascript
+// 在浏览器控制台测试计算逻辑（不修改代码）
+function testCalculation(replenishmentQty, standardWorkQuota) {
+  console.log('=== 测试需求工时计算 ===')
+  console.log('输入参数:', { replenishmentQty, standardWorkQuota })
+  
+  if (replenishmentQty > 0 && standardWorkQuota > 0) {
+    const calculated = replenishmentQty / standardWorkQuota
+    const result = parseFloat(calculated.toFixed(2))
+    console.log(`✅ 计算结果: ${replenishmentQty} / ${standardWorkQuota} = ${result}`)
+    return result
+  } else {
+    console.log(`❌ 计算条件不满足: ${replenishmentQty} > 0 && ${standardWorkQuota} > 0`)
+    return 0
   }
 }
-EOF
 
+// 执行测试
+testCalculation(500, 6)  // 应该输出 83.33
+testCalculation(0, 6)    // 应该输出 0
+testCalculation(500, 0)  // 应该输出 0
+```
 
-步骤2：安装后端依赖并启动
+### 方法四：检查组件中的数据
 
+```javascript
+// 在控制台获取组件实例数据
+// 1. 通过 Vue Devtools 选中组件，然后在控制台输入：
+//    $vm0 或 $vm
 
-# 进入后端目录
-cd /home/sardenesy/ai_workspaces/ai_desktop_3/07-frontend/server
-
-# 安装依赖
-npm install
-
-# 启动后端服务
-npm start
-
-步骤3：修复前端Vite配置
-
-cd /home/sardenesy/ai_workspaces/ai_desktop_3/07-frontend
-cat > vite.config.js << 'EOF'
-import { defineConfig } from 'vite'
-import vue from '@vitejs/plugin-vue'
-import path from 'path'
-
-// https://vitejs.dev/config/
-export default defineConfig({
-  plugins: [vue()],
-  resolve: {
-    alias: {
-      '@': path.resolve(__dirname, 'src'),
-    },
-  },
-  server: {
-    port: 3002, // 前端端口
-    host: '0.0.0.0', // 允许局域网访问
-    proxy: {
-      '/api': {
-        target: 'http://localhost:3005', // 后端地址
-        changeOrigin: true,
-        rewrite: (path) => path.replace(/^\/api/, '/api')
+// 2. 或者通过事件监听
+document.addEventListener('click', function(e) {
+  if (e.target.closest('.el-button--primary')) {
+    console.log('点击了新增按钮')
+    // 等对话框打开后，检查表单数据
+    setTimeout(() => {
+      const form = document.querySelector('.el-form')
+      if (form) {
+        console.log('表单已打开')
+        // 获取数据
+        const inputs = form.querySelectorAll('input')
+        inputs.forEach(input => {
+          console.log(`${input.previousElementSibling?.textContent}:`, input.value)
+        })
       }
-    }
+    }, 500)
   }
 })
-EOF
+```
 
-步骤4：创建完整的后端API文件
+## 快速诊断步骤
 
-为了确保所有API都可用，创建一个完整的API集合：
+1. **先测试计算逻辑是否正确**：
+   ```javascript
+   // 在控制台执行
+   (500 / 6).toFixed(2)  // 应该返回 "83.33"
+   parseFloat((500 / 6).toFixed(2))  // 应该返回 83.33
+   ```
 
+2. **检查表单是否打开**：
+   ```javascript
+   // 点击新增按钮后，在控制台执行
+   document.querySelectorAll('.el-dialog').length  // 应该 > 0
+   document.querySelector('[placeholder="请输入"]')  // 检查输入框
+   ```
 
-# 创建API目录
-mkdir -p /home/sardenesy/ai_workspaces/ai_desktop_3/07-frontend/server/routes
+3. **检查表单数据绑定**：
+   ```javascript
+   // 找到组件实例后检查
+   console.log('formData:', JSON.parse(JSON.stringify($vm0.formData)))
+   console.log('replenishmentQty:', $vm0.formData.replenishmentQty)
+   console.log('standardWorkQuota:', $vm0.formData.standardWorkQuota)
+   console.log('requiredWorkHours:', $vm0.formData.requiredWorkHours)
+   ```
 
-# 创建物料路由
-cat > /home/sardenesy/ai_workspaces/ai_desktop_3/07-frontend/server/routes/material.js << 'EOF'
-const express = require('express');
-const router = express.Router();
-const { pool } = require('../config/database');
+## 如果无法访问组件实例
 
-// 获取所有物料
-router.get('/list', async (req, res) => {
-  try {
-    const sql = 'SELECT * FROM materials ORDER BY created_at DESC';
-    const [results] = await pool.execute(sql);
-    res.json({
-      code: 200,
-      data: results,
-      message: '获取成功'
-    });
-  } catch (error) {
-    console.error('获取物料列表失败:', error);
-    res.status(500).json({
-      code: 500,
-      message: `获取失败: ${error.message}`
-    });
-  }
-});
+在 `ProcessPlanList.vue` 中添加全局访问：
 
-// 搜索物料
-router.get('/search', async (req, res) => {
-  try {
-    const { keyword } = req.query;
-    let sql = 'SELECT * FROM materials WHERE 1=1';
-    const params = [];
-    
-    if (keyword) {
-      sql += ' AND (material_code LIKE ? OR material_name LIKE ?)';
-      params.push(`%${keyword}%`, `%${keyword}%`);
-    }
-    
-    sql += ' ORDER BY created_at DESC';
-    const [results] = await pool.execute(sql, params);
-    
-    res.json({
-      code: 200,
-      data: results,
-      message: '搜索成功'
-    });
-  } catch (error) {
-    console.error('搜索物料失败:', error);
-    res.status(500).json({
-      code: 500,
-      message: `搜索失败: ${error.message}`
-    });
-  }
-});
+```javascript
+// 在 script setup 最后添加
+import { getCurrentInstance, onMounted } from 'vue'
 
-// 创建物料
-router.post('/create', async (req, res) => {
-  try {
-    const materialData = req.body;
-    
-    const sql = `
-      INSERT INTO materials 
-      (material_code, material_name, process_name, base_price, material_image)
-      VALUES (?, ?, ?, ?, ?)
-    `;
-    
-    const [result] = await pool.execute(sql, [
-      materialData.materialCode,
-      materialData.materialName,
-      materialData.processName || '',
-      materialData.basePrice || 0,
-      materialData.materialImage || ''
-    ]);
-    
-    res.json({
-      code: 200,
-      data: { id: result.insertId },
-      message: '创建成功'
-    });
-  } catch (error) {
-    console.error('创建物料失败:', error);
-    res.status(500).json({
-      code: 500,
-      message: `创建失败: ${error.message}`
-    });
-  }
-});
+// 将组件实例挂载到 window 方便调试
+onMounted(() => {
+  const instance = getCurrentInstance()
+  window.processPlanList = instance.proxy
+  console.log('✅ 组件实例已挂载到 window.processPlanList')
+})
+```
 
-module.exports = router;
-EOF
+然后在浏览器控制台：
+```javascript
+// 可以直接访问
+window.processPlanList.handleAdd()  // 触发新增
+window.processPlanList.formData  // 查看表单数据
+window.processPlanList.calculateRequiredWorkHours()  // 手动计算
+```
 
-# 创建数据库配置
-cat > /home/sardenesy/ai_workspaces/ai_desktop_3/07-frontend/server/config/database.js << 'EOF'
-const mysql = require('mysql2/promise');
-
-const dbConfig = {
-  host: 'localhost',
-  port: 3306,
-  user: 'root',
-  password: 'zH754277289hUi~197547',
-  database: 'enterprise_brain',
-  charset: 'utf8mb4',
-  waitForConnections: true,
-  connectionLimit: 10,
-  queueLimit: 0
-};
-
-const pool = mysql.createPool(dbConfig);
-
-// 测试连接
-pool.getConnection()
-  .then(connection => {
-    console.log('✅ MySQL数据库连接成功');
-    connection.release();
-  })
-  .catch(err => {
-    console.error('❌ MySQL数据库连接失败:', err.message);
-    process.exit(1);
-  });
-
-module.exports = { pool };
-EOF
-
-步骤5：启动服务并测试
-
-# 在第一个终端启动后端
-cd /home/sardenesy/ai_workspaces/ai_desktop_3/07-frontend/server
-npm start
-
-# 在第二个终端启动前端
-cd /home/sardenesy/ai_workspaces/ai_desktop_3/07-frontend
-npm run dev
+请先尝试**方法三**在控制台测试计算逻辑是否正确，如果计算逻辑正确，那么问题很可能在于数据绑定或触发时机。

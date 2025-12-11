@@ -34,7 +34,6 @@
         </el-button>
         <el-button @click="handleExport" :icon="Download">
           导出
->>>>>>> origin/develop
         </el-button>
       </div>
     </div>
@@ -1331,6 +1330,5 @@ onMounted(() => {
       }
     }
   }
->>>>>>> origin/develop
 }
 </style>

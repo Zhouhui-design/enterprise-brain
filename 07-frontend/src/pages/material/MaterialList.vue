@@ -27,6 +27,14 @@
           <el-icon><Refresh /></el-icon>
           刷新
         </el-button>
+        <el-button @click="showColumnControl = true">
+          <el-icon><Setting /></el-icon>
+          字段管理
+        </el-button>
+        <el-button @click="showPageSettings = true">
+          <el-icon><Tools /></el-icon>
+          页面设置
+        </el-button>
       </div>
     </div>
 
@@ -209,6 +217,40 @@
         <el-button type="primary" @click="handleImportConfirm">确定导入</el-button>
       </template>
     </el-dialog>
+
+    <!-- 字段管理对话框 -->
+    <el-dialog v-model="showColumnControl" title="字段管理" width="600px">
+      <div class="column-control-panel">
+        <div class="panel-header">
+          <span>拖拽调整字段顺序，勾选控制显示/隐藏</span>
+        </div>
+        <el-divider style="margin: 10px 0;" />
+        <el-checkbox-group v-model="visibleFields">
+          <div v-for="col in filterTableColumns" :key="col.prop" class="field-item">
+            <el-checkbox :label="col.prop">{{ col.label }}</el-checkbox>
+          </div>
+        </el-checkbox-group>
+      </div>
+      <template #footer>
+        <el-button @click="showColumnControl = false">取消</el-button>
+        <el-button type="primary" @click="handleSaveColumns">保存</el-button>
+      </template>
+    </el-dialog>
+
+    <!-- 页面设置对话框 -->
+    <PageSettings
+      v-model="showPageSettings"
+      settings-key="material-list"
+      :available-fields="filterTableColumns"
+      :show-workflow="false"
+      :show-menu="false"
+      :show-color="true"
+      :show-encoding="true"
+      :show-fields="true"
+      :show-print="true"
+      :show-export="true"
+      @save="handleSavePageSettings"
+    />
   </div>
 </template>
 
@@ -217,12 +259,13 @@ import { ref, computed, onMounted, watch } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { 
   Search, Plus, Upload, Download, Printer, Refresh, UploadFilled,
-  Box, CircleCheck, Warning
+  Box, CircleCheck, Warning, Setting, Tools
 } from '@element-plus/icons-vue'
 import * as XLSX from 'xlsx' // 静态导入XLSX库
 import FilterTable from '@/components/common/tables/FilterTable.vue'
 import MaterialEdit from './MaterialEdit.vue'
 import MaterialView from './MaterialView.vue'
+import PageSettings from '@/components/common/PageSettings.vue'
 // import databaseService from '@/services/DatabaseService.js' // 不再使用IndexedDB
 import materialApiService from '@/services/api/materialApiService' // 使用后端API服务
 
@@ -258,7 +301,16 @@ const filterTableColumns = ref([
   { prop: 'purchasePrice', label: '采购单价', width: 120, align: 'right', sortable: true, showCustom: true },
   { prop: 'baseUnit', label: '基础单位', width: 100, filterable: true },
   { prop: 'processName', label: '产出工序名称', width: 150, filterable: true },
-  { prop: 'createTime', label: '创建时间', width: 160, sortable: true, filterable: true }
+  { prop: 'standardTime', label: '定时工额', width: 120, align: 'right', sortable: true },
+  { prop: 'quotaTime', label: '定额工时', width: 120, align: 'right', sortable: true },
+  { prop: 'minimumPackagingQuantity', label: '最小包装量', width: 130, align: 'right', sortable: true, 
+    formatter: (row) => {
+      const value = row.minimumPackagingQuantity
+      return value !== null && value !== undefined ? value : 1
+    }
+  },  // ✅ 新增
+  { prop: 'createTime', label: '创建时间', width: 160, sortable: true, filterable: true },
+  { prop: 'operation', label: '操作', width: 200, fixed: 'right', showCustom: true }  // ✅ 添加操作列
 ])
 
 // 旧的表格列配置（保留用于导出等功能）
@@ -287,6 +339,7 @@ const tableColumns = ref([
   { prop: 'processName', label: '产出工序名称', width: 120 },
   { prop: 'standardTime', label: '定时工额', width: 80, align: 'right' },
   { prop: 'quotaTime', label: '定额工时', width: 80, align: 'right' },
+  { prop: 'minimumPackagingQuantity', label: '最小包装量', width: 100, align: 'right' },
   { prop: 'processPrice', label: '工序单价', width: 100, align: 'right' },
   { prop: 'purchaseCycle', label: '采购周期', width: 80 },
   { prop: 'purchasePrice', label: '采购单价', width: 100, align: 'right' },
@@ -305,6 +358,9 @@ const currentMaterial = ref(null)
 const isEdit = ref(false)
 const uploadFile = ref(null) // 存储上传的文件
 const currentMaterialIndex = ref(-1) // 当前编辑物料在表格中的索引
+const showColumnControl = ref(false) // 字段管理对话框
+const showPageSettings = ref(false) // 页面设置对话框
+const visibleFields = ref([]) // 可见字段
 
 // 统计数据
 const stats = ref({
@@ -816,6 +872,41 @@ const handleFilterChange = (filters) => {
   localStorage.setItem('materialFilters', JSON.stringify(filters))
 }
 
+// 保存字段设置
+const handleSaveColumns = () => {
+  try {
+    // 保存可见字段到localStorage
+    localStorage.setItem('material-list-visible-fields', JSON.stringify(visibleFields.value))
+    ElMessage.success('字段设置已保存')
+    showColumnControl.value = false
+    
+    // 重新加载数据以应用新的列配置
+    handleRefresh()
+  } catch (error) {
+    console.error('保存字段设置失败:', error)
+    ElMessage.error('保存失败')
+  }
+}
+
+// 保存页面设置
+const handleSavePageSettings = (settings) => {
+  try {
+    // PageSettings组件已经自动保存到localStorage
+    console.log('页面设置已保存:', settings)
+    ElMessage.success('页面设置已保存')
+    showPageSettings.value = false
+    
+    // 如果有字段更新，重新加载
+    if (settings.visibleFields) {
+      visibleFields.value = settings.visibleFields
+      handleRefresh()
+    }
+  } catch (error) {
+    console.error('保存页面设置失败:', error)
+    ElMessage.error('保存失败')
+  }
+}
+
 // 生命周期
 onMounted(async () => {
   try {
@@ -839,6 +930,15 @@ onMounted(async () => {
   updateTableHeight()
   window.addEventListener('resize', updateTableHeight)
   updateStats()
+  
+  // 初始化可见字段
+  const savedFields = localStorage.getItem('material-list-visible-fields')
+  if (savedFields) {
+    visibleFields.value = JSON.parse(savedFields)
+  } else {
+    // 默认显示所有字段
+    visibleFields.value = filterTableColumns.value.map(col => col.prop)
+  }
 })
 </script>
 
@@ -943,6 +1043,27 @@ onMounted(async () => {
   background: white;
   border-radius: 4px;
   box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+}
+
+/* 字段管理样式 */
+.column-control-panel {
+  max-height: 500px;
+  overflow-y: auto;
+}
+
+.column-control-panel .panel-header {
+  font-size: 14px;
+  color: #606266;
+  margin-bottom: 10px;
+}
+
+.column-control-panel .field-item {
+  padding: 8px 0;
+  border-bottom: 1px solid #f0f0f0;
+}
+
+.column-control-panel .field-item:last-child {
+  border-bottom: none;
 }
 
 /* 打印样式 */

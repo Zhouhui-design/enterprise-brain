@@ -491,23 +491,19 @@
             type="textarea"
             :rows="3"
             placeholder="请输入备注信息"
->>>>>>> origin/develop
           />
         </el-form-item>
       </el-form>
       <template #footer>
         <el-button @click="progressDialogVisible = false">取消</el-button>
-        <el-button type="primary" @click="handleSubmitProgress">提交</el-button>
         <el-button type="primary" @click="submitProgressUpdate" :loading="updating">
           提交
         </el-button>
->>>>>>> origin/develop
       </template>
     </el-dialog>
   </div>
 </template>
 
-<script setup lang="ts">
 import { ref, reactive, computed, onMounted } from 'vue'
 import { ArrowLeft, EditPen, Refresh, Download, Document, Timer, Check, TrendCharts } from '@element-plus/icons-vue'
 import type { FormInstance } from 'element-plus'
@@ -1009,7 +1005,6 @@ const handleUpdateProcessProgress = (process) => {
     laborHours: 0,
     equipmentHours: 0,
     remarks: ''
->>>>>>> origin/develop
   })
   progressDialogVisible.value = true
 }
@@ -1544,6 +1539,5 @@ onMounted(() => {
       }
     }
   }
->>>>>>> origin/develop
 }
 </style>

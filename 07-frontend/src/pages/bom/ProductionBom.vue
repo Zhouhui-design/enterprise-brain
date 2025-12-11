@@ -27,6 +27,10 @@
           <el-icon><DataAnalysis /></el-icon>
           查看BOM树信息
         </el-button>
+        <el-button type="primary" :disabled="!isSingleSelection" @click="handleGenerateListStyleBom">
+          <el-icon><List /></el-icon>
+          生成列表式BOM
+        </el-button>
         <el-button type="success" @click="handleImport">
           <el-icon><Upload /></el-icon>
           导入
@@ -891,7 +895,7 @@ import { useRouter } from 'vue-router'
 import { 
   Search, Plus, Upload, Download, Printer, Refresh, 
   Document, CircleCheck, Warning, UploadFilled, Delete, Rank, RefreshRight, DocumentCopy,
-  Setting, Operation, PriceTag, Money, Coin, User, Grid, Files, Folder, DataAnalysis
+  Setting, Operation, PriceTag, Money, Coin, User, Grid, Files, Folder, DataAnalysis, List
 } from '@element-plus/icons-vue'
 import SmartSelect from '@/components/SmartSelect.vue'
 import { copyToClipboard, getCopyableColumnProps } from '@/utils/clipboard'
@@ -902,6 +906,7 @@ import bomDraftApiService from '@/services/api/bomDraftApiService'
 import databaseService from '@/services/DatabaseService.js' // 仅用于数据迁移
 import bomTreeStructureApi from '@/api/bomTreeStructure'
 import productManualAPI from '@/api/productManual'
+import listStyleBomApi from '@/api/listStyleProductionBom'
 
 // 组织架构树节点组件
 const OrgTreeNode = defineComponent({
@@ -985,6 +990,7 @@ const currentPage = ref(1)
 const pageSize = ref(20)
 const totalCount = ref(0)
 const tableHeight = ref(600)
+const loading = ref(false)
 const editDialogVisible = ref(false)
 const viewDialogVisible = ref(false)
 const importDialogVisible = ref(false)
@@ -1156,6 +1162,123 @@ const handleCancel = async () => {
     editDialogVisible.value = false
   } catch {
     // 用户取消，继续编辑
+  }
+}
+
+// 生成列表式BOM
+const handleGenerateListStyleBom = async () => {
+  if (selectedRows.value.length !== 1) {
+    ElMessage.warning('请选择一条生产BOM数据')
+    return
+  }
+  
+  const selectedBom = selectedRows.value[0]
+  
+  try {
+    loading.value = true
+    console.log(`🔧 开始从生产BOM ${selectedBom.id} 生成列表式BOM（检查模式）`)
+    
+    // 先检查是否有冲突
+    const checkResult = await listStyleBomApi.generateFromProductionBom(selectedBom.id, 'check')
+    
+    if (checkResult.hasConflict || checkResult.hasDuplicate) {
+      // 存在冲突或重复，显示详细信息
+      loading.value = false
+      
+      let message = '<div style="max-height: 400px; overflow-y: auto;">'
+      
+      if (checkResult.hasDuplicate && checkResult.duplicates.length > 0) {
+        message += '<p style="color: #909399; font-weight: bold;">✅ 以下父件已存在相同的BOM结构，将跳过：</p><ul>'
+        checkResult.duplicates.forEach(dup => {
+          message += `<li>${dup.parentCode} (${dup.parentName}) - 已存在: ${dup.existingBomCode}</li>`
+        })
+        message += '</ul>'
+      }
+      
+      if (checkResult.hasConflict && checkResult.conflicts.length > 0) {
+        message += '<p style="color: #E6A23C; font-weight: bold; margin-top: 16px;">⚠️ 以下父件存在不同的BOM结构：</p>'
+        checkResult.conflicts.forEach(conf => {
+          message += `<div style="margin: 12px 0; padding: 12px; background: #FDF6EC; border-radius: 4px;">`
+          message += `<p style="font-weight: bold;">${conf.parentCode} (${conf.parentName})</p>`
+          message += `<p style="font-size: 12px; color: #606266;">目标表格已有BOM: ${conf.existingBomCodes.join(', ')}</p>`
+          message += `<p style="font-size: 12px; color: #606266; margin-top: 8px;">当前要推送的子件: ${conf.currentChildren.map(c => c.code).join(', ')}</p>`
+          message += `</div>`
+        })
+      }
+      
+      message += '</div>'
+      
+      // 显示决策弹窗
+      ElMessageBox.confirm(
+        message,
+        '检测到BOM结构差异',
+        {
+          dangerouslyUseHTMLString: true,
+          confirmButtonText: '覆盖',
+          cancelButtonText: '取消',
+          distinguishCancelAndClose: true,
+          showCancelButton: true,
+          showClose: true,
+          type: 'warning',
+          customClass: 'conflict-message-box',
+          beforeClose: (action, instance, done) => {
+            if (action === 'confirm') {
+              // 覆盖模式
+              handleGenerateWithMode(selectedBom.id, 'replace')
+              done()
+            } else if (action === 'cancel') {
+              done()
+            } else {
+              done()
+            }
+          }
+        }
+      ).then(() => {
+        // 用户点击确定按钮，已在beforeClose中处理
+      }).catch(action => {
+        if (action === 'cancel') {
+          ElMessage.info('已取消操作')
+        }
+      })
+      
+    } else {
+      // 无冲突，直接生成
+      ElNotification({
+        title: '生成成功',
+        message: checkResult.message || `已成功生成${checkResult.count}条列表式BOM记录`,
+        type: 'success',
+        duration: 3000
+      })
+      loading.value = false
+    }
+    
+  } catch (error) {
+    console.error('生成列表式BOM失败:', error)
+    ElMessage.error('生成列表式BOM失败: ' + (error.message || '未知错误'))
+    loading.value = false
+  }
+}
+
+// 按指定模式生成
+const handleGenerateWithMode = async (bomId, mode) => {
+  try {
+    loading.value = true
+    console.log(`🔧 开始从生产BOM ${bomId} 生成列表式BOM（${mode}模式）`)
+    
+    const result = await listStyleBomApi.generateFromProductionBom(bomId, mode)
+    
+    ElNotification({
+      title: '生成成功',
+      message: result.message || `已成功生成${result.count}条列表式BOM记录`,
+      type: 'success',
+      duration: 3000
+    })
+    
+  } catch (error) {
+    console.error('生成列表式BOM失败:', error)
+    ElMessage.error('生成列表式BOM失败: ' + (error.message || '未知错误'))
+  } finally {
+    loading.value = false
   }
 }
 

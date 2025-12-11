@@ -15,14 +15,20 @@ function generatePlanCode() {
 }
 
 // 格式化日期为MySQL DATE格式 (YYYY-MM-DD)
-// ✅ 使用本地时间，保持与前端显示一致
+// ✅ 使用本地时间处理，避免时区转换问题
 function formatDateForMySQL(dateStr) {
   if (!dateStr) return null;
   try {
+    // 如果已经是YYYY-MM-DD格式，直接使用
+    if (typeof dateStr === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(dateStr)) {
+      return dateStr;
+    }
+    
+    // ✅ 关键修复：对于ISO 8601格式，使用Date对象转换为本地时间
     const date = new Date(dateStr);
     if (isNaN(date.getTime())) return null;
     
-    // ✅ 使用本地时间，因为前端发送的UTC时间需要转换为本地时区
+    // 使用本地时间方法，让JS自动处理时区转换
     const year = date.getFullYear();
     const month = String(date.getMonth() + 1).padStart(2, '0');
     const day = String(date.getDate()).padStart(2, '0');
@@ -69,18 +75,43 @@ router.post('/from-sales-order', async (req, res) => {
           const planQuantity = availableStock >= orderQuantity ? 0 : orderQuantity - availableStock;
           
           // ✅ 修复：订单承诺交期 = 客户交期 (customerDeliveryDate)
+          console.log('🔍 日期映射调试:', {
+            原始customerDeliveryDate: order.customerDeliveryDate,
+            类型: typeof order.customerDeliveryDate,
+            长度: order.customerDeliveryDate ? order.customerDeliveryDate.length : 'null'
+          });
+          
           const promisedDeliveryDate = formatDateForMySQL(order.customerDeliveryDate);
+          
+          console.log('🔍 格式化后结果:', {
+            promisedDeliveryDate: promisedDeliveryDate,
+            类型: typeof promisedDeliveryDate
+          });
           
           // ✅ 计算计划入库日期 = 订单承诺交期 - 提前入库期
           let plannedStorageDate = null;
           if (promisedDeliveryDate && advanceStorageDays !== undefined && advanceStorageDays !== null) {
-            const deliveryDate = new Date(promisedDeliveryDate);
-            deliveryDate.setDate(deliveryDate.getDate() - parseInt(advanceStorageDays || 0));
-            plannedStorageDate = formatDateForMySQL(deliveryDate);
+            // 直接处理YYYY-MM-DD格式，避免Date对象时区转换
+            const advanceDays = parseInt(advanceStorageDays || 0);
+            if (/^\d{4}-\d{2}-\d{2}$/.test(promisedDeliveryDate)) {
+              const [year, month, day] = promisedDeliveryDate.split('-').map(Number);
+              const deliveryDate = new Date(year, month - 1, day); // month-1 because JS months are 0-indexed
+              deliveryDate.setDate(deliveryDate.getDate() - advanceDays);
+              
+              const newYear = deliveryDate.getFullYear();
+              const newMonth = String(deliveryDate.getMonth() + 1).padStart(2, '0');
+              const newDay = String(deliveryDate.getDate()).padStart(2, '0');
+              plannedStorageDate = `${newYear}-${newMonth}-${newDay}`;
+            } else {
+              // 后备方案：使用Date对象
+              const deliveryDate = new Date(promisedDeliveryDate);
+              deliveryDate.setDate(deliveryDate.getDate() - advanceDays);
+              plannedStorageDate = formatDateForMySQL(deliveryDate);
+            }
             
             console.log('📅 计划入库日期计算:', {
               订单承诺交期: promisedDeliveryDate,
-              提前天数: advanceStorageDays,
+              提前天数: advanceDays,
               计划入库日期: plannedStorageDate
             });
           }
@@ -149,8 +180,9 @@ router.post('/from-sales-order', async (req, res) => {
               plan_quantity, product_image, output_process, promised_delivery_date,
               status, planned_storage_date, product_source,
               internal_order_no, customer_order_no,
+              customer_name, submitter, submit_time,
               created_at, updated_at
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW())
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW(), NOW())
           `, [
             planCode,
             product.productCode || '',
@@ -168,14 +200,19 @@ router.post('/from-sales-order', async (req, res) => {
             plannedStorageDate, // ✅ 计划入库日期（承诺交期 - 提前天数）
             productSource, // 使用lookup后的产品来源
             order.internalOrderNo || '',
-            order.customerOrderNo || ''
+            order.customerOrderNo || '',
+            order.customerName || '', // ✅ 客户名称
+            order.submitter || 'admin', // ✅ 提交人，默认admin
           ]);
           
           results.push({
             planCode,
             id: result.insertId,
             productCode: product.productCode,
-            productName: product.productName
+            productName: product.productName,
+            promisedDeliveryDate: promisedDeliveryDate,
+            plannedStorageDate: plannedStorageDate,
+            internalOrderNo: order.internalOrderNo || ''
           });
         }
       }
@@ -265,10 +302,34 @@ router.get('/', async (req, res) => {
     
     const [rows] = await pool.execute(sql, params);
     
+    // ✅ 修复：将日期字段格式化为字符串，避免时区转换问题
+    const formattedRows = rows.map(row => {
+      console.log('🔍 调试格式化前:', {
+        promisedDeliveryDate: row.promisedDeliveryDate,
+        类型: typeof row.promisedDeliveryDate,
+        是Date: row.promisedDeliveryDate instanceof Date
+      });
+      
+      const formatted = {
+        ...row,
+        promisedDeliveryDate: row.promisedDeliveryDate ? (typeof row.promisedDeliveryDate === 'string' ? row.promisedDeliveryDate.split('T')[0] : row.promisedDeliveryDate.toISOString().split('T')[0]) : null,
+        plannedStorageDate: row.plannedStorageDate ? (typeof row.plannedStorageDate === 'string' ? row.plannedStorageDate.split('T')[0] : row.plannedStorageDate.toISOString().split('T')[0]) : null,
+        createdAt: row.createdAt ? (typeof row.createdAt === 'string' ? row.createdAt.split('T')[0] : row.createdAt.toISOString().split('T')[0]) : null,
+        updatedAt: row.updatedAt ? (typeof row.updatedAt === 'string' ? row.updatedAt.split('T')[0] : row.updatedAt.toISOString().split('T')[0]) : null
+      };
+      
+      console.log('🔍 调试格式化后:', {
+        promisedDeliveryDate: formatted.promisedDeliveryDate,
+        plannedStorageDate: formatted.plannedStorageDate
+      });
+      
+      return formatted;
+    });
+    
     res.json({
       code: 200,
       data: {
-        list: rows,
+        list: formattedRows,
         total,
         page: parseInt(page),
         pageSize: parseInt(pageSize)
@@ -331,6 +392,78 @@ router.delete('/:id', async (req, res) => {
   }
 });
 
+// ✅ 批量删除主生产计划（级联删除备料计划）
+router.post('/batch-delete', async (req, res) => {
+  let connection;
+  try {
+    const { ids } = req.body;
+    
+    if (!ids || !Array.isArray(ids) || ids.length === 0) {
+      return res.status(400).json({
+        code: 400,
+        message: '请提供要删除的ID列表'
+      });
+    }
+    
+    connection = await pool.getConnection();
+    await connection.beginTransaction();
+    
+    let totalMaterialPlansDeleted = 0;
+    
+    // 逐个删除，确保级联删除
+    for (const id of ids) {
+      // 1. 查询主生产计划的plan_code
+      const [planRows] = await connection.execute(
+        'SELECT plan_code FROM master_production_plans WHERE id = ?',
+        [id]
+      );
+      
+      if (planRows.length > 0) {
+        const planCode = planRows[0].plan_code;
+        
+        // 2. 级联删除备料计划
+        const [materialPlanResult] = await connection.execute(
+          'DELETE FROM material_preparation_plans WHERE source_plan_no = ?',
+          [planCode]
+        );
+        
+        totalMaterialPlansDeleted += materialPlanResult.affectedRows;
+        
+        // 3. 删除主生产计划
+        await connection.execute(
+          'DELETE FROM master_production_plans WHERE id = ?',
+          [id]
+        );
+        
+        console.log(`✅ 删除主计划 ${planCode}, 同时删除备料计划 ${materialPlanResult.affectedRows} 条`);
+      }
+    }
+    
+    await connection.commit();
+    
+    console.log(`✅ 批量删除成功: ${ids.length} 个主计划, ${totalMaterialPlansDeleted} 个备料计划`);
+    
+    res.json({
+      code: 200,
+      message: `批量删除成功（删除 ${ids.length} 个主计划，同时删除 ${totalMaterialPlansDeleted} 条备料计划）`
+    });
+    
+  } catch (error) {
+    if (connection) {
+      await connection.rollback();
+    }
+    console.error('批量删除主生产计划失败:', error);
+    res.status(500).json({
+      code: 500,
+      message: '批量删除失败: ' + error.message
+    });
+  } finally {
+    if (connection) {
+      connection.release();
+    }
+  }
+});
+
 // 执行排程 - 将主生产计划推送到备料计划
 router.post('/:id/execute-schedule', async (req, res) => {
   try {
@@ -356,7 +489,9 @@ router.post('/:id/execute-schedule', async (req, res) => {
       productCode: plan.product_code,
       productName: plan.product_name,
       planQuantity: plan.plan_quantity,
-      outputProcess: plan.output_process // ✅ 添加产出工序
+      outputProcess: plan.output_process,
+      plannedStorageDate: plan.planned_storage_date,  // ✅ 添加计划入库日期
+      promisedDeliveryDate: plan.promised_delivery_date  // ✅ 添加承诺交期
     });
     
     // 2. 生成备料计划编号
@@ -369,77 +504,38 @@ router.post('/:id/execute-schedule', async (req, res) => {
     
     const materialPlanNo = generateMaterialPlanNo();
     
-    // 3. 创建备料计划（直接将主计划的产品推送到备料计划）
-    // 规则映射:
-    // - 备料计划编号: 系统自动生成
-    // - 来源主计划编号 = 主生产计划编号
-    // - 来源工序计划编号 = "/"
-    // - 来源工序 = 产出工序 (✅ 新增映射)
-    // - 计划物料编号 = 产品编号
-    // - 计划物料名称 = 产品名称
-    // - 物料来源 = 产品来源
-    // - 物料单位 = 销售单位
-    // - 需求数量 = 计划数量
-    // - 是否需要MRP运算 = "/"
-    // - 实时库存 = "/"
-    // - 预计结存 = "/"
-    // - 有效库存 = "/"
-    // - 需求日期 = 计划入库日期
-    // - 销售订单编号 = 内部销售订单编号
-    // - 客户订单编号 = 客户订单编号
+    // 3. ✅ 通过Service层创建备料计划（会自动推送到工序计划）
+    const MaterialPreparationPlanService = require('../services/materialPreparationPlanService');
     
-    const [result] = await pool.execute(`
-      INSERT INTO material_preparation_plans (
-        plan_no,
-        source_plan_no,
-        source_process_plan_no,
-        source_process,
-        material_code,
-        material_name,
-        material_source,
-        material_unit,
-        demand_quantity,
-        need_mrp,
-        realtime_stock,
-        projected_balance,
-        available_stock,
-        demand_date,
-        sales_order_no,
-        customer_order_no,
-        main_plan_product_code,
-        main_plan_product_name,
-        main_plan_quantity,
-        promise_delivery_date,
-        created_at,
-        updated_at
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, NULL, NULL, NULL, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW())
-    `, [
-      materialPlanNo,                    // 备料计划编号(自动生成)
-      plan.plan_code,                    // 来源主计划编号
-      '/',                               // 来源工序计划编号
-      plan.output_process || null,       // ✅ 来源工序 = 产出工序
-      plan.product_code,                 // 计划物料编号 = 产品编号
-      plan.product_name,                 // 计划物料名称 = 产品名称
-      plan.product_source || null,       // 物料来源 = 产品来源
-      plan.sales_unit || null,           // 物料单位 = 销售单位
-      plan.plan_quantity || 0,           // 需求数量 = 计划数量
-      // need_mrp, realtime_stock, projected_balance, available_stock 都设为NULL (对应"/")
-      plan.planned_storage_date || null, // 需求日期 = 计划入库日期
-      plan.internal_order_no || null,    // 销售订单编号 = 内部销售订单编号
-      plan.customer_order_no || null,    // 客户订单编号
-      plan.product_code,                 // 主计划产品编号
-      plan.product_name,                 // 主计划产品名称
-      plan.plan_quantity || 0,           // 主计划排程数量
-      plan.promised_delivery_date || null // 订单承诺交期
-    ]);
-    
-    const materialPlan = {
-      id: result.insertId,
+    const materialPlanData = {
       planNo: materialPlanNo,
+      sourcePlanNo: plan.plan_code,
+      sourceProcessPlanNo: '/',
+      sourceProcess: plan.output_process,
       materialCode: plan.product_code,
       materialName: plan.product_name,
-      demandQuantity: plan.plan_quantity
+      materialSource: plan.product_source,
+      materialUnit: plan.sales_unit,
+      demandQuantity: plan.plan_quantity,
+      demandDate: plan.planned_storage_date,  // ✅ 关键: 需求日期 = 主计划的计划入库日期
+      salesOrderNo: plan.internal_order_no,
+      customerOrderNo: plan.customer_order_no,
+      mainPlanProductCode: plan.product_code,
+      mainPlanProductName: plan.product_name,
+      mainPlanQuantity: plan.plan_quantity,
+      promiseDeliveryDate: plan.promised_delivery_date,
+      customerName: plan.customer_name,
+      submitter: plan.submitter
     };
+    
+    console.log('📝 备料计划数据:', {
+      planNo: materialPlanNo,
+      demandDate: materialPlanData.demandDate,  // ✅ 日志输出
+      sourcePlanNo: plan.plan_code,
+      plannedStorageDate: plan.planned_storage_date  // ✅ 源数据日志
+    });
+    
+    const result = await MaterialPreparationPlanService.create(materialPlanData);
     
     console.log(`✅ 成功生成备料计划: ${materialPlanNo}`);
     console.log(`   物料: ${plan.product_code} - ${plan.product_name}`);
@@ -450,10 +546,17 @@ router.post('/:id/execute-schedule', async (req, res) => {
       code: 200,
       data: {
         materialPlanCount: 1,
-        processPlanCount: 0, // 工序计划后续实现
-        materialPlan
+        processPlanCount: result.processPlanNo ? 1 : 0,
+        materialPlan: {
+          id: result.id,
+          planNo: materialPlanNo,
+          materialCode: plan.product_code,
+          materialName: plan.product_name,
+          demandQuantity: plan.plan_quantity
+        },
+        processPlanNo: result.processPlanNo
       },
-      message: `排程执行成功，生成1条备料计划`
+      message: `排程执行成功，生成1条备料计划${result.processPlanNo ? '、1条工序计划' : ''}`
     });
     
   } catch (error) {

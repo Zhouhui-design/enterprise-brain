@@ -89,6 +89,16 @@
       </el-card>
     </div>
 
+    <!-- 按钮工具栏 -->
+    <div class="toolbar" style="margin: 20px 0; display: flex; gap: 10px;">
+      <el-button type="primary" @click="handleCreate">新增工序</el-button>
+      <el-button type="danger" :disabled="selectedRows.length === 0" @click="handleBatchDelete">批量删除</el-button>
+      <el-button type="success" :disabled="selectedRows.length === 0" @click="handleLoadToCapacityTable">加载到工序能力负荷表</el-button>
+      <el-button @click="handleImport">导入</el-button>
+      <el-button @click="handleExport">导出</el-button>
+      <el-button @click="handlePrint">打印</el-button>
+    </div>
+
     <!-- 主表格 -->
     <el-table 
       ref="tableRef"
@@ -115,6 +125,14 @@
           <el-tag v-else>{{ row.dispatchMethod }}</el-tag>
         </template>
       </el-table-column>
+      <el-table-column prop="selfOrOutsource" label="自制/外协" width="120">
+        <template #default="{ row }">
+          <el-tag v-if="row.selfOrOutsource === '自制'" type="primary">自制</el-tag>
+          <el-tag v-else-if="row.selfOrOutsource === '外协'" type="warning">外协</el-tag>
+          <el-tag v-else type="info">{{ row.selfOrOutsource || '未设置' }}</el-tag>
+        </template>
+      </el-table-column>
+      <el-table-column prop="availableWorkstations" label="可用工位数量" width="130" align="center" />
       <el-table-column prop="isStorage" label="是否入库" width="100" align="center">
         <template #default="{ row }">
           <el-tag v-if="row.isStorage" type="success">是</el-tag>
@@ -186,6 +204,19 @@
               </el-select>
             </el-form-item>
           </el-col>
+          <el-col :span="12">
+            <el-form-item label="自制/外协" prop="selfOrOutsource">
+              <el-select v-model="formData.selfOrOutsource" placeholder="请选择自制或外协" style="width: 100%;">
+                <el-option label="自制" value="自制" />
+                <el-option label="外协" value="外协" />
+              </el-select>
+            </el-form-item>
+          </el-col>
+          <el-col :span="12">
+            <el-form-item label="可用工位数量" prop="availableWorkstations">
+              <el-input-number v-model="formData.availableWorkstations" :min="0" :precision="0" placeholder="请输入工位数量" style="width: 100%;" />
+            </el-form-item>
+          </el-col>
         </el-row>
         <el-row :gutter="20">
           <el-col :span="12">
@@ -233,6 +264,12 @@
           <el-tag v-if="currentProcess.dispatchMethod === 'auto'" type="success">自动派工</el-tag>
           <el-tag v-else-if="currentProcess.dispatchMethod === 'manual'" type="warning">手动派工</el-tag>
         </el-descriptions-item>
+        <el-descriptions-item label="自制/外协">
+          <el-tag v-if="currentProcess.selfOrOutsource === '自制'" type="primary">自制</el-tag>
+          <el-tag v-else-if="currentProcess.selfOrOutsource === '外协'" type="warning">外协</el-tag>
+          <el-tag v-else type="info">未设置</el-tag>
+        </el-descriptions-item>
+        <el-descriptions-item label="可用工位数量">{{ currentProcess.availableWorkstations || 0 }}</el-descriptions-item>
         <el-descriptions-item label="是否入库">
           <el-tag v-if="currentProcess.isStorage" type="success">是</el-tag>
           <el-tag v-else type="info">否</el-tag>
@@ -308,6 +345,8 @@ const formData = ref({
   processName: '',
   processPrincipal: '',
   dispatchMethod: '',
+  selfOrOutsource: '',
+  availableWorkstations: 0,
   isStorage: false,
   completionWarehouse: '',
   workshopName: '',
@@ -413,6 +452,8 @@ const handleCreate = () => {
     processName: '',
     processPrincipal: '',
     dispatchMethod: 'manual',
+    selfOrOutsource: '',
+    availableWorkstations: 0,
     isStorage: false,
     completionWarehouse: '',
     workshopName: '',
@@ -510,6 +551,8 @@ const handleSave = async () => {
       process_name: formData.value.processName,
       responsible_person: formData.value.processPrincipal,
       dispatch_method: formData.value.dispatchMethod,
+      self_or_outsource: formData.value.selfOrOutsource || null,
+      available_workstations: formData.value.availableWorkstations || null,
       is_warehousing: formData.value.isStorage ? 1 : 0,
       completion_warehouse: formData.value.completionWarehouse || '',
       workshop_name: formData.value.workshopName,
@@ -545,6 +588,57 @@ const handleSave = async () => {
   } catch (error) {
     console.error('保存工序失败:', error)
     ElMessage.error('保存工序失败')
+  }
+}
+
+// 加载到工序能力负荷表
+const handleLoadToCapacityTable = async () => {
+  try {
+    // 筛选出自制/外协 = "自制" 的工序
+    const selfMadeProcesses = selectedRows.value.filter(row => row.selfOrOutsource === '自制')
+    
+    if (selfMadeProcesses.length === 0) {
+      ElMessage.warning('请选择至少一个"自制/外协" 为 "自制" 的工序')
+      return
+    }
+    
+    // 确认对话框
+    await ElMessageBox.confirm(
+      `共选择了 ${selectedRows.value.length} 个工序，其中 ${selfMadeProcesses.length} 个为"自制"工序。确定加载到工序能力负荷表吗？`,
+      '提示',
+      {
+        confirmButtonText: '确定',
+        cancelButtonText: '取消',
+        type: 'info'
+      }
+    )
+    
+    // 准备数据
+    const processes = selfMadeProcesses.map(row => ({
+      processName: row.processName,
+      availableWorkstations: row.availableWorkstations || 0
+    }))
+    
+    // 调用后端API
+    const response = await fetch('http://192.168.2.229:3005/api/capacity-load/load-from-processes', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ processes })
+    })
+    
+    const result = await response.json()
+    
+    if (result.code === 200) {
+      ElMessage.success(result.message)
+      selectedRows.value = []
+    } else {
+      ElMessage.error(result.message || '加载失败')
+    }
+  } catch (error) {
+    if (error !== 'cancel') {
+      console.error('加载到能力负荷表失败:', error)
+      ElMessage.error('加载失败')
+    }
   }
 }
 
@@ -694,6 +788,8 @@ const loadData = async () => {
         processName: item.process_name,
         processPrincipal: item.responsible_person,
         dispatchMethod: item.dispatch_method,
+        selfOrOutsource: item.self_or_outsource || '',
+        availableWorkstations: item.available_workstations || 0,
         isStorage: item.is_warehousing === 1,
         completionWarehouse: item.completion_warehouse || '',
         workshopName: item.workshop_name,

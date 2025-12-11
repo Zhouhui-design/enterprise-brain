@@ -88,6 +88,7 @@
         <el-table-column prop="customerOrderNo" label="客户订单编号" width="150" />
         <el-table-column prop="customerName" label="客户名称" width="150" />
         <el-table-column prop="salesperson" label="销售员" width="100" />
+        <el-table-column prop="submitter" label="提交人" width="100" />
         <el-table-column prop="quotationNo" label="报价单号" width="140" />
         <el-table-column prop="orderTime" label="下单时间" width="120">
           <template #default="{ row }">
@@ -283,6 +284,31 @@
         
         <el-tab-pane label="模拟排程设置" name="scheduling">
           <el-form label-width="200px">
+            <el-form-item label="提前入库期">
+              <el-input-number 
+                v-model="settings.advanceStorageDays" 
+                :min="0" 
+                :max="30" 
+                style="width: 200px;"
+              />
+              <span style="margin-left: 10px; color: #909399;">天</span>
+            </el-form-item>
+            <el-form-item label="说明">
+              <el-alert 
+                type="info" 
+                :closable="false"
+                show-icon
+              >
+                <template #title>
+                  <div style="line-height: 1.6;">
+                    提前入库期用于计算主生产计划的"计划入库日期"。<br/>
+                    <b>计算公式：</b>计划入库日期 = 订单承诺交期 - 提前入库期<br/>
+                    <b>示例：</b>订单承诺交期 = 2026-01-10，提前入库期 = 3天<br/>
+                    <b>结果：</b>计划入库日期 = 2026-01-07
+                  </div>
+                </template>
+              </el-alert>
+            </el-form-item>
             <el-form-item label="模拟排程失效天数">
               <el-input-number 
                 v-model="settings.simulationExpireDays" 
@@ -686,6 +712,7 @@ const settings = ref({
   backgroundColor: '#f5f7fa',
   tableRowColor: '#ffffff',
   orderNoRule: 'SO{YYYY}{MM}{DD}{####}',
+  advanceStorageDays: 3, // 提前入库期（天）
   simulationExpireDays: 1, // 模拟排程失效天数
   defaultCurrency: 'CNY', // 默认币种
   defaultExchangeRate: 1.0, // 默认汇率
@@ -873,6 +900,7 @@ const loadOrders = async () => {
             customerName: order.customer_name,
             customerId: order.customer_id,
             salesperson: order.salesperson,
+            submitter: order.submitter || 'admin', // ✅ 提交人，默认admin
             quotationNo: order.quotation_no,
             orderType: order.order_type,
             orderStatus: order.status || '待下单',
@@ -1260,6 +1288,8 @@ const handleConfirmOrder = async () => {
         internalOrderNo: orderData.internal_order_no,
         customerOrderNo: orderData.customer_order_no,
         salesperson: orderData.salesperson,
+        customerName: orderData.customer_name, // ✅ 客户名称
+        submitter: orderData.submitter || 'admin', // ✅ 提交人
         customerDeliveryDate: orderData.customer_delivery,
         promisedDeliveryDate: orderData.promised_delivery,
         products: products.map(p => ({
@@ -1277,6 +1307,8 @@ const handleConfirmOrder = async () => {
     
     console.log('📦 整理后的订单数据:', salesOrders.map(o => ({
       internalOrderNo: o.internalOrderNo,
+      客户交期: o.customerDeliveryDate,
+      客户交期类型: typeof o.customerDeliveryDate,
       产品数量: o.products.length,
       产品编码: o.products.map(p => p.productCode)
     })))
@@ -1284,7 +1316,7 @@ const handleConfirmOrder = async () => {
     console.log('📦 构造的销售订单数据:', salesOrders)
     
     // ✅ 获取提前入库期设置
-    const advanceStorageDays = settings.value.advanceStorageDays || 0;
+    const advanceStorageDays = settings.value.advanceStorageDays || 3;
     console.log('📅 提前入库期:', advanceStorageDays, '天');
     
     // 调用后端API创建主生产计划

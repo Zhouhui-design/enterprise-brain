@@ -139,21 +139,6 @@ import BreadcrumbNav from '@/components/common/layout/BreadcrumbNav.vue';
 import { Setting, Operation } from '@element-plus/icons-vue';
 import api from '@/api/masterProductionPlan';
 
-// ✅ 日期格式化辅助函数（在组件外部定义）
-const formatDateYMD = (dateStr) => {
-  if (!dateStr) return '-';
-  try {
-    const date = new Date(dateStr);
-    if (isNaN(date.getTime())) return '-';
-    const year = date.getFullYear();
-    const month = String(date.getMonth() + 1).padStart(2, '0');
-    const day = String(date.getDate()).padStart(2, '0');
-    return `${year}-${month}-${day}`;
-  } catch (e) {
-    return '-';
-  }
-};
-
 export default {
   name: 'ProductionPlanList',
   components: {
@@ -292,7 +277,14 @@ export default {
           label: '订单承诺交期',
           width: 120,
           sortable: true,
-          formatter: (row) => formatDateYMD(row.promisedDeliveryDate)
+          formatter: (row) => this.formatDateYMD(row.promisedDeliveryDate)
+        },
+        {
+          prop: 'realPromisedDeliveryDate',
+          label: '真承诺交期',
+          width: 120,
+          sortable: true,
+          formatter: (row) => this.calculateRealPromisedDate(row.promisedDeliveryDate)
         },
         {
           prop: 'status',
@@ -302,11 +294,18 @@ export default {
           slot: 'status'
         },
         {
+          prop: 'advanceStorageDays',
+          label: '提前入库期',
+          width: 120,
+          align: 'center',
+          formatter: (row) => this.getAdvanceStorageDays()
+        },
+        {
           prop: 'plannedStorageDate',
           label: '计划入库日期',
           width: 120,
           sortable: true,
-          formatter: (row) => formatDateYMD(row.plannedStorageDate)
+          formatter: (row) => this.calculatePlannedStorageDate(row.promisedDeliveryDate)
         },
         {
           prop: 'productSource',
@@ -325,6 +324,25 @@ export default {
           label: '客户订单编号',
           width: 180,
           filterable: true
+        },
+        {
+          prop: 'customerName',
+          label: '客户名称',
+          width: 150,
+          filterable: true
+        },
+        {
+          prop: 'submitter',
+          label: '提交人',
+          width: 100,
+          filterable: true
+        },
+        {
+          prop: 'submitTime',
+          label: '提交时间',
+          width: 160,
+          sortable: true,
+          formatter: (row) => this.formatDateTime(row.submitTime)
         },
         {
           prop: 'actions',
@@ -350,7 +368,123 @@ export default {
     this.cleanupKeyboardNav();
   },
   methods: {
-    // 从后端API加载主生产计划列表
+    // ✅ 格式化日期为年-月-日（不补零，处理UTC时区）
+    formatDateYMD(dateStr) {
+      if (!dateStr) return '-';
+      try {
+        let year, month, day;
+        
+        // 如果字符串包含T，提取日期部分以避免时区转换问题
+        if (dateStr.includes('T')) {
+          const datePart = dateStr.split('T')[0]; // YYYY-MM-DD
+          [year, month, day] = datePart.split('-').map(Number);
+        } else {
+          // 对于其他格式，使用常规日期处理
+          const date = new Date(dateStr);
+          if (isNaN(date.getTime())) return '-';
+          year = date.getFullYear();
+          month = date.getMonth() + 1;
+          day = date.getDate();
+        }
+        
+        // 返回不补零格式：2026-1-9
+        return `${year}-${month}-${day}`;
+      } catch (e) {
+        return '-';
+      }
+    },
+    
+    // ✅ 计算真承诺交期 = 订单承诺交期 + 1天
+    calculateRealPromisedDate(dateStr) {
+      if (!dateStr) return '-';
+      try {
+        const date = new Date(dateStr);
+        if (isNaN(date.getTime())) return '-';
+        
+        // 加一天
+        date.setDate(date.getDate() + 1);
+        
+        const year = date.getFullYear();
+        const month = date.getMonth() + 1;  // 不补零
+        const day = date.getDate();         // 不补零
+        
+        return `${year}-${month}-${day}`;
+      } catch (e) {
+        return '-';
+      }
+    },
+    
+    // ✅ 获取提前入库期（从页面设置中获取）
+    getAdvanceStorageDays() {
+      const settingsKey = 'productionPlanSettings'; // 与 PageSettings 的 settings-key 保持一致
+      const savedSettings = localStorage.getItem(settingsKey);
+      if (savedSettings) {
+        try {
+          const settings = JSON.parse(savedSettings);
+          return settings.advanceStorageDays !== undefined ? `${settings.advanceStorageDays}天` : '3天';
+        } catch (e) {
+          return '3天';
+        }
+      }
+      return '3天'; // 默认值
+    },
+    
+    // ✅ 计算计划入库日期 = 真承诺交期 - 提前入库期
+    calculatePlannedStorageDate(promisedDeliveryDate) {
+      if (!promisedDeliveryDate) return '-';
+      
+      try {
+        // 首先计算真承诺交期（订单承诺交期 + 1天）
+        const date = new Date(promisedDeliveryDate);
+        if (isNaN(date.getTime())) return '-';
+        date.setDate(date.getDate() + 1); // 加1天得到真承诺交期
+        
+        // 获取提前入库期
+        const settingsKey = 'productionPlanSettings'; // 与 PageSettings 的 settings-key 保持一致
+        const savedSettings = localStorage.getItem(settingsKey);
+        let advanceDays = 3; // 默认值
+        if (savedSettings) {
+          try {
+            const settings = JSON.parse(savedSettings);
+            advanceDays = settings.advanceStorageDays !== undefined ? parseInt(settings.advanceStorageDays) : 3;
+          } catch (e) {
+            advanceDays = 3;
+          }
+        }
+        
+        // 计划入库日期 = 真承诺交期 - 提前入库期
+        date.setDate(date.getDate() - advanceDays);
+        
+        const year = date.getFullYear();
+        const month = date.getMonth() + 1;  // 不补零
+        const day = date.getDate();         // 不补零
+        
+        return `${year}-${month}-${day}`;
+      } catch (e) {
+        return '-';
+      }
+    },
+    
+    // ✅ 格式化日期时间（年月日小时分钟秒）
+    formatDateTime(dateStr) {
+      if (!dateStr) return '-';
+      try {
+        const date = new Date(dateStr);
+        if (isNaN(date.getTime())) return '-';
+        
+        const year = date.getFullYear();
+        const month = date.getMonth() + 1;
+        const day = date.getDate();
+        const hour = date.getHours();
+        const minute = date.getMinutes();
+        const second = date.getSeconds();
+        
+        return `${year}-${month}-${day} ${hour}:${minute}:${second}`;
+      } catch (e) {
+        return '-';
+      }
+    },
+    
     async fetchPlanList() {
       this.loading = true;
       try {
@@ -385,20 +519,7 @@ export default {
       return `${year}-${month}-${day}`;
     },
     
-    // 格式化日期为年-月-日
-    formatDateYMD(dateStr) {
-      if (!dateStr) return '-';
-      try {
-        const date = new Date(dateStr);
-        if (isNaN(date.getTime())) return '-';
-        const year = date.getFullYear();
-        const month = String(date.getMonth() + 1).padStart(2, '0');
-        const day = String(date.getDate()).padStart(2, '0');
-        return `${year}-${month}-${day}`;
-      } catch (e) {
-        return '-';
-      }
-    },
+    
     
     handleSearch() {
       this.currentPage = 1;

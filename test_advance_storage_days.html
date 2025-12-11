@@ -1,0 +1,244 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>提前入库期设置测试</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        .test-section {
+            border: 1px solid #ddd;
+            margin: 20px 0;
+            padding: 15px;
+            border-radius: 5px;
+        }
+        .result {
+            background-color: #f5f5f5;
+            padding: 10px;
+            margin: 10px 0;
+            border-radius: 3px;
+        }
+        .success { background-color: #d4edda; color: #155724; }
+        .error { background-color: #f8d7da; color: #721c24; }
+        input, select {
+            margin: 5px;
+            padding: 5px;
+            border: 1px solid #ccc;
+            border-radius: 3px;
+        }
+        button {
+            margin: 5px;
+            padding: 8px 15px;
+            background-color: #007bff;
+            color: white;
+            border: none;
+            border-radius: 3px;
+            cursor: pointer;
+        }
+        button:hover {
+            background-color: #0056b3;
+        }
+    </style>
+</head>
+<body>
+    <h1>提前入库期 (advanceStorageDays) 设置测试</h1>
+    
+    <div class="test-section">
+        <h2>1. 主生产计划页面设置测试</h2>
+        <p>测试 <code>productionPlanSettings</code> 中的 advanceStorageDays 配置</p>
+        
+        <label for="mppDays">设置提前入库期：</label>
+        <input type="number" id="mppDays" min="0" max="365" value="3">
+        <button onclick="testProductionPlanSettings()">保存设置并测试</button>
+        
+        <div id="mppResult" class="result"></div>
+    </div>
+    
+    <div class="test-section">
+        <h2>2. 销售订单页面设置测试</h2>
+        <p>测试 <code>salesOrderSettings</code> 中的 advanceStorageDays 配置</p>
+        
+        <label for="soDays">设置提前入库期：</label>
+        <input type="number" id="soDays" min="0" max="365" value="3">
+        <button onclick="testSalesOrderSettings()">保存设置并测试</button>
+        
+        <div id="soResult" class="result"></div>
+    </div>
+    
+    <div class="test-section">
+        <h2>3. 日期计算测试</h2>
+        <p>测试不同提前入库期对计划入库日期的影响</p>
+        
+        <label for="promisedDate">承诺交期：</label>
+        <input type="date" id="promisedDate" value="2026-01-10">
+        
+        <div id="dateCalculationResult" class="result"></div>
+    </div>
+    
+    <div class="test-section">
+        <h2>4. 当前设置状态</h2>
+        <button onclick="showCurrentSettings()">显示当前所有设置</button>
+        <button onclick="clearAllSettings()">清除所有设置</button>
+        
+        <div id="currentSettings" class="result"></div>
+    </div>
+
+    <script>
+        // 模拟主生产计划页面的计算逻辑
+        function calculatePlannedStorageDate(promisedDeliveryDate, advanceDays, pageType = 'productionPlan') {
+            if (!promisedDeliveryDate) return '-';
+            
+            try {
+                // 首先计算真承诺交期（订单承诺交期 + 1天）
+                const date = new Date(promisedDeliveryDate);
+                if (isNaN(date.getTime())) return '-';
+                date.setDate(date.getDate() + 1); // 加1天得到真承诺交期
+                
+                // 获取提前入库期
+                let settingsKey = pageType === 'productionPlan' ? 'productionPlanSettings' : 'salesOrderSettings';
+                const savedSettings = localStorage.getItem(settingsKey);
+                if (savedSettings) {
+                    try {
+                        const settings = JSON.parse(savedSettings);
+                        advanceDays = settings.advanceStorageDays !== undefined ? parseInt(settings.advanceStorageDays) : advanceDays;
+                    } catch (e) {
+                        console.error('解析设置失败:', e);
+                    }
+                }
+                
+                // 计划入库日期 = 真承诺交期 - 提前入库期
+                date.setDate(date.getDate() - advanceDays);
+                
+                const year = date.getFullYear();
+                const month = date.getMonth() + 1;  // 不补零
+                const day = date.getDate();         // 不补零
+                
+                return `${year}-${month}-${day}`;
+            } catch (e) {
+                return '-';
+            }
+        }
+        
+        function testProductionPlanSettings() {
+            const days = document.getElementById('mppDays').value;
+            const settings = {
+                advanceStorageDays: parseInt(days),
+                exportFilePrefix: '主生产计划',
+                codePrefix: 'MPS'
+            };
+            
+            localStorage.setItem('productionPlanSettings', JSON.stringify(settings));
+            
+            const promisedDate = document.getElementById('promisedDate').value;
+            const calculatedDate = calculatePlannedStorageDate(promisedDate, parseInt(days), 'productionPlan');
+            
+            const resultDiv = document.getElementById('mppResult');
+            resultDiv.className = 'result success';
+            resultDiv.innerHTML = `
+                <strong>✅ 主生产计划设置保存成功！</strong><br>
+                提前入库期：${days} 天<br>
+                承诺交期：${promisedDate}<br>
+                计算得出的计划入库日期：${calculatedDate}
+            `;
+        }
+        
+        function testSalesOrderSettings() {
+            const days = document.getElementById('soDays').value;
+            const settings = {
+                advanceStorageDays: parseInt(days),
+                defaultCurrency: 'CNY',
+                defaultExchangeRate: 1.0
+            };
+            
+            localStorage.setItem('salesOrderSettings', JSON.stringify(settings));
+            
+            const promisedDate = document.getElementById('promisedDate').value;
+            const calculatedDate = calculatePlannedStorageDate(promisedDate, parseInt(days), 'salesOrder');
+            
+            const resultDiv = document.getElementById('soResult');
+            resultDiv.className = 'result success';
+            resultDiv.innerHTML = `
+                <strong>✅ 销售订单设置保存成功！</strong><br>
+                提前入库期：${days} 天<br>
+                承诺交期：${promisedDate}<br>
+                计算得出的计划入库日期：${calculatedDate}
+            `;
+        }
+        
+        function updateDateCalculation() {
+            const promisedDate = document.getElementById('promisedDate').value;
+            
+            // 从两个页面获取不同的提前入库期设置
+            const mppSettings = JSON.parse(localStorage.getItem('productionPlanSettings') || '{}');
+            const soSettings = JSON.parse(localStorage.getItem('salesOrderSettings') || '{}');
+            
+            const mppDays = mppSettings.advanceStorageDays || 3;
+            const soDays = soSettings.advanceStorageDays || 3;
+            
+            const mppDate = calculatePlannedStorageDate(promisedDate, mppDays, 'productionPlan');
+            const soDate = calculatePlannedStorageDate(promisedDate, soDays, 'salesOrder');
+            
+            const resultDiv = document.getElementById('dateCalculationResult');
+            resultDiv.className = 'result';
+            resultDiv.innerHTML = `
+                <strong>日期计算对比：</strong><br>
+                承诺交期：${promisedDate}<br>
+                真承诺交期：${addOneDay(promisedDate)}<br><br>
+                <strong>主生产计划页面设置：</strong><br>
+                提前入库期：${mppDays} 天<br>
+                计划入库日期：${mppDate}<br><br>
+                <strong>销售订单页面设置：</strong><br>
+                提前入库期：${soDays} 天<br>
+                计划入库日期：${soDate}
+            `;
+        }
+        
+        function addOneDay(dateStr) {
+            if (!dateStr) return '-';
+            const date = new Date(dateStr);
+            date.setDate(date.getDate() + 1);
+            const year = date.getFullYear();
+            const month = date.getMonth() + 1;
+            const day = date.getDate();
+            return `${year}-${month}-${day}`;
+        }
+        
+        function showCurrentSettings() {
+            const mppSettings = localStorage.getItem('productionPlanSettings');
+            const soSettings = localStorage.getItem('salesOrderSettings');
+            
+            const resultDiv = document.getElementById('currentSettings');
+            resultDiv.className = 'result';
+            resultDiv.innerHTML = `
+                <strong>当前 localStorage 设置：</strong><br><br>
+                <strong>productionPlanSettings：</strong><br>
+                ${mppSettings || '<span style="color: #999;">未设置</span>'}<br><br>
+                <strong>salesOrderSettings：</strong><br>
+                ${soSettings || '<span style="color: #999;">未设置</span>'}
+            `;
+        }
+        
+        function clearAllSettings() {
+            localStorage.removeItem('productionPlanSettings');
+            localStorage.removeItem('salesOrderSettings');
+            
+            const resultDiv = document.getElementById('currentSettings');
+            resultDiv.className = 'result success';
+            resultDiv.innerHTML = '✅ 所有设置已清除';
+        }
+        
+        // 初始化时更新日期计算
+        document.addEventListener('DOMContentLoaded', function() {
+            updateDateCalculation();
+            
+            // 监听承诺交期变化
+            document.getElementById('promisedDate').addEventListener('change', updateDateCalculation);
+        });
+    </script>
+</body>
+</html>

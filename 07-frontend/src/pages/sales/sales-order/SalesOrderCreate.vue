@@ -718,14 +718,32 @@ onMounted(async () => {
     customerList.value = []
   }
   
-  // 加载产品手册数据
-  const productData = localStorage.getItem('productManualData')
-  if (productData) {
-    try {
-      productManualList.value = JSON.parse(productData)
-    } catch (e) {
-      console.error('解析产品手册数据失败:', e)
+  // ✅ 从后端API加载产品手册数据
+  try {
+    console.log('🔄 开始加载产品手册数据...')
+    const response = await productManualAPI.getAll()
+    
+    if (response.code === 200 && Array.isArray(response.data)) {
+      productManualList.value = response.data
+      console.log('✅ 产品手册数据加载成功，共', response.data.length, '条')
+    } else {
+      console.warn('⚠️ 产品手册返回数据格式异常:', response)
       productManualList.value = []
+    }
+  } catch (error) {
+    console.error('❌ 加载产品手册数据失败:', error)
+    ElMessage.warning('加载产品手册数据失败，请检查网络连接')
+    
+    // 失败时尝试从localStorage加载缓存
+    const productData = localStorage.getItem('productManualData')
+    if (productData) {
+      try {
+        productManualList.value = JSON.parse(productData)
+        console.log('📦 从缓存加载产品手册数据:', productManualList.value.length, '条')
+      } catch (e) {
+        console.error('解析产品手册缓存数据失败:', e)
+        productManualList.value = []
+      }
     }
   }
   

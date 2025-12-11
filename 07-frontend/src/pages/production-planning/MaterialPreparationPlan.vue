@@ -48,7 +48,7 @@
         <el-form-item label="来源主计划编号">
           <el-input v-model="searchForm.sourcePlanNo" placeholder="请输入" clearable style="width: 180px" />
         </el-form-item>
-        <el-form-item label="计划物料编号">
+        <el-form-item label="备料物料编号">
           <el-input v-model="searchForm.materialCode" placeholder="请输入" clearable style="width: 180px" />
         </el-form-item>
         <el-form-item label="需求日期">
@@ -139,18 +139,39 @@
             </el-form-item>
           </el-col>
           <el-col :span="12">
-            <el-form-item label="计划物料编号" prop="materialCode">
-              <el-input v-model="formData.materialCode" placeholder="请输入" />
+            <el-form-item label="父件编号" prop="parentCode">
+              <el-input v-model="formData.parentCode" placeholder="请输入" />
             </el-form-item>
           </el-col>
         </el-row>
 
         <el-row :gutter="20">
           <el-col :span="12">
-            <el-form-item label="计划物料名称" prop="materialName">
+            <el-form-item label="父件名称" prop="parentName">
+              <el-input v-model="formData.parentName" placeholder="请输入" />
+            </el-form-item>
+          </el-col>
+          <el-col :span="12">
+            <el-form-item label="父件排程数量" prop="parentScheduleQuantity">
+              <el-input-number v-model="formData.parentScheduleQuantity" :min="0" :precision="2" style="width: 100%" />
+            </el-form-item>
+          </el-col>
+        </el-row>
+
+        <el-row :gutter="20">
+          <el-col :span="12">
+            <el-form-item label="备料物料编号" prop="materialCode">
+              <el-input v-model="formData.materialCode" placeholder="请输入" />
+            </el-form-item>
+          </el-col>
+          <el-col :span="12">
+            <el-form-item label="备料物料名称" prop="materialName">
               <el-input v-model="formData.materialName" placeholder="请输入" />
             </el-form-item>
           </el-col>
+        </el-row>
+
+        <el-row :gutter="20">
           <el-col :span="12">
             <el-form-item label="物料来源" prop="materialSource">
               <el-select v-model="formData.materialSource" placeholder="请选择" style="width: 100%">
@@ -358,8 +379,11 @@ const allColumns = ref([
   { prop: 'planNo', label: '备料计划编号', width: 160, sortable: true, filterable: true, fixed: 'left', visible: true },
   { prop: 'sourcePlanNo', label: '来源主计划编号', width: 160, sortable: true, filterable: true, visible: true },
   { prop: 'sourceProcessPlanNo', label: '来源工序计划编号', width: 160, sortable: true, filterable: true, visible: true },
-  { prop: 'materialCode', label: '计划物料编号', width: 140, sortable: true, filterable: true, visible: true },
-  { prop: 'materialName', label: '计划物料名称', width: 180, sortable: true, filterable: true, visible: true },
+  { prop: 'parentCode', label: '父件编号', width: 140, sortable: true, filterable: true, visible: true },
+  { prop: 'parentName', label: '父件名称', width: 180, sortable: true, filterable: true, visible: true },
+  { prop: 'parentScheduleQuantity', label: '父件排程数量', width: 140, sortable: true, align: 'right', visible: true },
+  { prop: 'materialCode', label: '备料物料编号', width: 140, sortable: true, filterable: true, visible: true },
+  { prop: 'materialName', label: '备料物料名称', width: 180, sortable: true, filterable: true, visible: true },
   { prop: 'materialSource', label: '物料来源', width: 100, sortable: true, filterable: true, visible: true },
   { prop: 'materialUnit', label: '物料单位', width: 100, sortable: true, filterable: true, visible: true },
   { prop: 'demandQuantity', label: '需求数量', width: 120, sortable: true, align: 'right', visible: true },
@@ -368,6 +392,14 @@ const allColumns = ref([
   { prop: 'realtimeStock', label: '实时库存', width: 120, sortable: true, align: 'right', visible: true },
   { prop: 'projectedBalance', label: '预计结存', width: 120, sortable: true, align: 'right', visible: true },
   { prop: 'availableStock', label: '有效库存', width: 120, sortable: true, align: 'right', visible: true },
+  { prop: 'replenishmentQuantity', label: '需补货数量', width: 120, sortable: true, align: 'right', visible: true,
+    formatter: (row) => {
+      const demandQty = parseFloat(row.demandQuantity || 0);
+      const availableQty = parseFloat(row.availableStock || 0);
+      const replenishment = demandQty - availableQty;
+      return replenishment > 0 ? replenishment.toFixed(2) : '0.00';
+    }
+  },
   { prop: 'sourceProcess', label: '来源工序', width: 120, sortable: true, filterable: true, visible: true },
   { prop: 'workshopName', label: '车间名称', width: 120, sortable: true, filterable: true, visible: true },
   { prop: 'demandDate', label: '需求日期', width: 120, sortable: true, filterable: true, visible: true,
@@ -399,8 +431,8 @@ const isEdit = ref(false)
 
 // 表单验证规则
 const formRules = {
-  materialCode: [{ required: true, message: '请输入计划物料编号', trigger: 'blur' }],
-  materialName: [{ required: true, message: '请输入计划物料名称', trigger: 'blur' }],
+  materialCode: [{ required: true, message: '请输入备料物料编号', trigger: 'blur' }],
+  materialName: [{ required: true, message: '请输入备料物料名称', trigger: 'blur' }],
   demandQuantity: [{ required: true, message: '请输入需求数量', trigger: 'blur' }]
 }
 
@@ -447,6 +479,9 @@ const resetForm = () => {
     planNo: generatePlanNo(),
     sourcePlanNo: '',
     sourceProcessPlanNo: '',
+    parentCode: '',
+    parentName: '',
+    parentScheduleQuantity: 0,
     materialCode: '',
     materialName: '',
     materialSource: '',

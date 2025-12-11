@@ -37,6 +37,12 @@ export default {
       name: 'UserList',
       component: () => import('@/pages/system/user-management/UserList.vue'),
       meta: { title: '用户列表' }
+    },
+    {
+      path: 'company-calendar',
+      name: 'CompanyCalendar',
+      component: () => import('@/pages/human-resources/CompanyCalendar.vue'),
+      meta: { title: '企业日历' }
     }
   ]
 };

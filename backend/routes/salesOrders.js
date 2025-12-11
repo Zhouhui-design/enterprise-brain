@@ -8,23 +8,29 @@ const { v4: uuidv4 } = require('uuid')
  * @param {string} isoDate - ISO格式的日期字符串
  * @returns {string|null} - MySQL DATETIME格式或null
  */
-function formatDateForMySQL(isoDate) {
-  if (!isoDate) return null
+function formatDateForMySQL(dateStr) {
+  if (!dateStr) return null;
   try {
-    const date = new Date(isoDate)
-    if (isNaN(date.getTime())) return null
+    // 如果已经是YYYY-MM-DD格式，直接使用
+    if (typeof dateStr === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(dateStr)) {
+      return dateStr + ' 00:00:00'; // 添加时间部分用于DATETIME字段
+    }
     
-    // ✅ 修复：使用本地时间而非UTC时间，避免日期减1天
-    const year = date.getFullYear()
-    const month = String(date.getMonth() + 1).padStart(2, '0')
-    const day = String(date.getDate()).padStart(2, '0')
-    const hours = String(date.getHours()).padStart(2, '0')
-    const minutes = String(date.getMinutes()).padStart(2, '0')
-    const seconds = String(date.getSeconds()).padStart(2, '0')
+    // ✅ 关键修复：对于ISO 8601格式（含有T），使用Date对象转换为本地时间
+    const date = new Date(dateStr);
+    if (isNaN(date.getTime())) return null;
     
-    return `${year}-${month}-${day} ${hours}:${minutes}:${seconds}`
+    // 使用本地时间方法，让JS自动处理时区转换
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
+    const hours = String(date.getHours()).padStart(2, '0');
+    const minutes = String(date.getMinutes()).padStart(2, '0');
+    const seconds = String(date.getSeconds()).padStart(2, '0');
+    return `${year}-${month}-${day} ${hours}:${minutes}:${seconds}`;
   } catch (error) {
-    return null
+    console.error('日期格式化失败:', dateStr, error);
+    return null;
   }
 }
 
@@ -118,12 +124,33 @@ router.get('/', async (req, res) => {
       }
     }))
     
-    console.log(`✅ 查询成功，共 ${total} 条记录，当前页 ${orders.length} 条`)
+    // ✅ 修复：将日期字段格式化为字符串，使用本地时间避免时区转换问题
+    const formattedOrders = ordersWithProducts.map(order => {
+      const customerDeliveryFormatted = order.customer_delivery ? order.customer_delivery.toLocaleDateString('zh-CN', { year: 'numeric', month: '2-digit', day: '2-digit' }).replace(/\//g, '-') : null;
+      
+      console.log('🔍 调试订单日期格式化:', {
+        internal_order_no: order.internal_order_no,
+        原始值: order.customer_delivery,
+        格式化后: customerDeliveryFormatted
+      });
+      
+      return {
+        ...order,
+        customer_delivery: customerDeliveryFormatted,
+        promised_delivery: order.promised_delivery ? order.promised_delivery.toLocaleDateString('zh-CN', { year: 'numeric', month: '2-digit', day: '2-digit' }).replace(/\//g, '-') : null,
+        estimated_completion_date: order.estimated_completion_date ? order.estimated_completion_date.toLocaleDateString('zh-CN', { year: 'numeric', month: '2-digit', day: '2-digit' }).replace(/\//g, '-') : null,
+        order_time: order.order_time ? order.order_time.toLocaleDateString('zh-CN', { year: 'numeric', month: '2-digit', day: '2-digit' }).replace(/\//g, '-') : null,
+        created_at: order.created_at ? order.created_at.toLocaleDateString('zh-CN', { year: 'numeric', month: '2-digit', day: '2-digit' }).replace(/\//g, '-') : null,
+        updated_at: order.updated_at ? order.updated_at.toLocaleDateString('zh-CN', { year: 'numeric', month: '2-digit', day: '2-digit' }).replace(/\//g, '-') : null
+      };
+    });
+
+    console.log(`✅ 查询成功，共 ${total} 条记录，当前页 ${formattedOrders.length} 条`)
     
     res.json({
       success: true,
       data: {
-        list: ordersWithProducts,
+        list: formattedOrders,
         total,
         page: parseInt(page),
         pageSize: parseInt(pageSize)
@@ -170,11 +197,22 @@ router.get('/:id', async (req, res) => {
     // 获取回款计划
     const [paymentSchedule] = await connection.execute('SELECT * FROM sales_order_payment_schedule WHERE order_id = ?', [id])
     
+    // ✅ 修复：将日期字段格式化为字符串，使用本地时间避免时区转换问题
+    const formattedOrder = {
+      ...order,
+      customer_delivery: order.customer_delivery ? order.customer_delivery.toLocaleDateString('zh-CN', { year: 'numeric', month: '2-digit', day: '2-digit' }).replace(/\//g, '-') : null,
+      promised_delivery: order.promised_delivery ? order.promised_delivery.toLocaleDateString('zh-CN', { year: 'numeric', month: '2-digit', day: '2-digit' }).replace(/\//g, '-') : null,
+      estimated_completion_date: order.estimated_completion_date ? order.estimated_completion_date.toLocaleDateString('zh-CN', { year: 'numeric', month: '2-digit', day: '2-digit' }).replace(/\//g, '-') : null,
+      order_time: order.order_time ? order.order_time.toLocaleDateString('zh-CN', { year: 'numeric', month: '2-digit', day: '2-digit' }).replace(/\//g, '-') : null,
+      created_at: order.created_at ? order.created_at.toLocaleDateString('zh-CN', { year: 'numeric', month: '2-digit', day: '2-digit' }).replace(/\//g, '-') : null,
+      updated_at: order.updated_at ? order.updated_at.toLocaleDateString('zh-CN', { year: 'numeric', month: '2-digit', day: '2-digit' }).replace(/\//g, '-') : null
+    };
+    
     console.log('✅ 获取成功')
     res.json({
       success: true,
       data: {
-        ...order,
+        ...formattedOrder,
         products,
         paymentSchedule
       }
@@ -271,7 +309,7 @@ router.post('/', async (req, res) => {
       await connection.execute(`
         INSERT INTO sales_orders (
           id, internal_order_no, customer_order_no, customer_name, customer_id,
-          salesperson, quotation_no, order_type,
+          salesperson, submitter, quotation_no, order_type,
           order_time, promised_delivery, customer_delivery, estimated_completion_date,
           sales_department, delivery_method, return_order_no,
           order_currency, current_exchange_rate, tax_rate, fees,
@@ -283,10 +321,10 @@ router.post('/', async (req, res) => {
           planned_payment_account, total_receivable,
           has_after_sales, after_sales_order_no, after_sales_details,
           status, created_by
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       `, [
         id, internalOrderNo, customerOrderNo || null, customerName, customerId || null,
-        salesperson || null, quotationNo || null, orderType || null,
+        salesperson || null, 'admin', quotationNo || null, orderType || null,
         formatDateForMySQL(orderTime), formatDateForMySQL(promisedDelivery), formatDateForMySQL(customerDelivery), formatDateForMySQL(estimatedCompletionDate),
         salesDepartment || null, deliveryMethod || null, returnOrderNo || null,
         orderCurrency, currentExchangeRate, taxRate, fees,
@@ -571,6 +609,30 @@ router.delete('/:id', async (req, res) => {
     
     console.log(`✅ 级联删除主生产计划: ${masterPlanResult.affectedRows} 条`);
     
+    // ✅ 级联删除备料计划（销售订单编号 = 内部销售订单编号）
+    const [materialPlanResult] = await connection.execute(
+      'DELETE FROM material_preparation_plans WHERE sales_order_no = ?',
+      [internalOrderNo]
+    );
+    
+    console.log(`✅ 级联删除备料计划: ${materialPlanResult.affectedRows} 条`);
+    
+    // ✅ 级联删除工序计划（销售订单编号 = 内部销售订单编号）
+    const [processPlanResult] = await connection.execute(
+      'DELETE FROM process_plans WHERE sales_order_no = ?',
+      [internalOrderNo]
+    );
+    
+    console.log(`✅ 级联删除工序计划: ${processPlanResult.affectedRows} 条`);
+    
+    // ✅ 级联删除真工序计划（销售订单编号 = 内部销售订单编号）
+    const [realProcessPlanResult] = await connection.execute(
+      'DELETE FROM real_process_plans WHERE sales_order_no = ?',
+      [internalOrderNo]
+    );
+    
+    console.log(`✅ 级联删除真工序计划: ${realProcessPlanResult.affectedRows} 条`);
+    
     // 删除订单(级联删除产品和回款计划)
     await connection.execute('DELETE FROM sales_orders WHERE id = ?', [id])
     
@@ -578,7 +640,7 @@ router.delete('/:id', async (req, res) => {
     
     res.json({
       success: true,
-      message: `删除订单成功（同时删除 ${masterPlanResult.affectedRows} 条主生产计划）`
+      message: `删除订单成功（同时删除 ${masterPlanResult.affectedRows} 条主生产计划、${materialPlanResult.affectedRows} 条备料计划、${processPlanResult.affectedRows} 条工序计划、${realProcessPlanResult.affectedRows} 条真工序计划）`
     })
   } catch (error) {
     console.error('❌ 删除订单失败:', error)
@@ -610,20 +672,85 @@ router.post('/batch-delete', async (req, res) => {
     }
     
     connection = await pool.getConnection()
+    await connection.beginTransaction()
     
-    const placeholders = ids.map(() => '?').join(',')
-    const [result] = await connection.execute(`DELETE FROM sales_orders WHERE id IN (${placeholders})`, ids)
+    let totalMasterPlans = 0
+    let totalMaterialPlans = 0
+    let totalProcessPlans = 0
+    let totalRealProcessPlans = 0
     
-    console.log('✅ 批量删除成功，删除数量:', result.affectedRows)
+    // 逐个处理，确保级联删除
+    for (const id of ids) {
+      // 1. 查询订单的internal_order_no
+      const [orderRows] = await connection.execute(
+        'SELECT internal_order_no FROM sales_orders WHERE id = ?',
+        [id]
+      )
+      
+      if (orderRows.length > 0) {
+        const internalOrderNo = orderRows[0].internal_order_no
+        
+        // 2. 级联删除主生产计划
+        const [masterPlanResult] = await connection.execute(
+          'DELETE FROM master_production_plans WHERE internal_order_no = ?',
+          [internalOrderNo]
+        )
+        totalMasterPlans += masterPlanResult.affectedRows
+        
+        // 3. 级联删除备料计划
+        const [materialPlanResult] = await connection.execute(
+          'DELETE FROM material_preparation_plans WHERE sales_order_no = ?',
+          [internalOrderNo]
+        )
+        totalMaterialPlans += materialPlanResult.affectedRows
+        
+        // 4. 级联删除工序计划
+        const [processPlanResult] = await connection.execute(
+          'DELETE FROM process_plans WHERE sales_order_no = ?',
+          [internalOrderNo]
+        );
+        totalProcessPlans += processPlanResult.affectedRows;
+        
+        // 5. 级联删除真工序计划
+        const [realProcessPlanResult] = await connection.execute(
+          'DELETE FROM real_process_plans WHERE sales_order_no = ?',
+          [internalOrderNo]
+        );
+        totalRealProcessPlans += realProcessPlanResult.affectedRows;
+        
+        // 6. 删除订单
+        await connection.execute(
+          'DELETE FROM sales_orders WHERE id = ?',
+          [id]
+        )
+      }
+    }
+    
+    await connection.commit()
+    
+    console.log('✅ 批量删除成功，删除数量:', {
+      orders: ids.length,
+      masterPlans: totalMasterPlans,
+      materialPlans: totalMaterialPlans,
+      processPlans: totalProcessPlans,
+      realProcessPlans: totalRealProcessPlans
+    })
     
     res.json({
       success: true,
-      message: `成功删除 ${result.affectedRows} 个订单`,
+      message: `成功删除 ${ids.length} 个订单（同时删除 ${totalMasterPlans} 条主生产计划、${totalMaterialPlans} 条备料计划、${totalProcessPlans} 条工序计划、${totalRealProcessPlans} 条真工序计划）`,
       data: {
-        deletedCount: result.affectedRows
+        deletedCount: ids.length,
+        masterPlansDeleted: totalMasterPlans,
+        materialPlansDeleted: totalMaterialPlans,
+        processPlansDeleted: totalProcessPlans,
+        realProcessPlansDeleted: totalRealProcessPlans
       }
     })
   } catch (error) {
+    if (connection) {
+      await connection.rollback()
+    }
     console.error('❌ 批量删除订单失败:', error)
     res.status(500).json({
       success: false,

@@ -491,7 +491,6 @@ const alertHistoryVisible = ref(false)
 const selectedEquipment = ref({})
 const loadingAlerts = ref(false)
 
-// 图表引用
 const trendChartRef = ref(null)
 const statusChartRef = ref(null)
 const tempAlertChartRef = ref(null)

@@ -68,14 +68,6 @@ export default {
         icon: 'List'
       }
     },
-    {
-      path: 'capacity-planning',
-      name: 'CapacityPlanning',
-      component: () => import('@/pages/production-planning/CapacityPlanning.vue'),
-      meta: { 
-        title: '产能规划',
-        icon: 'DataAnalysis'
-      }
-    }
+
   ]
 }

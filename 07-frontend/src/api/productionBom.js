@@ -1,25 +1,4 @@
-import axios from 'axios'
-
-// 后端API地址 - 使用Vite代理
-const API_BASE_URL = '/api'
-
-// 创建axios实例
-const request = axios.create({
-  baseURL: API_BASE_URL,
-  timeout: 30000,
-  headers: {
-    'Content-Type': 'application/json'
-  }
-})
-
-// 响应拦截器
-request.interceptors.response.use(
-  response => response.data,
-  error => {
-    console.error('生产BOM API请求失败:', error)
-    return Promise.reject(error)
-  }
-)
+import request from '@/utils/request'
 
 // 生产BOM API
 export default {
@@ -55,6 +34,6 @@ export default {
 
   // 批量删除生产BOM
   batchDeleteBOMs(ids) {
-    return request.delete('/production-boms/batch-delete', { data: { ids } })
+    return request.delete('/production-boms/batch-delete', { ids })
   }
 }

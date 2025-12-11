@@ -28,7 +28,7 @@
       </div>
       <div class="toolbar-right">
         <slot name="toolbar-right">
-          <el-button @click="columnControlVisible = true" size="small">
+          <el-button v-if="showColumnSettings" @click="columnControlVisible = true" size="small">
             <el-icon><Setting /></el-icon>
             列设置
           </el-button>
@@ -53,7 +53,7 @@
       @sort-change="handleSortChange"
       style="width: 100%"
     >
-      <el-table-column type="selection" width="55" fixed="left" v-if="showSelection" />
+      <el-table-column type="selection" width="55" v-if="showSelection" />
       <el-table-column
         v-for="column in visibleColumns"
         :key="column.prop"
@@ -193,11 +193,17 @@
         </template>
         <template #default="{ row, $index }">
           <slot :name="`column-${column.prop}`" :row="row" :index="$index">
-            {{ row[column.prop] }}
+            <!-- 支持formatter函数 -->
+            <span v-if="column.formatter">
+              {{ column.formatter(row, column, row[column.prop], $index) }}
+            </span>
+            <span v-else>
+              {{ row[column.prop] }}
+            </span>
           </slot>
         </template>
       </el-table-column>
-      <el-table-column label="操作" :width="operationWidth" fixed="right" v-if="showOperation">
+      <el-table-column label="操作" :width="operationWidth" v-if="showOperation">
         <template #default="{ row, $index }">
           <slot name="operation" :row="row" :index="$index">
             <el-button type="primary" size="small" @click="$emit('edit', row)">编辑</el-button>
@@ -287,6 +293,8 @@ const props = defineProps({
   showImport: { type: Boolean, default: true },
   // 显示打印
   showPrint: { type: Boolean, default: true },
+  // 显示列设置按钮
+  showColumnSettings: { type: Boolean, default: true },
   // 显示选择框
   showSelection: { type: Boolean, default: true },
   // 显示操作列
@@ -316,7 +324,7 @@ const props = defineProps({
 })
 
 const emit = defineEmits([
-  'add', 'edit', 'delete', 'delete-single', 'export', 'import', 'refresh',
+  'add', 'edit', 'delete', 'batch-delete', 'delete-single', 'export', 'import', 'refresh',
   'selection-change', 'sort-change', 'page-change', 'size-change', 'filter-change'
 ])
 
@@ -333,7 +341,73 @@ const activeFilters = ref({})
 
 const currentPage = ref(props.page)
 const currentPageSize = ref(props.pageSize)
-const tableData = computed(() => props.data)
+
+// 计算筛选后的数据
+const filteredData = computed(() => {
+  let data = props.data
+  
+  // 应用所有激活的筛选条件
+  Object.keys(activeFilters.value).forEach(prop => {
+    const filter = activeFilters.value[prop]
+    
+    if (filter.type === 'input' && filter.value) {
+      // 文本筛选
+      data = data.filter(row => {
+        const value = String(row[prop] || '').toLowerCase()
+        const filterValue = String(filter.value).toLowerCase()
+        
+        switch (filter.operator) {
+          case 'contains':
+            return value.includes(filterValue)
+          case 'equals':
+            return value === filterValue
+          case 'notEquals':
+            return value !== filterValue
+          case 'startsWith':
+            return value.startsWith(filterValue)
+          case 'endsWith':
+            return value.endsWith(filterValue)
+          default:
+            return true
+        }
+      })
+    } else if (filter.type === 'select' && filter.values.length > 0) {
+      // 选择筛选
+      data = data.filter(row => filter.values.includes(row[prop]))
+    } else if (filter.type === 'number') {
+      // 数字筛选
+      data = data.filter(row => {
+        const value = Number(row[prop])
+        
+        switch (filter.operator) {
+          case 'equals':
+            return value === filter.value
+          case 'notEquals':
+            return value !== filter.value
+          case 'greaterThan':
+            return value > filter.value
+          case 'lessThan':
+            return value < filter.value
+          case 'between':
+            return value >= filter.minValue && value <= filter.maxValue
+          default:
+            return true
+        }
+      })
+    } else if (filter.type === 'date' && filter.dateRange) {
+      // 日期筛选
+      const [startDate, endDate] = filter.dateRange
+      data = data.filter(row => {
+        const rowDate = new Date(row[prop])
+        return rowDate >= startDate && rowDate <= endDate
+      })
+    }
+  })
+  
+  return data
+})
+
+const tableData = computed(() => filteredData.value)
 
 // 可见列
 const visibleColumns = computed(() => {
@@ -518,7 +592,7 @@ const handleBatchDelete = async () => {
         type: 'warning'
       }
     )
-    emit('delete', selectedRows.value)
+    emit('batch-delete', selectedRows.value)
   } catch {
     // 用户取消删除
   }

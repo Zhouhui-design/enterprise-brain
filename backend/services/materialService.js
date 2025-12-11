@@ -5,7 +5,36 @@ class MaterialService {
   static async getAllMaterials() {
     try {
       const [rows] = await pool.execute('SELECT * FROM materials ORDER BY created_at DESC');
-      return rows;
+      
+      // ✅ 字段名转换：下划线转驼峰
+      return rows.map(row => ({
+        ...row,
+        materialCode: row.material_code,
+        bomNumber: row.bom_number,
+        materialName: row.material_name,
+        sizeSpec: row.size_spec,
+        majorCategory: row.major_category,
+        middleCategory: row.middle_category,
+        minorCategory: row.minor_category,
+        materialImage: row.material_image,
+        baseUnit: row.base_unit,
+        saleUnit: row.sale_unit,
+        saleConversionRate: row.sale_conversion_rate,
+        purchaseUnit: row.purchase_unit,
+        purchaseConversionRate: row.purchase_conversion_rate,
+        kgPerPcs: row.kg_per_pcs,
+        pcsPerKg: row.pcs_per_kg,
+        processName: row.process_name,
+        standardTime: row.standard_time,  // ✅ 关键: 定时工额
+        quotaTime: row.quota_time,        // ✅ 关键: 定额工时
+        minimumPackagingQuantity: parseFloat(row.minimum_packaging_quantity) || 1,  // ✅ 新增：最小包装量
+        processPrice: row.process_price,
+        purchaseCycle: row.purchase_cycle,
+        purchasePrice: row.purchase_price,
+        basePrice: row.base_price,
+        createdAt: row.created_at,
+        updatedAt: row.updated_at
+      }));
     } catch (error) {
       throw new Error(`获取物料列表失败: ${error.message}`);
     }
@@ -15,7 +44,38 @@ class MaterialService {
   static async getMaterialById(id) {
     try {
       const [rows] = await pool.execute('SELECT * FROM materials WHERE id = ?', [id]);
-      return rows[0];
+      if (rows.length === 0) return null;
+      
+      // ✅ 字段名转换：下划线转驼峰
+      const row = rows[0];
+      return {
+        ...row,
+        materialCode: row.material_code,
+        bomNumber: row.bom_number,
+        materialName: row.material_name,
+        sizeSpec: row.size_spec,
+        majorCategory: row.major_category,
+        middleCategory: row.middle_category,
+        minorCategory: row.minor_category,
+        materialImage: row.material_image,
+        baseUnit: row.base_unit,
+        saleUnit: row.sale_unit,
+        saleConversionRate: row.sale_conversion_rate,
+        purchaseUnit: row.purchase_unit,
+        purchaseConversionRate: row.purchase_conversion_rate,
+        kgPerPcs: row.kg_per_pcs,
+        pcsPerKg: row.pcs_per_kg,
+        processName: row.process_name,
+        standardTime: row.standard_time,
+        quotaTime: row.quota_time,
+        minimumPackagingQuantity: parseFloat(row.minimum_packaging_quantity) || 1,  // ✅ 关键：最小包装量
+        processPrice: row.process_price,
+        purchaseCycle: row.purchase_cycle,
+        purchasePrice: row.purchase_price,
+        basePrice: row.base_price,
+        createdAt: row.created_at,
+        updatedAt: row.updated_at
+      };
     } catch (error) {
       throw new Error(`获取物料失败: ${error.message}`);
     }
@@ -25,7 +85,38 @@ class MaterialService {
   static async getMaterialByCode(materialCode) {
     try {
       const [rows] = await pool.execute('SELECT * FROM materials WHERE material_code = ?', [materialCode]);
-      return rows[0];
+      if (rows.length === 0) return null;
+      
+      // ✅ 字段名转换：下划线转驼峰
+      const row = rows[0];
+      return {
+        ...row,
+        materialCode: row.material_code,
+        bomNumber: row.bom_number,
+        materialName: row.material_name,
+        sizeSpec: row.size_spec,
+        majorCategory: row.major_category,
+        middleCategory: row.middle_category,
+        minorCategory: row.minor_category,
+        materialImage: row.material_image,
+        baseUnit: row.base_unit,
+        saleUnit: row.sale_unit,
+        saleConversionRate: row.sale_conversion_rate,
+        purchaseUnit: row.purchase_unit,
+        purchaseConversionRate: row.purchase_conversion_rate,
+        kgPerPcs: row.kg_per_pcs,
+        pcsPerKg: row.pcs_per_kg,
+        processName: row.process_name,
+        standardTime: row.standard_time,
+        quotaTime: row.quota_time,
+        minimumPackagingQuantity: parseFloat(row.minimum_packaging_quantity) || 1,  // ✅ 关键：最小包装量
+        processPrice: row.process_price,
+        purchaseCycle: row.purchase_cycle,
+        purchasePrice: row.purchase_price,
+        basePrice: row.base_price,
+        createdAt: row.created_at,
+        updatedAt: row.updated_at
+      };
     } catch (error) {
       throw new Error(`获取物料失败: ${error.message}`);
     }
@@ -45,9 +136,9 @@ class MaterialService {
           major_category, middle_category, minor_category, model, series, source,
           description, material_image, base_unit, sale_unit, sale_conversion_rate,
           purchase_unit, purchase_conversion_rate, kg_per_pcs, pcs_per_kg,
-          process_name, standard_time, quota_time, process_price,
+          process_name, standard_time, quota_time, minimum_packaging_quantity, process_price,
           purchase_cycle, purchase_price, base_price, status
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       `;
 
       const [result] = await pool.execute(sql, [
@@ -75,6 +166,7 @@ class MaterialService {
         materialData.process_name || materialData.processName || '',
         materialData.standard_time || materialData.standardTime || 0,
         materialData.quota_time || materialData.quotaTime || 0,
+        materialData.minimum_packaging_quantity || materialData.minimumPackagingQuantity || 1,  // ✅ 新增
         materialData.process_price || materialData.processPrice || 0,
         materialData.purchase_cycle || materialData.purchaseCycle || '',
         purchasePrice,
@@ -131,7 +223,7 @@ class MaterialService {
                 description = ?, material_image = ?, base_unit = ?, sale_unit = ?,
                 sale_conversion_rate = ?, purchase_unit = ?, purchase_conversion_rate = ?,
                 kg_per_pcs = ?, pcs_per_kg = ?, process_name = ?, standard_time = ?,
-                quota_time = ?, process_price = ?, purchase_cycle = ?, purchase_price = ?,
+                quota_time = ?, minimum_packaging_quantity = ?, process_price = ?, purchase_cycle = ?, purchase_price = ?,
                 base_price = ?, status = ?
               WHERE material_code = ?
             `;
@@ -160,6 +252,7 @@ class MaterialService {
               materialData.process_name || materialData.processName || '',
               materialData.standard_time || materialData.standardTime || 0,
               materialData.quota_time || materialData.quotaTime || 0,
+              materialData.minimum_packaging_quantity || materialData.minimumPackagingQuantity || 1,  // ✅ 新增
               materialData.process_price || materialData.processPrice || 0,
               materialData.purchase_cycle || materialData.purchaseCycle || '',
               purchasePrice,
@@ -176,9 +269,9 @@ class MaterialService {
                 major_category, middle_category, minor_category, model, series, source,
                 description, material_image, base_unit, sale_unit, sale_conversion_rate,
                 purchase_unit, purchase_conversion_rate, kg_per_pcs, pcs_per_kg,
-                process_name, standard_time, quota_time, process_price,
+                process_name, standard_time, quota_time, minimum_packaging_quantity, process_price,
                 purchase_cycle, purchase_price, base_price, status
-              ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+              ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             `;
             
             await connection.execute(insertSql, [
@@ -206,6 +299,7 @@ class MaterialService {
               materialData.process_name || materialData.processName || '',
               materialData.standard_time || materialData.standardTime || 0,
               materialData.quota_time || materialData.quotaTime || 0,
+              materialData.minimum_packaging_quantity || materialData.minimumPackagingQuantity || 1,  // ✅ 新增
               materialData.process_price || materialData.processPrice || 0,
               materialData.purchase_cycle || materialData.purchaseCycle || '',
               purchasePrice,
@@ -253,7 +347,7 @@ class MaterialService {
           description = ?, material_image = ?, base_unit = ?, sale_unit = ?,
           sale_conversion_rate = ?, purchase_unit = ?, purchase_conversion_rate = ?,
           kg_per_pcs = ?, pcs_per_kg = ?, process_name = ?, standard_time = ?,
-          quota_time = ?, process_price = ?, purchase_cycle = ?, purchase_price = ?,
+          quota_time = ?, minimum_packaging_quantity = ?, process_price = ?, purchase_cycle = ?, purchase_price = ?,
           base_price = ?, status = ?
         WHERE id = ?
       `;
@@ -283,6 +377,7 @@ class MaterialService {
         materialData.process_name || materialData.processName || '',
         materialData.standard_time || materialData.standardTime || 0,
         materialData.quota_time || materialData.quotaTime || 0,
+        materialData.minimum_packaging_quantity || materialData.minimumPackagingQuantity || 1,  // ✅ 新增
         materialData.process_price || materialData.processPrice || 0,
         materialData.purchase_cycle || materialData.purchaseCycle || '',
         purchasePrice,

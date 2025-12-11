@@ -423,7 +423,7 @@ export default {
           this.approveDialogVisible = false
         }
       }
-    }
+    },
     // 关闭详情对话框
     handleCloseDetailDialog() {
       this.detailDialogVisible = false

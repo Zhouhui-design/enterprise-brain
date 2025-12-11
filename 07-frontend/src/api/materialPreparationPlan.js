@@ -36,11 +36,17 @@ export const batchDelete = (ids) => {
   })
 }
 
+// 推送到工序计划
+export const pushToProcess = (id) => {
+  return request.post(`/material-preparation-plans/${id}/push-to-process`)
+}
+
 export default {
   getList,
   getById,
   create,
   update,
   deleteById,
-  batchDelete
+  batchDelete,
+  pushToProcess
 }

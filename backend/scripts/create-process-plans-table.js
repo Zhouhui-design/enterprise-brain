@@ -33,6 +33,7 @@ async function createProcessPlansTable() {
         schedule_count INT DEFAULT 0 COMMENT '排程次数',
         standard_work_hours DECIMAL(18, 4) DEFAULT 0 COMMENT '定额工时',
         standard_work_quota DECIMAL(18, 4) DEFAULT 0 COMMENT '定时工额',
+        replenishment_qty DECIMAL(18, 4) DEFAULT 0 COMMENT '需补货数量',
         scheduled_hours DECIMAL(18, 4) DEFAULT 0 COMMENT '已排工时',
         unscheduled_hours DECIMAL(18, 4) DEFAULT 0 COMMENT '未排工时',
         source_page_name VARCHAR(50) COMMENT '来源页面名称',

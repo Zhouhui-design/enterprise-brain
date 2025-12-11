@@ -947,6 +947,5 @@ const loadBOMList = async () => {
     justify-content: flex-end;
     gap: 12px;
   }
->>>>>>> origin/develop
 }
 </style>

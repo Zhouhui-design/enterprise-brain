@@ -44,6 +44,10 @@ const inventoryRouter = require('./routes/inventory');
 const masterProductionPlansRouter = require('./routes/masterProductionPlans');
 const materialPreparationPlansRouter = require('./routes/materialPreparationPlans');
 const processPlansRouter = require('./routes/processPlans');
+const realProcessPlansRouter = require('./routes/realProcessPlans');
+const capacityLoadRouter = require('./routes/capacityLoad');
+const companyCalendarRouter = require('./routes/companyCalendar');
+const listStyleProductionBomsRouter = require('./routes/listStyleProductionBoms');
 
 app.use('/api/materials', materialsRouter);
 app.use('/api/production-boms', productionBomsRouter);
@@ -62,6 +66,13 @@ app.use('/api/inventory', inventoryRouter);
 app.use('/api/master-production-plans', masterProductionPlansRouter);
 app.use('/api/material-preparation-plans', materialPreparationPlansRouter);
 app.use('/api/process-plans', processPlansRouter);
+app.use('/api/real-process-plans', realProcessPlansRouter);
+app.use('/api/capacity-load', capacityLoadRouter);
+console.log('📡 工序能力负荷表路由已注册: /api/capacity-load');
+app.use('/api/company-calendar', companyCalendarRouter);
+app.use('/api/list-style-production-boms', listStyleProductionBomsRouter);
+
+
 
 // 健康检查接口
 app.get('/health', (req, res) => {
@@ -113,6 +124,11 @@ const server = app.listen(PORT, '0.0.0.0', () => {
   // 启动自动备份任务
   console.log('\n💾 启动数据库自动备份系统...');
   require('./scripts/auto-backup');
+  
+  // 启动工序能力负荷表定时任务
+  console.log('\n⏰ 启动工序能力负荷表定时任务...');
+  const { scheduleDailyTask } = require('./scheduledTasks');
+  scheduleDailyTask();
 });
 
 // 优雅关闭

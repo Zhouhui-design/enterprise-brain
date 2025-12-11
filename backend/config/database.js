@@ -191,7 +191,7 @@ async function initializeDatabase() {
         level INT DEFAULT 1 COMMENT '层级',
         component_code VARCHAR(100) NOT NULL COMMENT '子件编码',
         component_name VARCHAR(200) NOT NULL COMMENT '子件名称',
-        standard_quantity DECIMAL(10,4) DEFAULT 1 COMMENT '标准用量',
+        quantity DECIMAL(10,4) DEFAULT 1 COMMENT '数量',
         output_process VARCHAR(100) COMMENT '产出工序',
         component_source VARCHAR(50) COMMENT '子件来源',
         process_wage DECIMAL(10,2) DEFAULT 0 COMMENT '加工工资',
@@ -202,8 +202,55 @@ async function initializeDatabase() {
         updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
         INDEX idx_bom_id (bom_id),
         INDEX idx_component_code (component_code),
-        FOREIGN KEY (bom_id) REFERENCES boms(id) ON DELETE CASCADE
+        FOREIGN KEY (bom_id) REFERENCES production_boms(id) ON DELETE CASCADE
       ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='BOM子件表'
+    `);
+
+    // 创建列表式生产BOM主表
+    await connection.execute(`
+      CREATE TABLE IF NOT EXISTS list_style_production_boms (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        sequence INT NOT NULL COMMENT '序号',
+        bom_code VARCHAR(100) UNIQUE NOT NULL COMMENT 'BOM编号',
+        parent_code VARCHAR(100) NOT NULL COMMENT '父件编号',
+        parent_name VARCHAR(200) NOT NULL COMMENT '父件名称',
+        status VARCHAR(20) DEFAULT 'draft' COMMENT 'BOM状态',
+        is_default VARCHAR(10) DEFAULT '否' COMMENT '默认BOM',
+        version_count INT DEFAULT 1 COMMENT '版本次数',
+        remark TEXT COMMENT 'BOM备注',
+        parent_main_category VARCHAR(100) COMMENT '父件大类',
+        parent_mid_category VARCHAR(100) COMMENT '父件中类',
+        parent_sub_category VARCHAR(100) COMMENT '父件小类',
+        parent_model VARCHAR(100) COMMENT '父件型号',
+        parent_series VARCHAR(100) COMMENT '父件系列',
+        parent_output_process VARCHAR(100) COMMENT '父件产出工序',
+        total_material DECIMAL(10,2) DEFAULT 0 COMMENT '总材料',
+        total_labor DECIMAL(10,2) DEFAULT 0 COMMENT '总人工',
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+        INDEX idx_bom_code (bom_code),
+        INDEX idx_parent_code (parent_code),
+        INDEX idx_status (status)
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='列表式生产BOM主表'
+    `);
+
+    // 创建列表式生产BOM子件表
+    await connection.execute(`
+      CREATE TABLE IF NOT EXISTS list_style_bom_children (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        parent_id INT NOT NULL COMMENT '父件ID',
+        child_sequence INT NOT NULL COMMENT '子件序号',
+        child_code VARCHAR(100) NOT NULL COMMENT '子件编码',
+        child_name VARCHAR(200) NOT NULL COMMENT '子件名称',
+        output_process VARCHAR(100) COMMENT '产出工序',
+        component_source VARCHAR(50) COMMENT '子件来源（自制/外购）',
+        standard_usage DECIMAL(10,4) DEFAULT 1 COMMENT '标准用量',
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+        INDEX idx_parent_id (parent_id),
+        INDEX idx_child_code (child_code),
+        FOREIGN KEY (parent_id) REFERENCES list_style_production_boms(id) ON DELETE CASCADE
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='列表式生产BOM子件表'
     `);
 
     // 创建生产BOM草稿表

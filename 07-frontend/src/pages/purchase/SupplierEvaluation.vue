@@ -444,7 +444,7 @@ export default {
             { category: '服务水平', score: Math.random() * 15 + 85, weight: 15, weightedScore: (Math.random() * 15 + 85) * 0.15, comments: '服务响应及时' },
             { category: '合规性', score: Math.random() * 10 + 90, weight: 10, weightedScore: (Math.random() * 10 + 90) * 0.1, comments: '资质齐全，合规运营' }
           ],
-          conclusion: '该供应商整体表现' + (level === 'A' ? '优秀' : level === 'B' ? '良好' : '一般') + '，建议' + (level === 'A' || level === 'B' ? '继续合作' : '改进后继续观察')。',
+          conclusion: '该供应商整体表现' + (level === 'A' ? '优秀' : level === 'B' ? '良好' : '一般') + '，建议' + (level === 'A' || level === 'B' ? '继续合作' : '改进后继续观察'),
           suggestions: '建议' + (level === 'A' || level === 'B' ? '在保持现有服务水平的基础上，进一步优化成本' : '重点改进产品质量和交付及时性') + '。',
           followUpPlan: '下一季度将再次评估，重点关注' + (level === 'A' || level === 'B' ? '创新能力和成本优化' : '质量稳定性和交付准确性') + '。'
         });

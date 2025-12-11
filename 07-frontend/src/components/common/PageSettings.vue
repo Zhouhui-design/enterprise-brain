@@ -160,43 +160,98 @@
       
       <!-- 业务变量设置 -->
       <el-tab-pane label="业务变量" name="business" v-if="showBusinessVars">
-        <el-form label-width="140px">
-          <el-form-item label="显示天数">
-            <el-input-number 
-              v-model="localSettings.displayDays" 
-              :min="1" 
-              :max="365" 
-              placeholder="请输入显示天数"
-              style="width: 200px;"
-            />
-            <span style="margin-left: 10px; color: #909399;">天</span>
-          </el-form-item>
-          <el-alert 
-            title="显示天数：控制工序能力负荷表展示未来多少天的数据" 
-            type="info" 
-            :closable="false"
-            style="margin-top: 10px;"
-          />
-          
-          <el-divider />
-          
-          <el-form-item label="提前入库期">
-            <el-input-number 
-              v-model="localSettings.advanceStorageDays" 
-              :min="0" 
-              :max="365" 
-              placeholder="请输入提前天数"
-              style="width: 200px;"
-            />
-            <span style="margin-left: 10px; color: #909399;">天</span>
-          </el-form-item>
-          <el-alert 
-            title="提前入库期：计划入库日期 = 订单承诺交期 - 提前入库期" 
-            type="info" 
-            :closable="false"
-            style="margin-top: 10px;"
-          />
-        </el-form>
+        <!-- ✅ 业务变量 - 按钮列表 -->
+        <div v-if="businessVarButtons && businessVarButtons.length > 0" style="margin-bottom: 24px;">
+          <el-form label-width="140px">
+            <el-form-item 
+              v-for="btn in businessVarButtons" 
+              :key="btn.value" 
+              :label="btn.label"
+            >
+              <el-button type="primary" @click="btn.onClick">打开</el-button>
+            </el-form-item>
+          </el-form>
+        </div>
+
+        <el-divider v-if="businessVarButtons && businessVarButtons.length > 0 && businessVarSelects && businessVarSelects.length > 0" />
+
+        <!-- ✅ 业务变量 - 下拉选择列表 -->
+        <div v-if="businessVarSelects && businessVarSelects.length > 0">
+          <el-form label-width="140px">
+            <el-form-item 
+              v-for="select in businessVarSelects" 
+              :key="select.value" 
+              :label="select.label"
+            >
+              <el-select 
+                v-model="localSettings[select.value]" 
+                style="width: 100%;"
+                :placeholder="'请选择' + select.label"
+              >
+                <el-option 
+                  v-for="option in select.options" 
+                  :key="option.value" 
+                  :label="option.label" 
+                  :value="option.value" 
+                />
+              </el-select>
+              <!-- ✅ 文案说明（HTML格式） -->
+              <div v-if="select.description" v-html="select.description" style="margin-top: 8px;"></div>
+              <!-- ✅ 温馨提示 -->
+              <el-alert 
+                v-if="select.tip" 
+                :title="select.tip" 
+                type="info" 
+                :closable="false"
+                style="margin-top: 10px;"
+              />
+            </el-form-item>
+          </el-form>
+        </div>
+
+        <!-- 自定义业务变量插槽，允许每个页面定制 -->
+        <slot name="business-vars" :settings="localSettings">
+          <!-- 默认通用业务变量（如果没有插槽内容） -->
+          <div v-if="!businessVarButtons || businessVarButtons.length === 0">
+            <el-form label-width="140px">
+              <el-form-item label="显示天数">
+                <el-input-number 
+                  v-model="localSettings.displayDays" 
+                  :min="1" 
+                  :max="365" 
+                  placeholder="请输入显示天数"
+                  style="width: 200px;"
+                />
+                <span style="margin-left: 10px; color: #909399;">天</span>
+              </el-form-item>
+              <el-alert 
+                title="显示天数：控制工序能力负荷表展示未来多少天的数据" 
+                type="info" 
+                :closable="false"
+                style="margin-top: 10px;"
+              />
+              
+              <el-divider />
+              
+              <el-form-item label="提前入库期">
+                <el-input-number 
+                  v-model="localSettings.advanceStorageDays" 
+                  :min="0" 
+                  :max="365" 
+                  placeholder="请输入提前天数"
+                  style="width: 200px;"
+                />
+                <span style="margin-left: 10px; color: #909399;">天</span>
+              </el-form-item>
+              <el-alert 
+                title="提前入库期：计划入库日期 = 订单承诺交期 - 提前入库期" 
+                type="info" 
+                :closable="false"
+                style="margin-top: 10px;"
+              />
+            </el-form>
+          </div>
+        </slot>
       </el-tab-pane>
     </el-tabs>
     
@@ -261,6 +316,16 @@ const props = defineProps({
   showBusinessVars: {
     type: Boolean,
     default: false
+  },
+  // ✅ 业务变量 - 按钮配置
+  businessVarButtons: {
+    type: Array,
+    default: () => []
+  },
+  // ✅ 业务变量 - 下拉选择配置
+  businessVarSelects: {
+    type: Array,
+    default: () => []
   },
   // 默认设置
   defaultSettings: {

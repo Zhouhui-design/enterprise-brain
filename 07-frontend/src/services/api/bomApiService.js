@@ -9,14 +9,11 @@ class BOMAPIService {
    */
   async getAllBoms() {
     try {
-      const response = await productionBomAPI.getAllBOMs()
-      if (response.code === 200) {
-        console.log(`从后端获取到${response.data.length}条生产BOM数据`)
-        // 转换数据格式
-        return response.data.map(item => this.convertFromBackend(item))
-      } else {
-        throw new Error(response.message || '获取生产BOM列表失败')
-      }
+      // request.js的响应拦截器已经处理了code，直接返回数据数组
+      const data = await productionBomAPI.getAllBOMs()
+      console.log(`从后端获取到${data.length}条生产BOM数据`)
+      // 转换数据格式
+      return data.map(item => this.convertFromBackend(item))
     } catch (error) {
       console.error('获取生产BOM列表失败:', error)
       throw error
@@ -28,12 +25,9 @@ class BOMAPIService {
    */
   async getBomDetail(id) {
     try {
-      const response = await productionBomAPI.getBOMDetail(id)
-      if (response.code === 200) {
-        return this.convertFromBackend(response.data, true)
-      } else {
-        throw new Error(response.message || '获取BOM详情失败')
-      }
+      // request.js的响应拦截器已经处理了code，直接返回数据对象
+      const data = await productionBomAPI.getBOMDetail(id)
+      return this.convertFromBackend(data, true)
     } catch (error) {
       console.error('获取BOM详情失败:', error)
       throw error
@@ -51,23 +45,19 @@ class BOMAPIService {
       // 转换为后端格式
       const backendData = this.convertToBackend(bomData)
       
-      let response
+      let data
       if (bomData.id) {
         // 更新
         console.log('执行更新操作, ID:', bomData.id)
-        response = await productionBomAPI.updateBOM(bomData.id, backendData)
+        data = await productionBomAPI.updateBOM(bomData.id, backendData)
       } else {
         // 创建
         console.log('执行创建操作')
-        response = await productionBomAPI.createBOM(backendData)
+        data = await productionBomAPI.createBOM(backendData)
       }
       
-      if (response.code === 200) {
-        console.log('BOM保存成功')
-        return response.data
-      } else {
-        throw new Error(response.message || '保存BOM失败')
-      }
+      console.log('BOM保存成功')
+      return data
     } catch (error) {
       console.error('保存BOM失败:', error)
       throw error
@@ -79,13 +69,9 @@ class BOMAPIService {
    */
   async deleteBom(id) {
     try {
-      const response = await productionBomAPI.deleteBOM(id)
-      if (response.code === 200) {
-        console.log('BOM删除成功:', id)
-        return true
-      } else {
-        throw new Error(response.message || '删除BOM失败')
-      }
+      await productionBomAPI.deleteBOM(id)
+      console.log('BOM删除成功:', id)
+      return true
     } catch (error) {
       console.error('删除BOM失败:', error)
       throw error
@@ -97,13 +83,9 @@ class BOMAPIService {
    */
   async deleteBoms(ids) {
     try {
-      const response = await productionBomAPI.batchDeleteBOMs(ids)
-      if (response.code === 200) {
-        console.log(`批量删除BOM成功，共${response.data.successCount}条`)
-        return response.data
-      } else {
-        throw new Error(response.message || '批量删除BOM失败')
-      }
+      const data = await productionBomAPI.batchDeleteBOMs(ids)
+      console.log(`批量删除BOM成功，共${data.successCount}条`)
+      return data
     } catch (error) {
       console.error('批量删除BOM失败:', error)
       throw error

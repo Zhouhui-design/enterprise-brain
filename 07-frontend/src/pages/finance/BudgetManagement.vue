@@ -652,7 +652,7 @@ width: 100,
     };
     
     // 新建/编辑预算
-    const handleEditBudget = (row = null) => {
+    const handleEditBudget = (row) => {
       // 重置表单
       budgetForm.id = '';
       budgetForm.name = '';

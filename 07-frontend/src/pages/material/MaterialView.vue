@@ -55,6 +55,12 @@
           <el-descriptions-item label="产出工序名称">{{ materialData?.processName || '-' }}</el-descriptions-item>
           <el-descriptions-item label="定时工额">{{ materialData?.standardTime }}</el-descriptions-item>
           <el-descriptions-item label="定额工时">{{ materialData?.quotaTime }}</el-descriptions-item>
+          <el-descriptions-item label="最小包装量">
+            {{ materialData?.minimumPackagingQuantity || 1 }}
+            <span style="color: #909399; font-size: 12px; margin-left: 8px;">
+              (用于排程数量向上取整)
+            </span>
+          </el-descriptions-item>
           <el-descriptions-item label="工序单价">¥{{ materialData?.processPrice?.toFixed(2) }}</el-descriptions-item>
           <el-descriptions-item label="kg/pcs">{{ materialData?.kgPerPcs }}</el-descriptions-item>
           <el-descriptions-item label="pcs/kg">{{ materialData?.pcsPerKg }}</el-descriptions-item>

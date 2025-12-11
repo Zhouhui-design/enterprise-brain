@@ -22,6 +22,12 @@ const bomRouter = {
       meta: { title: '生产BOM' }
     },
     {
+      path: 'list-style-production-bom',
+      name: 'ListStyleProductionBom',
+      component: () => import('@/pages/bom/ListStyleProductionBom.vue'),
+      meta: { title: '列表式生产BOM' }
+    },
+    {
       path: 'sales',
       name: 'SalesBom',
       component: () => import('@/pages/bom/SalesBom.vue'),

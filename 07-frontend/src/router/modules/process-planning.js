@@ -29,6 +29,12 @@ export default {
       name: 'WorkInstruction',
       component: () => import('@/pages/process-planning/WorkInstruction.vue'),
       meta: { title: '工作指导书管理' }
+    },
+    {
+      path: 'real-process-plan',
+      name: 'RealProcessPlanList',
+      component: () => import('@/pages/production-planning/RealProcessPlanList.vue'),
+      meta: { title: '真工序计划' }
     }
   ]
 }

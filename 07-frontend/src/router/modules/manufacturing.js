@@ -15,6 +15,27 @@ const manufacturingRouter = {
       component: () => import('@/pages/manufacturing/ProcessList.vue'),
       meta: { title: '工序列表' }
     },
+    // ✅ 工序间隔设置
+    {
+      path: 'process-interval-settings',
+      name: 'ProcessIntervalSettings',
+      component: () => import('@/pages/production-planning/ProcessIntervalSettings.vue'),
+      meta: { title: '工序间隔设置' }
+    },
+    // 生产BOM
+    {
+      path: 'production-bom',
+      name: 'ManufacturingProductionBom',
+      component: () => import('@/pages/bom/ProductionBom.vue'),
+      meta: { title: '生产BOM' }
+    },
+    // 列表式生产BOM
+    {
+      path: 'list-style-production-bom',
+      name: 'ManufacturingListStyleProductionBom',
+      component: () => import('@/pages/bom/ListStyleProductionBom.vue'),
+      meta: { title: '列表式生产BOM' }
+    },
     // 生产订单管理
     {
       path: 'production-order',

@@ -75,6 +75,12 @@ service.interceptors.response.use(
     if (error.response) {
       const { status, data } = error.response
       
+      // ✅ 检查是否需要静默处理04错误（通过配置 silent404: true）
+      if (status === 404 && error.config?.silent404) {
+        // 静默处理04错误，不显示提示
+        return Promise.reject(error)
+      }
+      
       switch (status) {
         case 400:
           message = data.message || '请求参数错误'
@@ -136,11 +142,11 @@ const request = {
     })
   },
 
-  delete(url, params = {}, config = {}) {
+  delete(url, data = {}, config = {}) {
     return service({
       url,
       method: 'delete',
-      params,
+      data,  // 使用data而不是params，支持请求体
       ...config
     })
   },

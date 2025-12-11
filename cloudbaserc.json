@@ -21,11 +21,11 @@
   "functionRoot": "./functions",
   "functions": [],
   "ai": {
-    "defaultAgent": "{{env.AI_DEFAULT_AGENT}}",
     "agents": {
       "codebuddy": {
         "type": "none"
       }
-    }
+    },
+    "defaultAgent": "{{env.AI_DEFAULT_AGENT}}"
   }
 }

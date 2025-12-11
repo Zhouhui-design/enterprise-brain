@@ -11,15 +11,12 @@ class MaterialAPIService {
    */
   async getAllMaterials() {
     try {
-      const response = await materialAPI.getAllMaterials()
-      if (response.code === 200) {
-        console.log(`从后端获取到${response.data.length}条物料数据`)
-        // 将后端返回的下划线命名转换为驼峰命名
-        const materials = response.data.map(item => this.convertToCamelCase(item))
-        return materials
-      } else {
-        throw new Error(response.message || '获取物料列表失败')
-      }
+      // request.js的响应拦截器已经处理了code，直接返回数据数组
+      const data = await materialAPI.getAllMaterials()
+      console.log(`从后端获取到${data.length}条物料数据`)
+      // 将后端返回的下划线命名转换为驼峰命名
+      const materials = data.map(item => this.convertToCamelCase(item))
+      return materials
     } catch (error) {
       console.error('获取物料列表失败:', error)
       throw error
@@ -81,6 +78,7 @@ class MaterialAPIService {
       outputProcessName: obj.output_process_name || '', // 产出工序名称
       standardTime: obj.standard_time,
       quotaTime: obj.quota_time,
+      minimumPackagingQuantity: parseFloat(obj.minimum_packaging_quantity) || 1, // 最小包装量
       processPrice: parseFloat(obj.process_price) || 0,
       materialLoss: obj.material_loss,
       purchaseCycle: obj.purchase_cycle,
@@ -103,26 +101,20 @@ class MaterialAPIService {
       console.log('物料数据:', JSON.stringify(material, null, 2))
       console.log('是否有ID:', material.id)
       
-      let response
+      let data
       if (material.id) {
         // 更新物料
         console.log('执行更新操作, ID:', material.id)
-        response = await materialAPI.updateMaterial(material.id, material)
+        data = await materialAPI.updateMaterial(material.id, material)
       } else {
         // 创建物料
         console.log('执行创建操作')
-        response = await materialAPI.createMaterial(material)
+        data = await materialAPI.createMaterial(material)
       }
       
-      console.log('后端返回结果:', response)
-      
-      if (response.code === 200) {
-        console.log('物料保存成功:', material.material_name || material.materialName)
-        return response.data
-      } else {
-        console.error('后端返回错误:', response)
-        throw new Error(response.message || '保存物料失败')
-      }
+      console.log('后端返回结果:', data)
+      console.log('物料保存成功:', material.material_name || material.materialName)
+      return data
     } catch (error) {
       console.error('=== 保存物料异常 ===')
       console.error('错误对象:', error)
@@ -143,13 +135,9 @@ class MaterialAPIService {
    */
   async saveMaterials(materials) {
     try {
-      const response = await materialAPI.batchCreateMaterials(materials)
-      if (response.code === 200) {
-        console.log(`批量保存物料成功，共${response.data.successCount}条`)
-        return response.data
-      } else {
-        throw new Error(response.message || '批量保存物料失败')
-      }
+      const data = await materialAPI.batchCreateMaterials(materials)
+      console.log(`批量保存物料成功，共${data.successCount}条`)
+      return data
     } catch (error) {
       console.error('批量保存物料失败:', error)
       throw error
@@ -163,13 +151,9 @@ class MaterialAPIService {
    */
   async deleteMaterial(id) {
     try {
-      const response = await materialAPI.deleteMaterial(id)
-      if (response.code === 200) {
-        console.log('物料删除成功:', id)
-        return response.data
-      } else {
-        throw new Error(response.message || '删除物料失败')
-      }
+      const data = await materialAPI.deleteMaterial(id)
+      console.log('物料删除成功:', id)
+      return data
     } catch (error) {
       console.error('删除物料失败:', error)
       throw error
@@ -183,13 +167,9 @@ class MaterialAPIService {
    */
   async deleteMaterials(ids) {
     try {
-      const response = await materialAPI.batchDeleteMaterials(ids)
-      if (response.code === 200) {
-        console.log(`批量删除物料成功，共${response.data.successCount}条`)
-        return response.data
-      } else {
-        throw new Error(response.message || '批量删除物料失败')
-      }
+      const data = await materialAPI.batchDeleteMaterials(ids)
+      console.log(`批量删除物料成功，共${data.successCount}条`)
+      return data
     } catch (error) {
       console.error('批量删除物料失败:', error)
       throw error
@@ -212,6 +192,23 @@ class MaterialAPIService {
       }
     } catch (error) {
       console.error('搜索物料失败:', error)
+      throw error
+    }
+  }
+
+  /**
+   * 根据物料编码获取物料
+   * @param {string} materialCode - 物料编码
+   * @returns {Promise<Object>}
+   */
+  async getMaterialByCode(materialCode) {
+    try {
+      const data = await materialAPI.getMaterialByCode(materialCode)
+      console.log(`获取物料 ${materialCode} 成功`)
+      // 转换为驼峰命名
+      return this.convertToCamelCase(data)
+    } catch (error) {
+      console.error(`获取物料 ${materialCode} 失败:`, error)
       throw error
     }
   }

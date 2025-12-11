@@ -1,0 +1,228 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>BOM详情API测试</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            margin: 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        .test-result {
+            margin: 20px 0;
+            padding: 15px;
+            border-radius: 5px;
+            border-left: 4px solid #4CAF50;
+            background-color: #f1f8e9;
+        }
+        .error {
+            border-left-color: #f44336;
+            background-color: #ffebee;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 20px 0;
+        }
+        th, td {
+            padding: 12px;
+            text-align: left;
+            border-bottom: 1px solid #ddd;
+        }
+        th {
+            background-color: #f5f5f5;
+            font-weight: 600;
+        }
+        .status {
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 12px;
+            font-weight: 500;
+        }
+        .success {
+            background-color: #e8f5e8;
+            color: #2e7d32;
+        }
+        .pending {
+            background-color: #fff3e0;
+            color: #f57c00;
+        }
+        .button {
+            background-color: #1976d2;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 5px;
+            cursor: pointer;
+            margin: 5px;
+        }
+        .button:hover {
+            background-color: #1565c0;
+        }
+        .code {
+            background-color: #f5f5f5;
+            padding: 10px;
+            border-radius: 4px;
+            font-family: monospace;
+            margin: 10px 0;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🔧 BOM详情API修复验证</h1>
+        
+        <div class="test-result">
+            <h3>📋 修复内容总结</h3>
+            <ul>
+                <li><strong>问题1:</strong> API调用参数格式错误 → <span class="status success">✅ 已修复</span></li>
+                <li><strong>问题2:</strong> component_source字段缺失 → <span class="status success">✅ 已修复</span></li>
+                <li><strong>问题3:</strong> 前端请求拦截器处理问题 → <span class="status success">✅ 已修复</span></li>
+            </ul>
+        </div>
+
+        <h3>🧪 API测试结果</h3>
+        <button class="button" onclick="testAPI()">测试BOM详情API</button>
+        <button class="button" onclick="testWithDifferentProduct()">测试其他产品</button>
+        
+        <div id="result"></div>
+        
+        <h3>📊 测试数据详情</h3>
+        <div id="dataTable"></div>
+        
+        <h3>🔗 相关链接</h3>
+        <ul>
+            <li><a href="http://localhost:3003/production-planning/process-plan" target="_blank">工序计划页面</a></li>
+            <li><a href="http://localhost:3003/manufacturing/list-style-production-bom" target="_blank">列表式生产BOM页面</a></li>
+            <li><a href="http://localhost:3003/bom/production" target="_blank">生产BOM页面</a></li>
+        </ul>
+    </div>
+
+    <script>
+        async function testAPI() {
+            const resultDiv = document.getElementById('result');
+            const tableDiv = document.getElementById('dataTable');
+            
+            try {
+                resultDiv.innerHTML = '<div class="test-result">🔄 正在测试API...</div>';
+                
+                const response = await fetch('http://localhost:3005/api/list-style-production-boms/children-by-parent?parentCode=6001A0306');
+                const data = await response.json();
+                
+                if (data.code === 200) {
+                    resultDiv.innerHTML = `
+                        <div class="test-result">
+                            <h4>✅ API测试成功</h4>
+                            <div class="code">响应码: ${data.code}</div>
+                            <div class="code">消息: ${data.message}</div>
+                            <div class="code">数据条数: ${data.data.length}</div>
+                        </div>
+                    `;
+                    
+                    // 生成表格
+                    let tableHTML = `
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>子件序号</th>
+                                    <th>子件编号</th>
+                                    <th>子件名称</th>
+                                    <th>产出工序</th>
+                                    <th>子件来源</th>
+                                    <th>标准用量</th>
+                                    <th>需领用数量</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                    `;
+                    
+                    const scheduleQuantity = 96; // 模拟计划排程数量
+                    
+                    data.data.forEach(child => {
+                        const requiredQuantity = (scheduleQuantity * parseFloat(child.standard_usage || 0)).toFixed(4);
+                        tableHTML += `
+                            <tr>
+                                <td>${child.child_sequence}</td>
+                                <td>${child.child_code}</td>
+                                <td>${child.child_name}</td>
+                                <td>${child.output_process}</td>
+                                <td><span class="status ${child.component_source === '自制' ? 'success' : 'pending'}">${child.component_source}</span></td>
+                                <td>${child.standard_usage}</td>
+                                <td><strong>${requiredQuantity}</strong></td>
+                            </tr>
+                        `;
+                    });
+                    
+                    tableHTML += '</tbody></table>';
+                    tableDiv.innerHTML = tableHTML;
+                    
+                } else {
+                    throw new Error(`API返回错误: ${data.message}`);
+                }
+                
+            } catch (error) {
+                resultDiv.innerHTML = `
+                    <div class="test-result error">
+                        <h4>❌ API测试失败</h4>
+                        <div class="code">错误信息: ${error.message}</div>
+                    </div>
+                `;
+                tableDiv.innerHTML = '';
+            }
+        }
+        
+        async function testWithDifferentProduct() {
+            const resultDiv = document.getElementById('result');
+            
+            try {
+                resultDiv.innerHTML = '<div class="test-result">🔄 测试其他产品...</div>';
+                
+                const response = await fetch('http://localhost:3005/api/list-style-production-boms/children-by-parent?parentCode=TEST001');
+                const data = await response.json();
+                
+                if (data.code === 200) {
+                    resultDiv.innerHTML = `
+                        <div class="test-result">
+                            <h4>✅ 其他产品测试成功</h4>
+                            <div class="code">测试产品: TEST001</div>
+                            <div class="code">数据条数: ${data.data.length}</div>
+                        </div>
+                    `;
+                } else {
+                    resultDiv.innerHTML = `
+                        <div class="test-result">
+                            <h4>✅ 其他产品测试正常</h4>
+                            <div class="code">测试产品: TEST001</div>
+                            <div class="code">预期错误: ${data.message}</div>
+                            <div class="code">说明: 不存在的产品应该返回错误，这是正常的</div>
+                        </div>
+                    `;
+                }
+                
+            } catch (error) {
+                resultDiv.innerHTML = `
+                    <div class="test-result error">
+                        <h4>❌ 测试失败</h4>
+                        <div class="code">错误信息: ${error.message}</div>
+                    </div>
+                `;
+            }
+        }
+        
+        // 页面加载时自动测试
+        window.onload = function() {
+            testAPI();
+        };
+    </script>
+</body>
+</html>

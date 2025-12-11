@@ -139,6 +139,12 @@
               <el-form-item label="定额工时">
                 <el-input-number v-model="formData.quotaTime" :precision="2" :min="0" style="width: 100%;" />
               </el-form-item>
+              <el-form-item label="最小包装量">
+                <el-input-number v-model="formData.minimumPackagingQuantity" :precision="6" :min="0" placeholder="默认值：1" style="width: 100%;" />
+                <div style="font-size: 12px; color: #909399; margin-top: 4px;">
+                  用于计算排程数量的最小包装单位
+                </div>
+              </el-form-item>
             </el-col>
             <el-col :span="12">
               <el-form-item label="工序单价">
@@ -296,6 +302,7 @@ const formData = reactive({
   processName: '',
   standardTime: 0,
   quotaTime: 0,
+  minimumPackagingQuantity: 1,  // ✅ 新增：最小包装量，默认值为1
   processPrice: 0,
   purchaseCycle: '',
   purchasePrice: 0,

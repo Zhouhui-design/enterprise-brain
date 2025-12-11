@@ -50,6 +50,6 @@ export default {
 
   // 批量删除草稿
   batchDeleteDrafts(ids) {
-    return request.delete('/production-bom-drafts/batch-delete', { data: { ids } })
+    return request.delete('/production-bom-drafts/batch-delete', { ids })
   }
 }

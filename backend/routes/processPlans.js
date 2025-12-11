@@ -30,6 +30,15 @@ router.get('/', async (req, res) => {
       scheduleDateEnd
     });
     
+    console.log('🔍 服务返回结果:');
+    console.log('- result类型:', typeof result);
+    console.log('- records数量:', result.records?.length);
+    if (result.records && result.records.length > 0) {
+      console.log('- 首条记录字段:', Object.keys(result.records[0]));
+      console.log('- planNo值:', result.records[0].planNo);
+      console.log('- processName值:', result.records[0].processName);
+    }
+    
     res.json({
       code: 200,
       data: result,
@@ -187,6 +196,28 @@ router.post('/batch-delete', async (req, res) => {
     res.status(500).json({
       code: 500,
       message: '批量删除失败: ' + error.message
+    });
+  }
+});
+
+// 修复定时工额接口
+router.post('/fix-standard-work-quota', async (req, res) => {
+  try {
+    const { fixProcessPlanStandardWorkQuota } = require('../scripts/fixProcessPlanStandardWorkQuota');
+    
+    console.log('🔧 收到修复定时工额请求...');
+    const result = await fixProcessPlanStandardWorkQuota();
+    
+    res.json({
+      code: 200,
+      data: result,
+      message: '定时工额修复完成'
+    });
+  } catch (error) {
+    console.error('❌ 修复定时工额失败:', error);
+    res.status(500).json({
+      code: 500,
+      message: '修复定时工额失败: ' + error.message
     });
   }
 });

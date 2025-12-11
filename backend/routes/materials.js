@@ -134,4 +134,45 @@ router.get('/search', async (req, res) => {
   }
 });
 
+// 根据物料编码获取物料
+router.get('/by-code/:materialCode', async (req, res) => {
+  try {
+    const materialCode = req.params.materialCode;
+    const material = await MaterialService.getMaterialByCode(materialCode);
+    
+    if (!material) {
+      return res.status(404).json({
+        code: 404,
+        message: `未找到物料编码: ${materialCode}`
+      });
+    }
+    
+    res.json({
+      code: 200,
+      data: material,
+      message: '获取物料成功'
+    });
+  } catch (error) {
+    res.status(500).json({
+      code: 500,
+      message: error.message
+    });
+  }
+});
+
+// 测试根路由
+router.get('/', (req, res) => {
+  res.json({
+    code: 200,
+    message: 'Materials API is working',
+    routes: [
+      '/list',
+      '/by-code/:materialCode',
+      '/create',
+      '/update/:id',
+      '/delete/:id'
+    ]
+  });
+});
+
 module.exports = router;

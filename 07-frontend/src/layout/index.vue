@@ -145,9 +145,9 @@
 
         <!-- 页面内容 -->
         <div class="content-wrapper">
-          <router-view v-slot="{ Component }">
+          <router-view v-slot="{ Component }" :key="$route.fullPath">
             <transition name="fade" mode="out-in">
-              <component :is="Component" />
+              <component :is="Component" :key="$route.fullPath" />
             </transition>
           </router-view>
         </div>
@@ -156,9 +156,9 @@
     
     <!-- 未登录状态，直接显示路由内容（如登录页） -->
     <div v-else class="unauthorized-container">
-      <router-view v-slot="{ Component }">
+      <router-view v-slot="{ Component }" :key="$route.fullPath">
         <transition name="fade" mode="out-in">
-          <component :is="Component" />
+          <component :is="Component" :key="$route.fullPath" />
         </transition>
       </router-view>
     </div>
@@ -371,6 +371,12 @@ export default {
               icon: 'el-icon-setting'
             },
             {
+              path: '/manufacturing/list-style-production-bom',
+              name: 'ListStyleProductionBom',
+              meta: { title: '列表式生产BOM' },
+              icon: 'el-icon-document'
+            },
+            {
               path: '/bom-tree-structure',
               name: 'BomTreeStructure',
               meta: { title: '生产BOM树结构' },
@@ -381,6 +387,12 @@ export default {
               name: 'ProcessList',
               meta: { title: '工序' },
               icon: 'el-icon-s-operation'
+            },
+            {
+              path: '/manufacturing/process-interval-settings',
+              name: 'ProcessIntervalSettings',
+              meta: { title: '工序间隔设置' },
+              icon: 'el-icon-time'
             }
           ]
         },
@@ -579,6 +591,12 @@ export default {
                   name: 'ProcessPlanList',
                   meta: { title: '工序计划' },
                   icon: 'el-icon-s-order'
+                },
+                {
+                  path: '/process-planning/real-process-plan',
+                  name: 'RealProcessPlanList',
+                  meta: { title: '真工序计划' },
+                  icon: 'el-icon-s-claim'
                 },
                 {
                   path: '/production-planning/capacity-planning',
@@ -1157,10 +1175,28 @@ export default {
           icon: 'el-icon-user',
           children: [
             {
+              path: '/human-resources/dashboard',
+              name: 'HRDashboard',
+              meta: { title: '人事概览' },
+              icon: 'el-icon-data-line'
+            },
+            {
               path: '/human-resources/employee-list',
               name: 'EmployeeList',
               meta: { title: '员工台账' },
               icon: 'el-icon-user'
+            },
+            {
+              path: '/human-resources/user-list',
+              name: 'UserList',
+              meta: { title: '用户列表' },
+              icon: 'el-icon-user-solid'
+            },
+            {
+              path: '/human-resources/company-calendar',
+              name: 'CompanyCalendar',
+              meta: { title: '企业日历' },
+              icon: 'el-icon-date'
             }
           ]
         },

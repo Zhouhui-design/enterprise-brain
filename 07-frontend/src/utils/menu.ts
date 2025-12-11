@@ -1,5 +1,5 @@
 // src/utils/menu.ts
-import { HomeFilled, Monitor, OfficeBuilding, Factory, Warehouse, ShoppingCart, Setting, Company } from '@element-plus/icons-vue';
+import { HomeFilled, Monitor, OfficeBuilding, Factory, Warehouse, ShoppingCart, Setting, Company, User } from '@element-plus/icons-vue';
 
 // 菜单类型定义（可选，TypeScript 类型提示）
 interface MenuItem {
@@ -66,18 +66,18 @@ export const menuList: MenuItem[] = [
       { path: '/company/contact', name: '联系方式' },
       { path: '/company/privacy', name: '隐私政策' }
     ]
+  },
+  {
+    path: '/human-resources',
+    name: '人事管理',
+    icon: User,
+    children: [
+      { path: '/human-resources/dashboard', name: '人事概览' },
+      { path: '/human-resources/employee-list', name: '员工台账' },
+      { path: '/human-resources/user-list', name: '用户列表' },
+      { path: '/human-resources/company-calendar', name: '企业日历' }
+    ]
   }
-  // 在menuList中添加人事管理菜单
-{
-  path: '/human-resources',
-  name: '人事管理',
-  icon: User, // 确保已导入User图标
-  children: [
-    { path: '/human-resources/dashboard', name: '人事概览' },
-    { path: '/human-resources/user-list', name: '用户列表' }
-  ]
-}
-
 ];
 
 export default menuList;

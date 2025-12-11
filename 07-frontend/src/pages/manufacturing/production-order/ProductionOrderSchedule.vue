@@ -35,7 +35,6 @@
         </el-button>
         <el-button @click="handleBack" :icon="ArrowLeft">
           返回
->>>>>>> origin/develop
         </el-button>
       </div>
     </div>
@@ -222,7 +221,6 @@
             <el-button @click="handleZoomOut" :icon="ZoomOut">缩小</el-button>
             <el-button @click="handleFitToScreen" :icon="FullScreen">适应屏幕</el-button>
           </el-button-group>
->>>>>>> origin/develop
         </div>
       </div>
     </el-card>
@@ -1642,6 +1640,5 @@ onMounted(() => {
       font-weight: bold;
     }
   }
->>>>>>> origin/develop
 }
 </style>

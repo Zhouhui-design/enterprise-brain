@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>工序间隔设置页面测试</title>
+    <meta charset="UTF-8">
+</head>
+<body>
+    <h1>工序间隔设置页面修复验证</h1>
+    
+    <h2>修复内容</h2>
+    <ol>
+        <li>✅ <strong>修复工序列表数据源</strong>：从localStorage改为后端API</li>
+        <li>✅ <strong>修复API响应字段</strong>：从records改为data</li>
+        <li>✅ <strong>添加默认数据初始化</strong>：localStorage为空时创建示例数据</li>
+        <li>✅ <strong>优化加载时序</strong>：先加载工序列表再加载数据</li>
+    </ol>
+    
+    <h2>预期结果</h2>
+    <ul>
+        <li>页面刷新时不再提示"请先在工序列表中添加工序数据"</li>
+        <li>下拉框中应显示从后端获取的37个工序选项</li>
+        <li>如果localStorage为空，会自动创建5条默认工序间隔数据</li>
+        <li>Vue Transition警告应该消失</li>
+    </ul>
+    
+    <h2>测试步骤</h2>
+    <ol>
+        <li>访问 <a href="http://localhost:3003/manufacturing/process-interval-settings" target="_blank">工序间隔设置页面</a></li>
+        <li>强刷新页面 (Ctrl+F5)</li>
+        <li>检查控制台输出</li>
+        <li>验证下拉框是否有数据</li>
+        <li>测试新增功能</li>
+    </ol>
+    
+    <h2>关键修复代码</h2>
+    <h3>1. API数据源修复</h3>
+    <pre><code>
+// 修复前
+const savedData = localStorage.getItem('processListData')
+if (savedData) {
+  const allProcesses = JSON.parse(savedData)
+
+// 修复后  
+const response = await fetch('http://192.168.2.229:3005/api/processes/list')
+const result = await response.json()
+if (result.code === 200 && result.data) {
+  const allProcesses = result.data
+    </code></pre>
+    
+    <h3>2. 字段名修复</h3>
+    <pre><code>
+// 修复前
+if (result.code === 200 && result.records) {
+  const allProcesses = result.records
+
+// 修复后
+if (result.code === 200 && result.data) {
+  const allProcesses = result.data
+    </code></pre>
+    
+    <h3>3. 默认数据初始化</h3>
+    <pre><code>
+// 如果localStorage中没有数据，初始化一些默认数据
+if (!savedData && processList.value.length > 0) {
+  const commonIntervals = [
+    { previous: '激光下料', next: '冲床', unit: '小时', value: 2 },
+    // ...更多默认间隔
+  ]
+  localStorage.setItem('processIntervalData', JSON.stringify(defaultData))
+}
+    </code></pre>
+    
+    <h2>常见问题解决</h2>
+    <ul>
+        <li><strong>问题</strong>：控制台显示"localStorage 原始数据: null"
+        <br><strong>解决</strong>：这是正常的，现在会从后端API加载数据</li>
+        
+        <li><strong>问题</strong>：下拉框为空
+        <br><strong>解决</strong>：检查后端服务是否运行在3005端口</li>
+        
+        <li><strong>问题</strong>：仍然显示"请先在工序列表中添加工序数据"
+        <br><strong>解决</strong>：等待API加载完成，页面可能需要1-2秒加载时间</li>
+    </ul>
+</body>
+</html>
