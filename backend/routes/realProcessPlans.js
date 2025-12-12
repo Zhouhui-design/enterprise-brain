@@ -147,4 +147,24 @@ router.post('/batch-delete', async (req, res) => {
   }
 });
 
+// ✅ 新增：修复真工序计划字段自动计算问题
+router.post('/fix-field-calculations', async (req, res) => {
+  try {
+    const RealProcessPlanFieldFixService = require('../services/realProcessPlanFieldFixService');
+    const results = await RealProcessPlanFieldFixService.fixAllFields();
+    
+    res.json({
+      code: 200,
+      data: results,
+      message: '真工序计划字段修复完成'
+    });
+  } catch (error) {
+    console.error('修复真工序计划字段失败:', error);
+    res.status(500).json({
+      code: 500,
+      message: error.message
+    });
+  }
+});
+
 module.exports = router;

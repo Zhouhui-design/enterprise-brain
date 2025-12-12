@@ -29,3 +29,8 @@ export function deleteById(id) {
 export function batchDelete(ids) {
   return request.post('/real-process-plans/batch-delete', { ids })
 }
+
+// ✅ 新增：修复真工序计划字段计算
+export function fixFieldCalculations() {
+  return request.post('/real-process-plans/fix-field-calculations')
+}

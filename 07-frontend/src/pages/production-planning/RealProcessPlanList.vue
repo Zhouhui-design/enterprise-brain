@@ -211,7 +211,7 @@
 
 <script setup>
 import { ref, reactive, onMounted, computed, nextTick, watch } from 'vue'
-import { ElMessage, ElMessageBox } from 'element-plus'
+import { ElMessage, ElMessageBox, ElLoading } from 'element-plus'
 import { CircleCheck, Loading } from '@element-plus/icons-vue'
 import StandardTablePage from '@/components/common/layout/StandardTablePage.vue'
 import ProcessIntervalSettings from './ProcessIntervalSettings.vue'  // ✅ 导入工序间隔设置组件
@@ -267,7 +267,10 @@ const formData = ref({
   productName: '',
   replenishmentQty: 0,
   standardWorkQuota: 0,  // ✅ 新增
-  requiredWorkHours: 0   // ✅ 新增（自动计算）
+  requiredWorkHours: 0,  // ✅ 新增（自动计算）
+  planStartDate: null,   // ✅ 新增计划开始日期
+  realPlanStartDate: null, // ✅ 新增真计划开始日期
+  planEndDate: null     // ✅ 新增计划结束日期
 })
 
 // 表单验证规则
@@ -290,6 +293,51 @@ const openProcessIntervalSettings = () => {
   processIntervalDialogVisible.value = true
 }
 
+// ✅ 修复字段计算
+const handleFixFieldCalculations = async () => {
+  try {
+    await ElMessageBox.confirm(
+      '确定要修复所有真工序计划的字段计算吗？这将重新计算所有记录的自动字段。',
+      '修复字段计算',
+      {
+        confirmButtonText: '确定修复',
+        cancelButtonText: '取消',
+        type: 'warning'
+      }
+    )
+    
+    const loading = ElLoading.service({
+      lock: true,
+      text: '正在修复字段计算，请稍候...',
+      background: 'rgba(0, 0, 0, 0.7)'
+    })
+    
+    try {
+      const response = await api.fixFieldCalculations()
+      
+      loading.close()
+      
+      if (response.code === 200) {
+        ElMessage.success(`字段计算修复完成！`)
+        console.log('🎉 字段修复结果:', response.data)
+        
+        // 重新加载数据
+        loadData()
+      } else {
+        ElMessage.error(`修复失败: ${response.message}`)
+      }
+    } catch (apiError) {
+      loading.close()
+      throw apiError
+    }
+  } catch (error) {
+    if (error !== 'cancel') {
+      console.error('修复字段计算失败:', error)
+      ElMessage.error('修复字段计算失败: ' + (error.message || '未知错误'))
+    }
+  }
+}
+
 // ========== 业务变量配置 ==========
 // 业务变量 - 按钮配置
 const businessVarButtons = [
@@ -297,6 +345,11 @@ const businessVarButtons = [
     label: '工序间隔设置',
     value: 'processIntervalSettings',
     onClick: openProcessIntervalSettings
+  },
+  {
+    label: '修复字段计算',
+    value: 'fixFieldCalculations',
+    onClick: handleFixFieldCalculations
   }
 ]
 
@@ -358,8 +411,8 @@ const allColumns = ref([
   { prop: 'processName', label: '工序名称', width: 140, sortable: true, filterable: true, visible: true },
   { prop: 'scheduleDate', label: '计划排程日期', width: 120, sortable: true, filterable: true, visible: true,
     formatter: (row) => formatDateYMD(row.scheduleDate) },
-  { prop: 'dailyTotalWorkHours', label: '当天总工时', width: 120, sortable: true, align: 'right', visible: true,
-    formatter: (row) => row.dailyTotalWorkHours !== undefined ? parseFloat(row.dailyTotalWorkHours).toFixed(2) : '0.00' },
+  { prop: 'dailyTotalHours', label: '当天总工时', width: 120, sortable: true, align: 'right', visible: true,
+    formatter: (row) => row.dailyTotalHours !== undefined ? parseFloat(row.dailyTotalHours).toFixed(2) : '0.00' },
   { prop: 'dailyScheduledHours', label: '当天已排程工时', width: 150, sortable: true, align: 'right', visible: true,
     formatter: (row) => row.dailyScheduledHours !== undefined ? parseFloat(row.dailyScheduledHours).toFixed(2) : '0.00' },
   { prop: 'dailyAvailableHours', label: '工序当天可用工时', width: 160, sortable: true, align: 'right', visible: true,
@@ -373,6 +426,8 @@ const allColumns = ref([
     formatter: (row) => formatDateYMD(row.completionDate) },
   { prop: 'planStartDate', label: '计划开始日期', width: 120, sortable: true, filterable: true, visible: true,
     formatter: (row) => formatDateYMD(row.planStartDate) },
+  { prop: 'realPlanStartDate', label: '真计划开始日期', width: 130, sortable: true, filterable: true, visible: true,
+    formatter: (row) => formatDateYMD(row.realPlanStartDate) },
   { prop: 'planEndDate', label: '计划结束日期', width: 120, sortable: true, filterable: true, visible: true,
     formatter: (row) => formatDateYMD(row.planEndDate) },
   { prop: 'nextScheduleDate', label: '下一个排程日期', width: 140, sortable: true, filterable: true, visible: true,
@@ -441,6 +496,7 @@ const queryPlanEndDate = async () => {
     console.log('⚠️ 需求工时<=0，跳过查询计划结束日期')
     formData.value.planEndDate = null
     formData.value.planStartDate = null
+    formData.value.realPlanStartDate = null  // ✅ 清空真计划开始日期
     return null
   }
   
@@ -448,6 +504,7 @@ const queryPlanEndDate = async () => {
     console.log('⚠️ 缺少必要参数：工序名称或计划完工日期')
     formData.value.planEndDate = null
     formData.value.planStartDate = null
+    formData.value.realPlanStartDate = null  // ✅ 清空真计划开始日期
     return null
   }
   
@@ -469,6 +526,7 @@ const queryPlanEndDate = async () => {
     } else {
       formData.value.planEndDate = null
       formData.value.planStartDate = null
+      formData.value.realPlanStartDate = null  // ✅ 清空真计划开始日期
       console.log('⚠️ 未找到符合条件的计划结束日期')
       return null
     }
@@ -476,6 +534,7 @@ const queryPlanEndDate = async () => {
     console.error('❗ 查询计划结束日期失败:', error)
     formData.value.planEndDate = null
     formData.value.planStartDate = null
+    formData.value.realPlanStartDate = null  // ✅ 清空真计划开始日期
     return null
   }
 }
@@ -493,6 +552,7 @@ const queryPlanStartDate = async () => {
   if (!processName || !planEndDate) {
     console.log('⚠️ 缺少必要参数：工序名称或计划结束日期')
     formData.value.planStartDate = null
+    formData.value.realPlanStartDate = null  // ✅ 清空真计划开始日期
     formData.value.scheduleDate = null  // ✅ 计划排程日期也清空
     return null
   }
@@ -500,8 +560,15 @@ const queryPlanStartDate = async () => {
   if (requiredWorkHours <= 0) {
     // 需求工时为0，开始日期 = 计划结束日期
     formData.value.planStartDate = planEndDate
-    formData.value.scheduleDate = planEndDate  // ✅ 计划排程日期 = 计划开始日期
-    console.log('📊 需求工时为0，开始日期=计划结束日期')
+    
+    // ✅ 计算真计划开始日期 = 计划开始日期 + 1天
+    const planStart = new Date(planEndDate)
+    const realPlanStart = new Date(planStart)
+    realPlanStart.setDate(realPlanStart.getDate() + 1)
+    formData.value.realPlanStartDate = `${realPlanStart.getFullYear()}-${String(realPlanStart.getMonth() + 1).padStart(2, '0')}-${String(realPlanStart.getDate()).padStart(2, '0')}`
+    
+    formData.value.scheduleDate = formData.value.realPlanStartDate  // ✅ 计划排程日期 = 真计划开始日期
+    console.log('📊 需求工时为0，开始日期=计划结束日期，真计划开始日期=' + formData.value.realPlanStartDate)
     // ✅ 查询当天总工时
     await queryDailyTotalWorkHours()
     // ✅ 计算相关字段
@@ -520,8 +587,19 @@ const queryPlanStartDate = async () => {
     
     if (response?.planStartDate) {
       formData.value.planStartDate = response.planStartDate
-      formData.value.scheduleDate = response.planStartDate  // ✅ 计划排程日期 = 计划开始日期
-      console.log(`✅ 计划开始日期查询成功: ${response.planStartDate}, 累计工时: ${response.accumulatedHours}`)
+      
+      // ✅ 计算真计划开始日期 = 计划开始日期 + 1天
+      const planStart = new Date(response.planStartDate)
+      const realPlanStart = new Date(planStart)
+      realPlanStart.setDate(realPlanStart.getDate() + 1)
+      formData.value.realPlanStartDate = `${realPlanStart.getFullYear()}-${String(realPlanStart.getMonth() + 1).padStart(2, '0')}-${String(realPlanStart.getDate()).padStart(2, '0')}`
+      
+      // ✅ 计划排程日期 = 真计划开始日期（仅对排程次数=1生效）
+      formData.value.scheduleDate = formData.value.realPlanStartDate
+      
+      console.log(`✅ 计划开始日期查询成功: ${response.planStartDate}`)
+      console.log(`✅ 真计划开始日期: ${formData.value.realPlanStartDate}`)
+      console.log(`✅ 计划排程日期: ${formData.value.scheduleDate}, 累计工时: ${response.accumulatedHours}`)
       
       // ✅ 查询当天总工时
       await queryDailyTotalWorkHours()
@@ -532,6 +610,7 @@ const queryPlanStartDate = async () => {
       return response.planStartDate
     } else {
       formData.value.planStartDate = null
+      formData.value.realPlanStartDate = null  // ✅ 清空真计划开始日期
       formData.value.scheduleDate = null  // ✅ 计划排程日期也清空
       console.log('⚠️ 未找到符合条件的计划开始日期')
       return null
@@ -539,6 +618,7 @@ const queryPlanStartDate = async () => {
   } catch (error) {
     console.error('❗ 查询计划开始日期失败:', error)
     formData.value.planStartDate = null
+    formData.value.realPlanStartDate = null  // ✅ 清空真计划开始日期
     formData.value.scheduleDate = null  // ✅ 计划排程日期也清空
     return null
   }
@@ -547,125 +627,78 @@ const queryPlanStartDate = async () => {
 // ✅ 查询当天总工时：可用工位数量 * 上班时段
 const queryDailyTotalWorkHours = async () => {
   const processName = formData.value.processName
-  const scheduleDate = formData.value.planStartDate  // ✅ 计划排程日期 = 计划开始日期
-  
-  console.log('🔍 查询当天总工时:', { processName, scheduleDate })
-  
-  if (!processName || !scheduleDate) {
-    console.log('⚠️ 缺少必要参数：工序名称或计划排程日期')
-    formData.value.dailyTotalWorkHours = 0
-    return null
-  }
-  
-  try {
-    const response = await capacityLoadApi.queryDailyTotalWorkHours(
-      processName,
-      formatDateYMD(scheduleDate)
-    )
-    
-    if (response?.data?.dailyTotalWorkHours !== undefined) {
-      formData.value.dailyTotalWorkHours = response.data.dailyTotalWorkHours
-      console.log(`✅ 当天总工时查询成功: ${response.data.dailyTotalWorkHours}`)
-      return response.data.dailyTotalWorkHours
-    } else {
-      formData.value.dailyTotalWorkHours = 0
-      console.log('⚠️ 未找到符合条件的当天总工时')
-      return null
-    }
-  } catch (error) {
-    console.error('❗ 查询当天总工时失败:', error)
-    formData.value.dailyTotalWorkHours = 0
-    return null
-  }
+  const scheduleDate = formData.value.planStartDate  // ✅ 计划排
 }
 
-// ✅ 计算排程相关字段
+// ✅ 计算排程相关字段（严格按照生成时机和条件）
 const calculateSchedulingFields = async () => {
   console.log('📊 开始计算排程相关字段')
   
-  // ✅ 需求 2: 计算当天已排程工时 (SUMIFS)
-  await calculateDailyScheduledHours()  // ✅ 加await，因为现在是async函数
+  // ✅ 需求1: 计划排程日期已在queryPlanStartDate中设置为真计划开始日期，无需重复赋值
+  // 生成条件：计划排程日期不为空
+  if (!formData.value.scheduleDate) {
+    console.log('⚠️ 需求1: 计划排程日期为空，跳过计算')
+    return // 前置条件不满足，终止后续计算
+  }
+  console.log(`✅ 需求1: 计划排程日期 = ${formData.value.scheduleDate}`)
   
-  // ✅ 需求 3: 计算工序当天可用工时
-  calculateDailyAvailableHours()
-  
-  // ✅ 需求 4: 计算计划排程工时
-  calculateScheduledWorkHours()
-  
-  // ✅ 需求 5: 计算计划排程数量
-  calculateScheduleQuantity()
-  
-  // ✅ 需求 6: 查询下一个排程日期
-  await queryNextScheduleDate()
-}
-
-// ✅ 需求 2: 计算当天已排程工时
-const calculateDailyScheduledHours = async () => {
-  const processName = formData.value.processName
-  const scheduleDate = formData.value.scheduleDate
-  
-  if (!processName || !scheduleDate) {
+  // ✅ 需求2: 当天已排程工时 (SUMIFS)
+  // 生成条件：工序名称不为空 且 计划排程日期不为空
+  // 注意：即使没有id也可以计算（新增记录）
+  if (formData.value.processName && formData.value.scheduleDate) {
+    await calculateDailyScheduledHours()
+    console.log(`✅ 需求2: 当天已排程工时 = ${formData.value.dailyScheduledHours}`)
+  } else {
     formData.value.dailyScheduledHours = 0
-    console.log('⚠️ 缺少必要参数，当天已排程工时设为0')
-    return
+    console.log('⚠️ 需求2: 条件不足，当天已排程工时设为0')
   }
   
-  try {
-    // ✅ 调用后端API查询SUMIFS：求和条件1 - 工序名称，条件2 - 排程日期，条件3 - 序号<当前
-    // 注意：对于新增记录，currentRowIndex=0，表示查询所有序号<1（即没有记录）的总和
-    const response = await capacityLoadApi.queryDailyScheduledHours(
-      processName,
-      formatDateYMD(scheduleDate),
-      0  // 新增记录，序号为1，查找所有<1的记录
-    )
-    
-    if (response?.data?.dailyScheduledHours !== undefined) {
-      formData.value.dailyScheduledHours = response.data.dailyScheduledHours
-      console.log(`📊 当天已排程工时: ${response.data.dailyScheduledHours}`)
-    } else {
-      formData.value.dailyScheduledHours = 0
-      console.log('⚠️ 未查询到当天已排程工时，设为0')
-    }
-  } catch (error) {
-    console.error('❗ 查询当天已排程工时失败:', error)
-    formData.value.dailyScheduledHours = 0
-  }
-}
-
-// ✅ 需求 3: 计算工序当天可用工时
-const calculateDailyAvailableHours = () => {
+  // ✅ 需求3: 工序当天可用工时 = 当天总工时 - 当天已排程工时
+  // 生成条件：当天总工时>0 且 当天已排程工时计算完毕
   const dailyTotal = parseFloat(formData.value.dailyTotalWorkHours) || 0
-  const dailyScheduled = parseFloat(formData.value.dailyScheduledHours) || 0
+  if (dailyTotal > 0 && formData.value.dailyScheduledHours !== undefined) {
+    calculateDailyAvailableHours()
+    console.log(`✅ 需求3: 工序当天可用工时 = ${formData.value.dailyAvailableHours}`)
+  } else {
+    formData.value.dailyAvailableHours = 0
+    console.log(`⚠️ 需求3: 当天总工时(${dailyTotal})不符合条件，跳过计算`)
+  }
   
-  formData.value.dailyAvailableHours = parseFloat((dailyTotal - dailyScheduled).toFixed(2))
-  
-  console.log(`📊 工序当天可用工时: ${formData.value.dailyAvailableHours} = 当天总工时(${dailyTotal}) - 当天已排程工时(${dailyScheduled})`)
-}
-
-// ✅ 需求 4: 计算计划排程工时
-const calculateScheduledWorkHours = () => {
+  // ✅ 需求4: 计划排程工时 = MIN(工序当天可用工时, 需求工时)
+  // 生成条件：工序当天可用工时>0 且 需求工时>0
   const dailyAvailable = parseFloat(formData.value.dailyAvailableHours) || 0
   const required = parseFloat(formData.value.requiredWorkHours) || 0
-  
-  // 计划排程工时 = MIN(工序当天可用工时, 需求工时)
-  formData.value.scheduledWorkHours = parseFloat(Math.min(dailyAvailable, required).toFixed(2))
-  
-  console.log(`📊 计划排程工时: ${formData.value.scheduledWorkHours} = MIN(工序当天可用工时(${dailyAvailable}), 需求工时(${required}))`)
-}
-
-// ✅ 需求 5: 计算计划排程数量
-const calculateScheduleQuantity = () => {
-  const scheduledHours = parseFloat(formData.value.scheduledWorkHours) || 0
-  const standardQuota = parseFloat(formData.value.standardWorkQuota) || 0
-  
-  if (standardQuota > 0) {
-    // 计划排程数量 = 计划排程工时 * 定时工额
-    formData.value.scheduleQuantity = parseFloat((scheduledHours * standardQuota).toFixed(2))
+  if (dailyAvailable > 0 && required > 0) {
+    calculateScheduledWorkHours()
+    console.log(`✅ 需求4: 计划排程工时 = ${formData.value.scheduledWorkHours}`)
   } else {
-    formData.value.scheduleQuantity = 0
+    formData.value.scheduledWorkHours = 0
+    console.log(`⚠️ 需求4: 工序当天可用工时(${dailyAvailable})或需求工时(${required})不符合条件，跳过计算`)
   }
   
-  console.log(`📊 计划排程数量: ${formData.value.scheduleQuantity} = 计划排程工时(${scheduledHours}) * 定时工额(${standardQuota})`)
+  // ✅ 需求5: 计划排程数量 = 计划排程工时 * 定时工额
+  // 生成条件：计划排程工时>0 且 定时工额>0
+  const scheduledHours = parseFloat(formData.value.scheduledWorkHours) || 0
+  const standardQuota = parseFloat(formData.value.standardWorkQuota) || 0
+  if (scheduledHours > 0 && standardQuota > 0) {
+    calculateScheduleQuantity()
+    console.log(`✅ 需求5: 计划排程数量 = ${formData.value.scheduleQuantity}`)
+  } else {
+    formData.value.scheduleQuantity = 0
+    console.log(`⚠️ 需求5: 计划排程工时(${scheduledHours})或定时工额(${standardQuota})不符合条件，跳过计算`)
+  }
+  
+  // ✅ 需求6: 查询下一个排程日期 (MINIFS)
+  // 生成条件：计划排程日期不为空
+  if (formData.value.scheduleDate) {
+    await queryNextScheduleDate()
+    console.log(`✅ 需求6: 下一个排程日期 = ${formData.value.nextScheduleDate}`)
+  } else {
+    formData.value.nextScheduleDate = null
+    console.log('⚠️ 需求6: 计划排程日期为空，跳过计算')
+  }
+  
+  console.log('✅ 所有排程字段计算完毕')
 }
 
 // ✅ 需求 6: 查询下一个排程日期 (MINIFS)
@@ -677,7 +710,7 @@ const queryNextScheduleDate = async () => {
   
   console.log('🔍 查询下一个排程日期:', { processName, scheduleDate, planEndDate, minRemainingHours })
   
-  if (!processName || !scheduleDate || !planEndDate) {
+  if (!processName || !scheduleDate) {
     console.log('⚠️ 缺少必要参数')
     formData.value.nextScheduleDate = null
     return null
@@ -687,7 +720,7 @@ const queryNextScheduleDate = async () => {
     const response = await capacityLoadApi.queryNextScheduleDate(
       processName,
       formatDateYMD(scheduleDate),
-      formatDateYMD(planEndDate),
+      formatDateYMD(planEndDate), // ✅ 添加计划结束日期参数
       minRemainingHours
     )
     
@@ -706,20 +739,6 @@ const queryNextScheduleDate = async () => {
     return null
   }
 }
-
-// ✅ 监听需求工时、工序名称、计划完工日期变化，自动查询计划结束日期
-watch(
-  () => [
-    parseFloat(formData.value.requiredWorkHours) || 0,
-    formData.value.processName,
-    formData.value.completionDate
-  ],
-  () => {
-    console.log('🔄 需求工时、工序名称或计划完工日期发生变化，重新查询计划结束日期')
-    queryPlanEndDate()
-  },
-  { deep: true }
-)
 
 // ========== 数据操作 ==========
 const loadData = async () => {
@@ -751,6 +770,125 @@ const loadData = async () => {
   }
 }
 
+const handleAdd = () => {
+  isEdit.value = false
+  formData.value = {
+    planNo: generatePlanNo(),
+    masterPlanNo: '',
+    processName: '',
+    scheduleDate: new Date(),
+    scheduleQuantity: 0,
+    completionDate: null,
+    productCode: '',
+    productName: '',
+    replenishmentQty: 0,
+    standardWorkQuota: 0,
+    requiredWorkHours: 0,
+    planStartDate: null,   // ✅ 新增计划开始日期
+    realPlanStartDate: null, // ✅ 新增真计划开始日期
+    planEndDate: null     // ✅ 新增计划结束日期
+  }
+  dialogVisible.value = true
+}
+
+const handleEdit = (row) => {
+  isEdit.value = true
+  formData.value = { ...row }
+  dialogVisible.value = true
+}
+
+const handleDelete = (row) => {
+  ElMessageBox.confirm(
+    `确定要删除真工序计划编号为 ${row.planNo} 的记录吗？`,
+    '删除确认',
+    {
+      confirmButtonText: '确定删除',
+      cancelButtonText: '取消',
+      type: 'warning'
+    }
+  ).then(async () => {
+    try {
+      await api.deleteById(row.id)
+      ElMessage.success('删除成功')
+      loadData()
+    } catch (error) {
+      console.error('删除失败:', error)
+      ElMessage.error('删除失败: ' + (error.message || '未知错误'))
+    }
+  }).catch(() => {})
+}
+
+const handleSave = () => {
+  formRef.value.validate(async (valid) => {
+    if (valid) {
+      try {
+        if (isEdit.value) {
+          await api.updateById(formData.value.id, formData.value)
+          ElMessage.success('更新成功')
+        } else {
+          await api.create(formData.value)
+          ElMessage.success('新增成功')
+        }
+        dialogVisible.value = false
+        loadData()
+      } catch (error) {
+        console.error('保存失败:', error)
+        ElMessage.error('保存失败: ' + (error.message || '未知错误'))
+      }
+    } else {
+      console.log('表单验证失败')
+    }
+  })
+}
+
+const handleSelectionChange = (rows) => {
+  selectedRows.value = rows
+}
+
+const handlePageChange = (page) => {
+  pagination.page = page
+  loadData()
+}
+
+const handleSizeChange = (pageSize) => {
+  pagination.pageSize = pageSize
+  loadData()
+}
+
+const handleBatchDelete = () => {
+  if (selectedRows.value.length === 0) {
+    ElMessage.warning('请选择要删除的记录')
+    return
+  }
+  ElMessageBox.confirm(
+    `确定要删除选中的 ${selectedRows.value.length} 条记录吗？`,
+    '批量删除确认',
+    {
+      confirmButtonText: '确定删除',
+      cancelButtonText: '取消',
+      type: 'warning'
+    }
+  ).then(async () => {
+    try {
+      const ids = selectedRows.value.map(row => row.id)
+      await api.deleteByIds(ids)
+      ElMessage.success('批量删除成功')
+      loadData()
+    } catch (error) {
+      console.error('批量删除失败:', error)
+      ElMessage.error('批量删除失败: ' + (error.message || '未知错误'))
+    }
+  }).catch(() => {})
+}
+
+const handleExport = () => {
+  // TODO: 实现导出功能
+}
+
+const handleImport = () => {
+  // TODO: 实现导入功能
+}
+
 const handleSearch = () => {
   pagination.page = 1
   loadData()
@@ -765,139 +903,12 @@ const handleReset = () => {
   loadData()
 }
 
-const handleAdd = () => {
-  isEdit.value = false
-  formData.value = {
-    planNo: generatePlanNo(),
-    masterPlanNo: '',
-    processName: '',
-    scheduleDate: null,          // ✅ 计划排程日期
-    scheduleQuantity: 0,
-    completionDate: null,
-    productCode: '',
-    productName: '',
-    replenishmentQty: 0,
-    standardWorkQuota: 0,
-    requiredWorkHours: 0,
-    planEndDate: null,           // ✅ 计划结束日期
-    planStartDate: null,         // ✅ 计划开始日期
-    dailyTotalWorkHours: 0,      // ✅ 当天总工时
-    dailyScheduledHours: 0,      // ✅ 当天已排程工时
-    dailyAvailableHours: 0,      // ✅ 工序当天可用工时
-    scheduledWorkHours: 0,       // ✅ 计划排程工时
-    nextScheduleDate: null       // ✅ 下一个排程日期
-  }
-  dialogVisible.value = true
-}
-
-const handleEdit = (row) => {
-  isEdit.value = true
-  formData.value = { ...row }
-  dialogVisible.value = true
-}
-
-const handleSave = async () => {
-  try {
-    // ✅ 保存前强制计算计划结束日期和计划开始日期
-    await queryPlanEndDate()  // 内部会自动调用 queryPlanStartDate()
-    
-    await formRef.value.validate()
-    
-    if (isEdit.value) {
-      await api.update(formData.value.id, formData.value)
-      ElMessage.success('更新成功')
-    } else {
-      await api.create(formData.value)
-      ElMessage.success('创建成功')
-    }
-    
-    dialogVisible.value = false
-    loadData()
-  } catch (error) {
-    console.error('保存失败:', error)
-    ElMessage.error('保存失败: ' + (error.message || '未知错误'))
-  }
-}
-
-const handleDelete = async (row) => {
-  try {
-    await ElMessageBox.confirm(`确定要删除真工序计划"${row.planNo}"吗?`, '提示', {
-      confirmButtonText: '确定',
-      cancelButtonText: '取消',
-      type: 'warning'
-    })
-    
-    await api.deleteById(row.id)
-    ElMessage.success('删除成功')
-    loadData()
-  } catch (error) {
-    if (error !== 'cancel') {
-      console.error('删除失败:', error)
-      ElMessage.error('删除失败: ' + (error.message || '未知错误'))
-    }
-  }
-}
-
-const handleBatchDelete = async () => {
-  if (selectedRows.value.length === 0) {
-    ElMessage.warning('请选择要删除的记录')
-    return
-  }
-
-  try {
-    await ElMessageBox.confirm(`确定要删除选中的 ${selectedRows.value.length} 条记录吗?`, '提示', {
-      confirmButtonText: '确定',
-      cancelButtonText: '取消',
-      type: 'warning'
-    })
-    
-    const ids = selectedRows.value.map(row => row.id)
-    await api.batchDelete(ids)
-    
-    ElMessage.success('批量删除成功')
-    selectedRows.value = []
-    loadData()
-  } catch (error) {
-    if (error !== 'cancel') {
-      console.error('批量删除失败:', error)
-      ElMessage.error('批量删除失败: ' + (error.message || '未知错误'))
-    }
-  }
-}
-
-const handleSelectionChange = (rows) => {
-  selectedRows.value = rows
-}
-
-const handlePageChange = (page) => {
-  pagination.page = page
-  loadData()
-}
-
-const handleSizeChange = (size) => {
-  pagination.pageSize = size
-  pagination.page = 1
-  loadData()
-}
-
-const handleExport = () => {
-  ElMessage.info('导出功能开发中')
-}
-
-const handleImport = () => {
-  ElMessage.info('导入功能开发中')
-}
-
 const handleSavePageSettings = (settings) => {
-  console.log('保存页面设置:', settings)
+  // TODO: 实现保存页面设置功能
 }
 
-// ========== 生命周期 ==========
 onMounted(() => {
   loadData()
-  nextTick(() => {
-    searchInputRef.value?.focus()
-  })
 })
 </script>
 

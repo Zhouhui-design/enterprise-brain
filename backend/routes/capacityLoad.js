@@ -240,7 +240,7 @@ router.post('/query-plan-start-date', async (req, res) => {
     console.log(`📊 查询日期范围: 从开始日期到计划结束日期 ${planEndDate}`);
     
     const sql = `
-      SELECT date, remaining_hours 
+      SELECT DATE_FORMAT(date, '%Y-%m-%d') as date, remaining_hours 
       FROM process_capacity_load 
       WHERE process_name = ? 
         AND date <= ?
@@ -260,17 +260,17 @@ router.post('/query-plan-start-date', async (req, res) => {
       
       // ✅ 增强诊断信息: 查询该工序所有记录
       const [allRows] = await pool.execute(
-        'SELECT date, remaining_hours, occupied_hours FROM process_capacity_load WHERE process_name = ? ORDER BY date',
+        'SELECT DATE_FORMAT(date, \'%Y-%m-%d\') as date, remaining_hours, occupied_hours FROM process_capacity_load WHERE process_name = ? ORDER BY date',
         [processName]
       );
       
       console.log(`🔍 诊断信息: 工序能力负荷表中工序"${processName}"共有${allRows.length}条记录`);
       if (allRows.length > 0) {
-        console.log(`   日期范围: ${allRows[0].date.toISOString().split('T')[0]} 至 ${allRows[allRows.length-1].date.toISOString().split('T')[0]}`);
+        console.log(`   日期范围: ${allRows[0].date} 至 ${allRows[allRows.length-1].date}`);
         const qualifiedRows = allRows.filter(r => parseFloat(r.remaining_hours) >= minHours);
         console.log(`   其中剩余工时>=${minHours}的记录: ${qualifiedRows.length}条`);
         if (qualifiedRows.length > 0) {
-          console.log(`   最近的符合条件的日期: ${qualifiedRows[0].date.toISOString().split('T')[0]} (剩余工时=${qualifiedRows[0].remaining_hours})`);
+          console.log(`   最近的符合条件的日期: ${qualifiedRows[0].date} (剩余工时=${qualifiedRows[0].remaining_hours})`);
         }
       } else {
         console.log(`   ⚠️ 工序能力负荷表中没有工序"${processName}"的任何记录!`);
@@ -295,7 +295,7 @@ router.post('/query-plan-start-date', async (req, res) => {
     
     for (let i = 0; i < rows.length; i++) {
       const row = rows[i];
-      const dateStr = row.date.toISOString().split('T')[0];
+      const dateStr = row.date;  // ✅ 已经是YYYY-MM-DD格式
       const hours = parseFloat(row.remaining_hours) || 0;
       
       accumulatedHours += hours;
@@ -372,14 +372,14 @@ router.post('/query-daily-total-hours', async (req, res) => {
     
     if (rows.length > 0) {
       const result = rows[0];
-      const dailyTotalWorkHours = parseFloat(result.daily_total_work_hours || 0).toFixed(2);
+      const dailyTotalHours = parseFloat(result.daily_total_hours || 0).toFixed(2);
       
-      console.log(`✅ 找到当天总工时: ${dailyTotalWorkHours} (可用工位=${result.available_workstations}, 上班时段=${result.work_shift})`);
+      console.log(`✅ 找到当天总工时: ${dailyTotalHours} (可用工位=${result.available_workstations}, 上班时段=${result.work_shift})`);
       
       res.json({
         code: 200,
         data: {
-          dailyTotalWorkHours: parseFloat(dailyTotalWorkHours),
+          dailyTotalHours: parseFloat(dailyTotalHours),
           availableWorkstations: result.available_workstations,
           workShift: result.work_shift
         },
@@ -391,7 +391,7 @@ router.post('/query-daily-total-hours', async (req, res) => {
       res.json({
         code: 200,
         data: {
-          dailyTotalWorkHours: 0
+          dailyTotalHours: 0
         },
         message: '未找到符合条件的记录'
       });
@@ -1392,7 +1392,7 @@ router.get('/query-by-date', async (req, res) => {
   }
 })
 
-// ✅ 需求1：查询下一个排程日期（MINIFS：工序名称=本行工序，且日期>计划排程日期，且剩余工时>门槛值）
+// ✅ 需求1：查询下一个排程日期（MINIFS：工序名称=本行工序，且日期>计划排程日期，且日期<=计划结束日期，且剩余工时>门槛值）
 router.post('/query-next-schedule-date', async (req, res) => {
   console.log('📡 接收到下一个排程日期POST请求')
   try {
@@ -1466,23 +1466,45 @@ router.post('/query-next-schedule-date', async (req, res) => {
         message: '查询成功'
       })
     } else {
-      console.log('⚠️ 未找到符合条件的日期')
+      console.log('⚠️ 未找到符合条件的日期，使用默认计算方式')
+      
+      // ✅ 如果没有找到符合条件的日期，使用默认计算方式：计划排程日期+1天
+      const nextDate = new Date(scheduleDate)
+      nextDate.setDate(nextDate.getDate() + 1)
+      const defaultNextDate = nextDate.toISOString().split('T')[0]
       
       res.json({
         code: 200,
         data: {
-          nextScheduleDate: null,
+          nextScheduleDate: defaultNextDate,
           remainingHours: null
         },
-        message: '未找到符合条件的日期'
+        message: '未找到符合条件的日期，使用默认计算方式'
       })
     }
   } catch (error) {
     console.error('查询下一个排程日期失败:', error)
-    res.status(500).json({
-      code: 500,
-      message: error.message
-    })
+    // ✅ 出错时也使用默认计算方式
+    const { scheduleDate } = req.body
+    if (scheduleDate) {
+      const nextDate = new Date(scheduleDate)
+      nextDate.setDate(nextDate.getDate() + 1)
+      const defaultNextDate = nextDate.toISOString().split('T')[0]
+      
+      res.json({
+        code: 200,
+        data: {
+          nextScheduleDate: defaultNextDate,
+          remainingHours: null
+        },
+        message: '查询出错，使用默认计算方式'
+      })
+    } else {
+      res.status(500).json({
+        code: 500,
+        message: error.message
+      })
+    }
   }
 })
 

@@ -1,4 +1,5 @@
 const { pool } = require('../config/database');
+const RealProcessPlanService = require('./realProcessPlanService');  // ✅ 引入真工序计划Service
 
 /**
  * 备料计划服务
@@ -386,58 +387,196 @@ class MaterialPreparationPlanService {
             }
           }
           
-          await connection.execute(`
-            INSERT INTO real_process_plans (
-              plan_no,
-              sales_order_no,
-              master_plan_no,
-              product_code,
-              product_name,
-              process_name,
-              product_unit,
-              level0_demand,
-              completion_date,
-              replenishment_qty,
-              standard_work_quota,
-              standard_work_hours,
-              required_work_hours,
-              plan_end_date,
-              plan_start_date,
-              customer_name,
-              source_no,
-              schedule_count,
-              submitted_by,
-              submitted_at
-            ) VALUES (
-              ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW()
-            )
-          `, [
-            realProcessPlanNo,
-            data.salesOrderNo || null,
-            data.sourcePlanNo || null,
-            data.materialCode || null,
-            data.materialName || null,
-            data.sourceProcess || null,
-            data.materialUnit || null,
-            data.mainPlanQuantity || 0,
-            completionDate,
-            replenishmentQty,
-            standardWorkQuota,
-            standardWorkHours,
-            requiredWorkHours,  // ✅ 需求工时
-            planEndDate,        // ✅ 计划结束日期
-            planStartDate,      // ✅ 计划开始日期
-            data.customerName || null,
-            data.planNo || null,
-            1,
-            data.createdBy || 'admin'
-          ]);
+          // ✅ 计算真计划开始日期 = 计划开始日期 + 1天
+          let realPlanStartDate = null;
+          if (planStartDate) {
+            const startDate = new Date(planStartDate);
+            startDate.setDate(startDate.getDate() + 1);
+            const year = startDate.getFullYear();
+            const month = String(startDate.getMonth() + 1).padStart(2, '0');
+            const day = String(startDate.getDate()).padStart(2, '0');
+            realPlanStartDate = `${year}-${month}-${day}`;
+            console.log(`   ✅ 真计划开始日期: ${realPlanStartDate} (计划开始日期 + 1天)`);
+          }
+          
+          // ✅ 计划排程日期 = 真计划开始日期（排程次数=1时）
+          const scheduleDate = realPlanStartDate;
+          
+          // ✅ 计算6个自动字段
+          let dailyTotalHours = 0;
+          let dailyScheduledHours = 0;
+          let dailyAvailableHours = 0;
+          let scheduledWorkHours = 0;
+          let scheduleQuantity = 0;
+          let nextScheduleDate = null;
+          
+          if (scheduleDate && data.sourceProcess) {
+            // 需求1: 查询当天总工时
+            try {
+              const [capacityRows] = await connection.execute(`
+                SELECT work_shift, available_workstations
+                FROM process_capacity_load
+                WHERE process_name = ? AND date = ?
+                LIMIT 1
+              `, [data.sourceProcess, scheduleDate]);
+              
+              if (capacityRows.length > 0) {
+                const workShift = parseFloat(capacityRows[0].work_shift || 0);
+                const availableWorkstations = parseFloat(capacityRows[0].available_workstations || 0);
+                dailyTotalHours = parseFloat((workShift * availableWorkstations).toFixed(2));
+                console.log(`   ✅ 当天总工时: ${dailyTotalHours}`);
+              }
+            } catch (error) {
+              console.error(`   ❌ 查询当天总工时失败:`, error.message);
+            }
+            
+            // 需求2: 计算当天已排程工时 (SUMIFS)
+            try {
+              const [sumRows] = await connection.execute(`
+                SELECT COALESCE(SUM(scheduled_work_hours), 0) as total
+                FROM real_process_plans
+                WHERE process_name = ? AND schedule_date = ?
+              `, [data.sourceProcess, scheduleDate]);
+              
+              dailyScheduledHours = parseFloat(sumRows[0].total || 0);
+              console.log(`   ✅ 当天已排程工时: ${dailyScheduledHours}`);
+            } catch (error) {
+              console.error(`   ❌ 计算当天已排程工时失败:`, error.message);
+            }
+            
+            // 需求3: 当天可用工时 = 总工时 - 已排程工时
+            dailyAvailableHours = parseFloat((dailyTotalHours - dailyScheduledHours).toFixed(2));
+            console.log(`   ✅ 当天可用工时: ${dailyAvailableHours}`);
+            
+            // 需求4: 计划排程工时 = MIN(需求工时, 当天可用工时)
+            if (requiredWorkHours > 0 && dailyAvailableHours > 0) {
+              scheduledWorkHours = parseFloat(Math.min(requiredWorkHours, dailyAvailableHours).toFixed(2));
+              console.log(`   ✅ 计划排程工时: MIN(${requiredWorkHours}, ${dailyAvailableHours}) = ${scheduledWorkHours}`);
+              
+              // 需求5: 计划排程数量 = 排程工时 * 定时工额
+              if (standardWorkQuota > 0) {
+                scheduleQuantity = parseFloat((scheduledWorkHours * standardWorkQuota).toFixed(2));
+                console.log(`   ✅ 计划排程数量: ${scheduledWorkHours} * ${standardWorkQuota} = ${scheduleQuantity}`);
+              }
+            }
+            
+            // 需求6: 下一个排程日期 = 计划排程日期 + 1天
+            if (scheduleDate) {
+              const nextDate = new Date(scheduleDate);
+              nextDate.setDate(nextDate.getDate() + 1);
+              const year = nextDate.getFullYear();
+              const month = String(nextDate.getMonth() + 1).padStart(2, '0');
+              const day = String(nextDate.getDate()).padStart(2, '0');
+              nextScheduleDate = `${year}-${month}-${day}`;
+              console.log(`   ✅ 下一个排程日期: ${nextScheduleDate}`);
+            }
+          }
+          
+          // ✅ 计算剩余需求工时 = 需求工时 - 计划排程工时
+          let remainingRequiredHours = 0;
+          if (requiredWorkHours > 0 && scheduledWorkHours > 0) {
+            remainingRequiredHours = parseFloat((requiredWorkHours - scheduledWorkHours).toFixed(2));
+            console.log(`   ✅ 剩余需求工时: ${requiredWorkHours} - ${scheduledWorkHours} = ${remainingRequiredHours}`);
+          } else if (requiredWorkHours > 0) {
+            // 如果没有排程工时,剩余需求工时 = 需求工时
+            remainingRequiredHours = requiredWorkHours;
+            console.log(`   ✅ 剩余需求工时: ${remainingRequiredHours} (未排程)`);
+          }
+          
+          // ✅ 计算累积排程数量 = SUMIFS(计划排程数量, 来源编号=本行来源编号)
+          // 注意: 因为这是新建记录,还没有ID,所以累积排程数量就是当前的计划排程数量
+          const cumulativeScheduleQty = scheduleQuantity;
+          console.log(`   ✅ 累积排程数量: ${cumulativeScheduleQty} (新建记录)`);
+          
+          // ✅ 计算未排数量 = 需补货数量 - 累积排程数量
+          let unscheduledQty = 0;
+          if (replenishmentQty > 0 && cumulativeScheduleQty >= 0) {
+            unscheduledQty = parseFloat((replenishmentQty - cumulativeScheduleQty).toFixed(2));
+            console.log(`   ✅ 未排数量: ${replenishmentQty} - ${cumulativeScheduleQty} = ${unscheduledQty}`);
+          } else if (replenishmentQty > 0) {
+            unscheduledQty = replenishmentQty;
+            console.log(`   ✅ 未排数量: ${unscheduledQty} (无排程)`);
+          }
+          
+          // ✅ 使用RealProcessPlanService.create方法生成真工序计划，自动触发6个字段计算
+          const realProcessPlanData = {
+            planNo: realProcessPlanNo,
+            salesOrderNo: data.salesOrderNo || null,
+            masterPlanNo: data.sourcePlanNo || null,
+            productCode: data.materialCode || null,
+            productName: data.materialName || null,
+            processName: data.sourceProcess || null,
+            productUnit: data.materialUnit || null,
+            level0Demand: data.mainPlanQuantity || 0,
+            completionDate: completionDate,
+            replenishmentQty: replenishmentQty,
+            standardWorkQuota: standardWorkQuota,
+            standardWorkHours: standardWorkHours,
+            requiredWorkHours: requiredWorkHours,
+            planEndDate: planEndDate,
+            planStartDate: planStartDate,
+            realPlanStartDate: realPlanStartDate,     // ✅ 新增: 真计划开始日期
+            scheduleDate: scheduleDate,                // ✅ 新增: 计划排程日期
+            dailyTotalHours: dailyTotalHours,          // ✅ 新增: 当天总工时
+            dailyScheduledHours: dailyScheduledHours,  // ✅ 新增: 当天已排程工时
+            dailyAvailableHours: dailyAvailableHours,  // ✅ 新增: 当天可用工时
+            scheduledWorkHours: scheduledWorkHours,    // ✅ 新增: 计划排程工时
+            scheduleQuantity: scheduleQuantity,        // ✅ 新增: 计划排程数量
+            nextScheduleDate: nextScheduleDate,        // ✅ 新增: 下一个排程日期
+            remainingRequiredHours: remainingRequiredHours, // ✅ 新增: 剩余需求工时
+            cumulativeScheduleQty: cumulativeScheduleQty,   // ✅ 新增: 累积排程数量
+            unscheduledQty: unscheduledQty,            // ✅ 新增: 未排数量
+            customerName: data.customerName || null,
+            sourceNo: data.planNo || null,
+            scheduleCount: 1,
+            submittedBy: data.createdBy || 'admin',
+            submittedAt: new Date().toLocaleString('zh-CN', { timeZone: 'Asia/Shanghai', hour12: false })  // ✅ 中国时区时间
+          };
+          
+          // ✅ 提交当前事务
+          await connection.commit();
+          connection.release();
+          
+          // ✅ 调用RealProcessPlanService.create（它会开启新事务）
+          const createResult = await RealProcessPlanService.create(realProcessPlanData);
+          const createdPlanId = createResult.id;
+          console.log(`✅ 真工序计划创建成功, ID: ${createdPlanId}`);
+          
+          // ✅ 检查是否需要自增行（从数据库重新查询最新值）
+          console.log(`🔍 检查自增条件...`);
+          const { pool: dbPool } = require('../config/database');
+          const [checkRows] = await dbPool.execute(
+            'SELECT unscheduled_qty, next_schedule_date FROM real_process_plans WHERE id = ?',
+            [createdPlanId]
+          );
+          
+          if (checkRows.length > 0) {
+            const actualUnscheduledQty = parseFloat(checkRows[0].unscheduled_qty || 0);
+            const actualNextScheduleDate = checkRows[0].next_schedule_date;
+            
+            console.log(`   数据库实际值: 未排数量=${actualUnscheduledQty}, 下一个排程日期=${actualNextScheduleDate}`);
+            
+            if (actualUnscheduledQty > 0 && actualNextScheduleDate) {
+              console.log(`🔁 检测到未排数量=${actualUnscheduledQty} > 0，开始自增行递归排程...`);
+              
+              // 调用自增方法（异步递归）
+              await RealProcessPlanService.checkAndCreateIncremental(createdPlanId);
+            } else {
+              console.log(`✅ 排程完毕，未排数量=${actualUnscheduledQty}，无需自增`);
+            }
+          }
+          
+          // ✅ 重新获取connection继续后续逻辑
+          const newConnection = await pool.getConnection();
+          await newConnection.beginTransaction();
+          Object.assign(connection, newConnection);  // 替换connection引用
           
           console.log(`✅ 自动生成真工序计划: ${realProcessPlanNo}`);
           console.log(`   来源编号: ${data.planNo}`);
           console.log(`   需补货数量: ${replenishmentQty.toFixed(2)} ${data.materialUnit || ''}`);
           console.log(`   定时工额: ${standardWorkQuota}`);
           console.log(`   排程次数: 1`);
+          console.log(`   ✅ 已自动计算6个字段：计划排程日期、当天已排程工时、当天可用工时、计划排程工时、计划排程数量、下一个排程日期`);
         } else {
           console.log('⚠️ 不符合自动推送条件，跳过生成工序计划');
           console.log(`   物料来源: ${data.materialSource}`);

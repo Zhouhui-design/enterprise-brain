@@ -135,15 +135,15 @@ class RealProcessPlanService {
         INSERT INTO real_process_plans (
           plan_no, schedule_date, sales_order_no, master_plan_no, shipping_plan_no,
           product_code, product_name, product_image, process_manager, process_name,
-          schedule_quantity, used_work_hours, product_unit, level0_demand, completion_date,
-          plan_start_date, plan_end_date,
-          workshop_name, daily_available_hours, remaining_schedule_hours, schedule_count,
-          standard_work_hours, standard_work_quota, scheduled_hours, unscheduled_hours,
+          schedule_quantity, product_unit, level0_demand, completion_date,
+          plan_start_date, real_plan_start_date, plan_end_date,
+          workshop_name, daily_available_hours, remaining_required_hours, schedule_count,
+          standard_work_hours, standard_work_quota, cumulative_schedule_qty, unscheduled_qty,
           source_page_name, source_no, previous_schedule_no, customer_name,
           level0_product_name, level0_product_code, level0_production_qty,
           product_source, bom_no, submitted_by, submitted_at, replenishment_qty,
           required_work_hours,
-          daily_total_work_hours, daily_scheduled_hours, scheduled_work_hours, next_schedule_date
+          daily_total_hours, daily_scheduled_hours, scheduled_work_hours, next_schedule_date
         ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       `;
       
@@ -159,20 +159,20 @@ class RealProcessPlanService {
         data.processManager || null,                  // 9. process_manager
         data.processName || null,                     // 10. process_name
         data.scheduleQuantity || 0,                   // 11. schedule_quantity
-        data.usedWorkHours || 0,                      // 12. used_work_hours
-        data.productUnit || null,                     // 13. product_unit
-        data.level0Demand || 0,                       // 14. level0_demand
-        data.completionDate || null,                  // 15. completion_date
-        data.planStartDate || null,                    // 16. plan_start_date
+        data.productUnit || null,                     // 12. product_unit
+        data.level0Demand || 0,                       // 13. level0_demand
+        data.completionDate || null,                  // 14. completion_date
+        data.planStartDate || null,                    // 15. plan_start_date
+        data.realPlanStartDate || null,                // 16. real_plan_start_date (✅ 新增)
         data.planEndDate || null,                      // 17. plan_end_date
         data.workshopName || null,                    // 18. workshop_name
         data.dailyAvailableHours || 0,                 // 19. daily_available_hours
-        data.remainingScheduleHours || 0,              // 20. remaining_schedule_hours
+        data.remainingRequiredHours || 0,              // 20. remaining_required_hours
         data.scheduleCount || 0,                       // 21. schedule_count
         data.standardWorkHours || 0,                  // 22. standard_work_hours
         data.standardWorkQuota || 0,                  // 23. standard_work_quota
-        data.scheduledHours || 0,                     // 24. scheduled_hours
-        data.unscheduledHours || 0,                   // 25. unscheduled_hours
+        data.cumulativeScheduleQty || 0,              // 24. cumulative_schedule_qty
+        data.unscheduledQty || 0,                     // 25. unscheduled_qty
         data.sourcePageName || null,                  // 26. source_page_name
         data.sourceNo || null,                         // 27. source_no
         data.previousScheduleNo || null,              // 28. previous_schedule_no
@@ -186,13 +186,72 @@ class RealProcessPlanService {
         data.submittedAt || null,                      // 36. submitted_at
         data.replenishmentQty || 0,                   // 37. replenishment_qty
         data.requiredWorkHours || 0,                   // 38. required_work_hours
-        data.dailyTotalWorkHours || 0,                // 39. daily_total_work_hours (✅ 新增)
+        data.dailyTotalHours || 0,                    // 39. daily_total_hours (✅ 新增)
         data.dailyScheduledHours || 0,                // 40. daily_scheduled_hours (✅ 新增)
         data.scheduledWorkHours || 0,                 // 41. scheduled_work_hours (✅ 新增)
         data.nextScheduleDate || null                 // 42. next_schedule_date (✅ 新增)
       ]);
       
       console.log(`真工序计划创建成功, ID: ${result.insertId}, 编号: ${data.planNo}`);
+      
+      // ✅ 自动推送已排程工时到工序能力负荷表
+      if (data.scheduledWorkHours && data.scheduledWorkHours > 0 && data.processName && data.scheduleDate) {
+        try {
+          const processName = data.processName;
+          const scheduleDate = data.scheduleDate instanceof Date
+            ? data.scheduleDate.toISOString().split('T')[0]
+            : String(data.scheduleDate).split('T')[0];
+          const scheduledHours = parseFloat(data.scheduledWorkHours);
+          
+          console.log(`🔄 推送已排程工时到工序能力负荷表: 工序=${processName}, 日期=${scheduleDate}, 排程工时=${scheduledHours}`);
+          
+          // 查询工序能力负荷表记录
+          const [capacityRows] = await pool.execute(
+            'SELECT id, work_shift, available_workstations, occupied_hours FROM process_capacity_load WHERE process_name = ? AND date = ?',
+            [processName, scheduleDate]
+          );
+          
+          if (capacityRows.length > 0) {
+            const record = capacityRows[0];
+            const previousOccupiedHours = parseFloat(record.occupied_hours || 0);
+            const newOccupiedHours = parseFloat((previousOccupiedHours + scheduledHours).toFixed(2));
+            const workShift = parseFloat(record.work_shift || 0);
+            const availableWorkstations = parseFloat(record.available_workstations || 0);
+            
+            // 重新计算剩余工时和剩余时段
+            const newRemainingHours = parseFloat(
+              (workShift * availableWorkstations - newOccupiedHours).toFixed(2)
+            );
+            
+            let newRemainingShift = 0;
+            if (availableWorkstations > 0) {
+              newRemainingShift = parseFloat(
+                (newRemainingHours / availableWorkstations).toFixed(2)
+              );
+            }
+            
+            // 更新数据库
+            await pool.execute(
+              `UPDATE process_capacity_load 
+               SET occupied_hours = ?, 
+                   remaining_hours = ?, 
+                   remaining_shift = ?,
+                   updated_at = NOW()
+               WHERE id = ?`,
+              [newOccupiedHours, newRemainingHours, newRemainingShift, record.id]
+            );
+            
+            console.log(`✅ 已占用工时更新成功: ${previousOccupiedHours} → ${newOccupiedHours} (增加${scheduledHours}小时)`);
+            console.log(`   剩余工时: ${newRemainingHours}, 剩余时段: ${newRemainingShift}`);
+          } else {
+            console.warn(`⚠️ 未找到工序能力负荷记录: 工序=${processName}, 日期=${scheduleDate}`);
+          }
+        } catch (error) {
+          console.error(`⚠️ 推送已占用工时失败:`, error.message);
+          // 不阻塞主流程,继续返回结果
+        }
+      }
+      
       return { id: result.insertId };
     } catch (error) {
       console.error('创建真工序计划失败:', error);
@@ -209,16 +268,16 @@ class RealProcessPlanService {
         UPDATE real_process_plans SET
           schedule_date = ?, sales_order_no = ?, master_plan_no = ?, shipping_plan_no = ?,
           product_code = ?, product_name = ?, product_image = ?, process_manager = ?,
-          process_name = ?, schedule_quantity = ?, used_work_hours = ?, product_unit = ?,
-          level0_demand = ?, completion_date = ?, plan_start_date = ?, plan_end_date = ?,
+          process_name = ?, schedule_quantity = ?, product_unit = ?,
+          level0_demand = ?, completion_date = ?, plan_start_date = ?, real_plan_start_date = ?, plan_end_date = ?,
           workshop_name = ?, daily_available_hours = ?,
-          remaining_schedule_hours = ?, schedule_count = ?, standard_work_hours = ?,
-          standard_work_quota = ?, scheduled_hours = ?, unscheduled_hours = ?,
+          remaining_required_hours = ?, schedule_count = ?, standard_work_hours = ?,
+          standard_work_quota = ?, cumulative_schedule_qty = ?, unscheduled_qty = ?,
           source_page_name = ?, source_no = ?, previous_schedule_no = ?, customer_name = ?,
           level0_product_name = ?, level0_product_code = ?, level0_production_qty = ?,
           product_source = ?, bom_no = ?, submitted_by = ?, submitted_at = ?, replenishment_qty = ?,
           required_work_hours = ?,
-          daily_total_work_hours = ?, daily_scheduled_hours = ?, scheduled_work_hours = ?, next_schedule_date = ?
+          daily_total_hours = ?, daily_scheduled_hours = ?, scheduled_work_hours = ?, next_schedule_date = ?
         WHERE id = ?
       `;
       
@@ -233,20 +292,20 @@ class RealProcessPlanService {
         data.processManager || null,
         data.processName || null,
         data.scheduleQuantity || 0,
-        data.usedWorkHours || 0,
         data.productUnit || null,
         data.level0Demand || 0,
         data.completionDate || null,
         data.planStartDate || null,
+        data.realPlanStartDate || null,                // ✅ 新增
         data.planEndDate || null,
         data.workshopName || null,
         data.dailyAvailableHours || 0,
-        data.remainingScheduleHours || 0,
+        data.remainingRequiredHours || 0,
         data.scheduleCount || 0,
         data.standardWorkHours || 0,
         data.standardWorkQuota || 0,
-        data.scheduledHours || 0,
-        data.unscheduledHours || 0,
+        data.cumulativeScheduleQty || 0,
+        data.unscheduledQty || 0,
         data.sourcePageName || null,
         data.sourceNo || null,
         data.previousScheduleNo || null,
@@ -260,7 +319,7 @@ class RealProcessPlanService {
         data.submittedAt || null,
         data.replenishmentQty || 0,
         data.requiredWorkHours || 0,
-        data.dailyTotalWorkHours || 0,                // ✅ 新增
+        data.dailyTotalHours || 0,                    // ✅ 新增
         data.dailyScheduledHours || 0,                // ✅ 新增
         data.scheduledWorkHours || 0,                 // ✅ 新增
         data.nextScheduleDate || null,                // ✅ 新增
@@ -289,7 +348,7 @@ class RealProcessPlanService {
       
       // ✅ 步颂1: 先查询真工序计划详情(用于后续释放已占用工时)
       const [planRows] = await connection.execute(
-        'SELECT plan_no, process_name, schedule_date, used_work_hours FROM real_process_plans WHERE id = ?',
+        'SELECT plan_no, process_name, schedule_date FROM real_process_plans WHERE id = ?',
         [id]
       );
       
@@ -545,6 +604,261 @@ class RealProcessPlanService {
     } catch (error) {
       console.error('计算当天已排程工时失败:', error);
       return 0;
+    }
+  }
+
+  /**
+   * ✅ 检查并创建自增行（递归排程）
+   * @param {number} sourceRecordId - 来源记录ID
+   * @param {number} maxDepth - 最大递归深度（防止无限循环）
+   * @param {number} currentDepth - 当前递归深度
+   */
+  static async checkAndCreateIncremental(sourceRecordId, maxDepth = 100, currentDepth = 0) {
+    if (currentDepth >= maxDepth) {
+      console.log(`⚠️ 达到最大递归深度${maxDepth}，停止自增`);
+      return;
+    }
+
+    const connection = await pool.getConnection();
+    try {
+      // 1. 查询来源记录
+      const [records] = await connection.execute(`
+        SELECT * FROM real_process_plans WHERE id = ?
+      `, [sourceRecordId]);
+
+      if (records.length === 0) {
+        console.log(`⚠️ 来源记录不存在，ID: ${sourceRecordId}`);
+        return;
+      }
+
+      const sourceRecord = records[0];
+      
+      // 2. 检查自增触发条件
+      const unscheduledQty = parseFloat(sourceRecord.unscheduled_qty || 0);
+      const scheduleDate = sourceRecord.schedule_date;
+      const nextScheduleDate = sourceRecord.next_schedule_date;
+      const scheduleCount = parseInt(sourceRecord.schedule_count || 0);
+      const remainingRequiredHours = parseFloat(sourceRecord.remaining_required_hours || 0);
+      const replenishmentQty = parseFloat(sourceRecord.replenishment_qty || 0);
+
+      console.log(`\n📋 [自增检查 #${currentDepth + 1}] 来源记录 ID=${sourceRecordId}, 排程次数=${scheduleCount}`);
+      console.log(`   未排数量: ${unscheduledQty}`);
+      console.log(`   计划排程日期: ${scheduleDate}`);
+      console.log(`   下一个排程日期: ${nextScheduleDate}`);
+      console.log(`   剩余需求工时: ${remainingRequiredHours}`);
+
+      // 自增触发条件：AND(未排数量>0，计划排程日期不为空，下一个排程日期不为空，排程次数不为空，剩余需求工时不为空，未排数量不为空，需补货数量不为空）
+      if (!(
+        unscheduledQty > 0 &&
+        scheduleDate &&
+        nextScheduleDate &&
+        scheduleCount > 0 &&
+        remainingRequiredHours !== null &&
+        replenishmentQty > 0
+      )) {
+        console.log(`✅ 不满足自增条件，停止递归`);
+        return;
+      }
+
+      console.log(`🔁 满足自增条件，开始创建自增行...`);
+
+      // 3. 生成新的排程次数和编号
+      const newScheduleCount = scheduleCount + 1;
+      const planNoPrefix = sourceRecord.plan_no.split('-')[0];
+      const newPlanNo = `${planNoPrefix}-${newScheduleCount}`;
+
+      console.log(`   新排程次数: ${newScheduleCount}`);
+      console.log(`   新计划编号: ${newPlanNo}`);
+
+      // 4. 计算自增行的计划排程日期 = 来源行的下一个排程日期
+      const newScheduleDate = nextScheduleDate;
+      console.log(`   新计划排程日期: ${newScheduleDate}`);
+
+      // 5. 查询工序能力负荷表 - 获取当天总工时
+      let dailyTotalHours = 0;
+      const processName = sourceRecord.process_name;
+      
+      if (processName && newScheduleDate) {
+        const [capacityRows] = await connection.execute(`
+          SELECT work_shift, available_workstations
+          FROM process_capacity_load
+          WHERE process_name = ? AND date = ?
+          LIMIT 1
+        `, [processName, newScheduleDate]);
+        
+        if (capacityRows.length > 0) {
+          const workShift = parseFloat(capacityRows[0].work_shift || 0);
+          const availableWorkstations = parseFloat(capacityRows[0].available_workstations || 0);
+          dailyTotalHours = parseFloat((workShift * availableWorkstations).toFixed(2));
+          console.log(`   当天总工时: ${dailyTotalHours}`);
+        }
+      }
+
+      // 6. 计算当天已排程工时 (SUMIFS - 不包含即将创建的这一行)
+      const [sumRows] = await connection.execute(`
+        SELECT COALESCE(SUM(scheduled_work_hours), 0) as total
+        FROM real_process_plans
+        WHERE process_name = ? AND schedule_date = ?
+      `, [processName, newScheduleDate]);
+      
+      const dailyScheduledHours = parseFloat(sumRows[0].total || 0);
+      console.log(`   当天已排程工时: ${dailyScheduledHours}`);
+
+      // 7. 当天可用工时 = 总工时 - 已排程工时
+      const dailyAvailableHours = parseFloat((dailyTotalHours - dailyScheduledHours).toFixed(2));
+      console.log(`   当天可用工时: ${dailyAvailableHours}`);
+
+      // 8. 需求工时 = 来源行的剩余需求工时
+      const newRequiredWorkHours = remainingRequiredHours;
+      console.log(`   新需求工时: ${newRequiredWorkHours}`);
+
+      // 9. 计划排程工时 = MIN(需求工时, 当天可用工时)
+      let scheduledWorkHours = 0;
+      if (newRequiredWorkHours > 0 && dailyAvailableHours > 0) {
+        scheduledWorkHours = parseFloat(Math.min(newRequiredWorkHours, dailyAvailableHours).toFixed(2));
+      }
+      console.log(`   计划排程工时: ${scheduledWorkHours}`);
+
+      // 10. 计划排程数量 = 排程工时 × 定时工额
+      const standardWorkQuota = parseFloat(sourceRecord.standard_work_quota || 0);
+      let scheduleQuantity = 0;
+      if (scheduledWorkHours > 0 && standardWorkQuota > 0) {
+        scheduleQuantity = parseFloat((scheduledWorkHours * standardWorkQuota).toFixed(2));
+      }
+      console.log(`   计划排程数量: ${scheduleQuantity}`);
+
+      // 11. 下一个排程日期 = 计划排程日期 + 1天
+      let newNextScheduleDate = null;
+      if (newScheduleDate) {
+        const nextDate = new Date(newScheduleDate);
+        nextDate.setDate(nextDate.getDate() + 1);
+        const year = nextDate.getFullYear();
+        const month = String(nextDate.getMonth() + 1).padStart(2, '0');
+        const day = String(nextDate.getDate()).padStart(2, '0');
+        newNextScheduleDate = `${year}-${month}-${day}`;
+        console.log(`   下一个排程日期: ${newNextScheduleDate}`);
+      }
+
+      // 12. 剩余需求工时 = 需求工时 - 计划排程工时
+      let newRemainingRequiredHours = 0;
+      if (newRequiredWorkHours > 0 && scheduledWorkHours > 0) {
+        newRemainingRequiredHours = parseFloat((newRequiredWorkHours - scheduledWorkHours).toFixed(2));
+      } else if (newRequiredWorkHours > 0) {
+        newRemainingRequiredHours = newRequiredWorkHours;
+      }
+      console.log(`   剩余需求工时: ${newRemainingRequiredHours}`);
+
+      // 13. 累积排程数量 = SUMIFS(来源编号=本行来源编号) - 需要在INSERT后重新计算
+      // 先用当前的计划排程数量作为初始值
+      let cumulativeScheduleQty = scheduleQuantity;
+
+      // 14. 未排数量 = 需补货数量 - 累积排程数量
+      const newReplenishmentQty = parseFloat(sourceRecord.replenishment_qty || 0);
+      let newUnscheduledQty = 0;
+      if (newReplenishmentQty > 0 && cumulativeScheduleQty >= 0) {
+        newUnscheduledQty = parseFloat((newReplenishmentQty - cumulativeScheduleQty).toFixed(2));
+      } else if (newReplenishmentQty > 0) {
+        newUnscheduledQty = newReplenishmentQty;
+      }
+
+      // 15. 构建自增行数据对象
+      const incrementalData = {
+        planNo: newPlanNo,
+        scheduleDate: newScheduleDate,
+        salesOrderNo: sourceRecord.sales_order_no,
+        masterPlanNo: sourceRecord.master_plan_no,
+        shippingPlanNo: sourceRecord.shipping_plan_no,
+        productCode: sourceRecord.product_code,
+        productName: sourceRecord.product_name,
+        productImage: sourceRecord.product_image,
+        processManager: sourceRecord.process_manager,
+        processName: sourceRecord.process_name,
+        scheduleQuantity: scheduleQuantity,
+        productUnit: sourceRecord.product_unit,
+        level0Demand: sourceRecord.level0_demand,
+        completionDate: sourceRecord.completion_date,
+        planStartDate: null,  // ✅ 自增行必须清空计划开始日期
+        realPlanStartDate: null,  // ✅ 自增行也清空真计划开始日期
+        planEndDate: sourceRecord.plan_end_date,
+        workshopName: sourceRecord.workshop_name,
+        dailyAvailableHours: dailyAvailableHours,
+        remainingRequiredHours: newRemainingRequiredHours,
+        scheduleCount: newScheduleCount,
+        standardWorkHours: sourceRecord.standard_work_hours,
+        standardWorkQuota: standardWorkQuota,
+        cumulativeScheduleQty: cumulativeScheduleQty,
+        unscheduledQty: newUnscheduledQty,
+        sourcePageName: sourceRecord.source_page_name,
+        sourceNo: sourceRecord.source_no,  // ✅ 继承来源编号
+        previousScheduleNo: sourceRecord.plan_no,  // ✅ 上一个排程编号 = 来源行编号
+        customerName: sourceRecord.customer_name,
+        level0ProductName: sourceRecord.level0_product_name,
+        level0ProductCode: sourceRecord.level0_product_code,
+        level0ProductionQty: sourceRecord.level0_production_qty,
+        productSource: sourceRecord.product_source,
+        bomNo: sourceRecord.bom_no,
+        submittedBy: sourceRecord.submitted_by,
+        submittedAt: sourceRecord.submitted_at,
+        replenishmentQty: newReplenishmentQty,  // ✅ 继承需补货数量
+        requiredWorkHours: newRequiredWorkHours,  // ✅ 新需求工时 = 来源行剩余需求工时
+        dailyTotalHours: dailyTotalHours,
+        dailyScheduledHours: dailyScheduledHours,
+        scheduledWorkHours: scheduledWorkHours,
+        nextScheduleDate: newNextScheduleDate
+      };
+
+      // 16. 创建自增行
+      console.log(`   📝 开始插入自增行到数据库...`);
+      const createResult = await RealProcessPlanService.create(incrementalData);
+      const newRecordId = createResult.id;
+      console.log(`   ✅ 自增行创建成功, ID: ${newRecordId}`);
+
+      // 17. 重新计算累积排程数量 (SUMIFS - 包含刚创建的这一行)
+      if (sourceRecord.source_no) {
+        const [cumulativeRows] = await connection.execute(`
+          SELECT COALESCE(SUM(schedule_quantity), 0) as total
+          FROM real_process_plans
+          WHERE source_no = ?
+        `, [sourceRecord.source_no]);
+        
+        cumulativeScheduleQty = parseFloat(cumulativeRows[0].total || 0);
+        console.log(`   📊 重新计算累积排程数量: ${cumulativeScheduleQty}`);
+
+        // 18. 重新计算未排数量
+        newUnscheduledQty = 0;
+        if (newReplenishmentQty > 0 && cumulativeScheduleQty >= 0) {
+          newUnscheduledQty = parseFloat((newReplenishmentQty - cumulativeScheduleQty).toFixed(2));
+        } else if (newReplenishmentQty > 0) {
+          newUnscheduledQty = newReplenishmentQty;
+        }
+        console.log(`   📊 重新计算未排数量: ${newUnscheduledQty}`);
+
+        // 19. 更新刚创建的记录
+        await connection.execute(`
+          UPDATE real_process_plans 
+          SET cumulative_schedule_qty = ?, unscheduled_qty = ?
+          WHERE id = ?
+        `, [cumulativeScheduleQty, newUnscheduledQty, newRecordId]);
+        console.log(`   ✅ 累积数量和未排数量已更新`);
+      }
+
+      console.log(`\n✅ 自增行 #${newScheduleCount} 创建完成`);
+      console.log(`   未排数量: ${newUnscheduledQty}`);
+
+      // 20. 递归检查：如果未排数量 > 0，继续创建下一个自增行
+      if (newUnscheduledQty > 0 && newNextScheduleDate) {
+        console.log(`\n🔁 未排数量=${newUnscheduledQty} > 0，继续递归创建下一个自增行...`);
+        connection.release();  // 先释放当前连接
+        await RealProcessPlanService.checkAndCreateIncremental(newRecordId, maxDepth, currentDepth + 1);
+      } else {
+        console.log(`\n🎉 排程完毕！未排数量=${newUnscheduledQty}，停止递归`);
+        connection.release();
+      }
+      
+    } catch (error) {
+      console.error('❌ 创建自增行失败:', error);
+      connection.release();
+      throw error;
     }
   }
 }
