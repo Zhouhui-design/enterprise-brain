@@ -850,17 +850,23 @@ router.post('/reset-all-occupied-hours', async (req, res) => {
         const availableWorkstations = parseFloat(record.available_workstations || 0);
         const previousOccupiedHours = parseFloat(record.occupied_hours || 0);
         
-        // ✅ 格式化日期以确保正确匹配
-        const formattedDate = date instanceof Date ? 
-          date.toISOString().split('T')[0] : 
-          String(date).split('T')[0];
+        // ✅ 格式化日期以确保正确匹配 (修复时区问题)
+        let formattedDate;
+        if (date instanceof Date) {
+          const year = date.getFullYear();
+          const month = String(date.getMonth() + 1).padStart(2, '0');
+          const day = String(date.getDate()).padStart(2, '0');
+          formattedDate = `${year}-${month}-${day}`;
+        } else {
+          formattedDate = String(date).split('T')[0];
+        }
         
         console.log(`🔍 处理记录: 工序=${processName}, 原始日期=${date}, 格式化日期=${formattedDate}, 当前占用工时=${previousOccupiedHours}`);
         
-        // ✅ SUMIF - 重新统计该工序+日期下所有工序计划的计划排程工时总和
+        // ✅ SUMIF - 重新统计该工序+日期下所有真工序计划的计划排程工时总和
         const [sumRows] = await connection.execute(
-          `SELECT COALESCE(SUM(used_work_hours), 0) as total_hours 
-           FROM process_plans 
+          `SELECT COALESCE(SUM(scheduled_work_hours), 0) as total_hours 
+           FROM real_process_plans 
            WHERE process_name = ? 
              AND schedule_date = ?`,
           [processName, formattedDate]
@@ -1400,10 +1406,11 @@ router.post('/query-next-schedule-date', async (req, res) => {
     
     console.log('🔍 查询下一个排程日期参数:', { processName, scheduleDate, planEndDate, minRemainingHours })
     
-    if (!processName || !scheduleDate) {
+    // ✅ 生成条件：计划排程日期不为空 且 计划结束日期不为空
+    if (!processName || !scheduleDate || !planEndDate) {
       return res.status(400).json({
         code: 400,
-        message: '缺少必要参数：processName 和 scheduleDate'
+        message: '缺少必要参数：processName、scheduleDate 和 planEndDate'
       })
     }
     
@@ -1413,39 +1420,29 @@ router.post('/query-next-schedule-date', async (req, res) => {
     console.log(`🔍 MINIFS查询条件:`, {
       '工序名称': processName,
       '日期>': scheduleDate,
-      '日期<=': planEndDate || '无限制',
+      '日期<=': planEndDate,  // ✅ 必填
       '剩余工时>': minHours
     })
     
     // ✅ 查询规则：MINIFS - 多条件查询数组中最小的值
     // 1. 工序名称相同
     // 2. 日期 > 计划排程日期
-    // 3. 日期 <= 计划结束日期 (如果提供)
+    // 3. 日期 <= 计划结束日期 (必填)
     // 4. 剩余工时 > minHours
     // 5. 按日期升序排列，取第一条（即最小日期）
     
-    // ✅ 构建 SQL
-    let sql = `
+    // ✅ 构建SQL - 计划结束日期为必填条件
+    const sql = `
       SELECT DATE_FORMAT(date, '%Y-%m-%d') as formatted_date, remaining_hours 
       FROM process_capacity_load 
       WHERE process_name = ? 
-        AND DATE_FORMAT(date, '%Y-%m-%d') > ?`
-    
-    const params = [processName, scheduleDate]
-    
-    // ✅ 如果提供了计划结束日期，添加限制条件
-    if (planEndDate) {
-      sql += `
-        AND DATE_FORMAT(date, '%Y-%m-%d') <= ?`
-      params.push(planEndDate)
-    }
-    
-    sql += `
+        AND DATE_FORMAT(date, '%Y-%m-%d') > ?
+        AND DATE_FORMAT(date, '%Y-%m-%d') <= ?
         AND remaining_hours > ? 
       ORDER BY date ASC 
       LIMIT 1`
     
-    params.push(minHours)
+    const params = [processName, scheduleDate, planEndDate, minHours]
     
     console.log('🔍 SQL:', sql)
     console.log('🔍 参数:', params)

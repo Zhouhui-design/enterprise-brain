@@ -625,6 +625,29 @@ router.delete('/:id', async (req, res) => {
     
     console.log(`✅ 级联删除工序计划: ${processPlanResult.affectedRows} 条`);
     
+    // ✅ 级联删除真工序计划 - 先记录受影响的工序+日期
+    const [realProcessPlans] = await connection.execute(
+      'SELECT process_name, schedule_date FROM real_process_plans WHERE sales_order_no = ?',
+      [internalOrderNo]
+    );
+    
+    const affectedProcessDates = new Set(); // 记录受影响的工序+日期
+    realProcessPlans.forEach(plan => {
+      if (plan.process_name && plan.schedule_date) {
+        // ✅ 使用本地时区格式化，避免时区偏移
+        let scheduleDate;
+        if (plan.schedule_date instanceof Date) {
+          const year = plan.schedule_date.getFullYear();
+          const month = String(plan.schedule_date.getMonth() + 1).padStart(2, '0');
+          const day = String(plan.schedule_date.getDate()).padStart(2, '0');
+          scheduleDate = `${year}-${month}-${day}`;
+        } else {
+          scheduleDate = String(plan.schedule_date).split('T')[0];
+        }
+        affectedProcessDates.add(`${plan.process_name}|${scheduleDate}`);
+      }
+    });
+    
     // ✅ 级联删除真工序计划（销售订单编号 = 内部销售订单编号）
     const [realProcessPlanResult] = await connection.execute(
       'DELETE FROM real_process_plans WHERE sales_order_no = ?',
@@ -632,6 +655,69 @@ router.delete('/:id', async (req, res) => {
     );
     
     console.log(`✅ 级联删除真工序计划: ${realProcessPlanResult.affectedRows} 条`);
+    
+    // ✅ 批量重置受影响的工序+日期的已占用工时
+    console.log(`🔄 批量重置 ${affectedProcessDates.size} 个工序+日期的已占用工时`)
+    
+    for (const key of affectedProcessDates) {
+      const [processName, scheduleDate] = key.split('|')
+      
+      try {
+        // ✅ SUMIF - 重新统计该工序+日期下所有真工序计划的计划排程工时总和
+        const [sumRows] = await connection.execute(
+          `SELECT COALESCE(SUM(scheduled_work_hours), 0) as total_hours 
+           FROM real_process_plans 
+           WHERE process_name = ? 
+             AND schedule_date = ?`,
+          [processName, scheduleDate]
+        )
+        
+        const sumResult = sumRows[0].total_hours
+        const validResult = sumResult !== null && sumResult !== undefined ? parseFloat(sumResult) : 0
+        const newOccupiedHours = parseFloat(validResult.toFixed(2))
+        
+        // ✅ 查询工序能力负荷记录
+        const [capacityRows] = await connection.execute(
+          'SELECT id, work_shift, available_workstations, occupied_hours FROM process_capacity_load WHERE process_name = ? AND date = ?',
+          [processName, scheduleDate]
+        )
+        
+        if (capacityRows.length > 0) {
+          const record = capacityRows[0]
+          const previousOccupiedHours = parseFloat(record.occupied_hours || 0)
+          const workShift = parseFloat(record.work_shift || 0)
+          const availableWorkstations = parseFloat(record.available_workstations || 0)
+          
+          // ✅ 重新计算剩余工时和剩余时段
+          const newRemainingHours = parseFloat(
+            (workShift * availableWorkstations - newOccupiedHours).toFixed(2)
+          )
+          
+          let newRemainingShift = null
+          if (availableWorkstations > 0) {
+            newRemainingShift = parseFloat(
+              (newRemainingHours / availableWorkstations).toFixed(2)
+            )
+          }
+          
+          // ✅ 更新数据库
+          await connection.execute(
+            `UPDATE process_capacity_load 
+             SET occupied_hours = ?, 
+                 remaining_hours = ?, 
+                 remaining_shift = ?,
+                 updated_at = NOW()
+             WHERE id = ?`,
+            [newOccupiedHours, newRemainingHours, newRemainingShift, record.id]
+          )
+          
+          console.log(`✅ [工序=${processName}, 日期=${scheduleDate}] ${previousOccupiedHours} → ${newOccupiedHours}`)
+        }
+      } catch (error) {
+        console.error(`⚠️ [工序=${processName}, 日期=${scheduleDate}] 重置失败:`, error.message)
+        // 继续处理其他记录
+      }
+    }
     
     // 删除订单(级联删除产品和回款计划)
     await connection.execute('DELETE FROM sales_orders WHERE id = ?', [id])
@@ -678,6 +764,7 @@ router.post('/batch-delete', async (req, res) => {
     let totalMaterialPlans = 0
     let totalProcessPlans = 0
     let totalRealProcessPlans = 0
+    const affectedProcessDates = new Set() // 记录受影响的工序+日期
     
     // 逐个处理，确保级联删除
     for (const id of ids) {
@@ -711,7 +798,29 @@ router.post('/batch-delete', async (req, res) => {
         );
         totalProcessPlans += processPlanResult.affectedRows;
         
-        // 5. 级联删除真工序计划
+        // 5. 级联删除真工序计划 - 先记录受影响的工序+日期
+        const [realProcessPlans] = await connection.execute(
+          'SELECT process_name, schedule_date FROM real_process_plans WHERE sales_order_no = ?',
+          [internalOrderNo]
+        );
+        
+        // 记录受影响的工序+日期
+        realProcessPlans.forEach(plan => {
+          if (plan.process_name && plan.schedule_date) {
+            // ✅ 使用本地时区格式化，避免时区偏移
+            let scheduleDate;
+            if (plan.schedule_date instanceof Date) {
+              const year = plan.schedule_date.getFullYear();
+              const month = String(plan.schedule_date.getMonth() + 1).padStart(2, '0');
+              const day = String(plan.schedule_date.getDate()).padStart(2, '0');
+              scheduleDate = `${year}-${month}-${day}`;
+            } else {
+              scheduleDate = String(plan.schedule_date).split('T')[0];
+            }
+            affectedProcessDates.add(`${plan.process_name}|${scheduleDate}`);
+          }
+        });
+        
         const [realProcessPlanResult] = await connection.execute(
           'DELETE FROM real_process_plans WHERE sales_order_no = ?',
           [internalOrderNo]
@@ -723,6 +832,69 @@ router.post('/batch-delete', async (req, res) => {
           'DELETE FROM sales_orders WHERE id = ?',
           [id]
         )
+      }
+    }
+    
+    // ✅ 批量重置受影响的工序+日期的已占用工时
+    console.log(`🔄 批量重置 ${affectedProcessDates.size} 个工序+日期的已占用工时`)
+    
+    for (const key of affectedProcessDates) {
+      const [processName, scheduleDate] = key.split('|')
+      
+      try {
+        // ✅ SUMIF - 重新统计该工序+日期下所有真工序计划的计划排程工时总和
+        const [sumRows] = await connection.execute(
+          `SELECT COALESCE(SUM(scheduled_work_hours), 0) as total_hours 
+           FROM real_process_plans 
+           WHERE process_name = ? 
+             AND schedule_date = ?`,
+          [processName, scheduleDate]
+        )
+        
+        const sumResult = sumRows[0].total_hours
+        const validResult = sumResult !== null && sumResult !== undefined ? parseFloat(sumResult) : 0
+        const newOccupiedHours = parseFloat(validResult.toFixed(2))
+        
+        // ✅ 查询工序能力负荷记录
+        const [capacityRows] = await connection.execute(
+          'SELECT id, work_shift, available_workstations, occupied_hours FROM process_capacity_load WHERE process_name = ? AND date = ?',
+          [processName, scheduleDate]
+        )
+        
+        if (capacityRows.length > 0) {
+          const record = capacityRows[0]
+          const previousOccupiedHours = parseFloat(record.occupied_hours || 0)
+          const workShift = parseFloat(record.work_shift || 0)
+          const availableWorkstations = parseFloat(record.available_workstations || 0)
+          
+          // ✅ 重新计算剩余工时和剩余时段
+          const newRemainingHours = parseFloat(
+            (workShift * availableWorkstations - newOccupiedHours).toFixed(2)
+          )
+          
+          let newRemainingShift = null
+          if (availableWorkstations > 0) {
+            newRemainingShift = parseFloat(
+              (newRemainingHours / availableWorkstations).toFixed(2)
+            )
+          }
+          
+          // ✅ 更新数据库
+          await connection.execute(
+            `UPDATE process_capacity_load 
+             SET occupied_hours = ?, 
+                 remaining_hours = ?, 
+                 remaining_shift = ?,
+                 updated_at = NOW()
+             WHERE id = ?`,
+            [newOccupiedHours, newRemainingHours, newRemainingShift, record.id]
+          )
+          
+          console.log(`✅ [工序=${processName}, 日期=${scheduleDate}] ${previousOccupiedHours} → ${newOccupiedHours}`)
+        }
+      } catch (error) {
+        console.error(`⚠️ [工序=${processName}, 日期=${scheduleDate}] 重置失败:`, error.message)
+        // 继续处理其他记录
       }
     }
     

@@ -439,18 +439,32 @@ const syncWorkShiftFromCalendar = async (records) => {
     const calendarResult = await calendarResponse.json()
     
     if (calendarResult.code === 200 && calendarResult.data) {
-      // 创建日期到标准上班时长的映射
+      // ✅ 创建日期到标准上班时长的映射
+      // ⚠️ 重要: 企业日历的actual_date(真日期) = calendar_date + 1天
+      // 工序能力负荷表的date应该对应actual_date,不是calendar_date
       const dateToHoursMap = {}
       calendarResult.data.forEach(item => {
-        // 确保日期格式统一为 YYYY-MM-DD
-        const dateKey = item.calendar_date instanceof Date ? 
-          item.calendar_date.toISOString().split('T')[0] : 
-          String(item.calendar_date)
+        // ✅ 使用actual_date(真日期)进行匹配
+        let dateKey
+        if (item.actual_date) {
+          dateKey = item.actual_date instanceof Date ? 
+            item.actual_date.toISOString().split('T')[0] : 
+            String(item.actual_date).split('T')[0]
+        } else {
+          // 如果没有actual_date,使用calendar_date+1天
+          const calDate = item.calendar_date instanceof Date ? 
+            item.calendar_date : new Date(item.calendar_date)
+          const actualDate = new Date(calDate)
+          actualDate.setDate(actualDate.getDate() + 1)
+          dateKey = `${actualDate.getFullYear()}-${String(actualDate.getMonth() + 1).padStart(2, '0')}-${String(actualDate.getDate()).padStart(2, '0')}`
+        }
         
         // 只同步上班日的标准上班时长
         if (item.is_workday === 1 && item.standard_work_hours > 0) {
           dateToHoursMap[dateKey] = parseFloat(item.standard_work_hours).toFixed(2)
         }
+        
+        console.log(`  企业日历: calendar_date=${String(item.calendar_date).split('T')[0]} → actual_date=${dateKey}, is_workday=${item.is_workday}`)
       })
       
       // ✅ Lookup: 为每条记录匹配标准上班时长

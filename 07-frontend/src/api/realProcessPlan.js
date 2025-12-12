@@ -34,3 +34,8 @@ export function batchDelete(ids) {
 export function fixFieldCalculations() {
   return request.post('/real-process-plans/fix-field-calculations')
 }
+
+// ✅ 新增：推送真工序计划到备料计划
+export function pushToMaterialPreparation(id, processIntervalSettings) {
+  return request.post(`/real-process-plans/${id}/push-to-material`, { processIntervalSettings })
+}

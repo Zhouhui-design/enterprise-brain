@@ -162,6 +162,7 @@ router.post('/batch-query', async (req, res) => {
     const sql = `
       SELECT 
         DATE_FORMAT(calendar_date, '%Y-%m-%d') as calendar_date,
+        DATE_FORMAT(actual_date, '%Y-%m-%d') as actual_date,
         is_workday, 
         standard_work_hours, 
         adjusted_work_hours, 

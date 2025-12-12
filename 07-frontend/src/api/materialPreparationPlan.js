@@ -31,9 +31,7 @@ export const deleteById = (id) => {
 
 // 批量删除备料计划
 export const batchDelete = (ids) => {
-  return request.delete('/material-preparation-plans/batch/delete', {}, {
-    data: { ids }
-  })
+  return request.delete('/material-preparation-plans/batch/delete', { ids })
 }
 
 // 推送到工序计划

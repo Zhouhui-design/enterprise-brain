@@ -1,6 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const realProcessPlanService = require('../services/realProcessPlanService');
+const realProcessPlanToMaterialService = require('../services/realProcessPlanToMaterialService');
 
 // 获取真工序计划列表(分页+搜索)
 router.get('/', async (req, res) => {
@@ -160,6 +161,37 @@ router.post('/fix-field-calculations', async (req, res) => {
     });
   } catch (error) {
     console.error('修复真工序计划字段失败:', error);
+    res.status(500).json({
+      code: 500,
+      message: error.message
+    });
+  }
+});
+
+// ✅ 新增：推送真工序计划到备料计划
+router.post('/:id/push-to-material', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { processIntervalSettings } = req.body; // 从前端传递工序间隔设置
+    
+    // 获取真工序计划详情
+    const plan = await realProcessPlanService.getById(id);
+    if (!plan) {
+      return res.status(404).json({
+        code: 404,
+        message: '真工序计划不存在'
+      });
+    }
+    
+    // 执行推送
+    const result = await realProcessPlanToMaterialService.pushToMaterialPreparation(
+      plan,
+      processIntervalSettings
+    );
+    
+    res.json(result);
+  } catch (error) {
+    console.error('推送到备料计划失败:', error);
     res.status(500).json({
       code: 500,
       message: error.message

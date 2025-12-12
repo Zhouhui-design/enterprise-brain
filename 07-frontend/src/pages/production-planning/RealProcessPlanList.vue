@@ -107,6 +107,18 @@
       </div>
     </template>
 
+    <!-- ✅ BOM详情列 -->
+    <template #column-bomDetail="{ row }">
+      <el-button 
+        size="small" 
+        type="primary" 
+        link
+        @click="handleShowBomDetail(row)"
+      >
+        查看
+      </el-button>
+    </template>
+
     <!-- 操作列 -->
     <template #column-actions="{ row }">
       <el-button size="small" type="primary" @click="handleEdit(row)">编辑</el-button>
@@ -207,6 +219,9 @@
   >
     <ProcessIntervalSettings />
   </el-dialog>
+
+  <!-- ✅ BOM详情弹窗 -->
+  <BomDetailDialog ref="bomDetailDialogRef" />
 </template>
 
 <script setup>
@@ -215,6 +230,7 @@ import { ElMessage, ElMessageBox, ElLoading } from 'element-plus'
 import { CircleCheck, Loading } from '@element-plus/icons-vue'
 import StandardTablePage from '@/components/common/layout/StandardTablePage.vue'
 import ProcessIntervalSettings from './ProcessIntervalSettings.vue'  // ✅ 导入工序间隔设置组件
+import BomDetailDialog from './BomDetailDialog.vue'  // ✅ 导入BOM详情弹窗
 import * as api from '@/api/realProcessPlan'
 import capacityLoadApi from '@/api/capacityLoad'  // ✅ 导入工序能力负荷API
 import dateUtils from '@/services/utils/date-utils'  // ✅ 导入日期工具
@@ -239,6 +255,7 @@ const isEdit = ref(false)
 const formRef = ref(null)
 const selectedRows = ref([])
 const searchInputRef = ref(null)
+const bomDetailDialogRef = ref(null)  // ✅ BOM详情弹窗引用
 
 // 分页
 const pagination = reactive({
@@ -456,6 +473,7 @@ const allColumns = ref([
   { prop: 'productSource', label: '产品来源', width: 120, filterable: true, visible: false },
   { prop: 'bomNo', label: '生产BOM编号', width: 160, filterable: true, sortable: true, visible: true },
   { prop: 'hierarchyAddress', label: '层阶地址', width: 120, filterable: true, visible: true },
+  { prop: 'bomDetail', label: 'BOM详情', width: 100, slot: 'bomDetail', align: 'center', visible: true },
   { prop: 'submittedBy', label: '提交人', width: 100, filterable: true, visible: true },
   { prop: 'submittedAt', label: '提交时间', width: 160, sortable: true, visible: true }
 ])
@@ -689,13 +707,13 @@ const calculateSchedulingFields = async () => {
   }
   
   // ✅ 需求6: 查询下一个排程日期 (MINIFS)
-  // 生成条件：计划排程日期不为空
-  if (formData.value.scheduleDate) {
+  // 生成条件：计划排程日期不为空 且 计划结束日期不为空
+  if (formData.value.scheduleDate && formData.value.planEndDate) {
     await queryNextScheduleDate()
     console.log(`✅ 需求6: 下一个排程日期 = ${formData.value.nextScheduleDate}`)
   } else {
     formData.value.nextScheduleDate = null
-    console.log('⚠️ 需求6: 计划排程日期为空，跳过计算')
+    console.log('⚠️ 需求6: 计划排程日期或计划结束日期为空，跳过计算')
   }
   
   console.log('✅ 所有排程字段计算完毕')
@@ -710,7 +728,8 @@ const queryNextScheduleDate = async () => {
   
   console.log('🔍 查询下一个排程日期:', { processName, scheduleDate, planEndDate, minRemainingHours })
   
-  if (!processName || !scheduleDate) {
+  // ✅ 生成条件：计划排程日期不为空 且 计划结束日期不为空
+  if (!processName || !scheduleDate || !planEndDate) {
     console.log('⚠️ 缺少必要参数')
     formData.value.nextScheduleDate = null
     return null
@@ -905,6 +924,13 @@ const handleReset = () => {
 
 const handleSavePageSettings = (settings) => {
   // TODO: 实现保存页面设置功能
+}
+
+// ✅ 打开BOM详情弹窗
+const handleShowBomDetail = (row) => {
+  if (bomDetailDialogRef.value) {
+    bomDetailDialogRef.value.open(row)
+  }
 }
 
 onMounted(() => {

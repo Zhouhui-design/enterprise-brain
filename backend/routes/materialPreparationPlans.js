@@ -24,6 +24,29 @@ router.get('/', async (req, res) => {
 });
 
 /**
+ * 批量删除备料计划
+ * DELETE /api/material-preparation-plans/batch/delete
+ */
+router.delete('/batch/delete', async (req, res) => {
+  try {
+    const { ids } = req.body;
+    console.log('收到批量删除备料计划请求, IDs:', ids);
+    const result = await MaterialPreparationPlanService.batchDelete(ids);
+    res.json({
+      code: 200,
+      data: result,
+      message: '批量删除备料计划成功'
+    });
+  } catch (error) {
+    console.error('批量删除备料计划失败:', error);
+    res.status(500).json({
+      code: 500,
+      message: error.message
+    });
+  }
+});
+
+/**
  * 获取单个备料计划
  * GET /api/material-preparation-plans/:id
  */
@@ -113,29 +136,6 @@ router.delete('/:id', async (req, res) => {
     });
   } catch (error) {
     console.error('删除备料计划失败:', error);
-    res.status(500).json({
-      code: 500,
-      message: error.message
-    });
-  }
-});
-
-/**
- * 批量删除备料计划
- * DELETE /api/material-preparation-plans/batch
- */
-router.delete('/batch/delete', async (req, res) => {
-  try {
-    const { ids } = req.body;
-    console.log('收到批量删除备料计划请求, IDs:', ids);
-    const result = await MaterialPreparationPlanService.batchDelete(ids);
-    res.json({
-      code: 200,
-      data: result,
-      message: '批量删除备料计划成功'
-    });
-  } catch (error) {
-    console.error('批量删除备料计划失败:', error);
     res.status(500).json({
       code: 500,
       message: error.message

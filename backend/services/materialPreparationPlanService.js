@@ -64,6 +64,9 @@ class MaterialPreparationPlanService {
         planNo: row.plan_no,
         sourcePlanNo: row.source_plan_no,
         sourceProcessPlanNo: row.source_process_plan_no,
+        parentCode: row.parent_code,
+        parentName: row.parent_name,
+        parentScheduleQuantity: row.parent_schedule_quantity,
         materialCode: row.material_code,
         materialName: row.material_name,
         materialSource: row.material_source,
@@ -75,6 +78,10 @@ class MaterialPreparationPlanService {
         availableStock: row.available_stock,
         sourceProcess: row.source_process,
         workshopName: row.workshop_name,
+        parentProcessName: row.parent_process_name,
+        processIntervalHours: row.process_interval_hours,
+        processIntervalUnit: row.process_interval_unit,
+        processScheduleDate: row.process_schedule_date,
         demandDate: row.demand_date,
         pushToPurchase: row.push_to_purchase,
         pushToProcess: row.push_to_process,
@@ -126,19 +133,26 @@ class MaterialPreparationPlanService {
       
       const sql = `
         INSERT INTO material_preparation_plans (
-          plan_no, source_plan_no, source_process_plan_no, material_code, material_name,
+          plan_no, source_plan_no, source_process_plan_no, 
+          parent_code, parent_name, parent_schedule_quantity,
+          material_code, material_name,
           material_source, material_unit, demand_quantity, need_mrp, realtime_stock,
-          projected_balance, available_stock, source_process, workshop_name, demand_date,
+          projected_balance, available_stock, source_process, workshop_name, 
+          parent_process_name, process_interval_hours, process_interval_unit,
+          process_schedule_date, demand_date,
           push_to_purchase, push_to_process, sales_order_no, customer_order_no,
           main_plan_product_code, main_plan_product_name, main_plan_quantity,
           promise_delivery_date, remark, created_by
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       `;
       
       const [result] = await connection.execute(sql, [
         data.planNo,
         data.sourcePlanNo || null,
         data.sourceProcessPlanNo || null,
+        data.parentCode || null,
+        data.parentName || null,
+        data.parentScheduleQuantity || null,
         data.materialCode,
         data.materialName,
         data.materialSource || null,
@@ -150,6 +164,10 @@ class MaterialPreparationPlanService {
         data.availableStock || 0,
         data.sourceProcess || null,
         data.workshopName || null,
+        data.parentProcessName || null,
+        data.processIntervalHours || null,
+        data.processIntervalUnit || null,
+        data.processScheduleDate || null,
         data.demandDate || null,
         data.pushToPurchase ? 1 : 0,
         data.pushToProcess ? 1 : 0,
@@ -460,15 +478,33 @@ class MaterialPreparationPlanService {
               }
             }
             
-            // 需求6: 下一个排程日期 = 计划排程日期 + 1天
-            if (scheduleDate) {
-              const nextDate = new Date(scheduleDate);
-              nextDate.setDate(nextDate.getDate() + 1);
-              const year = nextDate.getFullYear();
-              const month = String(nextDate.getMonth() + 1).padStart(2, '0');
-              const day = String(nextDate.getDate()).padStart(2, '0');
-              nextScheduleDate = `${year}-${month}-${day}`;
-              console.log(`   ✅ 下一个排程日期: ${nextScheduleDate}`);
+            // 需求6: 下一个排程日期 (MINIFS查询)
+            // 查询条件: 日期 > 计划排程日期 且 日期 <= 计划结束日期 且 剩余工时 > 门槛值
+            if (scheduleDate && planEndDate) {
+              try {
+                const minRemainingHours = 0.5;
+                console.log(`   🔍 查询下一个排程日期: 排程日期=${scheduleDate}, 结束日期=${planEndDate}`);
+                
+                const [nextRows] = await connection.execute(`
+                  SELECT DATE_FORMAT(date, '%Y-%m-%d') as formatted_date, remaining_hours 
+                  FROM process_capacity_load 
+                  WHERE process_name = ? 
+                    AND DATE_FORMAT(date, '%Y-%m-%d') > ?
+                    AND DATE_FORMAT(date, '%Y-%m-%d') <= ?
+                    AND remaining_hours > ? 
+                  ORDER BY date ASC 
+                  LIMIT 1
+                `, [data.sourceProcess, scheduleDate, planEndDate, minRemainingHours]);
+                
+                if (nextRows.length > 0) {
+                  nextScheduleDate = nextRows[0].formatted_date;
+                  console.log(`   ✅ 下一个排程日期: ${nextScheduleDate}, 剩余工时: ${nextRows[0].remaining_hours}`);
+                } else {
+                  console.log(`   ⚠️ 未找到符合条件的下一个排程日期`);
+                }
+              } catch (error) {
+                console.error(`   ❌ 查询下一个排程日期失败:`, error.message);
+              }
             }
           }
           
@@ -609,10 +645,15 @@ class MaterialPreparationPlanService {
       
       const sql = `
         UPDATE material_preparation_plans SET
-          source_plan_no = ?, source_process_plan_no = ?, material_code = ?, material_name = ?,
+          source_plan_no = ?, source_process_plan_no = ?, 
+          parent_code = ?, parent_name = ?, parent_schedule_quantity = ?,
+          material_code = ?, material_name = ?,
           material_source = ?, material_unit = ?, demand_quantity = ?, need_mrp = ?,
           realtime_stock = ?, projected_balance = ?, available_stock = ?, source_process = ?,
-          workshop_name = ?, demand_date = ?, push_to_purchase = ?, push_to_process = ?,
+          workshop_name = ?, 
+          parent_process_name = ?, process_interval_hours = ?, process_interval_unit = ?,
+          process_schedule_date = ?, demand_date = ?, 
+          push_to_purchase = ?, push_to_process = ?,
           sales_order_no = ?, customer_order_no = ?, main_plan_product_code = ?,
           main_plan_product_name = ?, main_plan_quantity = ?, promise_delivery_date = ?,
           remark = ?, updated_by = ?
@@ -622,6 +663,9 @@ class MaterialPreparationPlanService {
       const [result] = await connection.execute(sql, [
         data.sourcePlanNo || null,
         data.sourceProcessPlanNo || null,
+        data.parentCode || null,
+        data.parentName || null,
+        data.parentScheduleQuantity || null,
         data.materialCode,
         data.materialName,
         data.materialSource || null,
@@ -633,6 +677,10 @@ class MaterialPreparationPlanService {
         data.availableStock || 0,
         data.sourceProcess || null,
         data.workshopName || null,
+        data.parentProcessName || null,
+        data.processIntervalHours || null,
+        data.processIntervalUnit || null,
+        data.processScheduleDate || null,
         data.demandDate || null,
         data.pushToPurchase ? 1 : 0,
         data.pushToProcess ? 1 : 0,
