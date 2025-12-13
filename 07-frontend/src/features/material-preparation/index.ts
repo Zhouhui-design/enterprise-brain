@@ -15,3 +15,4 @@ export { materialPrepApi } from './services/materialPrepApi'
 // Composables
 export { useMaterialPrepList } from './composables/useMaterialPrepList'
 export { useMaterialPrepActions } from './composables/useMaterialPrepActions'
+export { usePageSettings } from './composables/usePageSettings'

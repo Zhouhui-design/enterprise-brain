@@ -2,7 +2,7 @@
   <div class="material-prep-container">
     <!-- 页面标题 -->
     <div class="page-header">
-      <h2>备料计划（新架构版）</h2>
+      <h2>备料计划</h2>
       <div class="header-actions">
         <el-button type="primary" size="small" @click="handleAdd">
           <el-icon><Plus /></el-icon>
@@ -20,84 +20,47 @@
           <el-icon><Refresh /></el-icon>
           刷新
         </el-button>
+        <el-button size="small" @click="showSettings = true">
+          <el-icon><Setting /></el-icon>
+          页面设置
+        </el-button>
       </div>
     </div>
 
-    <!-- 搜索筛选区 -->
-    <div class="search-bar">
-      <el-form :inline="true" :model="searchForm" size="small">
-        <el-form-item label="备料计划编号">
-          <el-input 
-            v-model="searchForm.planNo" 
-            placeholder="请输入" 
-            clearable 
-            style="width: 180px" 
-          />
-        </el-form-item>
-        <el-form-item label="来源主计划编号">
-          <el-input 
-            v-model="searchForm.sourcePlanNo" 
-            placeholder="请输入" 
-            clearable 
-            style="width: 180px" 
-          />
-        </el-form-item>
-        <el-form-item label="备料物料编号">
-          <el-input 
-            v-model="searchForm.materialCode" 
-            placeholder="请输入" 
-            clearable 
-            style="width: 180px" 
-          />
-        </el-form-item>
-        <el-form-item>
-          <el-button type="primary" @click="handleSearch">查询</el-button>
-          <el-button @click="handleResetSearch">重置</el-button>
-        </el-form-item>
-      </el-form>
-    </div>
+    <!-- 筛选提示（表头筛选模式）-->
+    <el-alert 
+      type="info" 
+      :closable="false" 
+      style="margin: 0 20px 15px"
+    >
+      表头筛选模式：点击列标题右侧的筛选图标进行筛选，筛选作用于所有分页数据
+    </el-alert>
 
     <!-- 数据表格 -->
     <div class="table-container">
       <el-table
         v-loading="loading"
-        :data="tableData"
+        :data="filteredTableData"
         border
         stripe
         @selection-change="handleSelectionChange"
         height="calc(100vh - 280px)"
       >
         <el-table-column type="selection" width="55" fixed="left" />
-        <el-table-column 
-          prop="planNo" 
-          label="备料计划编号" 
-          width="160" 
-          fixed="left"
-        />
-        <el-table-column prop="sourcePlanNo" label="来源主计划编号" width="160" />
-        <el-table-column prop="parentCode" label="父件编号" width="140" />
-        <el-table-column prop="parentName" label="父件名称" width="180" />
-        <el-table-column 
-          prop="parentScheduleQuantity" 
-          label="父件排程数量" 
-          width="140" 
-          align="right"
-        />
-        <el-table-column prop="materialCode" label="备料物料编号" width="140" />
-        <el-table-column prop="materialName" label="备料物料名称" width="180" />
-        <el-table-column prop="materialSource" label="物料来源" width="100" />
-        <el-table-column 
-          prop="demandQuantity" 
-          label="需求数量" 
-          width="120" 
-          align="right"
-        />
-        <el-table-column 
-          prop="demandDate" 
-          label="需求日期" 
-          width="120"
-          :formatter="formatDate"
-        />
+        
+        <template v-for="col in visibleColumns" :key="col.prop">
+          <el-table-column
+            v-if="col.visible"
+            :prop="col.prop"
+            :label="col.label"
+            :width="col.width"
+            :fixed="col.prop === 'planNo' ? 'left' : undefined"
+            :align="col.prop.includes('Quantity') ? 'right' : undefined"
+            :filter-method="col.filterable ? handleColumnFilter : undefined"
+            :filters="col.filterable ? getColumnFilters(col.prop) : undefined"
+            :formatter="col.prop === 'demandDate' ? formatDate : undefined"
+          />
+        </template>
         <el-table-column label="操作" width="150" fixed="right">
           <template #default="{ row }">
             <el-button link type="primary" size="small" @click="handleEdit(row)">
@@ -123,6 +86,27 @@
         />
       </div>
     </div>
+
+    <!-- 页面设置对话框 -->
+    <PageSettingsDialog
+      v-model="showSettings"
+      :business-variables="businessVariables"
+      :workflow-configs="workflowConfigs"
+      :code-rules="codeRules"
+      :column-configs="columnConfigs"
+      @add-var="addBusinessVariable"
+      @remove-var="removeBusinessVariable"
+      @save-vars="saveBusinessVariables"
+      @add-workflow="addWorkflowConfig"
+      @remove-workflow="removeWorkflowConfig"
+      @save-workflows="saveWorkflowConfigs"
+      @add-code-rule="addCodeRule"
+      @remove-code-rule="removeCodeRule"
+      @save-code-rules="saveCodeRules"
+      @update-code-example="updateCodeExample"
+      @reorder-columns="reorderColumns"
+      @save-columns="saveColumnConfigs"
+    />
 
     <!-- 新增/编辑对话框 -->
     <el-dialog
@@ -197,13 +181,15 @@
 </template>
 
 <script setup>
-import { ref, onMounted } from 'vue'
-import { Plus, Delete, Refresh } from '@element-plus/icons-vue'
+import { ref, computed, onMounted } from 'vue'
+import { Plus, Delete, Refresh, Setting } from '@element-plus/icons-vue'
 // 使用新架构的Composables
 import { 
   useMaterialPrepList,
   useMaterialPrepActions 
 } from '@/features/material-preparation'
+import { usePageSettings } from '@/features/material-preparation/composables/usePageSettings'
+import PageSettingsDialog from '@/features/material-preparation/components/PageSettingsDialog.vue'
 
 // ========== 列表逻辑（独立） ==========
 const {
@@ -232,7 +218,71 @@ const {
   batchDelete
 } = useMaterialPrepActions(loadData) // 传入刷新回调
 
-// ========== UI状态 ==========
+// ========== 页面设置 ==========
+const showSettings = ref(false)
+
+// 默认列配置
+const defaultColumns = [
+  { prop: 'planNo', label: '备料计划编号', width: 160, filterable: true },
+  { prop: 'sourcePlanNo', label: '来源主计划编号', width: 160, filterable: true },
+  { prop: 'parentCode', label: '父件编号', width: 140, filterable: true },
+  { prop: 'parentName', label: '父件名称', width: 180, filterable: true },
+  { prop: 'parentScheduleQuantity', label: '父件排程数量', width: 140, filterable: false },
+  { prop: 'materialCode', label: '备料物料编号', width: 140, filterable: true },
+  { prop: 'materialName', label: '备料物料名称', width: 180, filterable: true },
+  { prop: 'materialSource', label: '物料来源', width: 100, filterable: true },
+  { prop: 'demandQuantity', label: '需求数量', width: 120, filterable: false },
+  { prop: 'demandDate', label: '需求日期', width: 120, filterable: true }
+]
+
+const {
+  businessVariables,
+  addBusinessVariable,
+  removeBusinessVariable,
+  saveBusinessVariables,
+  workflowConfigs,
+  addWorkflowConfig,
+  removeWorkflowConfig,
+  saveWorkflowConfigs,
+  codeRules,
+  addCodeRule,
+  removeCodeRule,
+  saveCodeRules,
+  updateCodeExample,
+  columnConfigs,
+  reorderColumns,
+  saveColumnConfigs,
+  initSettings
+} = usePageSettings('material-preparation')
+
+// 可见列（按顺序排列）
+const visibleColumns = computed(() => {
+  return [...columnConfigs.value]
+    .sort((a, b) => a.order - b.order)
+})
+
+// 表头筛选
+const columnFilters = ref({})
+
+const getColumnFilters = (prop) => {
+  if (!tableData.value.length) return []
+  
+  const uniqueValues = [...new Set(
+    tableData.value
+      .map(row => row[prop])
+      .filter(val => val !== null && val !== undefined && val !== '')
+  )]
+  
+  return uniqueValues.map(val => ({ text: val, value: val }))
+}
+
+const handleColumnFilter = (value, row, column) => {
+  const property = column.property
+  return row[property] === value
+}
+
+// 筛选后的表格数据（注意：el-table的filter自带机制会处理）
+const filteredTableData = computed(() => tableData.value)
 const dialogVisible = ref(false)
 const isEdit = ref(false)
 const formRef = ref(null)
@@ -300,6 +350,7 @@ const formatDate = ({ row, column, cellValue }) => {
 
 // ========== 初始化 ==========
 onMounted(() => {
+  initSettings(defaultColumns)  // 初始化页面设置
   loadData()
 })
 </script>
