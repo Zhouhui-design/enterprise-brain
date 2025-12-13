@@ -33,7 +33,7 @@
       :closable="false" 
       style="margin: 0 20px 15px"
     >
-      表头筛选模式：点击列标题右侧的筛选图标进行筛选，筛选作用于所有分页数据
+      表头筛选模式：每列标题下方有搜索框，支持模糊查询，筛选作用于所有{{ pagination.total }}条数据
     </el-alert>
 
     <!-- 数据表格 -->
@@ -52,14 +52,30 @@
           <el-table-column
             v-if="col.visible"
             :prop="col.prop"
-            :label="col.label"
             :width="col.width"
             :fixed="col.prop === 'planNo' ? 'left' : undefined"
             :align="col.prop.includes('Quantity') ? 'right' : undefined"
-            :filter-method="col.filterable ? handleColumnFilter : undefined"
-            :filters="col.filterable ? getColumnFilters(col.prop) : undefined"
             :formatter="col.prop === 'demandDate' ? formatDate : undefined"
-          />
+          >
+            <template #header>
+              <div class="table-header-cell">
+                <div class="header-label">{{ col.label }}</div>
+                <el-input
+                  v-if="col.filterable"
+                  v-model="columnSearchValues[col.prop]"
+                  size="small"
+                  placeholder="模糊搜索"
+                  clearable
+                  @input="handleColumnSearch"
+                  class="header-search"
+                >
+                  <template #prefix>
+                    <el-icon><Search /></el-icon>
+                  </template>
+                </el-input>
+              </div>
+            </template>
+          </el-table-column>
         </template>
         <el-table-column label="操作" width="150" fixed="right">
           <template #default="{ row }">
@@ -182,7 +198,7 @@
 
 <script setup>
 import { ref, computed, onMounted } from 'vue'
-import { Plus, Delete, Refresh, Setting } from '@element-plus/icons-vue'
+import { Plus, Delete, Refresh, Setting, Search } from '@element-plus/icons-vue'
 // 使用新架构的Composables
 import { 
   useMaterialPrepList,
@@ -261,28 +277,35 @@ const visibleColumns = computed(() => {
     .sort((a, b) => a.order - b.order)
 })
 
-// 表头筛选
-const columnFilters = ref({})
+// 表头模糊搜索
+const columnSearchValues = ref({})
 
-const getColumnFilters = (prop) => {
-  if (!tableData.value.length) return []
-  
-  const uniqueValues = [...new Set(
-    tableData.value
-      .map(row => row[prop])
-      .filter(val => val !== null && val !== undefined && val !== '')
-  )]
-  
-  return uniqueValues.map(val => ({ text: val, value: val }))
+const handleColumnSearch = () => {
+  // 触发筛选，使用computed自动更新
 }
 
-const handleColumnFilter = (value, row, column) => {
-  const property = column.property
-  return row[property] === value
-}
-
-// 筛选后的表格数据（注意：el-table的filter自带机制会处理）
-const filteredTableData = computed(() => tableData.value)
+// 筛选后的表格数据（模糊搜索）
+const filteredTableData = computed(() => {
+  let data = [...tableData.value]
+  
+  // 对每个有搜索值的列进行筛选
+  Object.keys(columnSearchValues.value).forEach(prop => {
+    const searchValue = columnSearchValues.value[prop]
+    if (searchValue && searchValue.trim()) {
+      data = data.filter(row => {
+        const cellValue = row[prop]
+        if (cellValue === null || cellValue === undefined) return false
+        
+        // 转为字符串进行模糊匹配（不区分大小写）
+        return String(cellValue)
+          .toLowerCase()
+          .includes(searchValue.toLowerCase().trim())
+      })
+    }
+  })
+  
+  return data
+})
 const dialogVisible = ref(false)
 const isEdit = ref(false)
 const formRef = ref(null)
@@ -400,5 +423,47 @@ onMounted(() => {
   margin-top: 16px;
   display: flex;
   justify-content: flex-end;
+}
+
+// 表头搜索样式
+.table-header-cell {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 2px 0;
+  
+  .header-label {
+    font-weight: 600;
+    color: #303133;
+    font-size: 13px;
+    line-height: 1.4;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  
+  .header-search {
+    :deep(.el-input__wrapper) {
+      box-shadow: 0 0 0 1px #dcdfe6 inset;
+      
+      &:hover {
+        box-shadow: 0 0 0 1px #c0c4cc inset;
+      }
+      
+      &.is-focus {
+        box-shadow: 0 0 0 1px #409eff inset !important;
+      }
+    }
+    
+    :deep(.el-input__inner) {
+      font-size: 12px;
+      height: 26px;
+      line-height: 26px;
+    }
+    
+    :deep(.el-input__prefix) {
+      font-size: 12px;
+    }
+  }
 }
 </style>
