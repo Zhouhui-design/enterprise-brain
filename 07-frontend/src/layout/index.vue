@@ -581,8 +581,8 @@ export default {
                   icon: 'el-icon-edit'
                 },
                 {
-                  path: '/production-planning/material-preparation',
-                  name: 'MaterialPreparationPlan',
+                  path: '/production-planning/material-preparation-new',
+                  name: 'MaterialPreparationPlanNew',
                   meta: { title: '备料计划' },
                   icon: 'el-icon-s-grid'
                 },
