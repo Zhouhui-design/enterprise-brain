@@ -60,6 +60,15 @@ export default {
       }
     },
     {
+      path: 'material-preparation-new',
+      name: 'MaterialPreparationPlanNew',
+      component: () => import('@/pages/production-planning/MaterialPreparationPlanNew.vue'),
+      meta: { 
+        title: '备料计划（新架构）',
+        icon: 'Grid'
+      }
+    },
+    {
       path: 'process-plan',
       name: 'ProcessPlanList',
       component: () => import('@/pages/production-planning/ProcessPlanList.vue'),
