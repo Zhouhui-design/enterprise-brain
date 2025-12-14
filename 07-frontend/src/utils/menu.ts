@@ -1,5 +1,5 @@
 // src/utils/menu.ts
-import { HomeFilled, Monitor, OfficeBuilding, Factory, Warehouse, ShoppingCart, Setting, Company, User } from '@element-plus/icons-vue';
+import { HomeFilled, Monitor, OfficeBuilding, Factory, Warehouse, ShoppingCart, Setting, Company, User, Calendar } from '@element-plus/icons-vue';
 
 // 菜单类型定义（可选，TypeScript 类型提示）
 interface MenuItem {
@@ -45,6 +45,18 @@ export const menuList: MenuItem[] = [
       { path: '/system/audit/log-list', name: '审计日志列表' },
       { path: '/system/audit/data-change', name: '数据变更记录' },
       { path: '/system/audit/operation-trace', name: '操作轨迹' }
+    ]
+  },
+  {
+    path: '/production-planning',
+    name: '生产计划',
+    icon: Calendar,
+    children: [
+      { path: '/production-planning/plan-list', name: '主生产计划' },
+      { path: '/production-planning/material-preparation-new', name: '备料计划' },
+      { path: '/production-planning/real-process-plan', name: '真工序计划' },
+      { path: '/production-planning/packaging-process-plan', name: '包装工序计划' },
+      { path: '/production-planning/assembly-process-plan', name: '组装工序计划' }
     ]
   },
   {
