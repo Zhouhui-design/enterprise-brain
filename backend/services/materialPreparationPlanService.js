@@ -1,4 +1,64 @@
 const { pool } = require('../config/database');
+
+// ✅ 新增：排队推送锁管理器
+// 用于确保相同工序+相同日期的推送串行执行
+class PushQueueManager {
+  constructor() {
+    this.locks = new Map(); // key: "processName|scheduleDate", value: Promise
+  }
+
+  /**
+   * 获取排队锁，确保相同工序+日期的推送串行执行
+   * @param {string} processName - 工序名称
+   * @param {string} scheduleDate - 计划排程日期 (YYYY-MM-DD)
+   * @param {Function} task - 要执行的任务
+   * @returns {Promise} 任务执行结果
+   */
+  async acquireLock(processName, scheduleDate, task) {
+    const lockKey = `${processName}|${scheduleDate}`;
+    
+    // 等待前一个任务完成
+    const previousTask = this.locks.get(lockKey);
+    if (previousTask) {
+      console.log(`🔒 [排队锁] 检测到同工序同日期的推送正在执行: ${lockKey}，等待中...`);
+      try {
+        await previousTask; // 等待前一个任务完成
+        console.log(`✅ [排队锁] 前一个任务已完成: ${lockKey}，开始执行当前任务`);
+      } catch (error) {
+        console.warn(`⚠️ [排队锁] 前一个任务失败: ${lockKey}，但仍继续执行当前任务`);
+      }
+      // 等待一小段时间，确保数据库提交完成
+      await new Promise(resolve => setTimeout(resolve, 100));
+    }
+
+    // 创建当前任务的Promise
+    const currentTask = (async () => {
+      try {
+        console.log(`🚀 [排队锁] 开始执行推送任务: ${lockKey}`);
+        const result = await task();
+        console.log(`✅ [排队锁] 推送任务完成: ${lockKey}`);
+        return result;
+      } catch (error) {
+        console.error(`❌ [排队锁] 推送任务失败: ${lockKey}`, error.message);
+        throw error;
+      } finally {
+        // 任务完成后，删除锁（只删除当前任务的锁）
+        if (this.locks.get(lockKey) === currentTask) {
+          this.locks.delete(lockKey);
+          console.log(`🔓 [排队锁] 释放锁: ${lockKey}`);
+        }
+      }
+    })();
+
+    // 将当前任务设置为锁
+    this.locks.set(lockKey, currentTask);
+
+    return currentTask;
+  }
+}
+
+// 创建全局单例
+const pushQueueManager = new PushQueueManager();
 const RealProcessPlanService = require('./realProcessPlanService');  // ✅ 引入真工序计划Service
 
 /**
@@ -868,6 +928,9 @@ if (requiredWorkHours > 0 && dailyAvailableHours > 0) {
    */
   static async pushToRealProcessPlan(data) {
     const connection = await pool.getConnection();
+    let scheduleDate = null;  // ✅ 提前声明，便于 finally 中释放锁
+    let currentTask = null;   // ✅ 提前声明，便于 finally 中释放锁
+    
     try {
       // 检查推送条件
       const demandQty = parseFloat(data.demandQuantity || 0);
@@ -1011,7 +1074,42 @@ if (requiredWorkHours > 0 && dailyAvailableHours > 0) {
       }
 
       // 计划排程日期 = 真计划开始日期
-      const scheduleDate = realPlanStartDate;
+      scheduleDate = realPlanStartDate;  // ✅ 赋值给方法级变量
+
+      // ✅ 关键修改：使用排队锁确保相同工序+相同日期的推送串行执行
+      if (scheduleDate && data.sourceProcess) {
+        console.log(`🔒 [排队推送] 工序=${data.sourceProcess}, 日期=${scheduleDate}, 备料计划=${data.planNo}`);
+        
+        // 使用排队锁，确保后续查询和创建串行执行
+        const lockKey = `${data.sourceProcess}|${scheduleDate}`;
+        const previousTask = pushQueueManager.locks.get(lockKey);
+        
+        if (previousTask) {
+          console.log(`🔒 [排队锁] 检测到同工序同日期的推送正在执行: ${lockKey}，等待中...`);
+          try {
+            await previousTask; // 等待前一个任务完成
+            console.log(`✅ [排队锁] 前一个任务已完成: ${lockKey}，开始执行当前任务`);
+          } catch (error) {
+            console.warn(`⚠️ [排队锁] 前一个任务失败: ${lockKey}，但仍继续执行当前任务`);
+          }
+          // 等待一小段时间，确保数据库提交完成
+          await new Promise(resolve => setTimeout(resolve, 150));
+        }
+        
+        // 创建当前任务的 Promise，并注册到锁管理器
+        currentTask = (async () => {
+          try {
+            console.log(`🚀 [排队锁] 开始执行推送任务: ${lockKey}`);
+            // 注意：这里不能 return，因为需要在 finally 中释放锁
+          } catch (error) {
+            console.error(`❌ [排队锁] 推送任务失败: ${lockKey}`, error.message);
+            throw error;
+          }
+        })();
+        
+        // 将当前任务设置为锁
+        pushQueueManager.locks.set(lockKey, currentTask);
+      }
 
       // ✅ 查询当天总工时 (从工序能力负荷表)
       let dailyTotalHours = 0;
@@ -1119,6 +1217,14 @@ if (requiredWorkHours > 0 && dailyAvailableHours > 0) {
       console.error('❌ 推送到真工序计划失败:', error);
       throw error;
     } finally {
+      // ✅ 释放排队锁
+      if (scheduleDate && data.sourceProcess && currentTask) {
+        const lockKey = `${data.sourceProcess}|${scheduleDate}`;
+        if (pushQueueManager.locks.get(lockKey) === currentTask) {
+          pushQueueManager.locks.delete(lockKey);
+          console.log(`🔓 [排队锁] 释放锁: ${lockKey}`);
+        }
+      }
       connection.release();
     }
   }
