@@ -103,10 +103,90 @@ router.post('/', async (req, res) => {
  * PUT /api/material-preparation-plans/:id
  */
 router.put('/:id', async (req, res) => {
+  const { pool } = require('../config/database');
+  let connection;
+  
   try {
     const { id } = req.params;
     console.log(`收到更新备料计划请求, ID: ${id}`);
     const result = await MaterialPreparationPlanService.update(id, req.body);
+    
+    // ✅ 关键修复: UPDATE后检查是否需要触发推送到真工序计划
+    // 触发条件: 物料来源=自制 && 需补货数量>0
+    connection = await pool.getConnection();
+    
+    const [updatedPlan] = await connection.execute(`
+      SELECT 
+        id, plan_no, source_plan_no, material_code, material_name,
+        material_source, material_unit, demand_quantity, available_stock,
+        replenishment_quantity, source_process, demand_date,
+        sales_order_no, customer_order_no, main_plan_product_code,
+        main_plan_product_name, main_plan_quantity, promise_delivery_date,
+        customer_name, created_by
+      FROM material_preparation_plans
+      WHERE id = ?
+      LIMIT 1
+    `, [id]);
+    
+    if (updatedPlan.length > 0) {
+      const plan = updatedPlan[0];
+      const replenishmentQty = parseFloat(plan.replenishment_quantity || 0);
+      
+      console.log(`\n🔄 [UPDATE后检查] 备料计划: ${plan.plan_no}`);
+      console.log(`   物料来源: ${plan.material_source}`);
+      console.log(`   需补货数量: ${replenishmentQty}`);
+      
+      // 检查推送条件
+      if (plan.material_source === '自制' && replenishmentQty > 0) {
+        // 防重复推送检查
+        const [existingPlans] = await connection.execute(`
+          SELECT id, plan_no FROM real_process_plans
+          WHERE source_no = ? AND product_code = ?
+          LIMIT 1
+        `, [plan.plan_no, plan.material_code]);
+        
+        if (existingPlans.length === 0) {
+          console.log(`   ✅ 满足推送条件且未推送过,触发推送到真工序计划...`);
+          
+          // 转换数据格式
+          const planData = {
+            planNo: plan.plan_no,
+            sourcePlanNo: plan.source_plan_no,
+            materialCode: plan.material_code,
+            materialName: plan.material_name,
+            materialSource: plan.material_source,
+            materialUnit: plan.material_unit,
+            demandQuantity: plan.demand_quantity,
+            availableStock: plan.available_stock,
+            replenishmentQuantity: plan.replenishment_quantity,
+            sourceProcess: plan.source_process,
+            demandDate: plan.demand_date,
+            salesOrderNo: plan.sales_order_no,
+            customerOrderNo: plan.customer_order_no,
+            mainPlanProductCode: plan.main_plan_product_code,
+            mainPlanProductName: plan.main_plan_product_name,
+            mainPlanQuantity: plan.main_plan_quantity,
+            promiseDeliveryDate: plan.promise_delivery_date,
+            customerName: plan.customer_name,
+            createdBy: plan.created_by
+          };
+          
+          // 调用备料计划推送逻辑
+          try {
+            await MaterialPreparationPlanService.pushMaterialPlanToRealProcessPlan(planData);
+            console.log(`   ✅ 备料计划 ${plan.plan_no} UPDATE后推送到真工序计划成功`);
+          } catch (pushError) {
+            console.error(`   ⚠️ 推送失败:`, pushError.message);
+            // 不阻塞主流程
+          }
+        } else {
+          console.log(`   ⏭️ 已推送过,跳过: ${plan.plan_no} → ${existingPlans[0].plan_no}`);
+        }
+      } else {
+        console.log(`   ⏭️ 不符合推送条件,跳过`);
+      }
+    }
+    
     res.json({
       code: 200,
       data: result,
@@ -118,6 +198,8 @@ router.put('/:id', async (req, res) => {
       code: 500,
       message: error.message
     });
+  } finally {
+    if (connection) connection.release();
   }
 });
 
@@ -157,9 +239,23 @@ router.post('/:id/push-to-process', async (req, res) => {
     
     connection = await pool.getConnection();
     
-    // 1. 查询备料计划详情
+    // 1. 查询备料计划详情（✅ 格式化日期字段）
     const [planRows] = await connection.execute(`
-      SELECT * FROM material_preparation_plans WHERE id = ?
+      SELECT 
+        id, plan_no, source_plan_no, source_process_plan_no,
+        parent_code, parent_name, parent_schedule_quantity,
+        material_code, material_name, material_source, material_unit,
+        demand_quantity, need_mrp, realtime_stock, projected_balance,
+        available_stock, replenishment_quantity, source_process,
+        workshop_name, parent_process_name, process_interval_hours,
+        process_interval_unit,
+        DATE_FORMAT(process_schedule_date, '%Y-%m-%d') as process_schedule_date,
+        DATE_FORMAT(demand_date, '%Y-%m-%d') as demand_date,
+        push_to_purchase, push_to_process, sales_order_no, customer_order_no,
+        main_plan_product_code, main_plan_product_name, main_plan_quantity,
+        DATE_FORMAT(promise_delivery_date, '%Y-%m-%d') as promise_delivery_date,
+        remark, created_by, created_at, updated_by, updated_at
+      FROM material_preparation_plans WHERE id = ?
     `, [id]);
     
     if (planRows.length === 0) {
@@ -285,6 +381,28 @@ router.post('/:id/push-to-process', async (req, res) => {
     if (connection) {
       connection.release();
     }
+  }
+});
+
+/**
+ * 自动触发推送检查
+ * POST /api/material-preparation-plans/auto-trigger-push
+ */
+router.post('/auto-trigger-push', async (req, res) => {
+  try {
+    console.log('🔄 收到自动触发推送请求');
+    const result = await MaterialPreparationPlanService.autoTriggerPush();
+    res.json({
+      code: 200,
+      data: result,
+      message: `自动触发推送完成，找到${result.totalPlans}条满足条件的计划，成功推送${result.pushedPlans}条`
+    });
+  } catch (error) {
+    console.error('❌ 自动触发推送失败:', error);
+    res.status(500).json({
+      code: 500,
+      message: error.message
+    });
   }
 });
 

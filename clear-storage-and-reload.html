@@ -1,0 +1,160 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <title>清理备料计划配置</title>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+</head>
+<body>
+    <h1>备料计划页面问题修复工具</h1>
+    
+    <h2>🔧 问题诊断</h2>
+    <p>如果您在备料计划页面遇到以下问题：</p>
+    <ul>
+        <li>打开页面后无法切换到其他页面</li>
+        <li>页面数据不显示但后端有数据</li>
+        <li>控制台出现 "null has no properties" 错误</li>
+    </ul>
+    
+    <h2>🛠️ 自动修复</h2>
+    <button onclick="clearStorage()" class="primary-button">
+        清理localStorage配置
+    </button>
+    
+    <div id="result" class="result-container"></div>
+    
+    <h2>📋 手动操作步骤</h2>
+    <ol>
+        <li>点击上面的"清理localStorage配置"按钮</li>
+        <li>等待清理完成</li>
+        <li>刷新浏览器页面（F5）</li>
+        <li>重新访问备料计划页面</li>
+        <li>如果问题依然存在，请按F12查看控制台错误</li>
+    </ol>
+    
+    <h2>🚀 快速导航</h2>
+    <p>修复完成后，点击以下链接测试：</p>
+    <ul>
+        <li><a href="http://localhost:3004/production-planning/material-preparation-new" target="_blank" rel="noopener">备料计划页面</a></li>
+        <li><a href="http://localhost:3004/bom/production" target="_blank" rel="noopener">生产BOM页面</a></li>
+    </ul>
+    
+    <script>
+        function clearStorage() {
+            const result = document.getElementById('result')
+            result.innerHTML = '<p>🔄 正在清理配置...</p>'
+            
+            try {
+                const keysToRemove = [
+                    'material-preparation_columns',
+                    'material-preparation_business_vars',
+                    'material-preparation_workflow_configs',
+                    'material-preparation_code_rules'
+                ]
+                
+                let successCount = 0
+                let errorCount = 0
+                let errorDetails = []
+                
+                keysToRemove.forEach(key => {
+                    try {
+                        localStorage.removeItem(key)
+                        successCount++
+                        console.log(`✅ 已删除: ${key}`)
+                    } catch (error) {
+                        errorCount++
+                        errorDetails.push(`${key}: ${error.message}`)
+                        console.error(`❌ 删除失败: ${key}`, error)
+                    }
+                })
+                
+                const resultHtml = `
+                    <h3>📊 清理结果</h3>
+                    <p>✅ 成功清理: ${successCount} 项</p>
+                    <p>❌ 清理失败: ${errorCount} 项</p>
+                    ${errorDetails.length > 0 ? '<p>❌ 错误详情:</p><ul>' + errorDetails.map(detail => '<li>' + detail + '</li>').join('') + '</ul>' : ''}
+                    <p><strong>🎯 清理完成！请刷新浏览器页面（按F5）</strong></p>
+                `
+                
+                result.innerHTML = resultHtml
+                
+                // 3秒后自动提示刷新
+                setTimeout(() => {
+                    result.innerHTML += '<p style="color: #E6A23C;">💡 建议现在刷新页面（按F5）</p>'
+                }, 3000)
+                
+            } catch (error) {
+                result.innerHTML = `<p style="color: #F56C6C;">❌ 清理过程中发生错误: ${error.message}</p>`
+            }
+        }
+        
+        // 页面加载时检查localStorage状态
+        window.onload = function() {
+            const materialKeys = [
+                'material-preparation_columns',
+                'material-preparation_business_vars',
+                'material-preparation_workflow_configs',
+                'material-preparation_code_rules'
+            ]
+            
+            let existingKeys = materialKeys.filter(key => localStorage.getItem(key))
+            
+            if (existingKeys.length > 0) {
+                document.getElementById('result').innerHTML = `
+                    <p style="color: #E6A23C;">⚠️ 检测到 ${existingKeys.length} 个备料计划相关的localStorage配置项：</p>
+                    <ul>${existingKeys.map(key => '<li>' + key + '</li>').join('')}</ul>
+                    <p>这些配置可能导致页面问题，建议点击上方按钮清理。</p>
+                `
+            } else {
+                document.getElementById('result').innerHTML = `
+                    <p style="color: #67C23A;">✅ 未检测到异常的localStorage配置</p>
+                    <p>如果页面仍有问题，可能是其他原因造成的。</p>
+                `
+            }
+        }
+    </script>
+    
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            line-height: 1.6;
+        }
+        
+        h1, h2 {
+            color: #303133;
+        }
+        
+        .primary-button {
+            background: #409EFF;
+            color: white;
+            padding: 10px 20px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+        
+        .primary-button:hover {
+            background: #66b1ff !important;
+        }
+        
+        .result-container {
+            margin-top: 20px;
+            padding: 10px;
+            background: #f5f5f5;
+            border-radius: 4px;
+        }
+        
+        a {
+            color: #409EFF;
+            text-decoration: none;
+        }
+        
+        a:hover {
+            text-decoration: underline;
+        }
+    </style>
+</body>
+</html>

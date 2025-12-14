@@ -155,13 +155,45 @@ export function usePageSettings(pageName = 'material-preparation') {
   const loadColumnConfigs = (defaultColumns: ColumnConfig[]) => {
     const saved = localStorage.getItem(`${settingsKey}_columns`)
     if (saved) {
-      columnConfigs.value = JSON.parse(saved)
+      try {
+        const savedColumns: ColumnConfig[] = JSON.parse(saved)
+        // ✅ 关键修复：合并localStorage和默认配置，优先使用defaultColumns的visible属性
+        const columnsMap = new Map<string, ColumnConfig>(savedColumns.map((col) => [col.prop, col]))
+        
+        columnConfigs.value = defaultColumns.map((defaultCol, index) => {
+          const savedCol = columnsMap.get(defaultCol.prop)
+          return {
+            ...defaultCol,
+            // ✅ 使用defaultColumns的visible，而不是localStorage的
+            visible: defaultCol.visible !== undefined ? defaultCol.visible : true,
+            // 使用localStorage的order（如果存在）
+            order: savedCol?.order !== undefined ? savedCol.order : index,
+            // 使用localStorage的width（如果存在）
+            width: savedCol?.width || defaultCol.width
+          }
+        })
+        
+        console.log('✅ 列配置已加载（使用代码定义的visible属性）:', {
+          总数: columnConfigs.value.length,
+          可见: columnConfigs.value.filter(c => c.visible).length,
+          隐藏: columnConfigs.value.filter(c => !c.visible).length
+        })
+      } catch (error) {
+        console.error('❌ 加轾localStorage列配置失败，使用默认配置:', error)
+        // 加载失败，使用默认配置
+        columnConfigs.value = defaultColumns.map((col, index) => ({
+          ...col,
+          visible: col.visible !== undefined ? col.visible : true,
+          order: index
+        }))
+      }
     } else {
       columnConfigs.value = defaultColumns.map((col, index) => ({
         ...col,
-        visible: true,
+        visible: col.visible !== undefined ? col.visible : true,
         order: index
       }))
+      console.log('✅ 使用默认列配置:', columnConfigs.value.length, '个列')
     }
   }
   

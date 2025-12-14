@@ -397,12 +397,24 @@ const originalFieldsList = ref([])
 const initFieldsList = () => {
   if (props.availableFields && props.availableFields.length > 0) {
     const visibleFields = localSettings.value.visibleFields || []
+    
+    // ✅ 检查是否所有字段都已经有visible属性（代码定义）
+    const allFieldsHaveVisible = props.availableFields.every(f => f.visible !== undefined)
+    
     localFieldsList.value = props.availableFields.map(field => ({
       ...field,
-      visible: visibleFields.includes(field.prop)
+      // ✅ 修复：优先使用字段自带的visible属性，如果没有才从localStorage加载
+      visible: field.visible !== undefined ? field.visible : visibleFields.includes(field.prop)
     }))
     originalFieldsList.value = JSON.parse(JSON.stringify(localFieldsList.value))
-    console.log('✅ 字段列表初始化:', localFieldsList.value.length, '个字段')
+    
+    const visibleCount = localFieldsList.value.filter(f => f.visible).length
+    console.log('✅ 字段列表初始化:', {
+      总数: localFieldsList.value.length,
+      可见: visibleCount,
+      使用代码定义: allFieldsHaveVisible,
+      使用localStorage: !allFieldsHaveVisible
+    })
   }
 }
 

@@ -54,11 +54,29 @@ class RealProcessPlanService {
       const [countResult] = await pool.execute(countSQL, queryParams);
       const total = countResult[0].total;
       
-      // 分页查询
+      // 分页查询（✅ 格式化日期字段为中国时区）
       const offset = (parseInt(page) - 1) * parseInt(pageSize);
       const limit = parseInt(pageSize);
       const dataSQL = `
-        SELECT * FROM real_process_plans 
+        SELECT 
+          id, plan_no, schedule_date, DATE_FORMAT(schedule_date, '%Y-%m-%d') as schedule_date_formatted,
+          sales_order_no, customer_order_no, master_plan_no, main_plan_product_code,
+          main_plan_product_name, shipping_plan_no, product_code, product_name,
+          product_image, process_manager, process_name, schedule_quantity,
+          product_unit, level0_demand, completion_date, promise_delivery_date,
+          DATE_FORMAT(plan_start_date, '%Y-%m-%d') as plan_start_date,
+          DATE_FORMAT(real_plan_start_date, '%Y-%m-%d') as real_plan_start_date,
+          DATE_FORMAT(plan_end_date, '%Y-%m-%d') as plan_end_date,
+          workshop_name, daily_available_hours, remaining_required_hours, schedule_count,
+          standard_work_hours, standard_work_quota, cumulative_schedule_qty,
+          unscheduled_qty, source_page_name, source_no, previous_schedule_no,
+          customer_name, level0_product_name, level0_product_code,
+          level0_production_qty, product_source, bom_no, submitted_by,
+          submitted_at, replenishment_qty, required_work_hours,
+          daily_total_hours, daily_scheduled_hours, scheduled_work_hours,
+          DATE_FORMAT(next_schedule_date, '%Y-%m-%d') as next_schedule_date,
+          created_at, updated_at
+        FROM real_process_plans 
         ${whereSQL}
         ORDER BY schedule_date ASC, created_at ASC
         LIMIT ${limit} OFFSET ${offset}
@@ -73,6 +91,12 @@ class RealProcessPlanService {
           const camelKey = key.replace(/_([a-z])/g, (match, letter) => letter.toUpperCase());
           convertedRow[camelKey] = row[key];
         });
+        
+        // ✅ 使用格式化后的日期字段
+        if (row.schedule_date_formatted) {
+          convertedRow.scheduleDate = row.schedule_date_formatted;
+        }
+        
         return convertedRow;
       });
       
@@ -105,7 +129,29 @@ class RealProcessPlanService {
    */
   static async getById(id) {
     try {
-      const [rows] = await pool.execute('SELECT * FROM real_process_plans WHERE id = ?', [id]);
+      // ✅ 格式化日期字段为中国时区
+      const [rows] = await pool.execute(`
+        SELECT 
+          id, plan_no, schedule_date, DATE_FORMAT(schedule_date, '%Y-%m-%d') as schedule_date_formatted,
+          sales_order_no, customer_order_no, master_plan_no, main_plan_product_code,
+          main_plan_product_name, shipping_plan_no, product_code, product_name,
+          product_image, process_manager, process_name, schedule_quantity,
+          product_unit, level0_demand, completion_date, promise_delivery_date,
+          DATE_FORMAT(plan_start_date, '%Y-%m-%d') as plan_start_date,
+          DATE_FORMAT(real_plan_start_date, '%Y-%m-%d') as real_plan_start_date,
+          DATE_FORMAT(plan_end_date, '%Y-%m-%d') as plan_end_date,
+          workshop_name, daily_available_hours, remaining_required_hours, schedule_count,
+          standard_work_hours, standard_work_quota, cumulative_schedule_qty,
+          unscheduled_qty, source_page_name, source_no, previous_schedule_no,
+          customer_name, level0_product_name, level0_product_code,
+          level0_production_qty, product_source, bom_no, submitted_by,
+          submitted_at, replenishment_qty, required_work_hours,
+          daily_total_hours, daily_scheduled_hours, scheduled_work_hours,
+          DATE_FORMAT(next_schedule_date, '%Y-%m-%d') as next_schedule_date,
+          created_at, updated_at
+        FROM real_process_plans WHERE id = ?
+      `, [id]);
+      
       if (rows.length === 0) {
         return null;
       }
@@ -117,6 +163,9 @@ class RealProcessPlanService {
         const camelKey = key.replace(/_([a-z])/g, (match, letter) => letter.toUpperCase());
         convertedRow[camelKey] = row[key];
       });
+      
+      // ✅ 使用格式化后的日期
+      convertedRow.scheduleDate = row.schedule_date_formatted;
       
       return convertedRow;
     } catch (error) {
@@ -133,9 +182,10 @@ class RealProcessPlanService {
       // 正确的SQL，包含所有字段，数量匹配
       const sql = `
         INSERT INTO real_process_plans (
-          plan_no, schedule_date, sales_order_no, master_plan_no, shipping_plan_no,
+          plan_no, schedule_date, sales_order_no, customer_order_no, master_plan_no, 
+          main_plan_product_code, main_plan_product_name, shipping_plan_no,
           product_code, product_name, product_image, process_manager, process_name,
-          schedule_quantity, product_unit, level0_demand, completion_date,
+          schedule_quantity, product_unit, level0_demand, completion_date, promise_delivery_date,
           plan_start_date, real_plan_start_date, plan_end_date,
           workshop_name, daily_available_hours, remaining_required_hours, schedule_count,
           standard_work_hours, standard_work_quota, cumulative_schedule_qty, unscheduled_qty,
@@ -144,55 +194,143 @@ class RealProcessPlanService {
           product_source, bom_no, submitted_by, submitted_at, replenishment_qty,
           required_work_hours,
           daily_total_hours, daily_scheduled_hours, scheduled_work_hours, next_schedule_date
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       `;
       
       const [result] = await pool.execute(sql, [
         data.planNo,                                 // 1. plan_no
         data.scheduleDate || null,                    // 2. schedule_date
         data.salesOrderNo || null,                    // 3. sales_order_no
-        data.masterPlanNo || null,                    // 4. master_plan_no
-        data.shippingPlanNo || null,                  // 5. shipping_plan_no
-        data.productCode || null,                     // 6. product_code
-        data.productName || null,                     // 7. product_name
-        data.productImage || null,                    // 8. product_image
-        data.processManager || null,                  // 9. process_manager
-        data.processName || null,                     // 10. process_name
-        data.scheduleQuantity || 0,                   // 11. schedule_quantity
-        data.productUnit || null,                     // 12. product_unit
-        data.level0Demand || 0,                       // 13. level0_demand
-        data.completionDate || null,                  // 14. completion_date
-        data.planStartDate || null,                    // 15. plan_start_date
-        data.realPlanStartDate || null,                // 16. real_plan_start_date (✅ 新增)
-        data.planEndDate || null,                      // 17. plan_end_date
-        data.workshopName || null,                    // 18. workshop_name
-        data.dailyAvailableHours || 0,                 // 19. daily_available_hours
-        data.remainingRequiredHours || 0,              // 20. remaining_required_hours
-        data.scheduleCount || 0,                       // 21. schedule_count
-        data.standardWorkHours || 0,                  // 22. standard_work_hours
-        data.standardWorkQuota || 0,                  // 23. standard_work_quota
-        data.cumulativeScheduleQty || 0,              // 24. cumulative_schedule_qty
-        data.unscheduledQty || 0,                     // 25. unscheduled_qty
-        data.sourcePageName || null,                  // 26. source_page_name
-        data.sourceNo || null,                         // 27. source_no
-        data.previousScheduleNo || null,              // 28. previous_schedule_no
-        data.customerName || null,                     // 29. customer_name
-        data.level0ProductName || null,                // 30. level0_product_name
-        data.level0ProductCode || null,                // 31. level0_product_code
-        data.level0ProductionQty || 0,                // 32. level0_production_qty
-        data.productSource || null,                    // 33. product_source
-        data.bomNo || null,                            // 34. bom_no
-        data.submittedBy || null,                      // 35. submitted_by
-        data.submittedAt || null,                      // 36. submitted_at
-        data.replenishmentQty || 0,                   // 37. replenishment_qty
-        data.requiredWorkHours || 0,                   // 38. required_work_hours
-        data.dailyTotalHours || 0,                    // 39. daily_total_hours (✅ 新增)
-        data.dailyScheduledHours || 0,                // 40. daily_scheduled_hours (✅ 新增)
-        data.scheduledWorkHours || 0,                 // 41. scheduled_work_hours (✅ 新增)
-        data.nextScheduleDate || null                 // 42. next_schedule_date (✅ 新增)
+        data.customerOrderNo || null,                 // 4. customer_order_no (✅ 新增)
+        data.masterPlanNo || null,                    // 5. master_plan_no
+        data.mainPlanProductCode || null,             // 6. main_plan_product_code (✅ 新增)
+        data.mainPlanProductName || null,             // 7. main_plan_product_name (✅ 新增)
+        data.shippingPlanNo || null,                  // 8. shipping_plan_no
+        data.productCode || null,                     // 9. product_code
+        data.productName || null,                     // 10. product_name
+        data.productImage || null,                    // 11. product_image
+        data.processManager || null,                  // 12. process_manager
+        data.processName || null,                     // 13. process_name
+        data.scheduleQuantity || 0,                   // 14. schedule_quantity
+        data.productUnit || null,                     // 15. product_unit
+        data.level0Demand || 0,                       // 16. level0_demand
+        data.completionDate || null,                  // 17. completion_date
+        data.promiseDeliveryDate || null,             // 18. promise_delivery_date (✅ 新增)
+        data.planStartDate || null,                    // 19. plan_start_date
+        data.realPlanStartDate || null,                // 20. real_plan_start_date
+        data.planEndDate || null,                      // 21. plan_end_date
+        data.workshopName || null,                    // 22. workshop_name
+        data.dailyAvailableHours || 0,                 // 23. daily_available_hours
+        data.remainingRequiredHours || 0,              // 24. remaining_required_hours
+        data.scheduleCount || 0,                       // 25. schedule_count
+        data.standardWorkHours || 0,                  // 26. standard_work_hours
+        data.standardWorkQuota || 0,                  // 27. standard_work_quota
+        data.cumulativeScheduleQty || 0,              // 28. cumulative_schedule_qty
+        data.unscheduledQty || 0,                     // 29. unscheduled_qty
+        data.sourcePageName || null,                  // 30. source_page_name
+        data.sourceNo || null,                         // 31. source_no
+        data.previousScheduleNo || null,              // 32. previous_schedule_no
+        data.customerName || null,                     // 33. customer_name
+        data.level0ProductName || null,                // 34. level0_product_name
+        data.level0ProductCode || null,                // 35. level0_product_code
+        data.level0ProductionQty || 0,                // 36. level0_production_qty
+        data.productSource || null,                    // 37. product_source
+        data.bomNo || null,                            // 38. bom_no
+        data.submittedBy || null,                      // 39. submitted_by
+        data.submittedAt || null,                      // 40. submitted_at
+        data.replenishmentQty || 0,                   // 41. replenishment_qty
+        data.requiredWorkHours || 0,                   // 42. required_work_hours
+        data.dailyTotalHours || 0,                    // 43. daily_total_hours
+        data.dailyScheduledHours || 0,                // 44. daily_scheduled_hours
+        data.scheduledWorkHours || 0,                 // 45. scheduled_work_hours
+        data.nextScheduleDate || null                 // 46. next_schedule_date
       ]);
       
       console.log(`真工序计划创建成功, ID: ${result.insertId}, 编号: ${data.planNo}`);
+      
+      // ✅ 新增：自动推送到备料计划（触发条件：计划排程数量>0）
+      console.log(`\n🔍 [自动推送检查] 真工序计划 -> 备料计划`);
+      console.log(`   真工序计划ID: ${result.insertId}`);
+      console.log(`   真工序计划编号: ${data.planNo}`);
+      console.log(`   产品编号: ${data.productCode}`);
+      console.log(`   产品名称: ${data.productName}`);
+      console.log(`   计划排程数量 (scheduleQuantity): ${data.scheduleQuantity}`);
+      console.log(`   数值类型: ${typeof data.scheduleQuantity}`);
+      console.log(`   parseFloat结果: ${parseFloat(data.scheduleQuantity || 0)}`);
+      console.log(`   是否满足条件 (>0): ${data.scheduleQuantity && parseFloat(data.scheduleQuantity) > 0}`);
+      
+      if (data.scheduleQuantity && parseFloat(data.scheduleQuantity) > 0) {
+        try {
+          console.log(`\n📤 触发自动推送到备料计划: 编号=${data.planNo}, 排程数量=${data.scheduleQuantity}`);
+          
+          // 获取刚创建的真工序计划详情（含下划线字段）
+          // ✅ 关键修复：查询时就格式化schedule_date为中国时区YYYY-MM-DD格式
+          const [createdPlanRows] = await pool.execute(
+            `SELECT 
+              id, plan_no, schedule_date, DATE_FORMAT(schedule_date, '%Y-%m-%d') as schedule_date_formatted,
+              sales_order_no, customer_order_no, master_plan_no, main_plan_product_code,
+              main_plan_product_name, shipping_plan_no, product_code, product_name,
+              product_image, process_manager, process_name, schedule_quantity,
+              product_unit, level0_demand, completion_date, promise_delivery_date,
+              plan_start_date, real_plan_start_date, plan_end_date, workshop_name,
+              daily_available_hours, remaining_required_hours, schedule_count,
+              standard_work_hours, standard_work_quota, cumulative_schedule_qty,
+              unscheduled_qty, source_page_name, source_no, previous_schedule_no,
+              customer_name, level0_product_name, level0_product_code,
+              level0_production_qty, product_source, bom_no, submitted_by,
+              submitted_at, replenishment_qty, required_work_hours,
+              daily_total_hours, daily_scheduled_hours, scheduled_work_hours,
+              next_schedule_date, created_at, updated_at
+            FROM real_process_plans WHERE id = ?`,
+            [result.insertId]
+          );
+          
+          console.log(`   查询到 ${createdPlanRows.length} 条真工序计划记录`);
+          
+          if (createdPlanRows.length > 0) {
+            // ✅ 使用格式化后的日期替换原始日期
+            const planData = {
+              ...createdPlanRows[0],
+              schedule_date: createdPlanRows[0].schedule_date_formatted // 使用YYYY-MM-DD格式
+            };
+            const realProcessPlanToMaterialService = require('./realProcessPlanToMaterialService');
+            
+            // 加载工序间隔设置（从数据库）
+            const processIntervalSettings = await this.loadProcessIntervalSettings();
+            console.log(`   加载了 ${processIntervalSettings.length} 条工序间隔设置`);
+            
+            // 执行推送
+            console.log(`   开始执行 pushToMaterialPreparation...`);
+            console.log(`   真工序计划数据:`, {
+              id: planData.id,
+              plan_no: planData.plan_no,
+              product_code: planData.product_code,
+              product_name: planData.product_name,
+              schedule_quantity: planData.schedule_quantity,
+              process_name: planData.process_name,
+              schedule_date: planData.schedule_date // ✅ 已经是YYYY-MM-DD格式
+            });
+            
+            const pushResult = await realProcessPlanToMaterialService.pushToMaterialPreparation(
+              planData, // ✅ 使用格式化后的数据
+              processIntervalSettings
+            );
+            
+            console.log(`\n✅ 自动推送到备料计划成功:`, JSON.stringify(pushResult, null, 2));
+            // ✅ 注：备料计划推送到真工序计划的触发已移动到 realProcessPlanToMaterialService.pushToMaterialPreparation 的commit后
+          } else {
+            console.warn(`   ⚠️ 未查询到刚创建的真工序计划记录`);
+          }
+        } catch (error) {
+          console.error(`\n❌ 自动推送到备料计划失败:`);
+          console.error(`   错误信息: ${error.message}`);
+          console.error(`   错误堆栈:`, error.stack);
+          console.error(`   完整错误对象:`, error);
+          // 不阻塞主流程,继续返回结果
+        }
+      } else {
+        console.log(`   ⚠️ 不满足推送条件，跳过推送到备料计划`);
+      }
       
       // ✅ 自动推送已排程工时到工序能力负荷表
       if (data.scheduledWorkHours && data.scheduledWorkHours > 0 && data.processName && data.scheduleDate) {
@@ -260,16 +398,44 @@ class RealProcessPlanService {
   }
 
   /**
+   * 加载工序间隔设置（从数据库）
+   * 返回格式: [{ previousProcess: '上道工序', nextProcess: '下道工序', intervalValue: 数值, intervalUnit: '单位' }]
+   */
+  static async loadProcessIntervalSettings() {
+    try {
+      const [rows] = await pool.execute(
+        'SELECT previous_process, next_process, interval_value, interval_unit FROM process_interval_settings'
+      );
+      
+      // 转换字段名为驼峰格式
+      const settings = rows.map(row => ({
+        previousProcess: row.previous_process,
+        nextProcess: row.next_process,
+        intervalValue: parseFloat(row.interval_value || 0),
+        intervalUnit: row.interval_unit || '小时'
+      }));
+      
+      console.log(`✅ 从数据库加载了 ${settings.length} 条工序间隔设置`);
+      return settings;
+    } catch (error) {
+      console.error('❌ 加载工序间隔设置失败:', error);
+      return [];
+    }
+  }
+
+  /**
    * 更新真工序计划
    */
   static async update(id, data) {
     try {
       const sql = `
         UPDATE real_process_plans SET
-          schedule_date = ?, sales_order_no = ?, master_plan_no = ?, shipping_plan_no = ?,
+          schedule_date = ?, sales_order_no = ?, customer_order_no = ?, master_plan_no = ?, 
+          main_plan_product_code = ?, main_plan_product_name = ?, shipping_plan_no = ?,
           product_code = ?, product_name = ?, product_image = ?, process_manager = ?,
           process_name = ?, schedule_quantity = ?, product_unit = ?,
-          level0_demand = ?, completion_date = ?, plan_start_date = ?, real_plan_start_date = ?, plan_end_date = ?,
+          level0_demand = ?, completion_date = ?, promise_delivery_date = ?, 
+          plan_start_date = ?, real_plan_start_date = ?, plan_end_date = ?,
           workshop_name = ?, daily_available_hours = ?,
           remaining_required_hours = ?, schedule_count = ?, standard_work_hours = ?,
           standard_work_quota = ?, cumulative_schedule_qty = ?, unscheduled_qty = ?,
@@ -284,7 +450,10 @@ class RealProcessPlanService {
       const [result] = await pool.execute(sql, [
         data.scheduleDate || null,
         data.salesOrderNo || null,
+        data.customerOrderNo || null,                 // ✅ 新增
         data.masterPlanNo || null,
+        data.mainPlanProductCode || null,             // ✅ 新增
+        data.mainPlanProductName || null,             // ✅ 新增
         data.shippingPlanNo || null,
         data.productCode || null,
         data.productName || null,
@@ -295,8 +464,9 @@ class RealProcessPlanService {
         data.productUnit || null,
         data.level0Demand || 0,
         data.completionDate || null,
+        data.promiseDeliveryDate || null,             // ✅ 新增
         data.planStartDate || null,
-        data.realPlanStartDate || null,                // ✅ 新增
+        data.realPlanStartDate || null,
         data.planEndDate || null,
         data.workshopName || null,
         data.dailyAvailableHours || 0,
@@ -319,10 +489,10 @@ class RealProcessPlanService {
         data.submittedAt || null,
         data.replenishmentQty || 0,
         data.requiredWorkHours || 0,
-        data.dailyTotalHours || 0,                    // ✅ 新增
-        data.dailyScheduledHours || 0,                // ✅ 新增
-        data.scheduledWorkHours || 0,                 // ✅ 新增
-        data.nextScheduleDate || null,                // ✅ 新增
+        data.dailyTotalHours || 0,
+        data.dailyScheduledHours || 0,
+        data.scheduledWorkHours || 0,
+        data.nextScheduleDate || null,
         id
       ]);
       
@@ -348,7 +518,7 @@ class RealProcessPlanService {
       
       // ✅ 步颂1: 先查询真工序计划详情(用于后续释放已占用工时)
       const [planRows] = await connection.execute(
-        'SELECT plan_no, process_name, schedule_date FROM real_process_plans WHERE id = ?',
+        'SELECT plan_no, process_name, DATE_FORMAT(schedule_date, \'%Y-%m-%d\') as schedule_date FROM real_process_plans WHERE id = ?',
         [id]
       );
       
@@ -467,7 +637,7 @@ class RealProcessPlanService {
       for (const id of ids) {
         // ✅ 步颂1: 先查询真工序计划详情
         const [planRows] = await connection.execute(
-          'SELECT plan_no, process_name, schedule_date FROM real_process_plans WHERE id = ?',
+          'SELECT plan_no, process_name, DATE_FORMAT(schedule_date, \'%Y-%m-%d\') as schedule_date FROM real_process_plans WHERE id = ?',
           [id]
         );
         
@@ -766,7 +936,10 @@ class RealProcessPlanService {
         planNo: newPlanNo,
         scheduleDate: newScheduleDate,
         salesOrderNo: sourceRecord.sales_order_no,
+        customerOrderNo: sourceRecord.customer_order_no,  // ✅ 新增：客户订单编号
         masterPlanNo: sourceRecord.master_plan_no,
+        mainPlanProductCode: sourceRecord.main_plan_product_code,  // ✅ 新增：主计划产品编号
+        mainPlanProductName: sourceRecord.main_plan_product_name,  // ✅ 新增：主计划产品名称
         shippingPlanNo: sourceRecord.shipping_plan_no,
         productCode: sourceRecord.product_code,
         productName: sourceRecord.product_name,
@@ -777,6 +950,7 @@ class RealProcessPlanService {
         productUnit: sourceRecord.product_unit,
         level0Demand: sourceRecord.level0_demand,
         completionDate: sourceRecord.completion_date,
+        promiseDeliveryDate: sourceRecord.promise_delivery_date,  // ✅ 新增：订单承诺交期
         planStartDate: null,  // ✅ 自增行必须清空计划开始日期
         realPlanStartDate: null,  // ✅ 自增行也清空真计划开始日期
         planEndDate: sourceRecord.plan_end_date,
@@ -825,7 +999,7 @@ class RealProcessPlanService {
         console.log(`   📊 重新计算累积排程数量: ${cumulativeScheduleQty}`);
 
         // 18. 重新计算未排数量
-        newUnscheduledQty = 0;
+        let newUnscheduledQty = 0;
         if (newReplenishmentQty > 0 && cumulativeScheduleQty >= 0) {
           newUnscheduledQty = parseFloat((newReplenishmentQty - cumulativeScheduleQty).toFixed(2));
         } else if (newReplenishmentQty > 0) {

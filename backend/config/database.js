@@ -631,12 +631,15 @@ async function initializeDatabase() {
         current_stock DECIMAL(15, 4) DEFAULT 0 COMMENT '实时库存',
         plan_quantity DECIMAL(15, 4) DEFAULT 0 COMMENT '计划数量',
         product_image VARCHAR(500) COMMENT '产品图片',
+        output_process VARCHAR(100) COMMENT '产出工序',
         promised_delivery_date DATE COMMENT '订单承诺交期',
         status VARCHAR(50) DEFAULT '已下单' COMMENT '进度状态',
         planned_storage_date DATE COMMENT '计划入库日期',
         product_source VARCHAR(100) COMMENT '产品来源',
         internal_order_no VARCHAR(100) COMMENT '内部销售订单编号',
         customer_order_no VARCHAR(100) COMMENT '客户订单编号',
+        customer_name VARCHAR(200) COMMENT '客户名称',
+        submitter VARCHAR(100) DEFAULT 'admin' COMMENT '提交人',
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
         updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
         INDEX idx_plan_code (plan_code),
@@ -645,6 +648,124 @@ async function initializeDatabase() {
         INDEX idx_status (status),
         INDEX idx_created_at (created_at)
       ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='主生产计划表'
+    `);
+
+    // 创建备料计划表
+    await connection.execute(`
+      CREATE TABLE IF NOT EXISTS material_preparation_plans (
+        id INT AUTO_INCREMENT PRIMARY KEY COMMENT '主键ID',
+        plan_no VARCHAR(50) NOT NULL UNIQUE COMMENT '备料计划编号',
+        source_plan_no VARCHAR(50) COMMENT '来源主计划编号',
+        source_process_plan_no VARCHAR(50) COMMENT '来源工序计划编号',
+        parent_code VARCHAR(100) COMMENT '父件编码',
+        parent_name VARCHAR(200) COMMENT '父件名称',
+        parent_schedule_quantity DECIMAL(15,4) DEFAULT 0 COMMENT '父件排程数量',
+        material_code VARCHAR(100) COMMENT '物料编码',
+        material_name VARCHAR(200) COMMENT '物料名称',
+        material_source VARCHAR(50) COMMENT '物料来源',
+        material_unit VARCHAR(20) COMMENT '物料单位',
+        demand_quantity DECIMAL(15,4) DEFAULT 0 COMMENT '需求数量',
+        need_mrp TINYINT DEFAULT 0 COMMENT '是否需要MRP运算',
+        realtime_stock DECIMAL(15,4) DEFAULT 0 COMMENT '实时库存',
+        projected_balance DECIMAL(15,4) DEFAULT 0 COMMENT '预计结余',
+        available_stock DECIMAL(15,4) DEFAULT 0 COMMENT '可用库存',
+        replenishment_quantity DECIMAL(15,4) DEFAULT 0 COMMENT '需补货数量',
+        source_process VARCHAR(100) COMMENT '来源工序',
+        workshop_name VARCHAR(100) COMMENT '车间名称',
+        parent_process_name VARCHAR(100) COMMENT '父件工序名称',
+        process_interval_hours DECIMAL(10,2) DEFAULT 0 COMMENT '工序间隔时间',
+        process_interval_unit VARCHAR(20) DEFAULT 'hour' COMMENT '工序间隔单位',
+        process_schedule_date DATE COMMENT '工序排程日期',
+        demand_date DATE COMMENT '需求日期',
+        push_to_purchase TINYINT DEFAULT 0 COMMENT '是否推送采购',
+        push_to_process TINYINT DEFAULT 0 COMMENT '是否推送工序',
+        sales_order_no VARCHAR(100) COMMENT '销售订单号',
+        customer_order_no VARCHAR(100) COMMENT '客户订单号',
+        main_plan_product_code VARCHAR(100) COMMENT '主计划产品编码',
+        main_plan_product_name VARCHAR(200) COMMENT '主计划产品名称',
+        main_plan_quantity DECIMAL(15,4) DEFAULT 0 COMMENT '主计划数量',
+        promise_delivery_date DATE COMMENT '承诺交期',
+        customer_name VARCHAR(200) COMMENT '客户名称',
+        remark TEXT COMMENT '备注',
+        created_by VARCHAR(100) DEFAULT 'admin' COMMENT '创建人',
+        updated_by VARCHAR(100) COMMENT '更新人',
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+        INDEX idx_plan_no (plan_no),
+        INDEX idx_source_plan_no (source_plan_no),
+        INDEX idx_material_code (material_code),
+        INDEX idx_demand_date (demand_date),
+        INDEX idx_created_at (created_at)
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='备料计划表'
+    `);
+
+    // 创建真工序计划表
+    await connection.execute(`
+      CREATE TABLE IF NOT EXISTS real_process_plans (
+        id INT AUTO_INCREMENT PRIMARY KEY COMMENT '主键ID',
+        plan_no VARCHAR(50) NOT NULL UNIQUE COMMENT '工序计划编号',
+        sales_order_no VARCHAR(100) COMMENT '销售订单号',
+        customer_order_no VARCHAR(100) COMMENT '客户订单号',
+        master_plan_no VARCHAR(50) COMMENT '主计划编号',
+        main_plan_product_code VARCHAR(100) COMMENT '主计划产品编码',
+        main_plan_product_name VARCHAR(200) COMMENT '主计划产品名称',
+        product_code VARCHAR(100) COMMENT '产品编码',
+        product_name VARCHAR(200) COMMENT '产品名称',
+        process_name VARCHAR(100) COMMENT '工序名称',
+        product_unit VARCHAR(20) COMMENT '产品单位',
+        level0_demand DECIMAL(15,4) DEFAULT 0 COMMENT 'L0需求',
+        completion_date DATE COMMENT '计划完工日期',
+        replenishment_qty DECIMAL(15,4) DEFAULT 0 COMMENT '需补货数量',
+        standard_work_quota DECIMAL(10,2) DEFAULT 0 COMMENT '定时工额',
+        standard_work_hours DECIMAL(10,2) DEFAULT 0 COMMENT '定额工时',
+        required_work_hours DECIMAL(10,2) DEFAULT 0 COMMENT '需求工时',
+        plan_end_date DATE COMMENT '计划结束日期',
+        plan_start_date DATE COMMENT '计划开始日期',
+        real_plan_start_date DATE COMMENT '真计划开始日期',
+        schedule_date DATE COMMENT '计划排程日期',
+        daily_total_hours DECIMAL(10,2) DEFAULT 0 COMMENT '当天总工时',
+        daily_scheduled_hours DECIMAL(10,2) DEFAULT 0 COMMENT '当天已排程工时',
+        daily_available_hours DECIMAL(10,2) DEFAULT 0 COMMENT '当天可用工时',
+        scheduled_work_hours DECIMAL(10,2) DEFAULT 0 COMMENT '计划排程工时',
+        schedule_quantity DECIMAL(15,4) DEFAULT 0 COMMENT '计划排程数量',
+        next_schedule_date DATE COMMENT '下一个排程日期',
+        remaining_required_hours DECIMAL(10,2) DEFAULT 0 COMMENT '剩余需求工时',
+        cumulative_schedule_qty DECIMAL(15,4) DEFAULT 0 COMMENT '累积排程数量',
+        unscheduled_qty DECIMAL(15,4) DEFAULT 0 COMMENT '未排数量',
+        customer_name VARCHAR(200) COMMENT '客户名称',
+        source_no VARCHAR(100) COMMENT '来源编号',
+        schedule_count INT DEFAULT 1 COMMENT '排程次数',
+        submitted_by VARCHAR(100) DEFAULT 'admin' COMMENT '提交人',
+        submitted_at DATETIME COMMENT '提交时间',
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+        INDEX idx_plan_no (plan_no),
+        INDEX idx_master_plan_no (master_plan_no),
+        INDEX idx_process_name (process_name),
+        INDEX idx_schedule_date (schedule_date),
+        INDEX idx_source_no (source_no),
+        INDEX idx_created_at (created_at)
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='真工序计划表'
+    `);
+
+    // 创建工序能力负荷表
+    await connection.execute(`
+      CREATE TABLE IF NOT EXISTS process_capacity_load (
+        id INT AUTO_INCREMENT PRIMARY KEY COMMENT '主键ID',
+        process_name VARCHAR(100) NOT NULL COMMENT '工序名称',
+        date DATE NOT NULL COMMENT '日期',
+        work_shift DECIMAL(10,2) DEFAULT 8 COMMENT '班次工时',
+        available_workstations DECIMAL(10,2) DEFAULT 1 COMMENT '可用工位数',
+        total_hours DECIMAL(10,2) DEFAULT 0 COMMENT '总工时',
+        occupied_hours DECIMAL(10,2) DEFAULT 0 COMMENT '已占用工时',
+        remaining_hours DECIMAL(10,2) DEFAULT 0 COMMENT '剩余工时',
+        remaining_shift DECIMAL(10,2) DEFAULT 0 COMMENT '剩余班次',
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+        UNIQUE KEY unique_process_date (process_name, date),
+        INDEX idx_process_name (process_name),
+        INDEX idx_date (date)
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='工序能力负荷表'
     `);
 
     console.log('✅ 数据库表结构初始化完成');

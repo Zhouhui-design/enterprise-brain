@@ -1,0 +1,240 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>清除备料计划localStorage配置</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 50px auto;
+            padding: 20px;
+            background-color: #f5f7fa;
+        }
+        .container {
+            background: white;
+            padding: 30px;
+            border-radius: 8px;
+            box-shadow: 0 2px 12px rgba(0,0,0,0.1);
+        }
+        h1 {
+            color: #409EFF;
+            margin-bottom: 20px;
+        }
+        .info {
+            background-color: #ecf5ff;
+            border-left: 4px solid #409EFF;
+            padding: 15px;
+            margin-bottom: 20px;
+        }
+        .warning {
+            background-color: #fef0f0;
+            border-left: 4px solid #F56C6C;
+            padding: 15px;
+            margin-bottom: 20px;
+        }
+        button {
+            background-color: #409EFF;
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 16px;
+            margin-right: 10px;
+        }
+        button:hover {
+            background-color: #66b1ff;
+        }
+        button.danger {
+            background-color: #F56C6C;
+        }
+        button.danger:hover {
+            background-color: #f78989;
+        }
+        #result {
+            margin-top: 20px;
+            padding: 15px;
+            border-radius: 4px;
+            display: none;
+        }
+        #result.success {
+            display: block;
+            background-color: #f0f9ff;
+            border-left: 4px solid #67C23A;
+            color: #67C23A;
+        }
+        #result.error {
+            display: block;
+            background-color: #fef0f0;
+            border-left: 4px solid #F56C6C;
+            color: #F56C6C;
+        }
+        .key-list {
+            background-color: #f5f5f5;
+            padding: 15px;
+            border-radius: 4px;
+            margin-top: 15px;
+        }
+        .key-item {
+            padding: 8px;
+            margin: 5px 0;
+            background: white;
+            border-radius: 4px;
+        }
+        .code {
+            background-color: #f5f5f5;
+            padding: 2px 6px;
+            border-radius: 3px;
+            font-family: 'Courier New', monospace;
+            font-size: 14px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🧹 清除备料计划页面localStorage配置</h1>
+        
+        <div class="info">
+            <strong>问题说明：</strong><br>
+            备料计划页面的表格列配置被localStorage中的旧数据覆盖，导致所有字段的<span class="code">visible</span>属性为<span class="code">false</span>，页面中看不到任何列。
+        </div>
+
+        <div class="warning">
+            <strong>⚠️ 注意：</strong><br>
+            清除配置后，页面将使用代码中定义的默认配置（所有列可见）。你之前在页面设置中的自定义配置将会丢失。
+        </div>
+
+        <h3>检测到的localStorage配置：</h3>
+        <div class="key-list" id="keyList">
+            <div class="key-item" id="noKeys" style="color: #999;">正在检测...</div>
+        </div>
+
+        <div style="margin-top: 30px;">
+            <button onclick="detectKeys()">🔍 检测配置</button>
+            <button class="danger" onclick="clearMaterialPreparationSettings()">🗑️ 清除备料计划配置</button>
+            <button onclick="clearAllPageSettings()">🗑️ 清除所有页面配置</button>
+        </div>
+
+        <div id="result"></div>
+
+        <div class="info" style="margin-top: 30px;">
+            <strong>清除后的操作：</strong><br>
+            1. 点击"清除备料计划配置"按钮<br>
+            2. 刷新备料计划页面 (<span class="code">Ctrl + Shift + R</span>)<br>
+            3. 检查表格列是否正常显示
+        </div>
+    </div>
+
+    <script>
+        // 检测localStorage中的配置
+        function detectKeys() {
+            const keyList = document.getElementById('keyList');
+            const materialPrepKeys = [];
+            
+            for (let i = 0; i < localStorage.length; i++) {
+                const key = localStorage.key(i);
+                if (key.includes('material-preparation') || key.includes('page_settings')) {
+                    materialPrepKeys.push(key);
+                }
+            }
+            
+            if (materialPrepKeys.length === 0) {
+                keyList.innerHTML = '<div class="key-item" style="color: #999;">未找到备料计划相关的localStorage配置</div>';
+            } else {
+                keyList.innerHTML = materialPrepKeys.map(key => {
+                    const value = localStorage.getItem(key);
+                    let preview = '';
+                    try {
+                        const parsed = JSON.parse(value);
+                        if (Array.isArray(parsed)) {
+                            preview = `(${parsed.length}项)`;
+                        } else {
+                            preview = '(对象)';
+                        }
+                    } catch {
+                        preview = `(${value.length}字符)`;
+                    }
+                    return `<div class="key-item"><strong>${key}</strong> ${preview}</div>`;
+                }).join('');
+            }
+        }
+
+        // 清除备料计划相关的localStorage配置
+        function clearMaterialPreparationSettings() {
+            const result = document.getElementById('result');
+            const keysToRemove = [];
+            
+            // 查找所有相关的key
+            for (let i = 0; i < localStorage.length; i++) {
+                const key = localStorage.key(i);
+                if (key.includes('material-preparation') || key.includes('page_settings_material-preparation')) {
+                    keysToRemove.push(key);
+                }
+            }
+            
+            if (keysToRemove.length === 0) {
+                result.className = 'error';
+                result.textContent = '❌ 未找到需要清除的配置';
+                return;
+            }
+            
+            // 移除配置
+            keysToRemove.forEach(key => {
+                localStorage.removeItem(key);
+                console.log('✅ 已清除:', key);
+            });
+            
+            result.className = 'success';
+            result.innerHTML = `
+                <strong>✅ 成功清除 ${keysToRemove.length} 项配置：</strong><br>
+                ${keysToRemove.map(k => `• ${k}`).join('<br>')}
+                <br><br>
+                <strong>下一步：</strong><br>
+                1. 刷新备料计划页面 (Ctrl + Shift + R)<br>
+                2. 检查表格列是否正常显示<br>
+                3. 如果仍有问题，请联系支持
+            `;
+            
+            // 重新检测
+            detectKeys();
+        }
+
+        // 清除所有页面设置
+        function clearAllPageSettings() {
+            const result = document.getElementById('result');
+            if (!confirm('确定要清除所有页面设置吗？这将影响所有页面的配置。')) {
+                return;
+            }
+            
+            const keysToRemove = [];
+            
+            for (let i = 0; i < localStorage.length; i++) {
+                const key = localStorage.key(i);
+                if (key.startsWith('page_settings_')) {
+                    keysToRemove.push(key);
+                }
+            }
+            
+            keysToRemove.forEach(key => {
+                localStorage.removeItem(key);
+                console.log('✅ 已清除:', key);
+            });
+            
+            result.className = 'success';
+            result.innerHTML = `
+                <strong>✅ 已清除所有页面设置 (${keysToRemove.length}项)</strong><br><br>
+                请刷新相关页面查看效果
+            `;
+            
+            detectKeys();
+        }
+
+        // 页面加载时自动检测
+        window.onload = function() {
+            detectKeys();
+        };
+    </script>
+</body>
+</html>

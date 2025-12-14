@@ -68,13 +68,15 @@ export default {
         icon: 'Grid'
       }
     },
-    {
+    // 工序计划路由
+    { 
       path: 'process-plan',
       name: 'ProcessPlanList',
       component: () => import('@/pages/production-planning/ProcessPlanList.vue'),
       meta: { 
         title: '工序计划',
-        icon: 'List'
+        icon: 'List',
+        hidden: true  // 添加此属性禁用菜单显示
       }
     },
 

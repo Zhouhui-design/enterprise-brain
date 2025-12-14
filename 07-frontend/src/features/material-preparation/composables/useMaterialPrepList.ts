@@ -38,7 +38,7 @@ export function useMaterialPrepList() {
   const loadData = async () => {
     loading.value = true
     try {
-      const params = {
+      const params: any = {
         page: pagination.page,
         pageSize: pagination.pageSize,
         planNo: searchForm.planNo,
@@ -54,10 +54,11 @@ export function useMaterialPrepList() {
 
       const data = await materialPrepApi.getList(params)
       
+      console.log('📋 备料计划API响应:', data)
       tableData.value = data.records || []
       pagination.total = data.total || 0
       
-      ElMessage.success('数据加载成功')
+      ElMessage.success(`数据加载成功，共${data.records?.length || 0}条记录`)
     } catch (error) {
       console.error('加载数据失败:', error)
       ElMessage.error('加载数据失败')

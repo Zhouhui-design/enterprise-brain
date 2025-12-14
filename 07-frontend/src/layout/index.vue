@@ -70,7 +70,7 @@
                       </el-sub-menu>
                       
                       <!-- 第三层无子菜单 -->
-                      <el-menu-item
+<el-menu-item
                         v-else
                         :index="thirdMenu.path"
                         :disabled="!hasPermission(thirdMenu.meta?.permissions)"
@@ -145,9 +145,10 @@
 
         <!-- 页面内容 -->
         <div class="content-wrapper">
-          <router-view v-slot="{ Component }" :key="$route.fullPath">
+          <router-view v-slot="{ Component, route }">
             <transition name="fade" mode="out-in">
-              <component :is="Component" :key="$route.fullPath" />
+              <!-- ✅ 使用route.fullPath作key，确保路由切换时组件重新渲染 -->
+              <component :is="Component" :key="route.fullPath" v-if="Component" />
             </transition>
           </router-view>
         </div>
@@ -156,9 +157,10 @@
     
     <!-- 未登录状态，直接显示路由内容（如登录页） -->
     <div v-else class="unauthorized-container">
-      <router-view v-slot="{ Component }" :key="$route.fullPath">
+      <router-view v-slot="{ Component, route }">
         <transition name="fade" mode="out-in">
-          <component :is="Component" :key="$route.fullPath" />
+          <!-- ✅ 使用route.fullPath作key，确保路由切换时组件重新渲染 -->
+          <component :is="Component" :key="route.fullPath" v-if="Component" />
         </transition>
       </router-view>
     </div>
@@ -250,6 +252,7 @@ export default {
     handleMenuSelect(key, keyPath) {
       console.log('📡 菜单点击:', key, keyPath)
       console.log('📋 当前路由:', this.$route.path)
+      console.log('📋 当前完整路由:', this.$route.fullPath)
       
       // 如果点击的是当前路由，不需要跳转
       if (key === this.$route.path) {
@@ -257,13 +260,21 @@ export default {
         return
       }
       
-      // 跳转到新路由
+      // ✅ 关键修复：使用replace而reload强制刷新页面
+      console.log('🚀 准备跳转到:', key)
+      
       this.$router.push(key)
         .then(() => {
           console.log('✅ 路由跳转成功:', key)
+          console.log('📋 新路由:', this.$route.path)
+          // ✅ 强制重新渲染组件
+          this.$forceUpdate()
         })
         .catch(err => {
-          console.error('❌ 路由跳转失败:', err)
+          // 忽略重复导航错误
+          if (err.name !== 'NavigationDuplicated') {
+            console.error('❌ 路由跳转失败:', err)
+          }
         })
     },
     
@@ -586,12 +597,13 @@ export default {
                   meta: { title: '备料计划' },
                   icon: 'el-icon-s-grid'
                 },
-                {
-                  path: '/production-planning/process-plan',
-                  name: 'ProcessPlanList',
-                  meta: { title: '工序计划' },
-                  icon: 'el-icon-s-order'
-                },
+                // 注释或删除以下行
+                // {
+                //   path: '/production-planning/process-plan',
+                //   name: 'ProcessPlanList',
+                //   meta: { title: '工序计划' },
+                //   icon: 'el-icon-s-order'
+                // },
                 {
                   path: '/process-planning/real-process-plan',
                   name: 'RealProcessPlanList',

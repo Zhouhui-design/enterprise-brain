@@ -627,7 +627,7 @@ router.delete('/:id', async (req, res) => {
     
     // ✅ 级联删除真工序计划 - 先记录受影响的工序+日期
     const [realProcessPlans] = await connection.execute(
-      'SELECT process_name, schedule_date FROM real_process_plans WHERE sales_order_no = ?',
+      'SELECT process_name, DATE_FORMAT(schedule_date, \'%Y-%m-%d\') as schedule_date FROM real_process_plans WHERE sales_order_no = ?',
       [internalOrderNo]
     );
     
@@ -800,7 +800,7 @@ router.post('/batch-delete', async (req, res) => {
         
         // 5. 级联删除真工序计划 - 先记录受影响的工序+日期
         const [realProcessPlans] = await connection.execute(
-          'SELECT process_name, schedule_date FROM real_process_plans WHERE sales_order_no = ?',
+          'SELECT process_name, DATE_FORMAT(schedule_date, \'%Y-%m-%d\') as schedule_date FROM real_process_plans WHERE sales_order_no = ?',
           [internalOrderNo]
         );
         

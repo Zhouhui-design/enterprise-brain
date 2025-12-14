@@ -1,0 +1,8 @@
+const valuesString = "?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), ?, NOW(), ?, ?, ?, ?, ?";
+const placeholders = valuesString.match(/\?/g);
+console.log('手动计算占位符数量:', placeholders ? placeholders.length : 0);
+
+// 排除NOW()后的占位符
+const parts = valuesString.split('NOW()');
+console.log('NOW()之前的占位符:', parts[0].match(/\?/g)?.length || 0);
+console.log('NOW()之后的占位符:', parts[1] ? parts[1].match(/\?/g)?.length || 0 : 0);

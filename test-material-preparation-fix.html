@@ -1,0 +1,185 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>备料计划页面修复测试</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            margin: 20px;
+            background-color: #f5f7fa;
+        }
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 12px rgba(0,0,0,0.1);
+        }
+        .section {
+            margin-bottom: 30px;
+            padding: 20px;
+            border: 1px solid #e4e7ed;
+            border-radius: 4px;
+        }
+        .section h3 {
+            margin-top: 0;
+            color: #303133;
+        }
+        .fix-item {
+            margin-bottom: 15px;
+            padding: 10px;
+            background-color: #f9f9f9;
+            border-left: 4px solid #409eff;
+        }
+        .fix-item.fixed {
+            border-left-color: #67c23a;
+        }
+        .fix-item.error {
+            border-left-color: #f56c6c;
+        }
+        .test-button {
+            background: #409eff;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 4px;
+            cursor: pointer;
+            margin-right: 10px;
+        }
+        .test-button:hover {
+            background: #66b1ff;
+        }
+        .status {
+            padding: 5px 10px;
+            border-radius: 3px;
+            font-size: 12px;
+            margin-left: 10px;
+        }
+        .status.success {
+            background: #f0f9ff;
+            color: #67c23a;
+            border: 1px solid #e1f3d8;
+        }
+        .center-buttons {
+            text-align: center;
+            margin-top: 30px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🔧 备料计划页面修复测试</h1>
+        
+        <div class="section">
+            <h3>🐛 已修复的问题</h3>
+            
+            <div class="fix-item fixed">
+                <strong>1. Vue组件卸载错误 (nextSibling null)</strong>
+                <div>✅ 已添加组件清理逻辑，防止DOM操作冲突</div>
+            </div>
+            
+            <div class="fix-item fixed">
+                <strong>2. CSS解析错误 (left/right值)</strong>
+                <div>✅ 已修复CSS属性，移除undefined值</div>
+            </div>
+            
+            <div class="fix-item fixed">
+                <strong>3. replenishmentQuantity计算错误</strong>
+                <div>✅ 已增强row检查，防止undefined错误</div>
+            </div>
+            
+            <div class="fix-item fixed">
+                <strong>4. API响应数据格式不匹配</strong>
+                <div>✅ 已修复API服务，处理后端返回格式</div>
+            </div>
+            
+            <div class="fix-item fixed">
+                <strong>5. 表格数据过滤问题</strong>
+                <div>✅ 已增强数据验证，确保只处理有效对象</div>
+            </div>
+        </div>
+        
+        <div class="section">
+            <h3>🧪 测试步骤</h3>
+            <ol>
+                <li>打开浏览器访问: <code>http://localhost:3004/production-planning/material-preparation-new</code></li>
+                <li>检查控制台是否还有错误信息</li>
+                <li>验证表格数据是否正常显示</li>
+                <li>测试列的显示/隐藏功能</li>
+                <li>测试表头搜索功能</li>
+                <li>测试新增/编辑功能</li>
+            </ol>
+        </div>
+        
+        <div class="section">
+            <h3>🔍 修复详情</h3>
+            
+            <h4>组件清理逻辑</h4>
+            <pre><code>onUnmounted(() => {
+  // 清理搜索值，防止内存泄漏
+  columnSearchValues.value = {}
+  // 清理选中行
+  selectedRows.value = []
+  // 清理表格数据引用
+  tableData.value = []
+})</code></pre>
+            
+            <h4>增强的row检查</h4>
+            <pre><code>if (!row || typeof row !== 'object') {
+  console.warn('⚠️ replenishmentQuantity: row is undefined or not an object')
+  return '0.00'
+}</code></pre>
+            
+            <h4>API响应格式处理</h4>
+            <pre><code>// 处理后端返回格式：{ code: 200, data: { records: [...] }, message: '...' }
+if (response.data && response.data.records) {
+  return response.data
+}</code></pre>
+        </div>
+        
+        <div class="section">
+            <h3>🚀 性能优化</h3>
+            <ul>
+                <li>✅ 移除了可能导致内存泄漏的响应式引用</li>
+                <li>✅ 优化了数据过滤逻辑，减少不必要的计算</li>
+                <li>✅ 修复了CSS嵌套语法，提高样式解析效率</li>
+                <li>✅ 增强了错误边界处理，提高页面稳定性</li>
+            </ul>
+        </div>
+        
+        <div class="section">
+            <h3>📋 验证清单</h3>
+            <div>
+                <input type="checkbox" id="test1"> <label for="test1">页面加载无控制台错误</label><br>
+                <input type="checkbox" id="test2"> <label for="test2">表格数据正常显示</label><br>
+                <input type="checkbox" id="test3"> <label for="test3">列配置功能正常</label><br>
+                <input type="checkbox" id="test4"> <label for="test4">搜索功能正常</label><br>
+                <input type="checkbox" id="test5"> <label for="test5">新增/编辑功能正常</label><br>
+                <input type="checkbox" id="test6"> <label for="test6">分页功能正常</label>
+            </div>
+        </div>
+        
+        <div class="center-buttons">
+            <button class="test-button" onclick="window.open('http://localhost:3004/production-planning/material-preparation-new')">
+                🚀 打开测试页面
+            </button>
+            <button class="test-button" onclick="window.location.reload()">
+                🔄 刷新测试页面
+            </button>
+        </div>
+    </div>
+
+    <script>
+        console.log('🔧 备料计划页面修复测试页面已加载');
+        console.log('📋 修复内容:');
+        console.log('1. Vue组件卸载错误修复');
+        console.log('2. CSS解析错误修复');
+        console.log('3. replenishmentQuantity计算错误修复');
+        console.log('4. API响应数据格式修复');
+        console.log('5. 表格数据过滤问题修复');
+    </script>
+</body>
+</html>

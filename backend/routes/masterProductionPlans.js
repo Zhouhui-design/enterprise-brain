@@ -202,7 +202,7 @@ router.post('/from-sales-order', async (req, res) => {
             order.internalOrderNo || '',
             order.customerOrderNo || '',
             order.customerName || '', // ✅ 客户名称
-            order.submitter || 'admin', // ✅ 提交人，默认admin
+            order.submitter || 'admin' // ✅ 提交人，默认admin（移除了末尾逗号）
           ]);
           
           results.push({
@@ -345,6 +345,62 @@ router.get('/', async (req, res) => {
   }
 });
 
+// 根据ID获取主生产计划详情
+router.get('/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    
+    const [rows] = await pool.execute(`
+      SELECT 
+        id, plan_code as planCode, product_code as productCode,
+        product_name as productName, order_quantity as orderQuantity,
+        salesperson, sales_unit as salesUnit,
+        available_stock as availableStock, current_stock as currentStock,
+        plan_quantity as planQuantity, product_image as productImage,
+        output_process as outputProcess,
+        promised_delivery_date as promisedDeliveryDate, status,
+        planned_storage_date as plannedStorageDate,
+        product_source as productSource,
+        internal_order_no as internalOrderNo,
+        customer_order_no as customerOrderNo, customer_name as customerName,
+        submitter,
+        created_at as createdAt, updated_at as updatedAt
+      FROM master_production_plans 
+      WHERE id = ?
+    `, [id]);
+    
+    if (rows.length === 0) {
+      return res.status(404).json({
+        code: 404,
+        message: '主生产计划不存在'
+      });
+    }
+    
+    const plan = rows[0];
+    
+    // ✅ 修复：将日期字段格式化为字符串，避免时区转换问题
+    const formattedPlan = {
+      ...plan,
+      promisedDeliveryDate: plan.promisedDeliveryDate ? (typeof plan.promisedDeliveryDate === 'string' ? plan.promisedDeliveryDate.split('T')[0] : plan.promisedDeliveryDate.toISOString().split('T')[0]) : null,
+      plannedStorageDate: plan.plannedStorageDate ? (typeof plan.plannedStorageDate === 'string' ? plan.plannedStorageDate.split('T')[0] : plan.plannedStorageDate.toISOString().split('T')[0]) : null,
+      createdAt: plan.createdAt ? (typeof plan.createdAt === 'string' ? plan.createdAt.split('T')[0] : plan.createdAt.toISOString().split('T')[0]) : null,
+      updatedAt: plan.updatedAt ? (typeof plan.updatedAt === 'string' ? plan.updatedAt.split('T')[0] : plan.updatedAt.toISOString().split('T')[0]) : null
+    };
+    
+    res.json({
+      code: 200,
+      data: formattedPlan
+    });
+    
+  } catch (error) {
+    console.error('获取主生产计划详情失败:', error);
+    res.status(500).json({
+      code: 500,
+      message: '获取详情失败: ' + error.message
+    });
+  }
+});
+
 // 删除主生产计划
 router.delete('/:id', async (req, res) => {
   try {
@@ -433,7 +489,7 @@ router.post('/batch-delete', async (req, res) => {
         
         // 2.5 级联删除真工序计划 - 先记录受影响的工序+日期
         const [realProcessPlans] = await connection.execute(
-          'SELECT process_name, schedule_date FROM real_process_plans WHERE master_plan_no = ?',
+          'SELECT process_name, DATE_FORMAT(schedule_date, \'%Y-%m-%d\') as schedule_date FROM real_process_plans WHERE master_plan_no = ?',
           [planCode]
         );
         
@@ -589,6 +645,28 @@ router.post('/:id/execute-schedule', async (req, res) => {
       promisedDeliveryDate: plan.promised_delivery_date  // ✅ 添加承诺交期
     });
     
+    // 检查关键字段是否存在
+    if (!plan.plan_code) {
+      return res.status(400).json({
+        code: 400,
+        message: '主生产计划编号不能为空'
+      });
+    }
+    
+    if (!plan.product_code) {
+      return res.status(400).json({
+        code: 400,
+        message: '产品编号不能为空'
+      });
+    }
+    
+    if (!plan.plan_quantity || plan.plan_quantity <= 0) {
+      return res.status(400).json({
+        code: 400,
+        message: '计划数量必须大于0'
+      });
+    }
+    
     // 2. 生成备料计划编号
     function generateMaterialPlanNo() {
       const year = new Date().getFullYear();
@@ -598,6 +676,14 @@ router.post('/:id/execute-schedule', async (req, res) => {
     }
     
     const materialPlanNo = generateMaterialPlanNo();
+    
+    // ✅ 推断物料来源：如果主计划没有product_source，根据output_process推断
+    let materialSource = plan.product_source;
+    if (!materialSource || materialSource === '/') {
+      // 如果产出工序是"采购"，则物料来源="外购"；否则="自制"
+      materialSource = (plan.output_process === '采购') ? '外购' : '自制';
+      console.log(`🔍 自动推断物料来源: 产出工序=${plan.output_process} ⇒ 物料来源=${materialSource}`);
+    }
     
     // 3. ✅ 通过Service层创建备料计划（会自动推送到工序计划）
     const MaterialPreparationPlanService = require('../services/materialPreparationPlanService');
@@ -609,7 +695,7 @@ router.post('/:id/execute-schedule', async (req, res) => {
       sourceProcess: plan.output_process,
       materialCode: plan.product_code,
       materialName: plan.product_name,
-      materialSource: plan.product_source,
+      materialSource: materialSource,  // ✅ 使用推断后的物料来源
       materialUnit: plan.sales_unit,
       demandQuantity: plan.plan_quantity,
       demandDate: plan.planned_storage_date,  // ✅ 关键: 需求日期 = 主计划的计划入库日期
@@ -620,7 +706,7 @@ router.post('/:id/execute-schedule', async (req, res) => {
       mainPlanQuantity: plan.plan_quantity,
       promiseDeliveryDate: plan.promised_delivery_date,
       customerName: plan.customer_name,
-      submitter: plan.submitter
+      submitter: plan.submitter || 'admin'
     };
     
     console.log('📝 备料计划数据:', {
@@ -630,6 +716,12 @@ router.post('/:id/execute-schedule', async (req, res) => {
       plannedStorageDate: plan.planned_storage_date  // ✅ 源数据日志
     });
     
+    // ✅ 数据验证
+    if (!materialPlanData.materialCode || !materialPlanData.materialName) {
+      throw new Error(`产品信息不完整: materialCode=${materialPlanData.materialCode}, materialName=${materialPlanData.materialName}`);
+    }
+    
+    console.log('✅ 准备创建备料计划，数据验证通过');
     const result = await MaterialPreparationPlanService.create(materialPlanData);
     
     console.log(`✅ 成功生成备料计划: ${materialPlanNo}`);
@@ -656,6 +748,7 @@ router.post('/:id/execute-schedule', async (req, res) => {
     
   } catch (error) {
     console.error('❌ 执行排程失败:', error);
+    console.error('❌ 错误堆栈:', error.stack);
     res.status(500).json({
       code: 500,
       message: '执行排程失败: ' + error.message

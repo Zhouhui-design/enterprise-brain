@@ -50,12 +50,11 @@
         
         <template v-for="col in visibleColumns" :key="col.prop">
           <el-table-column
-            v-if="col.visible"
+            v-if="col && col.prop"
             :prop="col.prop"
             :width="col.width"
-            :fixed="col.prop === 'planNo' ? 'left' : undefined"
-            :align="col.prop.includes('Quantity') ? 'right' : undefined"
-            :formatter="col.prop === 'demandDate' ? formatDate : undefined"
+            :fixed="col.prop === 'planNo' ? 'left' : false"
+            :align="col.prop.includes('Quantity') ? 'right' : 'left'"
           >
             <template #header>
               <div class="table-header-cell">
@@ -74,6 +73,9 @@
                   </template>
                 </el-input>
               </div>
+            </template>
+            <template #default="{ row, column, $index }">
+              <span>{{ getFormattedValue(row, col.prop) }}</span>
             </template>
           </el-table-column>
         </template>
@@ -128,7 +130,8 @@
     <el-dialog
       v-model="dialogVisible"
       :title="isEdit ? '编辑备料计划' : '新增备料计划'"
-      width="60%"
+      width="80%"
+      :close-on-click-modal="false"
     >
       <el-form
         ref="formRef"
@@ -143,17 +146,74 @@
             </el-form-item>
           </el-col>
           <el-col :span="12">
+            <el-form-item label="来源主计划编号">
+              <el-input v-model="formData.sourcePlanNo" />
+            </el-form-item>
+          </el-col>
+        </el-row>
+        
+        <el-row :gutter="20">
+          <el-col :span="12">
+            <el-form-item label="来源工序计划编号">
+              <el-input v-model="formData.sourceProcessPlanNo" />
+            </el-form-item>
+          </el-col>
+          <el-col :span="12">
+            <el-form-item label="父件编号">
+              <el-input v-model="formData.parentCode" />
+            </el-form-item>
+          </el-col>
+        </el-row>
+        
+        <el-row :gutter="20">
+          <el-col :span="12">
+            <el-form-item label="父件名称">
+              <el-input v-model="formData.parentName" />
+            </el-form-item>
+          </el-col>
+          <el-col :span="12">
+            <el-form-item label="父件排程数量">
+              <el-input-number 
+                v-model="formData.parentScheduleQuantity" 
+                :min="0" 
+                :precision="2"
+                style="width: 100%"
+              />
+            </el-form-item>
+          </el-col>
+        </el-row>
+        
+        <el-row :gutter="20">
+          <el-col :span="12">
             <el-form-item label="备料物料编号" required>
               <el-input v-model="formData.materialCode" />
             </el-form-item>
           </el-col>
-        </el-row>
-        <el-row :gutter="20">
           <el-col :span="12">
             <el-form-item label="备料物料名称" required>
               <el-input v-model="formData.materialName" />
             </el-form-item>
           </el-col>
+        </el-row>
+        
+        <el-row :gutter="20">
+          <el-col :span="12">
+            <el-form-item label="物料来源">
+              <el-select v-model="formData.materialSource" style="width: 100%">
+<el-option label="外购" value="外购" />
+                <el-option label="自制" value="自制" />
+                <el-option label="委外" value="委外" />
+              </el-select>
+            </el-form-item>
+          </el-col>
+          <el-col :span="12">
+            <el-form-item label="物料单位">
+              <el-input v-model="formData.materialUnit" />
+            </el-form-item>
+          </el-col>
+        </el-row>
+        
+        <el-row :gutter="20">
           <el-col :span="12">
             <el-form-item label="需求数量" required>
               <el-input-number 
@@ -164,21 +224,163 @@
               />
             </el-form-item>
           </el-col>
+          <el-col :span="12">
+            <el-form-item label="是否需要MRP运算">
+              <el-switch v-model="formData.needMrp" />
+            </el-form-item>
+          </el-col>
         </el-row>
+        
         <el-row :gutter="20">
           <el-col :span="12">
-            <el-form-item label="物料来源">
-              <el-select v-model="formData.materialSource" style="width: 100%">
-                <el-option label="外购" value="外购" />
-                <el-option label="自制" value="自制" />
-                <el-option label="委外" value="委外" />
+            <el-form-item label="实时库存">
+              <el-input-number 
+                v-model="formData.realtimeStock" 
+                :min="0" 
+                :precision="2"
+                style="width: 100%"
+              />
+            </el-form-item>
+          </el-col>
+          <el-col :span="12">
+            <el-form-item label="预计结存">
+              <el-input-number 
+                v-model="formData.projectedBalance" 
+                :min="0" 
+                :precision="2"
+                style="width: 100%"
+              />
+            </el-form-item>
+          </el-col>
+        </el-row>
+        
+        <el-row :gutter="20">
+          <el-col :span="12">
+            <el-form-item label="有效库存">
+              <el-input-number 
+                v-model="formData.availableStock" 
+                :min="0" 
+                :precision="2"
+                style="width: 100%"
+              />
+            </el-form-item>
+          </el-col>
+          <el-col :span="12">
+            <el-form-item label="来源工序">
+              <el-input v-model="formData.sourceProcess" />
+            </el-form-item>
+          </el-col>
+        </el-row>
+        
+        <el-row :gutter="20">
+          <el-col :span="12">
+            <el-form-item label="车间名称">
+              <el-input v-model="formData.workshopName" />
+            </el-form-item>
+          </el-col>
+          <el-col :span="12">
+            <el-form-item label="父件工序名称">
+              <el-input v-model="formData.parentProcessName" />
+            </el-form-item>
+          </el-col>
+        </el-row>
+        
+        <el-row :gutter="20">
+          <el-col :span="12">
+            <el-form-item label="工序间隔工时">
+              <el-input-number 
+                v-model="formData.processIntervalHours" 
+                :min="0" 
+                :precision="2"
+                style="width: 100%"
+              />
+            </el-form-item>
+          </el-col>
+          <el-col :span="12">
+            <el-form-item label="工序间隔单位">
+              <el-select v-model="formData.processIntervalUnit" style="width: 100%">
+                <el-option label="小时" value="小时" />
+                <el-option label="天" value="天" />
               </el-select>
+            </el-form-item>
+          </el-col>
+        </el-row>
+        
+        <el-row :gutter="20">
+          <el-col :span="12">
+            <el-form-item label="工序计划排程日期">
+              <el-date-picker 
+                v-model="formData.processScheduleDate" 
+                type="date"
+                style="width: 100%"
+              />
             </el-form-item>
           </el-col>
           <el-col :span="12">
             <el-form-item label="需求日期">
               <el-date-picker 
                 v-model="formData.demandDate" 
+                type="date"
+                style="width: 100%"
+              />
+            </el-form-item>
+          </el-col>
+        </el-row>
+        
+        <el-row :gutter="20">
+          <el-col :span="12">
+            <el-form-item label="是否下推采购计划">
+              <el-switch v-model="formData.pushToPurchase" />
+            </el-form-item>
+          </el-col>
+          <el-col :span="12">
+            <el-form-item label="是否下推工序计划">
+              <el-switch v-model="formData.pushToProcess" />
+            </el-form-item>
+          </el-col>
+        </el-row>
+        
+        <el-row :gutter="20">
+          <el-col :span="12">
+            <el-form-item label="销售订单编号">
+              <el-input v-model="formData.salesOrderNo" />
+            </el-form-item>
+          </el-col>
+          <el-col :span="12">
+            <el-form-item label="客户订单编号">
+              <el-input v-model="formData.customerOrderNo" />
+            </el-form-item>
+          </el-col>
+        </el-row>
+        
+        <el-row :gutter="20">
+          <el-col :span="12">
+            <el-form-item label="主计划产品编号">
+              <el-input v-model="formData.mainPlanProductCode" />
+            </el-form-item>
+          </el-col>
+          <el-col :span="12">
+            <el-form-item label="主计划产品名称">
+              <el-input v-model="formData.mainPlanProductName" />
+            </el-form-item>
+          </el-col>
+        </el-row>
+        
+        <el-row :gutter="20">
+          <el-col :span="12">
+            <el-form-item label="主计划排程数量">
+              <el-input-number 
+                v-model="formData.mainPlanQuantity" 
+                :min="0" 
+                :precision="2"
+                style="width: 100%"
+              />
+</el-form-item>
+          </el-col>
+          <el-col :span="12">
+            <el-form-item label="订单承诺交期">
+              <el-date-picker 
+                v-model="formData.promiseDeliveryDate" 
                 type="date"
                 style="width: 100%"
               />
@@ -197,7 +399,7 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, onUnmounted, nextTick } from 'vue'
 import { Plus, Delete, Refresh, Setting, Search } from '@element-plus/icons-vue'
 // 使用新架构的Composables
 import { 
@@ -237,18 +439,40 @@ const {
 // ========== 页面设置 ==========
 const showSettings = ref(false)
 
-// 默认列配置
+// 默认列配置（按改造前页面的完整字段）
 const defaultColumns = [
-  { prop: 'planNo', label: '备料计划编号', width: 160, filterable: true },
-  { prop: 'sourcePlanNo', label: '来源主计划编号', width: 160, filterable: true },
-  { prop: 'parentCode', label: '父件编号', width: 140, filterable: true },
-  { prop: 'parentName', label: '父件名称', width: 180, filterable: true },
-  { prop: 'parentScheduleQuantity', label: '父件排程数量', width: 140, filterable: false },
-  { prop: 'materialCode', label: '备料物料编号', width: 140, filterable: true },
-  { prop: 'materialName', label: '备料物料名称', width: 180, filterable: true },
-  { prop: 'materialSource', label: '物料来源', width: 100, filterable: true },
-  { prop: 'demandQuantity', label: '需求数量', width: 120, filterable: false },
-  { prop: 'demandDate', label: '需求日期', width: 120, filterable: true }
+  { prop: 'planNo', label: '备料计划编号', width: 160, filterable: true, visible: true },
+  { prop: 'sourcePlanNo', label: '来源主计划编号', width: 160, filterable: true, visible: true },
+  { prop: 'sourceProcessPlanNo', label: '来源工序计划编号', width: 160, filterable: true, visible: true },
+  { prop: 'parentCode', label: '父件编号', width: 140, filterable: true, visible: true },
+  { prop: 'parentName', label: '父件名称', width: 180, filterable: true, visible: true },
+  { prop: 'parentScheduleQuantity', label: '父件排程数量', width: 140, filterable: false, visible: true },
+  { prop: 'materialCode', label: '备料物料编号', width: 140, filterable: true, visible: true },
+  { prop: 'materialName', label: '备料物料名称', width: 180, filterable: true, visible: true },
+  { prop: 'materialSource', label: '物料来源', width: 100, filterable: true, visible: true },
+  { prop: 'materialUnit', label: '物料单位', width: 100, filterable: true, visible: true },
+  { prop: 'demandQuantity', label: '需求数量', width: 120, filterable: false, visible: true },
+  { prop: 'needMrp', label: '是否需要MRP运算', width: 150, filterable: true, visible: true },
+  { prop: 'realtimeStock', label: '实时库存', width: 120, filterable: false, visible: true },
+  { prop: 'projectedBalance', label: '预计结存', width: 120, filterable: false, visible: true },
+  { prop: 'availableStock', label: '有效库存', width: 120, filterable: false, visible: true },
+  { prop: 'replenishmentQuantity', label: '需补货数量', width: 120, filterable: false, visible: true },
+  { prop: 'sourceProcess', label: '来源工序', width: 120, filterable: true, visible: true },
+  { prop: 'workshopName', label: '车间名称', width: 120, filterable: true, visible: true },
+  { prop: 'parentProcessName', label: '父件工序名称', width: 140, filterable: true, visible: true },
+  { prop: 'processIntervalHours', label: '工序间隔工时', width: 140, filterable: false, visible: true },
+  { prop: 'processIntervalUnit', label: '工序间隔单位', width: 140, filterable: true, visible: true },
+  { prop: 'processScheduleDate', label: '工序计划排程日期', width: 160, filterable: true, visible: true },
+  { prop: 'realProcessScheduleDate', label: '真工序计划排程日期', width: 180, filterable: true, visible: true },
+  { prop: 'demandDate', label: '需求日期', width: 120, filterable: true, visible: true },
+  { prop: 'pushToPurchase', label: '是否下推采购计划', width: 150, filterable: true, visible: true },
+  { prop: 'pushToProcess', label: '是否下推工序计划', width: 150, filterable: true, visible: true },
+  { prop: 'salesOrderNo', label: '销售订单编号', width: 160, filterable: true, visible: true },
+  { prop: 'customerOrderNo', label: '客户订单编号', width: 160, filterable: true, visible: true },
+  { prop: 'mainPlanProductCode', label: '主计划产品编号', width: 160, filterable: true, visible: true },
+  { prop: 'mainPlanProductName', label: '主计划产品名称', width: 180, filterable: true, visible: true },
+  { prop: 'mainPlanQuantity', label: '主计划排程数量', width: 140, filterable: false, visible: true },
+  { prop: 'promiseDeliveryDate', label: '订单承诺交期', width: 120, filterable: true, visible: true }
 ]
 
 const {
@@ -271,10 +495,30 @@ const {
   initSettings
 } = usePageSettings('material-preparation')
 
-// 可见列（按顺序排列）
+// 可见列（按顺序排列） - 增强错误处理
 const visibleColumns = computed(() => {
-  return [...columnConfigs.value]
-    .sort((a, b) => a.order - b.order)
+  try {
+    // 如果columnConfigs还没有初始化，先使用defaultColumns
+    if (!columnConfigs.value || columnConfigs.value.length === 0) {
+      console.log('🔧 使用默认列配置:', defaultColumns.length, '个列')
+      return defaultColumns
+    }
+    
+    const visible = [...columnConfigs.value]
+      .sort((a, b) => (a?.order || 0) - (b?.order || 0))
+      .filter(col => col && col.visible)  // 添加null检查和过滤条件
+    
+    console.log('🔧 使用保存的列配置:', {
+      总数: columnConfigs.value.length,
+      可见: visible.length,
+      隐藏: columnConfigs.value.length - visible.length
+    })
+    
+    return visible
+  } catch (error) {
+    console.error('❌ visibleColumns计算属性出错:', error)
+    return defaultColumns
+  }
 })
 
 // 表头模糊搜索
@@ -284,38 +528,81 @@ const handleColumnSearch = () => {
   // 触发筛选，使用computed自动更新
 }
 
-// 筛选后的表格数据（模糊搜索）
+// 筛选后的表格数据（模糊搜索） - 严格数据过滤
 const filteredTableData = computed(() => {
-  let data = [...tableData.value]
-  
-  // 对每个有搜索值的列进行筛选
-  Object.keys(columnSearchValues.value).forEach(prop => {
-    const searchValue = columnSearchValues.value[prop]
-    if (searchValue && searchValue.trim()) {
-      data = data.filter(row => {
-        const cellValue = row[prop]
-        if (cellValue === null || cellValue === undefined) return false
-        
-        // 转为字符串进行模糊匹配（不区分大小写）
-        return String(cellValue)
-          .toLowerCase()
-          .includes(searchValue.toLowerCase().trim())
+  try {
+    if (!tableData.value || !Array.isArray(tableData.value)) {
+      console.log('🔧 tableData不是有效数组:', tableData.value)
+      return []
+    }
+    
+    // 严格过滤：只保留有效的对象
+    let data = tableData.value.filter(row => {
+      return row && typeof row === 'object' && !Array.isArray(row) && row.planNo !== undefined
+    })
+    
+    console.log('🔧 过滤后的有效数据:', data.length, '条 (原始:', tableData.value.length, '条)')
+    
+    // 对每个有搜索值的列进行筛选
+    if (columnSearchValues.value) {
+      Object.keys(columnSearchValues.value).forEach(prop => {
+        const searchValue = columnSearchValues.value[prop]
+        if (searchValue && searchValue.trim()) {
+          data = data.filter(row => {
+            if (!row) return false
+            
+            const cellValue = row[prop]
+            if (cellValue === null || cellValue === undefined) return false
+            
+            // 转为字符串进行模糊匹配（不区分大小写）
+            return String(cellValue)
+              .toLowerCase()
+              .includes(searchValue.toLowerCase().trim())
+          })
+        }
       })
     }
-  })
-  
-  return data
+    
+    return data
+  } catch (error) {
+    console.error('❌ filteredTableData计算属性出错:', error)
+    return []
+  }
 })
 const dialogVisible = ref(false)
 const isEdit = ref(false)
 const formRef = ref(null)
 const formData = ref({
   planNo: '',
+  sourcePlanNo: '',
+  sourceProcessPlanNo: '',
+  parentCode: '',
+  parentName: '',
+  parentScheduleQuantity: 0,
   materialCode: '',
   materialName: '',
-  demandQuantity: 0,
   materialSource: '外购',
-  demandDate: null
+  materialUnit: '',
+  demandQuantity: 0,
+  needMrp: false,
+  realtimeStock: 0,
+  projectedBalance: 0,
+  availableStock: 0,
+  sourceProcess: '',
+  workshopName: '',
+  parentProcessName: '',
+  processIntervalHours: 0,
+  processIntervalUnit: '小时',
+  processScheduleDate: null,
+  demandDate: null,
+  pushToPurchase: false,
+  pushToProcess: false,
+  salesOrderNo: '',
+  customerOrderNo: '',
+  mainPlanProductCode: '',
+  mainPlanProductName: '',
+  mainPlanQuantity: 0,
+  promiseDeliveryDate: null
 })
 
 // ========== 事件处理（只负责UI交互） ==========
@@ -323,11 +610,35 @@ const handleAdd = () => {
   isEdit.value = false
   formData.value = {
     planNo: generatePlanNo(),
+    sourcePlanNo: '',
+    sourceProcessPlanNo: '',
+    parentCode: '',
+    parentName: '',
+    parentScheduleQuantity: 0,
     materialCode: '',
     materialName: '',
-    demandQuantity: 0,
     materialSource: '外购',
-    demandDate: null
+    materialUnit: '',
+    demandQuantity: 0,
+    needMrp: false,
+    realtimeStock: 0,
+    projectedBalance: 0,
+    availableStock: 0,
+    sourceProcess: '',
+    workshopName: '',
+    parentProcessName: '',
+    processIntervalHours: 0,
+    processIntervalUnit: '小时',
+    processScheduleDate: null,
+    demandDate: null,
+    pushToPurchase: false,
+    pushToProcess: false,
+    salesOrderNo: '',
+    customerOrderNo: '',
+    mainPlanProductCode: '',
+    mainPlanProductName: '',
+    mainPlanQuantity: 0,
+    promiseDeliveryDate: null
   }
   dialogVisible.value = true
 }
@@ -371,10 +682,140 @@ const formatDate = ({ row, column, cellValue }) => {
   }
 }
 
+// 格式化布尔值
+const formatBoolean = ({ row, column, cellValue }) => {
+  if (cellValue === null || cellValue === undefined) return '-'
+  return cellValue ? '是' : '否'
+}
+
+// 格式化数值
+const formatNumber = ({ row, column, cellValue }) => {
+  if (cellValue === null || cellValue === undefined) return '0.00'
+  const value = parseFloat(cellValue)
+  return isNaN(value) ? '0.00' : value.toFixed(2)
+}
+
+// 获取格式化值 - 直接返回格式化后的值
+const getFormattedValue = (row, prop) => {
+  try {
+    if (!row || typeof row !== 'object') {
+      console.warn('⚠️ getFormattedValue: row is not an object', { row, prop })
+      return '-'
+    }
+
+    const cellValue = row[prop]
+    
+    // 日期字段
+    if (['demandDate', 'processScheduleDate', 'promiseDeliveryDate'].includes(prop)) {
+      if (!cellValue) return '-'
+      try {
+        const date = new Date(cellValue)
+        if (isNaN(date.getTime())) return '-'
+        const year = date.getFullYear()
+        const month = String(date.getMonth() + 1).padStart(2, '0')
+        const day = String(date.getDate()).padStart(2, '0')
+        return `${year}-${month}-${day}`
+      } catch {
+        return '-'
+      }
+    }
+    
+    // 真工序计划排程日期（计算字段）
+    if (prop === 'realProcessScheduleDate') {
+      if (!row.processScheduleDate) return '-'
+      try {
+        const date = new Date(row.processScheduleDate)
+        if (isNaN(date.getTime())) return '-'
+        date.setDate(date.getDate() + 1)
+        const year = date.getFullYear()
+        const month = String(date.getMonth() + 1).padStart(2, '0')
+        const day = String(date.getDate()).padStart(2, '0')
+        return `${year}-${month}-${day}`
+      } catch {
+        return '-'
+      }
+    }
+    
+    // 布尔字段
+    if (['needMrp', 'pushToPurchase', 'pushToProcess'].includes(prop)) {
+      return cellValue ? '是' : '否'
+    }
+    
+    // 数值字段（保留两位小数）
+    if (['processIntervalHours', 'realtimeStock', 'projectedBalance', 'availableStock', 'parentScheduleQuantity', 'mainPlanQuantity', 'demandQuantity'].includes(prop)) {
+      if (cellValue === null || cellValue === undefined) return '0.00'
+      const value = parseFloat(cellValue)
+      return isNaN(value) ? '0.00' : value.toFixed(2)
+    }
+    
+    // 需补货数量（直接使用数据库字段）
+    if (prop === 'replenishmentQuantity') {
+      // 直接使用数据库字段，如果没有则计算
+      let replenishment = parseFloat(cellValue || 0)
+      
+      // 如果数据库字段为空或0，则实时计算
+      if (!replenishment || replenishment === 0) {
+        const demandQty = parseFloat(row.demandQuantity || 0)
+        const availableQty = parseFloat(row.availableStock || 0)
+        replenishment = demandQty - availableQty
+      }
+      
+      return replenishment > 0 ? replenishment.toFixed(2) : '0.00'
+    }
+    
+    // 默认处理
+    if (cellValue === null || cellValue === undefined) return '-'
+    return String(cellValue)
+    
+  } catch (error) {
+    console.error('❌ getFormattedValue错误:', error, { prop, row })
+    return '-'
+  }
+}
+
+// 保留原有的 getFormatter 函数以防其他地方使用
+const getFormatter = (prop) => {
+  return ({ row, column, cellValue }) => getFormattedValue(row, prop)
+}
+
 // ========== 初始化 ==========
-onMounted(() => {
-  initSettings(defaultColumns)  // 初始化页面设置
-  loadData()
+onMounted(async () => {
+  try {
+    console.log('🔧 备料计划页面开始初始化')
+    
+    // 先初始化页面设置
+    initSettings(defaultColumns)
+    
+    // 等待下一个tick确保响应式更新完成
+    await nextTick()
+    
+    // 然后加载数据
+    loadData()
+    
+    console.log('✅ 备料计划页面初始化完成')
+  } catch (error) {
+    console.error('❌ 备料计划页面初始化失败:', error)
+  }
+})
+
+// ========== 组件清理 ==========
+onUnmounted(() => {
+  console.log('🧹 备料计划页面开始清理')
+  
+  try {
+    // 清理搜索值，防止内存泄漏
+    columnSearchValues.value = {}
+    
+    // 清理选中行
+    selectedRows.value = []
+    
+    // 清理表格数据引用
+    tableData.value = []
+    
+    console.log('✅ 备料计划页面清理完成')
+  } catch (error) {
+    console.error('❌ 页面清理时出错:', error)
+  }
 })
 </script>
 
@@ -431,39 +872,37 @@ onMounted(() => {
   flex-direction: column;
   gap: 6px;
   padding: 2px 0;
-  
-  .header-label {
-    font-weight: 600;
-    color: #303133;
-    font-size: 13px;
-    line-height: 1.4;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-  }
-  
-  .header-search {
-    :deep(.el-input__wrapper) {
-      box-shadow: 0 0 0 1px #dcdfe6 inset;
-      
-      &:hover {
-        box-shadow: 0 0 0 1px #c0c4cc inset;
-      }
-      
-      &.is-focus {
-        box-shadow: 0 0 0 1px #409eff inset !important;
-      }
-    }
-    
-    :deep(.el-input__inner) {
-      font-size: 12px;
-      height: 26px;
-      line-height: 26px;
-    }
-    
-    :deep(.el-input__prefix) {
-      font-size: 12px;
-    }
-  }
+}
+
+.table-header-cell .header-label {
+  font-weight: 600;
+  color: #303133;
+  font-size: 13px;
+  line-height: 1.4;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.table-header-cell .header-search :deep(.el-input__wrapper) {
+  box-shadow: 0 0 0 1px #dcdfe6 inset;
+}
+
+.table-header-cell .header-search :deep(.el-input__wrapper):hover {
+  box-shadow: 0 0 0 1px #c0c4cc inset;
+}
+
+.table-header-cell .header-search :deep(.el-input__wrapper).is-focus {
+  box-shadow: 0 0 0 1px #409eff inset !important;
+}
+
+.table-header-cell .header-search :deep(.el-input__inner) {
+  font-size: 12px;
+  height: 26px;
+  line-height: 26px;
+}
+
+.table-header-cell .header-search :deep(.el-input__prefix) {
+  font-size: 12px;
 }
 </style>
