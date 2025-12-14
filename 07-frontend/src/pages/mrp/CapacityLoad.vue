@@ -164,6 +164,7 @@ import { ref, computed, onMounted, watch } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Setting } from '@element-plus/icons-vue'
 import EnhancedTable from '@/components/common/EnhancedTable.vue'
+import { formatDate as standardFormatDate } from '@/utils/dateFormatter'
 
 const tableData = ref([])
 const currentPage = ref(1)
@@ -335,14 +336,9 @@ watch(
   }
 )
 
-// 格式化日期 - 统一格式为 YYYY/MM/D
+// ✅ 格式化日期 - 统一使用标准格式 YYYY-MM-DD（避免2026/1/3这种格式）
 const formatDate = (dateStr) => {
-  if (!dateStr) return ''
-  const date = new Date(dateStr)
-  const year = date.getFullYear()
-  const month = date.getMonth() + 1
-  const day = date.getDate()
-  return `${year}/${month}/${day}`
+  return standardFormatDate(dateStr)
 }
 
 // 加载数据
