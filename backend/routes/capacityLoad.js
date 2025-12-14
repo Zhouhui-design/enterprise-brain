@@ -987,7 +987,12 @@ router.post('/load-from-processes', async (req, res) => {
       for (let i = 0; i < displayDays; i++) {
         const currentDate = new Date(today);
         currentDate.setDate(today.getDate() + i);
-        const dateStr = currentDate.toISOString().split('T')[0];
+        
+        // ✅ 使用本地时区格式化日期（避免时区问题）
+        const year = currentDate.getFullYear();
+        const month = String(currentDate.getMonth() + 1).padStart(2, '0');
+        const day = String(currentDate.getDate()).padStart(2, '0');
+        const dateStr = `${year}-${month}-${day}`;
         
         // ✅ 规则1：查询企业日历的标准上班时长
         const [calendarRows] = await connection.execute(

@@ -40,7 +40,12 @@ function getWeekday(date) {
 // 判断是否为工作日
 function isWorkday(date, weekendMode) {
   const day = date.getDay();
-  const dateStr = date.toISOString().split('T')[0];
+  
+  // ✅ 使用本地时区格式化日期
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const dayOfMonth = String(date.getDate()).padStart(2, '0');
+  const dateStr = `${year}-${month}-${dayOfMonth}`;
   
   // 如果是法定节假日，不是工作日
   if (HOLIDAYS_2025[dateStr]) {
@@ -78,11 +83,21 @@ router.get('/list', async (req, res) => {
     // 计算默认日期范围（从今天到未来N天）
     const today = new Date();
     today.setHours(0, 0, 0, 0);
-    const todayStr = today.toISOString().split('T')[0];
+    
+    // ✅ 使用本地时区格式化日期
+    const year = today.getFullYear();
+    const month = String(today.getMonth() + 1).padStart(2, '0');
+    const day = String(today.getDate()).padStart(2, '0');
+    const todayStr = `${year}-${month}-${day}`;
     
     const futureDate = new Date(today);
     futureDate.setDate(today.getDate() + daysAfterToday);
-    const futureDateStr = futureDate.toISOString().split('T')[0];
+    
+    // ✅ 使用本地时区格式化日期
+    const futureYear = futureDate.getFullYear();
+    const futureMonth = String(futureDate.getMonth() + 1).padStart(2, '0');
+    const futureDay = String(futureDate.getDate()).padStart(2, '0');
+    const futureDateStr = `${futureYear}-${futureMonth}-${futureDay}`;
     
     // 构建WHERE条件
     let whereConditions = [];
@@ -409,7 +424,12 @@ async function dailyUpdateCalendar() {
     // 删除超出范围的旧数据
     const cutoffDate = new Date(today);
     cutoffDate.setDate(today.getDate() - daysBeforeToday - 1);
-    const cutoffDateStr = cutoffDate.toISOString().split('T')[0];
+    
+    // ✅ 使用本地时区格式化日期
+    const cutoffYear = cutoffDate.getFullYear();
+    const cutoffMonth = String(cutoffDate.getMonth() + 1).padStart(2, '0');
+    const cutoffDay = String(cutoffDate.getDate()).padStart(2, '0');
+    const cutoffDateStr = `${cutoffYear}-${cutoffMonth}-${cutoffDay}`;
     
     const [deleteResult] = await connection.execute(
       'DELETE FROM company_calendar WHERE calendar_date < ?',
@@ -424,7 +444,12 @@ async function dailyUpdateCalendar() {
     for (let i = -daysBeforeToday; i <= daysAfterToday; i++) {
       const currentDate = new Date(today);
       currentDate.setDate(today.getDate() + i);
-      const dateStr = currentDate.toISOString().split('T')[0];
+      
+      // ✅ 使用本地时区格式化日期（避免时区问题）
+      const year = currentDate.getFullYear();
+      const month = String(currentDate.getMonth() + 1).padStart(2, '0');
+      const day = String(currentDate.getDate()).padStart(2, '0');
+      const dateStr = `${year}-${month}-${day}`;
       
       const weekday = getWeekday(currentDate);
       const isWork = isWorkday(currentDate, weekendMode);  // ✅ 根据新的 weekendMode 重新计算

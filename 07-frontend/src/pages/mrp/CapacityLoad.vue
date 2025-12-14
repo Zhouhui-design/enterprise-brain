@@ -473,7 +473,27 @@ const syncWorkShiftFromCalendar = async (records) => {
         const matchedHours = dateToHoursMap[recordDate]
         record.workShift = matchedHours || null  // 匹配失败则为null
         
-        console.log(`  ${recordDate}: ${matchedHours ? matchedHours + '小时' : '休息日/无数据'}`)
+        // ✅ 重新计算剩余工时和剩余时段（同步前端显示与实际逻辑）
+        const workShiftValue = parseFloat(matchedHours) || 0
+        const availableWorkstations = parseFloat(record.availableWorkstations) || 0
+        const occupiedHours = parseFloat(record.occupiedHours) || 0
+        
+        // 剩余工时 = (上班时段 × 可用工位数量) - 已占用工时
+        const remainingHours = parseFloat(
+          (workShiftValue * availableWorkstations - occupiedHours).toFixed(2)
+        )
+        record.remainingHours = remainingHours
+        
+        // 剩余时段 = 剩余工时 ÷ 可用工位数量
+        if (availableWorkstations > 0) {
+          record.remainingShift = parseFloat(
+            (remainingHours / availableWorkstations).toFixed(2)
+          ).toString()
+        } else {
+          record.remainingShift = '0.00'
+        }
+        
+        console.log(`  ${recordDate}: ${matchedHours ? matchedHours + '小时' : '休息日/无数据'}, 剩余工时=${remainingHours}`)
       })
       
       console.log(`✅ 同步完成，共处理 ${records.length} 条记录`)
