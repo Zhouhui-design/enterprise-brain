@@ -336,12 +336,23 @@ class RealProcessPlanService {
       if (data.scheduledWorkHours && data.scheduledWorkHours > 0 && data.processName && data.scheduleDate) {
         try {
           const processName = data.processName;
-          const scheduleDate = data.scheduleDate instanceof Date
-            ? data.scheduleDate.toISOString().split('T')[0]
-            : String(data.scheduleDate).split('T')[0];
+          
+          // ✅ 修复：使用本地时区格式化日期（避免toISOString导致的UTC时区转换）
+          let scheduleDate;
+          if (data.scheduleDate instanceof Date) {
+            const year = data.scheduleDate.getFullYear();
+            const month = String(data.scheduleDate.getMonth() + 1).padStart(2, '0');
+            const day = String(data.scheduleDate.getDate()).padStart(2, '0');
+            scheduleDate = `${year}-${month}-${day}`;
+          } else {
+            scheduleDate = String(data.scheduleDate).split('T')[0];
+          }
+          
           const scheduledHours = parseFloat(data.scheduledWorkHours);
           
           console.log(`🔄 推送已排程工时到工序能力负荷表: 工序=${processName}, 日期=${scheduleDate}, 排程工时=${scheduledHours}`);
+          console.log(`   原始日期值: ${data.scheduleDate}, 类型: ${typeof data.scheduleDate}`);
+          console.log(`   格式化后日期: ${scheduleDate}`);
           
           // 查询工序能力负荷表记录
           const [capacityRows] = await pool.execute(
@@ -544,18 +555,28 @@ class RealProcessPlanService {
       if (plan.process_name && plan.schedule_date) {
         try {
           const processName = plan.process_name;
-          const scheduleDate = plan.schedule_date instanceof Date
-            ? plan.schedule_date.toISOString().split('T')[0]
-            : String(plan.schedule_date).split('T')[0];
+          
+          // ✅ 修复：使用本地时区格式化日期
+          let scheduleDate;
+          if (plan.schedule_date instanceof Date) {
+            const year = plan.schedule_date.getFullYear();
+            const month = String(plan.schedule_date.getMonth() + 1).padStart(2, '0');
+            const day = String(plan.schedule_date.getDate()).padStart(2, '0');
+            scheduleDate = `${year}-${month}-${day}`;
+          } else {
+            scheduleDate = String(plan.schedule_date).split('T')[0];
+          }
           
           console.log(`🔄 自动重置已占用工时: 工序=${processName}, 日期=${scheduleDate}`);
+          console.log(`   原始日期值: ${plan.schedule_date}, 类型: ${typeof plan.schedule_date}`);
+          console.log(`   格式化后日期: ${scheduleDate}`);
           
           // ✅ SUMIF - 重新统计该工序+日期下所有真工序计划的计划排程工时总和
           const [sumRows] = await connection.execute(
-            `SELECT COALESCE(SUM(used_work_hours), 0) as total_hours 
+            `SELECT COALESCE(SUM(scheduled_work_hours), 0) as total_hours 
              FROM real_process_plans 
              WHERE process_name = ? 
-               AND schedule_date = ?`,
+               AND DATE_FORMAT(schedule_date, '%Y-%m-%d') = ?`,
             [processName, scheduleDate]
           );
           
@@ -646,9 +667,16 @@ class RealProcessPlanService {
           
           // ✅ 记录受影响的工序+日期
           if (plan.process_name && plan.schedule_date) {
-            const scheduleDate = plan.schedule_date instanceof Date
-              ? plan.schedule_date.toISOString().split('T')[0]
-              : String(plan.schedule_date).split('T')[0];
+            // ✅ 使用本地时区格式化日期
+            let scheduleDate;
+            if (plan.schedule_date instanceof Date) {
+              const year = plan.schedule_date.getFullYear();
+              const month = String(plan.schedule_date.getMonth() + 1).padStart(2, '0');
+              const day = String(plan.schedule_date.getDate()).padStart(2, '0');
+              scheduleDate = `${year}-${month}-${day}`;
+            } else {
+              scheduleDate = String(plan.schedule_date).split('T')[0];
+            }
             affectedProcessDates.add(`${plan.process_name}|${scheduleDate}`);
           }
           
@@ -667,10 +695,10 @@ class RealProcessPlanService {
         try {
           // ✅ SUMIF - 重新统计该工序+日期下所有真工序计划的计划排程工时总和
           const [sumRows] = await connection.execute(
-            `SELECT COALESCE(SUM(used_work_hours), 0) as total_hours 
+            `SELECT COALESCE(SUM(scheduled_work_hours), 0) as total_hours 
              FROM real_process_plans 
              WHERE process_name = ? 
-               AND schedule_date = ?`,
+               AND DATE_FORMAT(schedule_date, '%Y-%m-%d') = ?`,
             [processName, scheduleDate]
           );
           
