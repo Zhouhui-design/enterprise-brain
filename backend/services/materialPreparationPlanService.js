@@ -1037,6 +1037,27 @@ if (requiredWorkHours > 0 && dailyAvailableHours > 0) {
         }
       }
 
+      // ✅ 查询当天已排程工时 (累积之前所有记录的scheduled_work_hours)
+      // 规则: 后生成的记录(ID大)累积前面记录(ID小)的排程工时
+      let dailyScheduledHours = 0;
+      if (scheduleDate && data.sourceProcess) {
+        try {
+          const [scheduledRows] = await connection.execute(`
+            SELECT COALESCE(SUM(scheduled_work_hours), 0) as total_scheduled_hours
+            FROM real_process_plans
+            WHERE process_name = ?
+              AND DATE_FORMAT(schedule_date, '%Y-%m-%d') = ?
+          `, [data.sourceProcess, scheduleDate]);
+          
+          if (scheduledRows.length > 0) {
+            dailyScheduledHours = parseFloat(scheduledRows[0].total_scheduled_hours || 0);
+            console.log(`✅ 查询当天已排程工时: 工序=${data.sourceProcess}, 日期=${scheduleDate}, 累积已排程=${dailyScheduledHours}`);
+          }
+        } catch (error) {
+          console.error(`❌ 查询当天已排程工时失败:`, error.message);
+        }
+      }
+
       // 创建真工序计划数据
       const realProcessPlanData = {
         planNo: realProcessPlanNo,
@@ -1064,6 +1085,7 @@ if (requiredWorkHours > 0 && dailyAvailableHours > 0) {
         sourceNo: data.planNo,  // ✅ 关键：使用备料计划编号作为来源编号
         scheduleCount: 1,
         dailyTotalHours: dailyTotalHours,  // ✅ 新增：当天总工时
+        dailyScheduledHours: dailyScheduledHours,  // ✅ 新增：当天已排程工时(累积之前记录)
         submittedBy: data.createdBy || 'admin',
         submittedAt: new Date().toLocaleString('zh-CN', { timeZone: 'Asia/Shanghai', hour12: false })
       };
