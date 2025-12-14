@@ -171,14 +171,15 @@ router.put('/:id', async (req, res) => {
             createdBy: plan.created_by
           };
           
+          // ❌ 禁用：备料计划推送到真工序计划（会导致工序能力负荷表已占用工时错误）
           // 调用备料计划推送逻辑
-          try {
-            await MaterialPreparationPlanService.pushMaterialPlanToRealProcessPlan(planData);
-            console.log(`   ✅ 备料计划 ${plan.plan_no} UPDATE后推送到真工序计划成功`);
-          } catch (pushError) {
-            console.error(`   ⚠️ 推送失败:`, pushError.message);
-            // 不阻塞主流程
-          }
+          // try {
+          //   await MaterialPreparationPlanService.pushMaterialPlanToRealProcessPlan(planData);
+          //   console.log(`   ✅ 备料计划 ${plan.plan_no} UPDATE后推送到真工序计划成功`);
+          // } catch (pushError) {
+          //   console.error(`   ⚠️ 推送失败:`, pushError.message);
+          //   // 不阻塞主流程
+          // }
         } else {
           console.log(`   ⏭️ 已推送过,跳过: ${plan.plan_no} → ${existingPlans[0].plan_no}`);
         }

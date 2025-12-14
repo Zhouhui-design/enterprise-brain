@@ -353,10 +353,10 @@ class RealProcessPlanToMaterialService {
               createdBy: materialPlan.created_by
             };
             
+            // ❌ 禁用：备料计划推送到真工序计划（会导致工序能力负荷表已占用工时错误）
             // 调用备料计划推送逻辑
-            await MaterialPreparationPlanService.pushMaterialPlanToRealProcessPlan(planData);
-            
-            console.log(`   ✅ 备料计划 ${materialPlanNo} 推送到真工序计划成功`);
+            // await MaterialPreparationPlanService.pushMaterialPlanToRealProcessPlan(planData);
+            // console.log(`   ✅ 备料计划 ${materialPlanNo} 推送到真工序计划成功`);
           }
           
           console.log(`\n✅ [数据闭环] 备料计划推送规则触发完成`);

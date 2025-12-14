@@ -840,14 +840,15 @@ if (requiredWorkHours > 0 && dailyAvailableHours > 0) {
           createdBy: plan.created_by
         };
 
-        try {
-          // 调用推送逻辑
-          await this.pushToRealProcessPlan(planData);
-          pushCount++;
-          console.log(`✅ 成功推送: ${plan.planNo}`);
-        } catch (pushError) {
-          console.error(`❌ 推送失败: ${plan.planNo}`, pushError.message);
-        }
+        // ❌ 禁用：备料计划推送到真工序计划（会导致工序能力负荷表已占用工时错误）
+        // try {
+        //   // 调用推送逻辑
+        //   await this.pushToRealProcessPlan(planData);
+        //   pushCount++;
+        //   console.log(`✅ 成功推送: ${plan.planNo}`);
+        // } catch (pushError) {
+        //   console.error(`❌ 推送失败: ${plan.planNo}`, pushError.message);
+        // }
       }
 
       console.log(`\n📊 自动触发推送完成: 成功推送${pushCount}条, 总计${qualifyingPlans.length}条满足条件的备料计划`);
