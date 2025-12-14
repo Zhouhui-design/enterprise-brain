@@ -1094,6 +1094,29 @@ if (requiredWorkHours > 0 && dailyAvailableHours > 0) {
           }
           // 等待一小段时间，确保数据库提交完成
           await new Promise(resolve => setTimeout(resolve, 150));
+          
+          // ✅ 新增：验证前序数据完整性
+          // 确保排在前面的数据的关键字段(计划排程日期、计划排程工时、工序名称)都不为空
+          console.log(`🔍 [数据验证] 检查前序数据完整性: ${lockKey}`);
+          try {
+            const [validationRows] = await connection.execute(`
+              SELECT COUNT(*) as incomplete_count
+              FROM real_process_plans
+              WHERE process_name = ?
+                AND DATE_FORMAT(schedule_date, '%Y-%m-%d') = ?
+                AND (schedule_date IS NULL OR scheduled_work_hours IS NULL OR process_name IS NULL)
+            `, [data.sourceProcess, scheduleDate]);
+            
+            const incompleteCount = validationRows[0].incomplete_count;
+            if (incompleteCount > 0) {
+              console.warn(`⚠️ [数据验证] 检测到 ${incompleteCount} 条不完整数据，额外等待 200ms 确保数据完整性`);
+              await new Promise(resolve => setTimeout(resolve, 200));
+            } else {
+              console.log(`✅ [数据验证] 前序数据完整性验证通过`);
+            }
+          } catch (validationError) {
+            console.error(`❌ [数据验证] 验证失败:`, validationError.message);
+          }
         }
         
         // 创建当前任务的 Promise，并注册到锁管理器

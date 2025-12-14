@@ -472,6 +472,9 @@ const allColumns = ref([
     formatter: (row) => row.dailyTotalHours !== undefined ? parseFloat(row.dailyTotalHours).toFixed(2) : '0.00' },
   { prop: 'dailyScheduledHours', label: '当天已排程工时', width: 150, sortable: true, align: 'right', visible: true,
     formatter: (row) => row.dailyScheduledHours !== undefined ? parseFloat(row.dailyScheduledHours).toFixed(2) : '0.00' },
+  // ✅ 新增：当日计划行数 = COUNTIFS(工序名称=本行工序名称，计划排程日期=本行计划排程日期，序号<=本行序号)
+  { prop: 'dailyPlanCount', label: '当日计划行数', width: 130, sortable: true, align: 'right', visible: true,
+    formatter: (row) => row.dailyPlanCount !== undefined ? row.dailyPlanCount : '0' },
   { prop: 'dailyAvailableHours', label: '工序当天可用工时', width: 160, sortable: true, align: 'right', visible: true,
     formatter: (row) => row.dailyAvailableHours !== undefined ? parseFloat(row.dailyAvailableHours).toFixed(2) : '0.00' },
   { prop: 'scheduledWorkHours', label: '计划排程工时', width: 130, sortable: true, align: 'right', visible: true,
@@ -942,8 +945,9 @@ const handleBatchDelete = () => {
   ).then(async () => {
     try {
       const ids = selectedRows.value.map(row => row.id)
-      await api.deleteByIds(ids)
+      await api.batchDelete(ids)  // ✅ 修复：使用 batchDelete 而不是 deleteByIds
       ElMessage.success('批量删除成功')
+      selectedRows.value = []  // ✅ 清空选中项
       loadData()
     } catch (error) {
       console.error('批量删除失败:', error)

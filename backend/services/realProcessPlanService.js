@@ -76,6 +76,13 @@ class RealProcessPlanService {
           submitted_at, replenishment_qty, required_work_hours,
           daily_total_hours, daily_scheduled_hours, scheduled_work_hours,
           DATE_FORMAT(next_schedule_date, '%Y-%m-%d') as next_schedule_date,
+          (
+            SELECT COUNT(*)
+            FROM real_process_plans AS rpp2
+            WHERE rpp2.process_name = real_process_plans.process_name
+              AND DATE_FORMAT(rpp2.schedule_date, '%Y-%m-%d') = DATE_FORMAT(real_process_plans.schedule_date, '%Y-%m-%d')
+              AND rpp2.id <= real_process_plans.id
+          ) as daily_plan_count,
           created_at, updated_at
         FROM real_process_plans 
         ${whereSQL}
@@ -149,6 +156,13 @@ class RealProcessPlanService {
           submitted_at, replenishment_qty, required_work_hours,
           daily_total_hours, daily_scheduled_hours, scheduled_work_hours,
           DATE_FORMAT(next_schedule_date, '%Y-%m-%d') as next_schedule_date,
+          (
+            SELECT COUNT(*)
+            FROM real_process_plans AS rpp2
+            WHERE rpp2.process_name = real_process_plans.process_name
+              AND DATE_FORMAT(rpp2.schedule_date, '%Y-%m-%d') = DATE_FORMAT(real_process_plans.schedule_date, '%Y-%m-%d')
+              AND rpp2.id <= real_process_plans.id
+          ) as daily_plan_count,
           created_at, updated_at
         FROM real_process_plans WHERE id = ?
       `, [id]);
