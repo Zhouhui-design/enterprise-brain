@@ -611,6 +611,18 @@ export default {
                   icon: 'el-icon-s-claim'
                 },
                 {
+                  path: '/production-planning/packaging-process-plan',
+                  name: 'PackagingProcessPlanList',
+                  meta: { title: '包装工序计划' },
+                  icon: 'el-icon-box'
+                },
+                {
+                  path: '/production-planning/assembly-process-plan',
+                  name: 'AssemblyProcessPlanList',
+                  meta: { title: '组装工序计划' },
+                  icon: 'el-icon-setting'
+                },
+                {
                   path: '/production-planning/capacity-planning',
                   name: 'CapacityPlanning',
                   meta: { title: '产能规划' },
