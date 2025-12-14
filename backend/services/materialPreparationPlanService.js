@@ -947,16 +947,27 @@ if (requiredWorkHours > 0 && dailyAvailableHours > 0) {
         return;
       }
 
-      // ✅ 最后一次防重复推送检查
+      // ✅ 最后一次防重复推送检查（根据工序类型检查对应表）
+      let checkTable;
+      if (data.sourceProcess === '打包') {
+        checkTable = 'packing_process_plans';
+      } else if (data.sourceProcess === '组装') {
+        checkTable = 'assembly_process_plans';
+      } else {
+        // 不支持的工序类型，直接返回
+        console.warn(`⚠️ [防重检查] 不支持的工序类型: ${data.sourceProcess}，已跳过推送`);
+        return { success: false, reason: 'unsupported_process', processName: data.sourceProcess };
+      }
+
       const [existingPlans] = await connection.execute(`
-        SELECT id, plan_no FROM real_process_plans 
+        SELECT id, plan_no FROM ${checkTable}
         WHERE source_no = ? AND product_code = ?
         LIMIT 1
       `, [data.planNo, data.materialCode]);
 
       if (existingPlans.length > 0) {
-        console.log(`⏭️ 检测到重复推送，跳过: ${data.planNo} → ${existingPlans[0].plan_no}`);
-        return { success: false, reason: 'duplicate', planNo: existingPlans[0].planNo };
+        console.log(`⏭️ 检测到重复推送，跳过: ${data.planNo} → ${existingPlans[0].plan_no} (表: ${checkTable})`);
+        return { success: false, reason: 'duplicate', planNo: existingPlans[0].plan_no, table: checkTable };
       }
 
       // 从产品物料库查询定时工额和定额工时
@@ -1158,6 +1169,18 @@ if (requiredWorkHours > 0 && dailyAvailableHours > 0) {
         }
       }
 
+      // ✅ 提前确定目标表名（用于查询已排程工时）
+      let targetTable;
+      if (data.sourceProcess === '打包') {
+        targetTable = 'packing_process_plans';
+      } else if (data.sourceProcess === '组装') {
+        targetTable = 'assembly_process_plans';
+      } else {
+        // 不支持的工序类型
+        console.warn(`⚠️ [查询已排程工时] 不支持的工序类型: ${data.sourceProcess}，已跳过推送`);
+        return { success: false, reason: 'unsupported_process', processName: data.sourceProcess };
+      }
+
       // ✅ 查询当天已排程工时 (累积之前所有记录的scheduled_work_hours)
       // 规则: 后生成的记录(ID大)累积前面记录(ID小)的排程工时
       let dailyScheduledHours = 0;
@@ -1165,14 +1188,14 @@ if (requiredWorkHours > 0 && dailyAvailableHours > 0) {
         try {
           const [scheduledRows] = await connection.execute(`
             SELECT COALESCE(SUM(scheduled_work_hours), 0) as total_scheduled_hours
-            FROM real_process_plans
+            FROM ${targetTable}
             WHERE process_name = ?
               AND DATE_FORMAT(schedule_date, '%Y-%m-%d') = ?
           `, [data.sourceProcess, scheduleDate]);
           
           if (scheduledRows.length > 0) {
             dailyScheduledHours = parseFloat(scheduledRows[0].total_scheduled_hours || 0);
-            console.log(`✅ 查询当天已排程工时: 工序=${data.sourceProcess}, 日期=${scheduleDate}, 累积已排程=${dailyScheduledHours}`);
+            console.log(`✅ 查询当天已排程工时: 工序=${data.sourceProcess}, 日期=${scheduleDate}, 累积已排程=${dailyScheduledHours} (表: ${targetTable})`);
           }
         } catch (error) {
           console.error(`❌ 查询当天已排程工时失败:`, error.message);
@@ -1185,8 +1208,8 @@ if (requiredWorkHours > 0 && dailyAvailableHours > 0) {
         salesOrderNo: data.salesOrderNo,
         customerOrderNo: data.customerOrderNo,
         masterPlanNo: data.sourcePlanNo,
-        mainPlanProductCode: data.mainPlanProductCode,
-        mainPlanProductName: data.mainPlanProductName,
+        masterPlanProductCode: data.mainPlanProductCode,  // ✅ 修复：mainPlanProductCode → masterPlanProductCode
+        masterPlanProductName: data.mainPlanProductName,  // ✅ 修复：mainPlanProductName → masterPlanProductName
         productCode: data.materialCode,
         productName: data.materialName,
         processName: data.sourceProcess,
@@ -1211,28 +1234,23 @@ if (requiredWorkHours > 0 && dailyAvailableHours > 0) {
         submittedAt: new Date().toLocaleString('zh-CN', { timeZone: 'Asia/Shanghai', hour12: false })
       };
 
-      // ✅ 根据来源工序路由到不同的Service
+      // ✅ 根据来源工序路由到不同的Service（targetTable已在上面声明）
       let ProcessPlanService;
-      let targetTable;
       let planNoPrefix;
       let serviceName;
       
       if (data.sourceProcess === '打包') {
         ProcessPlanService = require('./packingProcessPlanService');
-        targetTable = 'packing_process_plans';
         planNoPrefix = 'PKPP';
         serviceName = '打包工序计划';
       } else if (data.sourceProcess === '组装') {
         ProcessPlanService = require('./assemblyProcessPlanService');
-        targetTable = 'assembly_process_plans';
         planNoPrefix = 'ASPP';
         serviceName = '组装工序计划';
       } else {
-        // 其他工序仍推送到真工序计划
-        ProcessPlanService = require('./realProcessPlanService');
-        targetTable = 'real_process_plans';
-        planNoPrefix = 'RPP';
-        serviceName = '真工序计划';
+        // ⚠️ 禁止推送到真工序计划，仅支持打包和组装
+        console.warn(`⚠️ [数据路由] 不支持的工序类型: ${data.sourceProcess}，已跳过推送`);
+        return { success: false, reason: 'unsupported_process', processName: data.sourceProcess };
       }
       
       console.log(`📍 [数据路由] 来源工序=${data.sourceProcess} → 推送到${serviceName} (表: ${targetTable})`);

@@ -61,10 +61,10 @@ class PackingProcessPlanService {
       const dataSQL = `
         SELECT 
           id, plan_no, schedule_date, DATE_FORMAT(schedule_date, '%Y-%m-%d') as schedule_date_formatted,
-          sales_order_no, customer_order_no, master_plan_no, main_plan_product_code,
-          main_plan_product_name, shipping_plan_no, product_code, product_name,
+          sales_order_no, customer_order_no, master_plan_no, master_plan_product_code,
+          master_plan_product_name, shipping_plan_no, product_code, product_name,
           product_image, process_manager, process_name, schedule_quantity,
-          product_unit, level0_demand, completion_date, promise_delivery_date,
+          product_unit, level0_demand, completion_date, order_promise_delivery_date,
           DATE_FORMAT(plan_start_date, '%Y-%m-%d') as plan_start_date,
           DATE_FORMAT(real_plan_start_date, '%Y-%m-%d') as real_plan_start_date,
           DATE_FORMAT(plan_end_date, '%Y-%m-%d') as plan_end_date,
@@ -141,10 +141,10 @@ class PackingProcessPlanService {
       const [rows] = await pool.execute(`
         SELECT 
           id, plan_no, schedule_date, DATE_FORMAT(schedule_date, '%Y-%m-%d') as schedule_date_formatted,
-          sales_order_no, customer_order_no, master_plan_no, main_plan_product_code,
-          main_plan_product_name, shipping_plan_no, product_code, product_name,
+          sales_order_no, customer_order_no, master_plan_no, master_plan_product_code,
+          master_plan_product_name, shipping_plan_no, product_code, product_name,
           product_image, process_manager, process_name, schedule_quantity,
-          product_unit, level0_demand, completion_date, promise_delivery_date,
+          product_unit, level0_demand, completion_date, order_promise_delivery_date,
           DATE_FORMAT(plan_start_date, '%Y-%m-%d') as plan_start_date,
           DATE_FORMAT(real_plan_start_date, '%Y-%m-%d') as real_plan_start_date,
           DATE_FORMAT(plan_end_date, '%Y-%m-%d') as plan_end_date,
@@ -198,9 +198,9 @@ class PackingProcessPlanService {
       const sql = `
         INSERT INTO packing_process_plans (
           plan_no, schedule_date, sales_order_no, customer_order_no, master_plan_no, 
-          main_plan_product_code, main_plan_product_name, shipping_plan_no,
+          master_plan_product_code, master_plan_product_name, shipping_plan_no,
           product_code, product_name, product_image, process_manager, process_name,
-          schedule_quantity, product_unit, level0_demand, completion_date, promise_delivery_date,
+          schedule_quantity, product_unit, level0_demand, completion_date, order_promise_delivery_date,
           plan_start_date, real_plan_start_date, plan_end_date,
           workshop_name, daily_available_hours, remaining_required_hours, schedule_count,
           standard_work_hours, standard_work_quota, cumulative_schedule_qty, unscheduled_qty,
@@ -218,8 +218,8 @@ class PackingProcessPlanService {
         data.salesOrderNo || null,                    // 3. sales_order_no
         data.customerOrderNo || null,                 // 4. customer_order_no (✅ 新增)
         data.masterPlanNo || null,                    // 5. master_plan_no
-        data.mainPlanProductCode || null,             // 6. main_plan_product_code (✅ 新增)
-        data.mainPlanProductName || null,             // 7. main_plan_product_name (✅ 新增)
+        data.mainPlanProductCode || null,             // 6. master_plan_product_code (✅ 新增)
+        data.mainPlanProductName || null,             // 7. master_plan_product_name (✅ 新增)
         data.shippingPlanNo || null,                  // 8. shipping_plan_no
         data.productCode || null,                     // 9. product_code
         data.productName || null,                     // 10. product_name
@@ -230,7 +230,7 @@ class PackingProcessPlanService {
         data.productUnit || null,                     // 15. product_unit
         data.level0Demand || 0,                       // 16. level0_demand
         data.completionDate || null,                  // 17. completion_date
-        data.promiseDeliveryDate || null,             // 18. promise_delivery_date (✅ 新增)
+        data.promiseDeliveryDate || null,             // 18. order_promise_delivery_date (✅ 新增)
         data.planStartDate || null,                    // 19. plan_start_date
         data.realPlanStartDate || null,                // 20. real_plan_start_date
         data.planEndDate || null,                      // 21. plan_end_date
@@ -285,10 +285,10 @@ class PackingProcessPlanService {
           const [createdPlanRows] = await pool.execute(
             `SELECT 
               id, plan_no, schedule_date, DATE_FORMAT(schedule_date, '%Y-%m-%d') as schedule_date_formatted,
-              sales_order_no, customer_order_no, master_plan_no, main_plan_product_code,
-              main_plan_product_name, shipping_plan_no, product_code, product_name,
+              sales_order_no, customer_order_no, master_plan_no, master_plan_product_code,
+              master_plan_product_name, shipping_plan_no, product_code, product_name,
               product_image, process_manager, process_name, schedule_quantity,
-              product_unit, level0_demand, completion_date, promise_delivery_date,
+              product_unit, level0_demand, completion_date, order_promise_delivery_date,
               plan_start_date, real_plan_start_date, plan_end_date, workshop_name,
               daily_available_hours, remaining_required_hours, schedule_count,
               standard_work_hours, standard_work_quota, cumulative_schedule_qty,
@@ -463,10 +463,10 @@ class PackingProcessPlanService {
       const sql = `
         UPDATE packing_process_plans SET
           schedule_date = ?, sales_order_no = ?, customer_order_no = ?, master_plan_no = ?, 
-          main_plan_product_code = ?, main_plan_product_name = ?, shipping_plan_no = ?,
+          master_plan_product_code = ?, master_plan_product_name = ?, shipping_plan_no = ?,
           product_code = ?, product_name = ?, product_image = ?, process_manager = ?,
           process_name = ?, schedule_quantity = ?, product_unit = ?,
-          level0_demand = ?, completion_date = ?, promise_delivery_date = ?, 
+          level0_demand = ?, completion_date = ?, order_promise_delivery_date = ?, 
           plan_start_date = ?, real_plan_start_date = ?, plan_end_date = ?,
           workshop_name = ?, daily_available_hours = ?,
           remaining_required_hours = ?, schedule_count = ?, standard_work_hours = ?,
@@ -991,8 +991,8 @@ class PackingProcessPlanService {
         salesOrderNo: sourceRecord.sales_order_no,
         customerOrderNo: sourceRecord.customer_order_no,  // ✅ 新增：客户订单编号
         masterPlanNo: sourceRecord.master_plan_no,
-        mainPlanProductCode: sourceRecord.main_plan_product_code,  // ✅ 新增：主计划产品编号
-        mainPlanProductName: sourceRecord.main_plan_product_name,  // ✅ 新增：主计划产品名称
+        mainPlanProductCode: sourceRecord.master_plan_product_code,  // ✅ 新增：主计划产品编号
+        mainPlanProductName: sourceRecord.master_plan_product_name,  // ✅ 新增：主计划产品名称
         shippingPlanNo: sourceRecord.shipping_plan_no,
         productCode: sourceRecord.product_code,
         productName: sourceRecord.product_name,
@@ -1003,7 +1003,7 @@ class PackingProcessPlanService {
         productUnit: sourceRecord.product_unit,
         level0Demand: sourceRecord.level0_demand,
         completionDate: sourceRecord.completion_date,
-        promiseDeliveryDate: sourceRecord.promise_delivery_date,  // ✅ 新增：订单承诺交期
+        promiseDeliveryDate: sourceRecord.order_promise_delivery_date,  // ✅ 新增：订单承诺交期
         planStartDate: null,  // ✅ 自增行必须清空计划开始日期
         realPlanStartDate: null,  // ✅ 自增行也清空真计划开始日期
         planEndDate: sourceRecord.plan_end_date,
