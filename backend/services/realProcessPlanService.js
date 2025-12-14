@@ -249,17 +249,19 @@ class RealProcessPlanService {
       
       console.log(`真工序计划创建成功, ID: ${result.insertId}, 编号: ${data.planNo}`);
       
-      // ✅ 新增：自动推送到备料计划（触发条件：计划排程数量>0）
+      // ✅ 修改：自动推送到备料计划
+      // 触发时机：不管什么原因新增的真工序计划行，都要检查推送条件
+      // 推送条件：计划排程数量 > 0
       console.log(`\n🔍 [自动推送检查] 真工序计划 -> 备料计划`);
       console.log(`   真工序计划ID: ${result.insertId}`);
       console.log(`   真工序计划编号: ${data.planNo}`);
       console.log(`   产品编号: ${data.productCode}`);
       console.log(`   产品名称: ${data.productName}`);
       console.log(`   计划排程数量 (scheduleQuantity): ${data.scheduleQuantity}`);
-      console.log(`   数值类型: ${typeof data.scheduleQuantity}`);
-      console.log(`   parseFloat结果: ${parseFloat(data.scheduleQuantity || 0)}`);
-      console.log(`   是否满足条件 (>0): ${data.scheduleQuantity && parseFloat(data.scheduleQuantity) > 0}`);
+      console.log(`   推送条件：计划排程数量 > 0`);
+      console.log(`   是否满足推送条件: ${data.scheduleQuantity && parseFloat(data.scheduleQuantity) > 0}`);
       
+      // ✅ 检查推送条件：计划排程数量 > 0
       if (data.scheduleQuantity && parseFloat(data.scheduleQuantity) > 0) {
         try {
           console.log(`\n📤 触发自动推送到备料计划: 编号=${data.planNo}, 排程数量=${data.scheduleQuantity}`);
