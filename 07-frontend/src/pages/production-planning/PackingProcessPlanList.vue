@@ -1,7 +1,7 @@
 <template>
   <StandardTablePage
-    page-title="包装工序计划列表"
-    settings-key="packagingProcessPlanListV1"
+    page-title="打包工序计划列表"
+    settings-key="packingProcessPlanListV1"
     :table-data="tableData"
     :columns="allColumns"
     :loading="loading"
@@ -39,7 +39,7 @@
     <!-- 搜索表单 -->
     <template #search-form>
       <el-form :inline="true" :model="searchForm" size="small">
-        <el-form-item label="包装工序计划编号">
+        <el-form-item label="打包工序计划编号">
           <el-input 
             ref="searchInputRef"
             v-model="searchForm.planNo" 
@@ -160,14 +160,14 @@
   <!-- 新增/编辑对话框 -->
   <el-dialog
     v-model="dialogVisible"
-    :title="isEdit ? '编辑包装工序计划' : '新增包装工序计划'"
+    :title="isEdit ? '编辑打包工序计划' : '新增打包工序计划'"
     width="80%"
     :close-on-click-modal="false"
   >
     <el-form ref="formRef" :model="formData" :rules="formRules" label-width="140px">
       <el-row :gutter="20">
         <el-col :span="8">
-          <el-form-item label="包装工序计划编号" prop="planNo">
+          <el-form-item label="打包工序计划编号" prop="planNo">
             <el-input v-model="formData.planNo" placeholder="自动生成" disabled />
           </el-form-item>
         </el-col>
@@ -815,7 +815,7 @@ const loadData = async () => {
       masterPlanNo: searchForm.masterPlanNo,
       salesOrderNo: searchForm.salesOrderNo,
       customerOrderNo: searchForm.customerOrderNo,
-      processName: '包装',  // ✅ 强制过滤：只显示包装工序
+      processName: '打包',  // ✅ 强制过滤：只显示打包工序
       productCode: searchForm.productCode,
       sourceNo: searchForm.sourceNo,
       progressStatus: searchForm.progressStatus
@@ -873,7 +873,7 @@ const handleEdit = (row) => {
 
 const handleDelete = (row) => {
   ElMessageBox.confirm(
-    `确定要删除包装工序计划编号为 ${row.planNo} 的记录吗？`,
+    `确定要删除打包工序计划编号为 ${row.planNo} 的记录吗？`,
     '删除确认',
     {
       confirmButtonText: '确定删除',

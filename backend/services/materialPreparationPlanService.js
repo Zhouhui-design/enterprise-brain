@@ -1211,16 +1211,41 @@ if (requiredWorkHours > 0 && dailyAvailableHours > 0) {
         submittedAt: new Date().toLocaleString('zh-CN', { timeZone: 'Asia/Shanghai', hour12: false })
       };
 
-      // 调用RealProcessPlanService创建真工序计划
-      const RealProcessPlanService = require('./realProcessPlanService');
-      const createResult = await RealProcessPlanService.create(realProcessPlanData);
+      // ✅ 根据来源工序路由到不同的Service
+      let ProcessPlanService;
+      let targetTable;
+      let planNoPrefix;
+      let serviceName;
+      
+      if (data.sourceProcess === '打包') {
+        ProcessPlanService = require('./packingProcessPlanService');
+        targetTable = 'packing_process_plans';
+        planNoPrefix = 'PKPP';
+        serviceName = '打包工序计划';
+      } else if (data.sourceProcess === '组装') {
+        ProcessPlanService = require('./assemblyProcessPlanService');
+        targetTable = 'assembly_process_plans';
+        planNoPrefix = 'ASPP';
+        serviceName = '组装工序计划';
+      } else {
+        // 其他工序仍推送到真工序计划
+        ProcessPlanService = require('./realProcessPlanService');
+        targetTable = 'real_process_plans';
+        planNoPrefix = 'RPP';
+        serviceName = '真工序计划';
+      }
+      
+      console.log(`📍 [数据路由] 来源工序=${data.sourceProcess} → 推送到${serviceName} (表: ${targetTable})`);
+
+      // 调用对应Service创建工序计划
+      const createResult = await ProcessPlanService.create(realProcessPlanData);
       const createdPlanId = createResult.id;
       
-      console.log(`✅ 真工序计划创建成功: ${realProcessPlanNo}, ID: ${createdPlanId}`);
+      console.log(`✅ ${serviceName}创建成功: ${realProcessPlanNo}, ID: ${createdPlanId}`);
 
       // 检查是否需要自增行
       const [checkRows] = await connection.execute(
-        'SELECT unscheduled_qty, DATE_FORMAT(next_schedule_date, \'%Y-%m-%d\') as next_schedule_date FROM real_process_plans WHERE id = ?',
+        `SELECT unscheduled_qty, DATE_FORMAT(next_schedule_date, '%Y-%m-%d') as next_schedule_date FROM ${targetTable} WHERE id = ?`,
         [createdPlanId]
       );
       
@@ -1230,11 +1255,11 @@ if (requiredWorkHours > 0 && dailyAvailableHours > 0) {
         
         if (actualUnscheduledQty > 0 && actualNextScheduleDate) {
           console.log(`🔁 检测到未排数量=${actualUnscheduledQty}，开始自增行递归排程...`);
-          await RealProcessPlanService.checkAndCreateIncremental(createdPlanId);
+          await ProcessPlanService.checkAndCreateIncremental(createdPlanId);
         }
       }
 
-      return { success: true, planNo: realProcessPlanNo, id: createdPlanId };
+      return { success: true, planNo: realProcessPlanNo, id: createdPlanId, targetTable, serviceName };
 
     } catch (error) {
       console.error('❌ 推送到真工序计划失败:', error);

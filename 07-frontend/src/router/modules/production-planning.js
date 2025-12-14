@@ -89,13 +89,13 @@ export default {
         icon: 'List'
       }
     },
-    // ✅ 包装工序计划（只显示包装工序）
+    // ✅ 打包工序计划（只显示打包工序）
     {
-      path: 'packaging-process-plan',
-      name: 'PackagingProcessPlanList',
-      component: () => import('@/pages/production-planning/PackagingProcessPlanList.vue'),
+      path: 'packing-process-plan',
+      name: 'PackingProcessPlanList',
+      component: () => import('@/pages/production-planning/PackingProcessPlanList.vue'),
       meta: { 
-        title: '包装工序计划',
+        title: '打包工序计划',
         icon: 'Box'
       }
     },

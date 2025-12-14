@@ -611,9 +611,9 @@ export default {
                   icon: 'el-icon-s-claim'
                 },
                 {
-                  path: '/production-planning/packaging-process-plan',
-                  name: 'PackagingProcessPlanList',
-                  meta: { title: '包装工序计划' },
+                  path: '/production-planning/packing-process-plan',
+                  name: 'PackingProcessPlanList',
+                  meta: { title: '打包工序计划' },
                   icon: 'el-icon-box'
                 },
                 {
