@@ -215,7 +215,7 @@ class RealProcessPlanToMaterialService {
             created_by,
             created_at,
             updated_at
-          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW())
+          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW())
         `, [
           planNo,
           realProcessPlan.master_plan_no || '',
@@ -246,7 +246,8 @@ class RealProcessPlanToMaterialService {
           realProcessPlan.main_plan_product_name || null, // ✅ 新增：主计划产品名称
           realProcessPlan.level0_demand || 0, // ✅ 新增：主计划排程数量（真工序计划的0阶需求数量）
           realProcessPlan.promise_delivery_date || null, // ✅ 新增：订单承诺交期
-          realProcessPlan.customer_name || null // ✅ 新增：客户名称
+          realProcessPlan.customer_name || null, // ✅ 新增：客户名称
+          'system' // ✅ created_by（新增第31个参数）
         ]);
         
         createdRecords.push({
