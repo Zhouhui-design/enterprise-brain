@@ -840,15 +840,19 @@ if (requiredWorkHours > 0 && dailyAvailableHours > 0) {
           createdBy: plan.created_by
         };
 
-        // ❌ 禁用：备料计划推送到真工序计划（会导致工序能力负荷表已占用工时错误）
-        // try {
-        //   // 调用推送逻辑
-        //   await this.pushToRealProcessPlan(planData);
-        //   pushCount++;
-        //   console.log(`✅ 成功推送: ${plan.planNo}`);
-        // } catch (pushError) {
-        //   console.error(`❌ 推送失败: ${plan.planNo}`, pushError.message);
-        // }
+        // ✅ 启用：备料计划推送到工序计划（支持打包/组装工序计划）
+        try {
+          // 调用推送逻辑（自动路由到打包/组装工序计划）
+          const pushResult = await this.pushToRealProcessPlan(planData);
+          if (pushResult.success) {
+            pushCount++;
+            console.log(`✅ 成功推送: ${plan.planNo} → ${pushResult.serviceName} (${pushResult.planNo})`);
+          } else {
+            console.log(`⏭️ 跳过推送: ${plan.planNo} - 原因: ${pushResult.reason}`);
+          }
+        } catch (pushError) {
+          console.error(`❌ 推送失败: ${plan.planNo}`, pushError.message);
+        }
       }
 
       console.log(`\n📊 自动触发推送完成: 成功推送${pushCount}条, 总计${qualifyingPlans.length}条满足条件的备料计划`);
@@ -1083,6 +1087,28 @@ if (requiredWorkHours > 0 && dailyAvailableHours > 0) {
         }
       }
 
+      // ✅ 计算当天可用工时 = 当天总工时 - 当天已排程工时
+      let dailyAvailableHours = 0;
+      if (dailyTotalHours > 0) {
+        dailyAvailableHours = parseFloat((dailyTotalHours - dailyScheduledHours).toFixed(2));
+        if (dailyAvailableHours < 0) dailyAvailableHours = 0;
+        console.log(`🧠 计算当天可用工时: ${dailyTotalHours} - ${dailyScheduledHours} = ${dailyAvailableHours}`);
+      }
+
+      // ✅ 计算计划排程工时 = min(需求工时, 当天可用工时)
+      let scheduledWorkHours = 0;
+      if (requiredWorkHours > 0 && dailyAvailableHours >= 0) {
+        scheduledWorkHours = parseFloat(Math.min(requiredWorkHours, dailyAvailableHours).toFixed(2));
+        console.log(`⌛ 计算计划排程工时: min(${requiredWorkHours}, ${dailyAvailableHours}) = ${scheduledWorkHours}`);
+      }
+
+      // ✅ 计算计划排程数量 = 计划排程工时 * 定时工额
+      let scheduleQuantity = 0;
+      if (scheduledWorkHours > 0 && standardWorkQuota > 0) {
+        scheduleQuantity = parseFloat((scheduledWorkHours * standardWorkQuota).toFixed(4));
+        console.log(`📊 计算计划排程数量: ${scheduledWorkHours} * ${standardWorkQuota} = ${scheduleQuantity}`);
+      }
+
       // 创建真工序计划数据
       const realProcessPlanData = {
         planNo: realProcessPlanNo,
@@ -1111,6 +1137,9 @@ if (requiredWorkHours > 0 && dailyAvailableHours > 0) {
         scheduleCount: 1,
         dailyTotalHours: dailyTotalHours,  // ✅ 新增：当天总工时
         dailyScheduledHours: dailyScheduledHours,  // ✅ 新增：当天已排程工时(累积之前记录)
+        dailyAvailableHours: dailyAvailableHours,  // ✅ 新增：当天可用工时
+        scheduledWorkHours: scheduledWorkHours,  // ✅ 新增：计划排程工时
+        scheduleQuantity: scheduleQuantity,  // ✅ 新增：计划排程数量
         submittedBy: data.createdBy || 'admin',
         submittedAt: new Date().toLocaleString('zh-CN', { timeZone: 'Asia/Shanghai', hour12: false })
       };
