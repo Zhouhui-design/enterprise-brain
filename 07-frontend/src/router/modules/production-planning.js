@@ -79,6 +79,36 @@ export default {
         hidden: true  // 添加此属性禁用菜单显示
       }
     },
+    // ✅ 真工序计划（保留，显示所有工序）
+    {
+      path: 'real-process-plan',
+      name: 'RealProcessPlanList',
+      component: () => import('@/pages/production-planning/RealProcessPlanList.vue'),
+      meta: { 
+        title: '真工序计划',
+        icon: 'List'
+      }
+    },
+    // ✅ 包装工序计划（只显示包装工序）
+    {
+      path: 'packaging-process-plan',
+      name: 'PackagingProcessPlanList',
+      component: () => import('@/pages/production-planning/PackagingProcessPlanList.vue'),
+      meta: { 
+        title: '包装工序计划',
+        icon: 'Box'
+      }
+    },
+    // ✅ 组装工序计划（只显示组装工序）
+    {
+      path: 'assembly-process-plan',
+      name: 'AssemblyProcessPlanList',
+      component: () => import('@/pages/production-planning/AssemblyProcessPlanList.vue'),
+      meta: { 
+        title: '组装工序计划',
+        icon: 'Setting'
+      }
+    }
 
   ]
 }
