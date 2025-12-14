@@ -1,0 +1,6 @@
+{
+  "plugins": ["./eslint-plugin-local"],
+  "rules": {
+    "local/no-manual-date-format": "error"
+  }
+}

@@ -1,4 +1,5 @@
 const { pool } = require('../config/database');
+const { formatLocalDate } = require('../utils/dateFormatter');
 
 /**
  * 真工序计划服务
@@ -337,63 +338,59 @@ class RealProcessPlanService {
         try {
           const processName = data.processName;
           
-          // ✅ 修复：使用本地时区格式化日期（避免toISOString导致的UTC时区转换）
-          let scheduleDate;
-          if (data.scheduleDate instanceof Date) {
-            const year = data.scheduleDate.getFullYear();
-            const month = String(data.scheduleDate.getMonth() + 1).padStart(2, '0');
-            const day = String(data.scheduleDate.getDate()).padStart(2, '0');
-            scheduleDate = `${year}-${month}-${day}`;
-          } else {
-            scheduleDate = String(data.scheduleDate).split('T')[0];
-          }
+          // ✅ 修复：使用统一的日期格式化工具（避免toISOString导致的UTC时区转换）
+          const scheduleDate = formatLocalDate(data.scheduleDate);
           
-          const scheduledHours = parseFloat(data.scheduledWorkHours);
-          
-          console.log(`🔄 推送已排程工时到工序能力负荷表: 工序=${processName}, 日期=${scheduleDate}, 排程工时=${scheduledHours}`);
-          console.log(`   原始日期值: ${data.scheduleDate}, 类型: ${typeof data.scheduleDate}`);
-          console.log(`   格式化后日期: ${scheduleDate}`);
-          
-          // 查询工序能力负荷表记录
-          const [capacityRows] = await pool.execute(
-            'SELECT id, work_shift, available_workstations, occupied_hours FROM process_capacity_load WHERE process_name = ? AND date = ?',
-            [processName, scheduleDate]
-          );
-          
-          if (capacityRows.length > 0) {
-            const record = capacityRows[0];
-            const previousOccupiedHours = parseFloat(record.occupied_hours || 0);
-            const newOccupiedHours = parseFloat((previousOccupiedHours + scheduledHours).toFixed(2));
-            const workShift = parseFloat(record.work_shift || 0);
-            const availableWorkstations = parseFloat(record.available_workstations || 0);
+          if (scheduleDate) {
+            const scheduledHours = parseFloat(data.scheduledWorkHours);
             
-            // 重新计算剩余工时和剩余时段
-            const newRemainingHours = parseFloat(
-              (workShift * availableWorkstations - newOccupiedHours).toFixed(2)
+            console.log(`🔄 推送已排程工时到工序能力负荷表: 工序=${processName}, 日期=${scheduleDate}, 排程工时=${scheduledHours}`);
+            console.log(`   原始日期值: ${data.scheduleDate}, 类型: ${typeof data.scheduleDate}`);
+            console.log(`   格式化后日期: ${scheduleDate}`);
+            
+            // 查询工序能力负荷表记录
+            const [capacityRows] = await pool.execute(
+              'SELECT id, work_shift, available_workstations, occupied_hours FROM process_capacity_load WHERE process_name = ? AND date = ?',
+              [processName, scheduleDate]
             );
             
-            let newRemainingShift = 0;
-            if (availableWorkstations > 0) {
-              newRemainingShift = parseFloat(
-                (newRemainingHours / availableWorkstations).toFixed(2)
+            if (capacityRows.length > 0) {
+              const record = capacityRows[0];
+              const previousOccupiedHours = parseFloat(record.occupied_hours || 0);
+              const newOccupiedHours = parseFloat((previousOccupiedHours + scheduledHours).toFixed(2));
+              const workShift = parseFloat(record.work_shift || 0);
+              const availableWorkstations = parseFloat(record.available_workstations || 0);
+              
+              // 重新计算剩余工时和剩余时段
+              const newRemainingHours = parseFloat(
+                (workShift * availableWorkstations - newOccupiedHours).toFixed(2)
               );
+              
+              let newRemainingShift = 0;
+              if (availableWorkstations > 0) {
+                newRemainingShift = parseFloat(
+                  (newRemainingHours / availableWorkstations).toFixed(2)
+                );
+              }
+              
+              // 更新数据库
+              await pool.execute(
+                `UPDATE process_capacity_load 
+                 SET occupied_hours = ?, 
+                     remaining_hours = ?, 
+                     remaining_shift = ?,
+                     updated_at = NOW()
+                 WHERE id = ?`,
+                [newOccupiedHours, newRemainingHours, newRemainingShift, record.id]
+              );
+              
+              console.log(`✅ 已占用工时更新成功: ${previousOccupiedHours} → ${newOccupiedHours} (增加${scheduledHours}小时)`);
+              console.log(`   剩余工时: ${newRemainingHours}, 剩余时段: ${newRemainingShift}`);
+            } else {
+              console.warn(`⚠️ 未找到工序能力负荷记录: 工序=${processName}, 日期=${scheduleDate}`);
             }
-            
-            // 更新数据库
-            await pool.execute(
-              `UPDATE process_capacity_load 
-               SET occupied_hours = ?, 
-                   remaining_hours = ?, 
-                   remaining_shift = ?,
-                   updated_at = NOW()
-               WHERE id = ?`,
-              [newOccupiedHours, newRemainingHours, newRemainingShift, record.id]
-            );
-            
-            console.log(`✅ 已占用工时更新成功: ${previousOccupiedHours} → ${newOccupiedHours} (增加${scheduledHours}小时)`);
-            console.log(`   剩余工时: ${newRemainingHours}, 剩余时段: ${newRemainingShift}`);
           } else {
-            console.warn(`⚠️ 未找到工序能力负荷记录: 工序=${processName}, 日期=${scheduleDate}`);
+            console.warn(`⚠️ 无效的计划排程日期: ${data.scheduleDate}`);
           }
         } catch (error) {
           console.error(`⚠️ 推送已占用工时失败:`, error.message);
@@ -556,75 +553,71 @@ class RealProcessPlanService {
         try {
           const processName = plan.process_name;
           
-          // ✅ 修复：使用本地时区格式化日期
-          let scheduleDate;
-          if (plan.schedule_date instanceof Date) {
-            const year = plan.schedule_date.getFullYear();
-            const month = String(plan.schedule_date.getMonth() + 1).padStart(2, '0');
-            const day = String(plan.schedule_date.getDate()).padStart(2, '0');
-            scheduleDate = `${year}-${month}-${day}`;
-          } else {
-            scheduleDate = String(plan.schedule_date).split('T')[0];
-          }
+          // ✅ 修复：使用统一的日期格式化工具
+          const scheduleDate = formatLocalDate(plan.schedule_date);
           
-          console.log(`🔄 自动重置已占用工时: 工序=${processName}, 日期=${scheduleDate}`);
-          console.log(`   原始日期值: ${plan.schedule_date}, 类型: ${typeof plan.schedule_date}`);
-          console.log(`   格式化后日期: ${scheduleDate}`);
-          
-          // ✅ SUMIF - 重新统计该工序+日期下所有真工序计划的计划排程工时总和
-          const [sumRows] = await connection.execute(
-            `SELECT COALESCE(SUM(scheduled_work_hours), 0) as total_hours 
-             FROM real_process_plans 
-             WHERE process_name = ? 
-               AND DATE_FORMAT(schedule_date, '%Y-%m-%d') = ?`,
-            [processName, scheduleDate]
-          );
-          
-          // ✅ 补充规则: if(sumifs的结果返回null, 0, sumifs的结果)
-          const sumResult = sumRows[0].total_hours;
-          const validResult = sumResult !== null && sumResult !== undefined ? parseFloat(sumResult) : 0;
-          const newOccupiedHours = parseFloat(validResult.toFixed(2));
-          
-          console.log(`  SUMIF查询结果: ${sumResult}, 新占用工时: ${newOccupiedHours}`);
-          
-          // ✅ 查询工序能力负荷记录
-          const [capacityRows] = await connection.execute(
-            'SELECT id, work_shift, available_workstations, occupied_hours FROM process_capacity_load WHERE process_name = ? AND date = ?',
-            [processName, scheduleDate]
-          );
-          
-          if (capacityRows.length > 0) {
-            const record = capacityRows[0];
-            const previousOccupiedHours = parseFloat(record.occupied_hours || 0);
-            const workShift = parseFloat(record.work_shift || 0);
-            const availableWorkstations = parseFloat(record.available_workstations || 0);
+          if (scheduleDate) {
+            console.log(`🔄 自动重置已占用工时: 工序=${processName}, 日期=${scheduleDate}`);
+            console.log(`   原始日期值: ${plan.schedule_date}, 类型: ${typeof plan.schedule_date}`);
+            console.log(`   格式化后日期: ${scheduleDate}`);
             
-            // ✅ 重新计算剩余工时和剩余时段
-            const newRemainingHours = parseFloat(
-              (workShift * availableWorkstations - newOccupiedHours).toFixed(2)
+            // ✅ SUMIF - 重新统计该工序+日期下所有真工序计划的计划排程工时总和
+            const [sumRows] = await connection.execute(
+              `SELECT COALESCE(SUM(scheduled_work_hours), 0) as total_hours 
+               FROM real_process_plans 
+               WHERE process_name = ? 
+                 AND DATE_FORMAT(schedule_date, '%Y-%m-%d') = ?`,
+              [processName, scheduleDate]
             );
             
-            let newRemainingShift = null;
-            if (availableWorkstations > 0) {
-              newRemainingShift = parseFloat(
-                (newRemainingHours / availableWorkstations).toFixed(2)
+            // ✅ 补充规则: if(sumifs的结果返回null, 0, sumifs的结果)
+            const sumResult = sumRows[0].total_hours;
+            const validResult = sumResult !== null && sumResult !== undefined ? parseFloat(sumResult) : 0;
+            const newOccupiedHours = parseFloat(validResult.toFixed(2));
+            
+            console.log(`  SUMIF查询结果: ${sumResult}, 新占用工时: ${newOccupiedHours}`);
+            
+            // ✅ 查询工序能力负荷记录
+            const [capacityRows] = await connection.execute(
+              'SELECT id, work_shift, available_workstations, occupied_hours FROM process_capacity_load WHERE process_name = ? AND date = ?',
+              [processName, scheduleDate]
+            );
+            
+            if (capacityRows.length > 0) {
+              const record = capacityRows[0];
+              const previousOccupiedHours = parseFloat(record.occupied_hours || 0);
+              const workShift = parseFloat(record.work_shift || 0);
+              const availableWorkstations = parseFloat(record.available_workstations || 0);
+              
+              // ✅ 重新计算剩余工时和剩余时段
+              const newRemainingHours = parseFloat(
+                (workShift * availableWorkstations - newOccupiedHours).toFixed(2)
               );
+              
+              let newRemainingShift = null;
+              if (availableWorkstations > 0) {
+                newRemainingShift = parseFloat(
+                  (newRemainingHours / availableWorkstations).toFixed(2)
+                );
+              }
+              
+              // ✅ 更新数据库
+              await connection.execute(
+                `UPDATE process_capacity_load 
+                 SET occupied_hours = ?, 
+                     remaining_hours = ?, 
+                     remaining_shift = ?,
+                     updated_at = NOW()
+                 WHERE id = ?`,
+                [newOccupiedHours, newRemainingHours, newRemainingShift, record.id]
+              );
+              
+              console.log(`✅ 已占用工时重置成功: ${previousOccupiedHours} → ${newOccupiedHours} (释放${(previousOccupiedHours - newOccupiedHours).toFixed(2)}小时)`);
+            } else {
+              console.warn(`⚠️ 未找到工序能力负荷记录: 工序=${processName}, 日期=${scheduleDate}`);
             }
-            
-            // ✅ 更新数据库
-            await connection.execute(
-              `UPDATE process_capacity_load 
-               SET occupied_hours = ?, 
-                   remaining_hours = ?, 
-                   remaining_shift = ?,
-                   updated_at = NOW()
-               WHERE id = ?`,
-              [newOccupiedHours, newRemainingHours, newRemainingShift, record.id]
-            );
-            
-            console.log(`✅ 已占用工时重置成功: ${previousOccupiedHours} → ${newOccupiedHours} (释放${(previousOccupiedHours - newOccupiedHours).toFixed(2)}小时)`);
           } else {
-            console.warn(`⚠️ 未找到工序能力负荷记录: 工序=${processName}, 日期=${scheduleDate}`);
+            console.warn(`⚠️ 无效的计划排程日期: ${plan.schedule_date}`);
           }
         } catch (error) {
           console.error(`⚠️ 自动重置已占用工时失败:`, error.message);
@@ -667,17 +660,14 @@ class RealProcessPlanService {
           
           // ✅ 记录受影响的工序+日期
           if (plan.process_name && plan.schedule_date) {
-            // ✅ 使用本地时区格式化日期
-            let scheduleDate;
-            if (plan.schedule_date instanceof Date) {
-              const year = plan.schedule_date.getFullYear();
-              const month = String(plan.schedule_date.getMonth() + 1).padStart(2, '0');
-              const day = String(plan.schedule_date.getDate()).padStart(2, '0');
-              scheduleDate = `${year}-${month}-${day}`;
+            // ✅ 使用统一的日期格式化工具
+            const scheduleDate = formatLocalDate(plan.schedule_date);
+            
+            if (scheduleDate) {
+              affectedProcessDates.add(`${plan.process_name}|${scheduleDate}`);
             } else {
-              scheduleDate = String(plan.schedule_date).split('T')[0];
+              console.warn(`⚠️ 无效的计划排程日期: ${plan.schedule_date}`);
             }
-            affectedProcessDates.add(`${plan.process_name}|${scheduleDate}`);
           }
           
           // ✅ 步颂2: 执行删除
