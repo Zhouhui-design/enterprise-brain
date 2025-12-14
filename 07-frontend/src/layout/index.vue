@@ -607,13 +607,13 @@ export default {
                 {
                   path: '/process-planning/real-process-plan',
                   name: 'RealProcessPlanList',
-                  meta: { title: '真工序计划' },
+                  meta: { title: '打包工序计划' },
                   icon: 'el-icon-s-claim'
                 },
                 {
                   path: '/production-planning/packing-process-plan',
                   name: 'PackingProcessPlanList',
-                  meta: { title: '打包工序计划' },
+                  meta: { title: '喷塑工序计划' },
                   icon: 'el-icon-box'
                 },
                 {

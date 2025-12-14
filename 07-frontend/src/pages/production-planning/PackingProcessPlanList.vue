@@ -1,6 +1,6 @@
 <template>
   <StandardTablePage
-    page-title="打包工序计划列表"
+    page-title="喷塑工序计划列表"
     settings-key="packingProcessPlanListV1"
     :table-data="tableData"
     :columns="allColumns"
@@ -39,7 +39,7 @@
     <!-- 搜索表单 -->
     <template #search-form>
       <el-form :inline="true" :model="searchForm" size="small">
-        <el-form-item label="打包工序计划编号">
+        <el-form-item label="喷塑工序计划编号">
           <el-input 
             ref="searchInputRef"
             v-model="searchForm.planNo" 
@@ -160,14 +160,14 @@
   <!-- 新增/编辑对话框 -->
   <el-dialog
     v-model="dialogVisible"
-    :title="isEdit ? '编辑打包工序计划' : '新增打包工序计划'"
+    :title="isEdit ? '编辑喷塑工序计划' : '新增喷塑工序计划'"
     width="80%"
     :close-on-click-modal="false"
   >
     <el-form ref="formRef" :model="formData" :rules="formRules" label-width="140px">
       <el-row :gutter="20">
         <el-col :span="8">
-          <el-form-item label="打包工序计划编号" prop="planNo">
+          <el-form-item label="喷塑工序计划编号" prop="planNo">
             <el-input v-model="formData.planNo" placeholder="自动生成" disabled />
           </el-form-item>
         </el-col>
@@ -336,7 +336,7 @@ const formRules = {
 const breadcrumbItems = [
   { title: '首页', to: '/' },
   { title: '计划&物控', to: '' },
-  { title: '真工序计划', to: '' }
+  { title: '喷塑工序计划', to: '' }
 ]
 
 // ✅ 工序间隔设置弹窗
@@ -351,7 +351,7 @@ const openProcessIntervalSettings = () => {
 const handleFixFieldCalculations = async () => {
   try {
     await ElMessageBox.confirm(
-      '确定要修复所有真工序计划的字段计算吗？这将重新计算所有记录的自动字段。',
+      '确定要修复所有喷塑工序计划的字段计算吗？这将重新计算所有记录的自动字段。',
       '修复字段计算',
       {
         confirmButtonText: '确定修复',
@@ -421,11 +421,11 @@ const businessVarSelects = [
     ],
     defaultValue: 'masterPlanNo',
     description: `<div style="margin-top: 8px; padding: 8px; background-color: #f5f7fa; border-radius: 4px; font-size: 12px; line-height: 1.6;">
-      <div style="margin-bottom: 4px;">• <strong>按“销售订单”合并</strong>：备料计划推送数据到真工序计划时，相同“销售订单编号”且相同“计划物料编号”合并一起排程</div>
-      <div style="margin-bottom: 4px;">• <strong>按“来源主计划编号”合并</strong>：备料计划推送数据到真工序计划时，相同“来源主计划编号”且相同“计划物料编号”合并一起排程</div>
-      <div style="margin-bottom: 4px;">• <strong>按相同“备料计划编号”合并</strong>：备料计划推送数据到真工序计划时，相同“备料计划编号”且相同“计划物料编号”合并一起排程</div>
-      <div style="margin-bottom: 4px;">• <strong>按相同“需求日期”合并</strong>：备料计划推送数据到真工序计划时，相同“需求日期”且相同“计划物料编号”合并一起排程</div>
-      <div style="margin-bottom: 4px;">• <strong>按相同“计划物料编号”</strong>：备料计划推送数据到真工序计划时，相同“计划物料编号”合并一起排程</div>
+      <div style="margin-bottom: 4px;">• <strong>按"销售订单"合并</strong>：备料计划推送数据到喷塑工序计划时，相同"销售订单编号"且相同"计划物料编号"合并一起排程</div>
+      <div style="margin-bottom: 4px;">• <strong>按"来源主计划编号"合并</strong>：备料计划推送数据到喷塑工序计划时，相同"来源主计划编号"且相同"计划物料编号"合并一起排程</div>
+      <div style="margin-bottom: 4px;">• <strong>按相同"备料计划编号"合并</strong>：备料计划推送数据到喷塑工序计划时，相同"备料计划编号"且相同"计划物料编号"合并一起排程</div>
+      <div style="margin-bottom: 4px;">• <strong>按相同"需求日期"合并</strong>：备料计划推送数据到喷塑工序计划时，相同"需求日期"且相同"计划物料编号"合并一起排程</div>
+      <div style="margin-bottom: 4px;">• <strong>按相同"计划物料编号"</strong>：备料计划推送数据到喷塑工序计划时，相同"计划物料编号"合并一起排程</div>
     </div>`,
     tip: '💡 温馨提示：如有需要自定义合并统筹规则的，请联系周辉 18627407019'
   },
@@ -446,7 +446,7 @@ const businessVarSelects = [
 
 // ========== 默认设置 ==========
 const defaultSettings = {
-  exportFilePrefix: '真工序计划',
+  exportFilePrefix: '喷塑工序计划',
   minRemainingHours: 0.5
 }
 
@@ -454,7 +454,7 @@ const defaultSettings = {
 const allColumns = ref([
   { prop: 'rowIndex', label: '序号', width: 80, sortable: false, filterable: false, visible: true,
     formatter: (row, column, cellValue, index) => index + 1 },
-  { prop: 'planNo', label: '真工序计划编号', width: 160, sortable: true, filterable: true, fixed: 'left', visible: true },
+  { prop: 'planNo', label: '喷塑工序计划编号', width: 160, sortable: true, filterable: true, fixed: 'left', visible: true },
   { prop: 'salesOrderNo', label: '销售订单编号', width: 160, sortable: true, filterable: true, visible: true },
   { prop: 'customerOrderNo', label: '客户订单编号', width: 160, sortable: true, filterable: true, visible: true },
   { prop: 'masterPlanNo', label: '主生产计划编号', width: 160, sortable: true, filterable: true, visible: true },
@@ -873,7 +873,7 @@ const handleEdit = (row) => {
 
 const handleDelete = (row) => {
   ElMessageBox.confirm(
-    `确定要删除打包工序计划编号为 ${row.planNo} 的记录吗？`,
+    `确定要删除喷塑工序计划编号为 ${row.planNo} 的记录吗？`,
     '删除确认',
     {
       confirmButtonText: '确定删除',
