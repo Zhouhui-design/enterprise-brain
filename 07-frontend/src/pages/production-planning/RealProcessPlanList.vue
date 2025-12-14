@@ -45,14 +45,27 @@
             v-model="searchForm.planNo" 
             placeholder="请输入" 
             clearable 
+            style="width: 180px"
             @keyup.enter="handleSearch"
           />
         </el-form-item>
         <el-form-item label="主生产计划编号">
-          <el-input v-model="searchForm.masterPlanNo" placeholder="请输入" clearable />
+          <el-input v-model="searchForm.masterPlanNo" placeholder="请输入" clearable style="width: 180px" />
+        </el-form-item>
+        <el-form-item label="销售订单编号">
+          <el-input v-model="searchForm.salesOrderNo" placeholder="请输入" clearable style="width: 180px" />
+        </el-form-item>
+        <el-form-item label="客户订单编号">
+          <el-input v-model="searchForm.customerOrderNo" placeholder="请输入" clearable style="width: 180px" />
         </el-form-item>
         <el-form-item label="工序名称">
-          <el-input v-model="searchForm.processName" placeholder="请输入" clearable />
+          <el-input v-model="searchForm.processName" placeholder="请输入" clearable style="width: 150px" />
+        </el-form-item>
+        <el-form-item label="生产产品编号">
+          <el-input v-model="searchForm.productCode" placeholder="请输入" clearable style="width: 150px" />
+        </el-form-item>
+        <el-form-item label="来源编号">
+          <el-input v-model="searchForm.sourceNo" placeholder="请输入" clearable style="width: 180px" />
         </el-form-item>
         <el-form-item label="计划排程日期">
           <el-date-picker
@@ -61,8 +74,26 @@
             range-separator="至"
             start-placeholder="开始日期"
             end-placeholder="结束日期"
+            style="width: 240px"
             clearable
           />
+        </el-form-item>
+        <el-form-item label="订单承诺交期">
+          <el-date-picker
+            v-model="searchForm.promiseDeliveryDateRange"
+            type="daterange"
+            range-separator="至"
+            start-placeholder="开始日期"
+            end-placeholder="结束日期"
+            style="width: 240px"
+            clearable
+          />
+        </el-form-item>
+        <el-form-item label="进度状态">
+          <el-select v-model="searchForm.progressStatus" placeholder="请选择" clearable style="width: 130px">
+            <el-option label="排程完毕" value="completed" />
+            <el-option label="排程中" value="inProgress" />
+          </el-select>
         </el-form-item>
         <el-form-item>
           <el-button type="primary" @click="handleSearch">查询</el-button>
@@ -268,8 +299,14 @@ const pagination = reactive({
 const searchForm = reactive({
   planNo: '',
   masterPlanNo: '',
+  salesOrderNo: '',
+  customerOrderNo: '',
   processName: '',
-  scheduleDateRange: []
+  productCode: '',
+  sourceNo: '',
+  scheduleDateRange: [],
+  promiseDeliveryDateRange: [],
+  progressStatus: ''
 })
 
 // 表单数据
@@ -773,12 +810,22 @@ const loadData = async () => {
       pageSize: pagination.pageSize,
       planNo: searchForm.planNo,
       masterPlanNo: searchForm.masterPlanNo,
-      processName: searchForm.processName
+      salesOrderNo: searchForm.salesOrderNo,
+      customerOrderNo: searchForm.customerOrderNo,
+      processName: searchForm.processName,
+      productCode: searchForm.productCode,
+      sourceNo: searchForm.sourceNo,
+      progressStatus: searchForm.progressStatus
     }
     
     if (searchForm.scheduleDateRange && searchForm.scheduleDateRange.length === 2) {
       params.scheduleDateStart = searchForm.scheduleDateRange[0]
       params.scheduleDateEnd = searchForm.scheduleDateRange[1]
+    }
+    
+    if (searchForm.promiseDeliveryDateRange && searchForm.promiseDeliveryDateRange.length === 2) {
+      params.promiseDeliveryDateStart = searchForm.promiseDeliveryDateRange[0]
+      params.promiseDeliveryDateEnd = searchForm.promiseDeliveryDateRange[1]
     }
     
     const data = await api.getList(params)
@@ -921,8 +968,14 @@ const handleSearch = () => {
 const handleReset = () => {
   searchForm.planNo = ''
   searchForm.masterPlanNo = ''
+  searchForm.salesOrderNo = ''
+  searchForm.customerOrderNo = ''
   searchForm.processName = ''
+  searchForm.productCode = ''
+  searchForm.sourceNo = ''
   searchForm.scheduleDateRange = []
+  searchForm.promiseDeliveryDateRange = []
+  searchForm.progressStatus = ''
   pagination.page = 1
   loadData()
 }
