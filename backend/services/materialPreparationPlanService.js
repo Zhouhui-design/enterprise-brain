@@ -1013,6 +1013,30 @@ if (requiredWorkHours > 0 && dailyAvailableHours > 0) {
       // 计划排程日期 = 真计划开始日期
       const scheduleDate = realPlanStartDate;
 
+      // ✅ 查询当天总工时 (从工序能力负荷表)
+      let dailyTotalHours = 0;
+      if (scheduleDate && data.sourceProcess) {
+        try {
+          const [capacityRows] = await connection.execute(`
+            SELECT work_shift, available_workstations 
+            FROM process_capacity_load 
+            WHERE process_name = ? AND DATE_FORMAT(date, '%Y-%m-%d') = ?
+            LIMIT 1
+          `, [data.sourceProcess, scheduleDate]);
+          
+          if (capacityRows.length > 0) {
+            const workShift = parseFloat(capacityRows[0].work_shift || 0);
+            const availableWorkstations = parseFloat(capacityRows[0].available_workstations || 0);
+            dailyTotalHours = parseFloat((workShift * availableWorkstations).toFixed(2));
+            console.log(`✅ 查询当天总工时: 工序=${data.sourceProcess}, 日期=${scheduleDate}, 班次=${workShift}, 工位数=${availableWorkstations}, 总工时=${dailyTotalHours}`);
+          } else {
+            console.warn(`⚠️ 未查询到工序能力负荷记录: 工序=${data.sourceProcess}, 日期=${scheduleDate}`);
+          }
+        } catch (error) {
+          console.error(`❌ 查询当天总工时失败:`, error.message);
+        }
+      }
+
       // 创建真工序计划数据
       const realProcessPlanData = {
         planNo: realProcessPlanNo,
@@ -1039,6 +1063,7 @@ if (requiredWorkHours > 0 && dailyAvailableHours > 0) {
         customerName: data.customerName,
         sourceNo: data.planNo,  // ✅ 关键：使用备料计划编号作为来源编号
         scheduleCount: 1,
+        dailyTotalHours: dailyTotalHours,  // ✅ 新增：当天总工时
         submittedBy: data.createdBy || 'admin',
         submittedAt: new Date().toLocaleString('zh-CN', { timeZone: 'Asia/Shanghai', hour12: false })
       };
