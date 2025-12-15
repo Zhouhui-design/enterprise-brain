@@ -622,10 +622,30 @@ router.delete('/:id', async (req, res) => {
       'DELETE FROM process_plans WHERE sales_order_no = ?',
       [internalOrderNo]
     );
-    
     console.log(`✅ 级联删除工序计划: ${processPlanResult.affectedRows} 条`);
     
-    // ✅ 级联删除真工序计划 - 先记录受影响的工序+日期
+    // ✅ 级联删除组装工序计划
+    const [assemblyPlanResult] = await connection.execute(
+      'DELETE FROM assembly_process_plans WHERE sales_order_no = ?',
+      [internalOrderNo]
+    );
+    console.log(`✅ 级联删除组装工序计划: ${assemblyPlanResult.affectedRows} 条`);
+    
+    // ✅ 级联删除喷塑工序计划
+    const [sprayPaintingPlanResult] = await connection.execute(
+      'DELETE FROM spray_painting_process_plans WHERE sales_order_no = ?',
+      [internalOrderNo]
+    );
+    console.log(`✅ 级联删除喷塑工序计划: ${sprayPaintingPlanResult.affectedRows} 条`);
+    
+    // ✅ 级联删除缝纫工序计划
+    const [sewingPlanResult] = await connection.execute(
+      'DELETE FROM sewing_process_plans WHERE sales_order_no = ?',
+      [internalOrderNo]
+    );
+    console.log(`✅ 级联删除缝纫工序计划: ${sewingPlanResult.affectedRows} 条`);
+    
+    // ✅ 级联删除真工序计划(打包) - 先记录受影响的工序+日期
     const [realProcessPlans] = await connection.execute(
       'SELECT process_name, DATE_FORMAT(schedule_date, \'%Y-%m-%d\') as schedule_date FROM real_process_plans WHERE sales_order_no = ?',
       [internalOrderNo]
@@ -726,7 +746,7 @@ router.delete('/:id', async (req, res) => {
     
     res.json({
       success: true,
-      message: `删除订单成功（同时删除 ${masterPlanResult.affectedRows} 条主生产计划、${materialPlanResult.affectedRows} 条备料计划、${processPlanResult.affectedRows} 条工序计划、${realProcessPlanResult.affectedRows} 条真工序计划）`
+      message: `删除订单成功（同时删除 ${masterPlanResult.affectedRows} 条主生产计划、${materialPlanResult.affectedRows} 条备料计划、${processPlanResult.affectedRows} 条工序计划、${realProcessPlanResult.affectedRows} 条打包工序计划、${assemblyPlanResult.affectedRows} 条组装工序计划、${sprayPaintingPlanResult.affectedRows} 条喷塑工序计划、${sewingPlanResult.affectedRows} 条缝纫工序计划）`
     })
   } catch (error) {
     console.error('❌ 删除订单失败:', error)
@@ -764,6 +784,9 @@ router.post('/batch-delete', async (req, res) => {
     let totalMaterialPlans = 0
     let totalProcessPlans = 0
     let totalRealProcessPlans = 0
+    let totalAssemblyPlans = 0
+    let totalSprayPaintingPlans = 0
+    let totalSewingPlans = 0
     const affectedProcessDates = new Set() // 记录受影响的工序+日期
     
     // 逐个处理，确保级联删除
@@ -798,7 +821,28 @@ router.post('/batch-delete', async (req, res) => {
         );
         totalProcessPlans += processPlanResult.affectedRows;
         
-        // 5. 级联删除真工序计划 - 先记录受影响的工序+日期
+        // 4.1 级联删除组装工序计划
+        const [assemblyPlanResult] = await connection.execute(
+          'DELETE FROM assembly_process_plans WHERE sales_order_no = ?',
+          [internalOrderNo]
+        );
+        totalAssemblyPlans += assemblyPlanResult.affectedRows;
+        
+        // 4.2 级联删除喷塑工序计划
+        const [sprayPaintingPlanResult] = await connection.execute(
+          'DELETE FROM spray_painting_process_plans WHERE sales_order_no = ?',
+          [internalOrderNo]
+        );
+        totalSprayPaintingPlans += sprayPaintingPlanResult.affectedRows;
+        
+        // 4.3 级联删除缝纫工序计划
+        const [sewingPlanResult] = await connection.execute(
+          'DELETE FROM sewing_process_plans WHERE sales_order_no = ?',
+          [internalOrderNo]
+        );
+        totalSewingPlans += sewingPlanResult.affectedRows;
+        
+        // 5. 级联删除真工序计划(打包) - 先记录受影响的工序+日期
         const [realProcessPlans] = await connection.execute(
           'SELECT process_name, DATE_FORMAT(schedule_date, \'%Y-%m-%d\') as schedule_date FROM real_process_plans WHERE sales_order_no = ?',
           [internalOrderNo]
@@ -905,18 +949,24 @@ router.post('/batch-delete', async (req, res) => {
       masterPlans: totalMasterPlans,
       materialPlans: totalMaterialPlans,
       processPlans: totalProcessPlans,
-      realProcessPlans: totalRealProcessPlans
+      realProcessPlans: totalRealProcessPlans,
+      assemblyPlans: totalAssemblyPlans,
+      sprayPaintingPlans: totalSprayPaintingPlans,
+      sewingPlans: totalSewingPlans
     })
     
     res.json({
       success: true,
-      message: `成功删除 ${ids.length} 个订单（同时删除 ${totalMasterPlans} 条主生产计划、${totalMaterialPlans} 条备料计划、${totalProcessPlans} 条工序计划、${totalRealProcessPlans} 条真工序计划）`,
+      message: `成功删除 ${ids.length} 个订单（同时删除 ${totalMasterPlans} 条主生产计划、${totalMaterialPlans} 条备料计划、${totalProcessPlans} 条工序计划、${totalRealProcessPlans} 条打包工序计划、${totalAssemblyPlans} 条组装工序计划、${totalSprayPaintingPlans} 条喷塑工序计划、${totalSewingPlans} 条缝纫工序计划）`,
       data: {
         deletedCount: ids.length,
         masterPlansDeleted: totalMasterPlans,
         materialPlansDeleted: totalMaterialPlans,
         processPlansDeleted: totalProcessPlans,
-        realProcessPlansDeleted: totalRealProcessPlans
+        realProcessPlansDeleted: totalRealProcessPlans,
+        assemblyPlansDeleted: totalAssemblyPlans,
+        sprayPaintingPlansDeleted: totalSprayPaintingPlans,
+        sewingPlansDeleted: totalSewingPlans
       }
     })
   } catch (error) {
