@@ -678,6 +678,18 @@ id: row.id,
         console.log(`📊 计算计划排程数量: ${scheduledWorkHours} * ${standardWorkQuota} = ${scheduleQuantity}`);
       }
 
+      // ✅ 计算下一个排程日期 = 计划排程日期 + 1天
+      let nextScheduleDate = null;
+      if (scheduleDate) {
+        const nextDate = new Date(scheduleDate);
+        nextDate.setDate(nextDate.getDate() + 1);
+        const year = nextDate.getFullYear();
+        const month = String(nextDate.getMonth() + 1).padStart(2, '0');
+        const day = String(nextDate.getDate()).padStart(2, '0');
+        nextScheduleDate = `${year}-${month}-${day}`;
+        console.log(`📅 计算下一个排程日期: ${scheduleDate} + 1天 = ${nextScheduleDate}`);
+      }
+
       // 创建真工序计划数据
       const realProcessPlanData = {
         planNo: realProcessPlanNo,
@@ -709,6 +721,7 @@ id: row.id,
         dailyAvailableHours: dailyAvailableHours,  // ✅ 新增：当天可用工时
         scheduledWorkHours: scheduledWorkHours,  // ✅ 新增：计划排程工时
         scheduleQuantity: scheduleQuantity,  // ✅ 新增：计划排程数量
+        nextScheduleDate: nextScheduleDate,  // ✅ 新增：下一个排程日期
         submittedBy: data.createdBy || 'admin',
         submittedAt: new Date().toLocaleString('zh-CN', { timeZone: 'Asia/Shanghai', hour12: false })
       };
