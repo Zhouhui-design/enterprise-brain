@@ -28,15 +28,15 @@ const PROCESS_TYPE_CONFIG = {
     enabled: true
   },
   
-  // 喷塑工序
+  // 喷塑工序（使用packing_process_plans表，原打包工序表改名）
   '喷塑': {
     code: 'SPRAY_PAINTING',
-    tableName: 'spray_painting_process_plans',
-    serviceName: 'sprayPaintingProcessPlanService',
-    routePath: 'spray-painting-process-plans',
+    tableName: 'packing_process_plans',  // ✅ 修正：使用packing_process_plans表
+    serviceName: 'packingProcessPlanService',  // ✅ 修正：使用packingProcessPlanService
+    routePath: 'packing-process-plan',
     planNoPrefix: 'SPPP',
     displayName: '喷塑工序计划',
-    menuPath: '/production-planning/spray-painting-process-plan',
+    menuPath: '/production-planning/packing-process-plan',
     enabled: true
   },
   
