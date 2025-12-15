@@ -108,6 +108,16 @@ export default {
         title: '组装工序计划',
         icon: 'Setting'
       }
+    },
+    // ✅ 缝纫工序计划（只显示缝纫工序）
+    {
+      path: 'sewing-process-plan',
+      name: 'SewingProcessPlanList',
+      component: () => import('@/pages/production-planning/SewingProcessPlanList.vue'),
+      meta: { 
+        title: '缝纫工序计划',
+        icon: 'Scissors'
+      }
     }
 
   ]

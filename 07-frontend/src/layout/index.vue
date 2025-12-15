@@ -623,6 +623,12 @@ export default {
                   icon: 'el-icon-setting'
                 },
                 {
+                  path: '/production-planning/sewing-process-plan',
+                  name: 'SewingProcessPlanList',
+                  meta: { title: '缝纫工序计划' },
+                  icon: 'el-icon-scissors'
+                },
+                {
                   path: '/production-planning/capacity-planning',
                   name: 'CapacityPlanning',
                   meta: { title: '产能规划' },

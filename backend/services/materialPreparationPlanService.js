@@ -474,21 +474,16 @@ id: row.id,
         return { success: false, reason: 'no_source_process', materialCode: data.materialCode };
       }
 
-      // ✅ 检查来源工序是否支持（支持打包、组装、喷塑）
-      if (processName !== '打包' && processName !== '组装' && processName !== '喷塑') {
-        console.log(`⏭️ 来源工序=${processName}，不在推送范围内（仅支持打包/组装/喷塑），跳过推送`);
+      // ✅ 检查来源工序是否支持（使用配置系统判断）
+      const processConfig = getProcessConfig(processName);
+      if (!processConfig) {
+        console.log(`⏭️ 来源工序=${processName}，不在推送范围内，跳过推送`);
         return { success: false, reason: 'unsupported_source_process', processName };
       }
+      console.log(`✅ 工序配置验证成功: ${processName} → ${processConfig.displayName}`);
 
-      // ✅ 防重复推送检查（使用来源工序确定检查表）
-      let checkTable;
-      if (processName === '打包') {
-        checkTable = 'real_process_plans';  // ✅ 打包工序计划表
-      } else if (processName === '组装') {
-        checkTable = 'assembly_process_plans';  // ✅ 组装工序计划表
-      } else if (processName === '喷塑') {
-        checkTable = 'packing_process_plans';  // ✅ 喷塑工序计划表（原打包表改名）
-      }
+      // ✅ 防重复推送检查（使用配置系统确定检查表）
+      const checkTable = processConfig.tableName;
 
       // 执行防重检查
       const [existingPlans] = await connection.execute(`
@@ -723,13 +718,7 @@ id: row.id,
       };
 
       // ✅ 根据来源工序路由到不同的Service（使用配置系统）
-      const processConfig = getProcessConfig(processName);
-      
-      if (!processConfig) {
-        // ⚠️ 不支持的工序类型
-        console.warn(`⚠️ [数据路由] 不支持的工序类型: ${processName}，已跳过推送`);
-        return { success: false, reason: 'unsupported_process', processName };
-      }
+      // processConfig 已在第478行声明，这里直接使用
       
       // 动态加载Service
       const ProcessPlanService = require(`./${processConfig.serviceName}`);
