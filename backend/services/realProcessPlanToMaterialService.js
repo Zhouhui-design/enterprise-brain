@@ -314,7 +314,7 @@ class RealProcessPlanToMaterialService {
             console.log(`      来源工序: ${materialPlan.source_process}`);
             
             // ✅ 修复：严格按照规则文档的IFS条件判断
-            // IFS(AND(备料计划编号 != null, 需补货数量 > 0, 物料来源 = "自制", 来源工序 = "打包"或"组装"))
+            // IFS(AND(备料计划编号 != null, 需补货数量 > 0, 物料来源 = "自制", 来源工序 = "打包"或"组装"或"缝纫"或"喷塑"))
             const planNo = materialPlan.plan_no;
             const sourceProcess = materialPlan.source_process;
             
@@ -322,7 +322,7 @@ class RealProcessPlanToMaterialService {
             console.log(`      备料计划编号: ${planNo} (条件: != null)`);
             console.log(`      需补货数量: ${replenishmentQty} (条件: > 0)`);
             console.log(`      物料来源: ${materialPlan.material_source} (条件: = "自制")`);
-            console.log(`      来源工序: ${sourceProcess} (条件: = "打包" 或 "组装")`);
+            console.log(`      来源工序: ${sourceProcess} (条件: = "打包" 或 "组装" 或 "缝纫" 或 "喷塑")`);
             
             // 条件1: 备料计划编号 != null
             if (!planNo) {
@@ -342,9 +342,11 @@ class RealProcessPlanToMaterialService {
               continue;
             }
             
-            // 条件4: 来源工序 = "打包" 或 "组装"
-            if (sourceProcess !== '打包' && sourceProcess !== '组装') {
-              console.log(`   ⏭️ 来源工序非"打包"或"组装"(${sourceProcess})，不满足IFS条件，跳过推送`);
+            // 条件4: 来源工序 = "打包" 或 "组装" 或 "缝纫" 或 "喷塑"
+            const allowedProcesses = ['打包', '组装', '缝纫', '喷塑'];
+            if (!allowedProcesses.includes(sourceProcess)) {
+              console.log(`   ⏭️ 来源工序非允许类型(${sourceProcess})，不满足IFS条件，跳过推送`);
+              console.log(`   ℹ️ 允许的工序类型: ${allowedProcesses.join(', ')}`);
               continue;
             }
             
