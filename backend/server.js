@@ -45,9 +45,11 @@ const masterProductionPlansRouter = require('./routes/masterProductionPlans');
 const materialPreparationPlansRouter = require('./routes/materialPreparationPlans');
 const processPlansRouter = require('./routes/processPlans');
 const realProcessPlansRouter = require('./routes/realProcessPlans');
+const assemblyProcessPlansRouter = require('./routes/assemblyProcessPlans');
 const capacityLoadRouter = require('./routes/capacityLoad');
 const companyCalendarRouter = require('./routes/companyCalendar');
 const listStyleProductionBomsRouter = require('./routes/listStyleProductionBoms');
+const testDataFlowRouter = require('./routes/testDataFlow');
 
 app.use('/api/materials', materialsRouter);
 app.use('/api/production-boms', productionBomsRouter);
@@ -67,10 +69,14 @@ app.use('/api/master-production-plans', masterProductionPlansRouter);
 app.use('/api/material-preparation-plans', materialPreparationPlansRouter);
 app.use('/api/process-plans', processPlansRouter);
 app.use('/api/real-process-plans', realProcessPlansRouter);
+app.use('/api/assembly-process-plans', assemblyProcessPlansRouter);
+console.log('🔧 组装工序计划路由已注册: /api/assembly-process-plans');
 app.use('/api/capacity-load', capacityLoadRouter);
 console.log('📡 工序能力负荷表路由已注册: /api/capacity-load');
 app.use('/api/company-calendar', companyCalendarRouter);
 app.use('/api/list-style-production-boms', listStyleProductionBomsRouter);
+app.use('/api/test-data-flow', testDataFlowRouter);
+console.log('🧪 测试数据流路由已注册: /api/test-data-flow');
 
 
 

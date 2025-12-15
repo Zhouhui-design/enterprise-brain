@@ -279,11 +279,19 @@ class RealProcessPlanToMaterialService {
             // 查询备料计划完整详情（此时已经commit，可以查到）
             const [materialPlanRows] = await dbPool.execute(`
               SELECT 
-                id, plan_no, source_plan_no, material_code, material_name,
-                material_source, material_unit, demand_quantity, available_stock,
-                replenishment_quantity, source_process, demand_date,
-                sales_order_no, customer_order_no, main_plan_product_code,
-                main_plan_product_name, main_plan_quantity, promise_delivery_date,
+                id, plan_no, source_plan_no, source_process_plan_no,
+                parent_code, parent_name, parent_schedule_quantity,
+                material_code, material_name,
+                material_source, material_unit, demand_quantity, need_mrp, 
+                realtime_stock, projected_balance,
+                available_stock, replenishment_quantity, source_process,
+                workshop_name, parent_process_name, process_interval_hours,
+                process_interval_unit,
+                DATE_FORMAT(process_schedule_date, '%Y-%m-%d') as process_schedule_date,
+                DATE_FORMAT(demand_date, '%Y-%m-%d') as demand_date,
+                sales_order_no, customer_order_no,
+                main_plan_product_code, main_plan_product_name, main_plan_quantity,
+                DATE_FORMAT(promise_delivery_date, '%Y-%m-%d') as promise_delivery_date,
                 customer_name, created_by
               FROM material_preparation_plans
               WHERE plan_no = ?
@@ -305,16 +313,42 @@ class RealProcessPlanToMaterialService {
             console.log(`      需补货数量: ${replenishmentQty}`);
             console.log(`      来源工序: ${materialPlan.source_process}`);
             
-            // 检查推送条件（与备料计划推送规则一致）
-            if (materialPlan.material_source !== '自制') {
-              console.log(`   ⏭️ 物料来源非"自制"(${materialPlan.material_source})，跳过推送`);
+            // ✅ 修复：严格按照规则文档的IFS条件判断
+            // IFS(AND(备料计划编号 != null, 需补货数量 > 0, 物料来源 = "自制", 来源工序 = "打包"或"组装"))
+            const planNo = materialPlan.plan_no;
+            const sourceProcess = materialPlan.source_process;
+            
+            console.log(`   🔍 IFS条件检查:`);
+            console.log(`      备料计划编号: ${planNo} (条件: != null)`);
+            console.log(`      需补货数量: ${replenishmentQty} (条件: > 0)`);
+            console.log(`      物料来源: ${materialPlan.material_source} (条件: = "自制")`);
+            console.log(`      来源工序: ${sourceProcess} (条件: = "打包" 或 "组装")`);
+            
+            // 条件1: 备料计划编号 != null
+            if (!planNo) {
+              console.log(`   ⏭️ 备料计划编号为空，不满足IFS条件，跳过推送`);
               continue;
             }
             
+            // 条件2: 需补货数量 > 0
             if (replenishmentQty <= 0) {
-              console.log(`   ⏭️ 需补货数量≤0(${replenishmentQty})，跳过推送`);
+              console.log(`   ⏭️ 需补货数量≤0(${replenishmentQty})，不满足IFS条件，跳过推送`);
               continue;
             }
+            
+            // 条件3: 物料来源 = "自制"
+            if (materialPlan.material_source !== '自制') {
+              console.log(`   ⏭️ 物料来源非"自制"(${materialPlan.material_source})，不满足IFS条件，跳过推送`);
+              continue;
+            }
+            
+            // 条件4: 来源工序 = "打包" 或 "组装"
+            if (sourceProcess !== '打包' && sourceProcess !== '组装') {
+              console.log(`   ⏭️ 来源工序非"打包"或"组装"(${sourceProcess})，不满足IFS条件，跳过推送`);
+              continue;
+            }
+            
+            console.log(`   ✅ 满足所有IFS条件，开始推送...`);
             
             // ✅ 防重复推送检查
             const [existingPlans] = await dbPool.execute(`
@@ -330,19 +364,33 @@ class RealProcessPlanToMaterialService {
             
             console.log(`   ✅ 满足推送条件，开始推送到真工序计划...`);
             
-            // 转换数据格式（与MaterialPreparationPlanService.autoTriggerPush保持一致）
+            // 转换数据格式（与MaterialPreparationPlanService.pushToRealProcessPlan保持一致）
             const planData = {
               planNo: materialPlan.plan_no,
               sourcePlanNo: materialPlan.source_plan_no,
+              sourceProcessPlanNo: materialPlan.source_process_plan_no,
+              parentCode: materialPlan.parent_code,
+              parentName: materialPlan.parent_name,
+              parentScheduleQuantity: materialPlan.parent_schedule_quantity,
               materialCode: materialPlan.material_code,
               materialName: materialPlan.material_name,
               materialSource: materialPlan.material_source,
               materialUnit: materialPlan.material_unit,
               demandQuantity: materialPlan.demand_quantity,
+              needMrp: materialPlan.need_mrp,
+              realtimeStock: materialPlan.realtime_stock,
+              projectedBalance: materialPlan.projected_balance,
               availableStock: materialPlan.available_stock,
               replenishmentQuantity: materialPlan.replenishment_quantity,
               sourceProcess: materialPlan.source_process,
+              workshopName: materialPlan.workshop_name,
+              parentProcessName: materialPlan.parent_process_name,
+              processIntervalHours: materialPlan.process_interval_hours,
+              processIntervalUnit: materialPlan.process_interval_unit,
+              processScheduleDate: materialPlan.process_schedule_date,
               demandDate: materialPlan.demand_date,
+              pushToPurchase: false,
+              pushToProcess: false,
               salesOrderNo: materialPlan.sales_order_no,
               customerOrderNo: materialPlan.customer_order_no,
               mainPlanProductCode: materialPlan.main_plan_product_code,
@@ -350,13 +398,15 @@ class RealProcessPlanToMaterialService {
               mainPlanQuantity: materialPlan.main_plan_quantity,
               promiseDeliveryDate: materialPlan.promise_delivery_date,
               customerName: materialPlan.customer_name,
+              remark: null,
               createdBy: materialPlan.created_by
             };
             
-            // ❌ 禁用：备料计划推送到真工序计划（会导致工序能力负荷表已占用工时错误）
+            // ✅ 启用：备料计划推送到真工序计划（修复数据流闭环）
             // 调用备料计划推送逻辑
-            // await MaterialPreparationPlanService.pushMaterialPlanToRealProcessPlan(planData);
-            // console.log(`   ✅ 备料计划 ${materialPlanNo} 推送到真工序计划成功`);
+            const pushResult = await MaterialPreparationPlanService.pushMaterialPlanToRealProcessPlan(planData);
+            console.log(`   ✅ 备料计划 ${materialPlanNo} 推送到真工序计划成功`);
+            console.log(`   📋 推送结果:`, pushResult);
           }
           
           console.log(`\n✅ [数据闭环] 备料计划推送规则触发完成`);

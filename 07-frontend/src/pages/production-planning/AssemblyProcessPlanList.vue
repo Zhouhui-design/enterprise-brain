@@ -262,7 +262,7 @@ import { CircleCheck, Loading } from '@element-plus/icons-vue'
 import StandardTablePage from '@/components/common/layout/StandardTablePage.vue'
 import ProcessIntervalSettings from './ProcessIntervalSettings.vue'  // ✅ 导入工序间隔设置组件
 import BomDetailDialog from './BomDetailDialog.vue'  // ✅ 导入BOM详情弹窗
-import * as api from '@/api/realProcessPlan'
+import * as api from '@/api/assemblyProcessPlan'
 import capacityLoadApi from '@/api/capacityLoad'  // ✅ 导入工序能力负荷API
 import dateUtils from '@/services/utils/date-utils'  // ✅ 导入日期工具
 

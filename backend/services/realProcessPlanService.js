@@ -264,11 +264,11 @@ class RealProcessPlanService {
       console.log(`真工序计划创建成功, ID: ${result.insertId}, 编号: ${data.planNo}`);
       
       // ✅ 修改：自动推送到备料计划
-      // 触发时机：不管什么原因新增的真工序计划行，都要检查推送条件
+      // 触发时机：不管什么原因新增的打包工序计划行，都要检查推送条件
       // 推送条件：计划排程数量 > 0
-      console.log(`\n🔍 [自动推送检查] 真工序计划 -> 备料计划`);
-      console.log(`   真工序计划ID: ${result.insertId}`);
-      console.log(`   真工序计划编号: ${data.planNo}`);
+      console.log(`\n🔍 [自动推送检查] 打包工序计划 -> 备料计划`);
+      console.log(`   打包工序计划ID: ${result.insertId}`);
+      console.log(`   打包工序计划编号: ${data.planNo}`);
       console.log(`   产品编号: ${data.productCode}`);
       console.log(`   产品名称: ${data.productName}`);
       console.log(`   计划排程数量 (scheduleQuantity): ${data.scheduleQuantity}`);
@@ -280,7 +280,7 @@ class RealProcessPlanService {
         try {
           console.log(`\n📤 触发自动推送到备料计划: 编号=${data.planNo}, 排程数量=${data.scheduleQuantity}`);
           
-          // 获取刚创建的真工序计划详情（含下划线字段）
+          // 获取刚创建的打包工序计划详情（含下划线字段）
           // ✅ 关键修复：查询时就格式化schedule_date为中国时区YYYY-MM-DD格式
           const [createdPlanRows] = await pool.execute(
             `SELECT 
@@ -302,7 +302,7 @@ class RealProcessPlanService {
             [result.insertId]
           );
           
-          console.log(`   查询到 ${createdPlanRows.length} 条真工序计划记录`);
+          console.log(`   查询到 ${createdPlanRows.length} 条打包工序计划记录`);
           
           if (createdPlanRows.length > 0) {
             // ✅ 使用格式化后的日期替换原始日期
@@ -318,7 +318,7 @@ class RealProcessPlanService {
             
             // 执行推送
             console.log(`   开始执行 pushToMaterialPreparation...`);
-            console.log(`   真工序计划数据:`, {
+            console.log(`   打包工序计划数据:`, {
               id: planData.id,
               plan_no: planData.plan_no,
               product_code: planData.product_code,
@@ -334,9 +334,9 @@ class RealProcessPlanService {
             );
             
             console.log(`\n✅ 自动推送到备料计划成功:`, JSON.stringify(pushResult, null, 2));
-            // ✅ 注：备料计划推送到真工序计划的触发已移动到 realProcessPlanToMaterialService.pushToMaterialPreparation 的commit后
+            // ✅ 注：备料计划推送到打包工序计划的触发已移动到 realProcessPlanToMaterialService.pushToMaterialPreparation 的commit后
           } else {
-            console.warn(`   ⚠️ 未查询到刚创建的真工序计划记录`);
+            console.warn(`   ⚠️ 未查询到刚创建的打包工序计划记录`);
           }
         } catch (error) {
           console.error(`\n❌ 自动推送到备料计划失败:`);
@@ -424,7 +424,7 @@ class RealProcessPlanService {
       
       return { id: result.insertId };
     } catch (error) {
-      console.error('创建真工序计划失败:', error);
+      console.error('创建打包工序计划失败:', error);
       throw error;
     }
   }
@@ -456,7 +456,7 @@ class RealProcessPlanService {
   }
 
   /**
-   * 更新真工序计划
+   * 更新打包工序计划
    */
   static async update(id, data) {
     try {

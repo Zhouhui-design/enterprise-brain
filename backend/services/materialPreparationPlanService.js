@@ -225,492 +225,41 @@ id: row.id,
       const insertedId = result.insertId;
       console.log(`备料计划创建成功, ID: ${insertedId}, 编号: ${data.planNo}`);
       
-      // ✅ 自动推送到工序计划（当备料计划编号不为空且符合条件时）
-      let processPlanNo = null;
-      if (data.planNo) {
-        // 检查推送条件
+      await connection.commit();
+      
+      // ✅ 自动推送到工序计划（在事务提交后）
+      if (data.planNo && data.materialSource === '自制') {
         const demandQty = parseFloat(data.demandQuantity || 0);
         const availableQty = parseFloat(data.availableStock || 0);
         const replenishmentQty = demandQty - availableQty;
         
-        const shouldPush = (
-          data.materialSource === '自制' && 
-          replenishmentQty > 0
-        );
-        
-        if (shouldPush) {
-          console.log('🔄 备料计划新增，开始自动推送到工序计划...');
-          console.log(`   物料来源: ${data.materialSource}`);
-          console.log(`   需补货数量: ${replenishmentQty.toFixed(2)}`);
+        if (replenishmentQty > 0) {
+          console.log('🔄 备料计划创建成功，开始自动推送到工序计划...');
           
-          // ✅ 从产品物料库查询定时工额和定额工时
-          let standardWorkQuota = 0;
-          let standardWorkHours = 0;
-          
-          if (data.materialCode) {
-            console.log(`   🔍 开始查询物料编号: ${data.materialCode}`);
+          try {
+            const pushResult = await this.pushToRealProcessPlan(data);
             
-            // ✅ 修复查询：使用正确的数据库连接和更详细的日志
-            try {
-              const [materialRows] = await connection.execute(
-                'SELECT material_code, standard_time, quota_time FROM materials WHERE material_code = ? LIMIT 1',
-                [data.materialCode]
+            if (pushResult && pushResult.success) {
+              console.log(`✅ 自动推送成功: ${data.planNo} → ${pushResult.serviceName} (${pushResult.planNo})`);
+              
+              // 更新推送状态
+              await pool.execute(
+                'UPDATE material_preparation_plans SET push_to_process = ? WHERE plan_no = ?',
+                [1, data.planNo]
               );
-              
-              console.log(`   🔍 查询结果数量: ${materialRows.length}`);
-              console.log(`   🔍 查询SQL: SELECT material_code, standard_time, quota_time FROM materials WHERE material_code = '${data.materialCode}' LIMIT 1`);
-              
-              if (materialRows.length > 0) {
-                const material = materialRows[0];
-                console.log(`   🔍 查询到的原始数据:`, {
-                  material_code: material.material_code,
-                  standard_time: material.standard_time,
-                  quota_time: material.quota_time,
-                  standard_time_type: typeof material.standard_time,
-                  quota_time_type: typeof material.quota_time
-                });
-                
-                // ✅ 修复字段映射：standard_time 是定时工额，quota_time 是定额工时
-                standardWorkQuota = parseFloat(material.standard_time || 0);  // 定时工额
-                standardWorkHours = parseFloat(material.quota_time || 0);      // 定额工时
-                
-                console.log(`   ✅ 字段映射完成: 定时工额(standard_time)=${standardWorkQuota}, 定额工时(quota_time)=${standardWorkHours}`);
-                console.log(`   ✅ 工序计划将使用: standard_work_quota=${standardWorkQuota}, standard_work_hours=${standardWorkHours}`);
-              } else {
-                console.log(`   ⚠️ 未找到物料编号 ${data.materialCode} 对应的产品物料数据`);
-                
-                // ✅ 尝试查询所有物料，看是否存在这个编号
-                const [allMaterials] = await connection.execute(
-                  'SELECT material_code FROM materials WHERE material_code LIKE ? LIMIT 5',
-                  [`%${data.materialCode}%`]
-                );
-                console.log(`   🔍 相似物料编号: ${allMaterials.map(m => m.material_code).join(', ')}`);
-              }
-            } catch (queryError) {
-              console.error(`   ❌ 查询物料数据失败:`, queryError);
-            }
-          } else {
-            console.log(`   ⚠️ materialCode为空，无法查询`);
-          }
-          
-          // 生成工序计划编号
-          const year = new Date().getFullYear();
-          const timestamp = Date.now().toString().slice(-6);
-          const random = Math.floor(Math.random() * 1000).toString().padStart(3, '0');
-          processPlanNo = `PP${year}${timestamp}${random}`;
-          
-          // 计算计划完工日期 = 需求日期 - 1天
-          let completionDate = null;
-          if (data.demandDate) {
-            const demandDate = new Date(data.demandDate);
-            demandDate.setDate(demandDate.getDate() - 1);
-            const year = demandDate.getFullYear();
-            const month = String(demandDate.getMonth() + 1).padStart(2, '0');
-            const day = String(demandDate.getDate()).padStart(2, '0');
-            completionDate = `${year}-${month}-${day}`;
-          }
-          
-          // ⚠️ 禁止推送到工序计划，只推送到真工序计划
-          /* 
-          // 创建工序计划
-          await connection.execute(`
-            INSERT INTO process_plans (
-              plan_no,
-              sales_order_no,
-              master_plan_no,
-              product_code,
-              product_name,
-              process_name,
-              product_unit,
-              level0_demand,
-              completion_date,
-              replenishment_qty,
-              standard_work_quota,
-              standard_work_hours,
-              customer_name,
-              source_no,
-              schedule_count,
-              submitted_by,
-              submitted_at,
-              created_at,
-              updated_at
-            ) VALUES (
-              ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW(), NOW()
-            )
-          `, [
-            processPlanNo,
-            data.salesOrderNo || null,
-            data.sourcePlanNo || null,
-            data.materialCode || null,
-            data.materialName || null,
-            data.sourceProcess || null,
-            data.materialUnit || null,
-            data.mainPlanQuantity || 0,
-            completionDate,
-            replenishmentQty,
-            standardWorkQuota,   // ✅ 定时工额
-            standardWorkHours,   // ✅ 定额工时
-            data.customerName || null,
-            data.planNo || null,  // ✅ 需求2：来源编号 = 备料计划编号
-            1,  // ✅ 需求2：排程次数 = 1
-            data.createdBy || 'admin'
-          ]);
-          
-          console.log(`✅ 自动生成工序计划: ${processPlanNo}`);
-          console.log(`   来源编号: ${data.planNo}`);
-          console.log(`   需补货数量: ${replenishmentQty.toFixed(2)} ${data.materialUnit || ''}`);
-          console.log(`   定时工额: ${standardWorkQuota}`);
-          console.log(`   排程次数: 1`);
-          */
-          
-          // ✅ 同步推送到真工序计划
-          console.log('🔄 同步推送到真工序计划...');
-          
-          // 移除防重复检查，确保满足条件就触发推送
-          console.log(`   ✅ 满足推送条件，继续创建真工序计划: ${data.planNo}`);
-          // 确保realProcessPlanNo在正确的作用域内定义
-          const realProcessPlanNo = `RPP${year}${timestamp}${random}`;
-          
-          // ✅ 计算需求工时 = 需补货数量 / 定时工额
-          let requiredWorkHours = 0;
-          if (replenishmentQty > 0 && standardWorkQuota > 0) {
-            requiredWorkHours = parseFloat((replenishmentQty / standardWorkQuota).toFixed(2));
-          }
-          console.log(`   🧮 计算需求工时: ${replenishmentQty} / ${standardWorkQuota} = ${requiredWorkHours}`);
-          
-          // ✅ 计算计划结束日期：MAXIFS(工序能力负荷表.日期，工序名称匹配，剩余工时≥门槛值)
-          let planEndDate = null;
-          if (requiredWorkHours > 0 && data.sourceProcess && completionDate) {
-            try {
-              const minRemainingHours = 0.5; // 默认剩余工时门槛值
-              console.log(`   🔍 查询计划结束日期: 工序=${data.sourceProcess}, 完工日期=${completionDate}, 门槛=${minRemainingHours}`);
-              
-              const [capacityRows] = await connection.execute(`
-                SELECT DATE_FORMAT(date, '%Y-%m-%d') as date, remaining_hours 
-                FROM process_capacity_load 
-                WHERE process_name = ? 
-                  AND date <= ? 
-                  AND remaining_hours >= ? 
-ORDER BY date DESC 
-                LIMIT 1
-              `, [data.sourceProcess, completionDate, minRemainingHours]);
-              
-              if (capacityRows.length > 0) {
-                const result = capacityRows[0];
-                planEndDate = result.date;  // ✅ 直接使用DATE_FORMAT格式化后的日期
-                console.log(`   ✅ 计划结束日期: ${planEndDate}, 剩余工时: ${result.remaining_hours}`);
-              } else {
-                console.log(`   ⚠️ 未找到符合条件的计划结束日期`);
-              }
-            } catch (error) {
-              console.error(`   ❌ 查询计划结束日期失败:`, error.message);
-            }
-          }
-          
-          // ✅ 计算计划开始日期：从计划结束日期向前累加剩余工时
-          let planStartDate = null;
-          if (requiredWorkHours > 0 && data.sourceProcess && planEndDate) {
-            try {
-              const minRemainingHours = 0.5;
-              console.log(`   🔍 查询计划开始日期: 工序=${data.sourceProcess}, 结束日期=${planEndDate}, 需求工时=${requiredWorkHours}`);
-              
-              const [validRows] = await connection.execute(`
-                SELECT date, remaining_hours
-                FROM process_capacity_load
-                WHERE process_name = ?
-                  AND date <= ?
-                  AND remaining_hours >= ?
-                ORDER BY date DESC
-              `, [data.sourceProcess, planEndDate, minRemainingHours]);
-              
-              console.log(`   📊 符合条件的记录数: ${validRows.length}条`);
-              
-              let accumulated = 0;
-              for (const row of validRows) {
-                const dateStr = row.date instanceof Date 
-                  ? row.date.toISOString().split('T')[0]
-                  : String(row.date).split('T')[0];
-                const hours = parseFloat(row.remaining_hours) || 0;
-                
-                accumulated += hours;
-                console.log(`      ${dateStr}: 剩余${hours.toFixed(2)}h, 累计${accumulated.toFixed(2)}h`);
-                
-                if (accumulated >= requiredWorkHours) {
-                  planStartDate = dateStr;
-                  console.log(`   ✅ 计划开始日期: ${planStartDate}, 累计工时: ${accumulated.toFixed(2)}`);
-                  break;
-                }
-              }
-              
-              if (!planStartDate) {
-                console.log(`   ⚠️ 累计工时不足: ${accumulated.toFixed(2)} < ${requiredWorkHours}`);
-              }
-            } catch (error) {
-              console.error(`   ❌ 查询计划开始日期失败:`, error.message);
-            }
-          }
-          
-          // ✅ 计算真计划开始日期 = 计划开始日期 + 1天
-          let realPlanStartDate = null;
-          console.log(`\n📝 [排程次数=1] 真计划开始日期计算：`);
-          console.log(`   计划开始日期 (plan_start_date): ${planStartDate}`);
-          
-          if (planStartDate) {
-            const startDate = new Date(planStartDate);
-            console.log(`   计算规则: 真计划开始日期 = 计划开始日期 + 1天`);
-            console.log(`   计划开始日期 (Date对象): ${startDate.toISOString().split('T')[0]}`);
-            
-            startDate.setDate(startDate.getDate() + 1);
-            const year = startDate.getFullYear();
-            const month = String(startDate.getMonth() + 1).padStart(2, '0');
-            const day = String(startDate.getDate()).padStart(2, '0');
-            realPlanStartDate = `${year}-${month}-${day}`;
-            
-            console.log(`   ✅ 真计划开始日期 (real_plan_start_date): ${realPlanStartDate}`);
-            console.log(`   计算步骤: ${planStartDate} + 1天 = ${realPlanStartDate}`);
-          } else {
-            console.log(`   ⚠️ 计划开始日期为空，无法计算真计划开始日期`);
-          }
-          
-          // ✅ 计划排程日期 = 真计划开始日期（排程次数=1时）
-          const scheduleDate = realPlanStartDate;
-          console.log(`   ✅ 计划排程日期 (schedule_date): ${scheduleDate} (排程次数=1时，等于真计划开始日期)`);
-          console.log(`   📊 计算次数: 1 (首次生成，来源：备料计划推送)\n`);
-          
-          // ✅ 计算6个自动字段
-          let dailyTotalHours = 0;
-          let dailyScheduledHours = 0;
-          let dailyAvailableHours = 0;
-          let scheduledWorkHours = 0;
-          let scheduleQuantity = 0;
-          let nextScheduleDate = null;
-          
-          if (scheduleDate && data.sourceProcess) {
-            // 需求1: 查询当天总工时
-            try {
-              const [capacityRows] = await connection.execute(`
-                SELECT work_shift, available_workstations
-                FROM process_capacity_load
-                WHERE process_name = ? AND date = ?
-                LIMIT 1
-              `, [data.sourceProcess, scheduleDate]);
-              
-              if (capacityRows.length > 0) {
-                const workShift = parseFloat(capacityRows[0].work_shift || 0);
-                const availableWorkstations = parseFloat(capacityRows[0].available_workstations || 0);
-                dailyTotalHours = parseFloat((workShift * availableWorkstations).toFixed(2));
-                console.log(`   ✅ 当天总工时: ${dailyTotalHours}`);
-              }
-            } catch (error) {
-              console.error(`   ❌ 查询当天总工时失败:`, error.message);
-            }
-            
-            // 需求2: 计算当天已排程工时 (SUMIFS)
-            try {
-              const [sumRows] = await connection.execute(`
-                SELECT COALESCE(SUM(scheduled_work_hours), 0) as total
-                FROM real_process_plans
-                WHERE process_name = ? AND schedule_date = ?
-              `, [data.sourceProcess, scheduleDate]);
-              
-              dailyScheduledHours = parseFloat(sumRows[0].total || 0);
-              console.log(`   ✅ 当天已排程工时: ${dailyScheduledHours}`);
-            } catch (error) {
-              console.error(`   ❌ 计算当天已排程工时失败:`, error.message);
-            }
-            
-            // 需求3: 当天可用工时 = 总工时 - 已排程工时
-            dailyAvailableHours = parseFloat((dailyTotalHours - dailyScheduledHours).toFixed(2));
-            console.log(`   ✅ 当天可用工时: ${dailyAvailableHours}`);
-            
-            // 需求4: 计划排程工时 = MIN(需求工时, 当天可用工时)
-if (requiredWorkHours > 0 && dailyAvailableHours > 0) {
-              scheduledWorkHours = parseFloat(Math.min(requiredWorkHours, dailyAvailableHours).toFixed(2));
-              console.log(`   ✅ 计划排程工时: MIN(${requiredWorkHours}, ${dailyAvailableHours}) = ${scheduledWorkHours}`);
-              
-              // 需求5: 计划排程数量 = 排程工时 * 定时工额
-              if (standardWorkQuota > 0) {
-                scheduleQuantity = parseFloat((scheduledWorkHours * standardWorkQuota).toFixed(2));
-                console.log(`   ✅ 计划排程数量: ${scheduledWorkHours} * ${standardWorkQuota} = ${scheduleQuantity}`);
-              }
-            }
-            
-            // 需求6: 下一个排程日期 (MINIFS查询)
-            // 查询条件: 日期 > 计划排程日期 且 日期 <= 计划结束日期 且 剩余工时 > 门槛值
-            if (scheduleDate && planEndDate) {
-              try {
-                const minRemainingHours = 0.5;
-                console.log(`   🔍 查询下一个排程日期: 排程日期=${scheduleDate}, 结束日期=${planEndDate}`);
-                
-                const [nextRows] = await connection.execute(`
-                  SELECT DATE_FORMAT(date, '%Y-%m-%d') as formatted_date, remaining_hours 
-                  FROM process_capacity_load 
-                  WHERE process_name = ? 
-                    AND DATE_FORMAT(date, '%Y-%m-%d') > ?
-                    AND DATE_FORMAT(date, '%Y-%m-%d') <= ?
-                    AND remaining_hours > ? 
-                  ORDER BY date ASC 
-                  LIMIT 1
-                `, [data.sourceProcess, scheduleDate, planEndDate, minRemainingHours]);
-                
-                if (nextRows.length > 0) {
-                  nextScheduleDate = nextRows[0].formatted_date;
-                  console.log(`   ✅ 下一个排程日期: ${nextScheduleDate}, 剩余工时: ${nextRows[0].remaining_hours}`);
-                } else {
-                  console.log(`   ⚠️ 未找到符合条件的下一个排程日期`);
-                }
-              } catch (error) {
-                console.error(`   ❌ 查询下一个排程日期失败:`, error.message);
-              }
-            }
-          }
-          
-          // ✅ 计算剩余需求工时 = 需求工时 - 计划排程工时
-          let remainingRequiredHours = 0;
-          if (requiredWorkHours > 0 && scheduledWorkHours > 0) {
-            remainingRequiredHours = parseFloat((requiredWorkHours - scheduledWorkHours).toFixed(2));
-            console.log(`   ✅ 剩余需求工时: ${requiredWorkHours} - ${scheduledWorkHours} = ${remainingRequiredHours}`);
-          } else if (requiredWorkHours > 0) {
-            // 如果没有排程工时,剩余需求工时 = 需求工时
-            remainingRequiredHours = requiredWorkHours;
-            console.log(`   ✅ 剩余需求工时: ${remainingRequiredHours} (未排程)`);
-          }
-          
-          // ✅ 计算累积排程数量 = SUMIFS(计划排程数量, 来源编号=本行来源编号)
-          // 注意: 因为这是新建记录,还没有ID,所以累积排程数量就是当前的计划排程数量
-          const cumulativeScheduleQty = scheduleQuantity;
-          console.log(`   ✅ 累积排程数量: ${cumulativeScheduleQty} (新建记录)`);
-          
-          // ✅ 计算未排数量 = 需补货数量 - 累积排程数量
-          let unscheduledQty = 0;
-          if (replenishmentQty > 0 && cumulativeScheduleQty >= 0) {
-            unscheduledQty = parseFloat((replenishmentQty - cumulativeScheduleQty).toFixed(2));
-            console.log(`   ✅ 未排数量: ${replenishmentQty} - ${cumulativeScheduleQty} = ${unscheduledQty}`);
-          } else if (replenishmentQty > 0) {
-            unscheduledQty = replenishmentQty;
-            console.log(`   ✅ 未排数量: ${unscheduledQty} (无排程)`);
-          }
-          
-          // ✅ 调试日志：检查备料计划data中的4个字段值（驼峰命名优先，兼容下划线命名）
-          console.log('🔍 备料计划data中的新字段值（调试）:');
-          console.log('   customerOrderNo (驼峰):', data.customerOrderNo);
-          console.log('   customer_order_no (下划线):', data.customer_order_no);
-          console.log('   mainPlanProductCode (驼峰):', data.mainPlanProductCode);
-          console.log('   main_plan_product_code (下划线):', data.main_plan_product_code);
-          console.log('   mainPlanProductName (驼峰):', data.mainPlanProductName);
-          console.log('   main_plan_product_name (下划线):', data.main_plan_product_name);
-          console.log('   promiseDeliveryDate (驼峰):', data.promiseDeliveryDate);
-          console.log('   promise_delivery_date (下划线):', data.promise_delivery_date);
-          console.log('   salesOrderNo (驼峰):', data.salesOrderNo);
-          console.log('   sales_order_no (下划线):', data.sales_order_no);
-          
-          // ✅ 使用RealProcessPlanService.create方法生成真工序计划，自动触发6个字段计算
-          // ✅ 修复：兼容驼峰和下划线命名（优先使用驼峰，回退到下划线）
-          const realProcessPlanData = {
-            planNo: realProcessPlanNo,
-            salesOrderNo: data.salesOrderNo || data.sales_order_no || null,
-            customerOrderNo: data.customerOrderNo || data.customer_order_no || null,      // ✅ 修复: 兼容下划线命名
-            masterPlanNo: data.sourcePlanNo || data.source_plan_no || null,
-            mainPlanProductCode: data.mainPlanProductCode || data.main_plan_product_code || null,  // ✅ 修复: 兼容下划线命名
-            mainPlanProductName: data.mainPlanProductName || data.main_plan_product_name || null,  // ✅ 修复: 兼容下划线命名
-            productCode: data.materialCode || data.material_code || null,
-            productName: data.materialName || data.material_name || null,
-            processName: data.sourceProcess || data.source_process || null,
-            productUnit: data.materialUnit || data.material_unit || null,
-            level0Demand: data.mainPlanQuantity || data.main_plan_quantity || 0,
-            completionDate: completionDate,
-            promiseDeliveryDate: data.promiseDeliveryDate || data.promise_delivery_date || null,  // ✅ 修复: 兼容下划线命名
-            replenishmentQty: replenishmentQty,
-            standardWorkQuota: standardWorkQuota,
-            standardWorkHours: standardWorkHours,
-            requiredWorkHours: requiredWorkHours,
-            planEndDate: planEndDate,
-            planStartDate: planStartDate,
-            realPlanStartDate: realPlanStartDate,     // ✅ 真计划开始日期
-            scheduleDate: scheduleDate,                // ✅ 计划排程日期
-            dailyTotalHours: dailyTotalHours,          // ✅ 当天总工时
-            dailyScheduledHours: dailyScheduledHours,  // ✅ 当天已排程工时
-            dailyAvailableHours: dailyAvailableHours,  // ✅ 当天可用工时
-            scheduledWorkHours: scheduledWorkHours,    // ✅ 计划排程工时
-            scheduleQuantity: scheduleQuantity,        // ✅ 计划排程数量
-            nextScheduleDate: nextScheduleDate,        // ✅ 下一个排程日期
-            remainingRequiredHours: remainingRequiredHours, // ✅ 剩余需求工时
-            cumulativeScheduleQty: cumulativeScheduleQty,   // ✅ 累积排程数量
-            unscheduledQty: unscheduledQty,            // ✅ 未排数量
-            customerName: data.customerName || null,
-            sourceNo: data.planNo || null,
-            scheduleCount: 1,
-            submittedBy: data.createdBy || 'admin',
-            submittedAt: new Date().toLocaleString('zh-CN', { timeZone: 'Asia/Shanghai', hour12: false })  // ✅ 中国时区时间
-          };
-          
-          // ✅ 提交当前事务
-          await connection.commit();
-          connection.release();
-          
-          // ✅ 调用RealProcessPlanService.create（它会开启新事务）
-          const createResult = await RealProcessPlanService.create(realProcessPlanData);
-          const createdPlanId = createResult.id;
-          console.log(`✅ 真工序计划创建成功, ID: ${createdPlanId}`);
-          
-          // ✅ 检查是否需要自增行（从数据库重新查询最新值）
-          console.log(`🔍 检查自增条件...`);
-          const { pool: dbPool } = require('../config/database');
-          const [checkRows] = await dbPool.execute(
-            'SELECT unscheduled_qty, DATE_FORMAT(next_schedule_date, \'%Y-%m-%d\') as next_schedule_date FROM real_process_plans WHERE id = ?',
-            [createdPlanId]
-          );
-          
-          if (checkRows.length > 0) {
-            const actualUnscheduledQty = parseFloat(checkRows[0].unscheduled_qty || 0);
-            const actualNextScheduleDate = checkRows[0].next_schedule_date;
-            
-            console.log(`   数据库实际值: 未排数量=${actualUnscheduledQty}, 下一个排程日期=${actualNextScheduleDate}`);
-            
-            if (actualUnscheduledQty > 0 && actualNextScheduleDate) {
-              console.log(`🔁 检测到未排数量=${actualUnscheduledQty} > 0，开始自增行递归排程...`);
-              
-              // 调用自增方法（异步递归）
-              await RealProcessPlanService.checkAndCreateIncremental(createdPlanId);
             } else {
-              console.log(`✅ 排程完毕，未排数量=${actualUnscheduledQty}，无需自增`);
+              console.log(`⏭️ 推送跳过: ${pushResult ? pushResult.reason : '未知原因'}`);
             }
-          }
-          
-          // ✅ 重新获取connection继续后续逻辑
-          connection = await pool.getConnection();
-          await connection.beginTransaction();
-
-          console.log(`✅ 自动生成真工序计划: ${realProcessPlanNo}`);
-          console.log(`   来源编号: ${data.planNo}`);
-          console.log(`   需补货数量: ${replenishmentQty.toFixed(2)} ${data.materialUnit || ''}`);
-          console.log(`   定时工额: ${standardWorkQuota}`);
-          console.log(`   排程次数: 1`);
-          console.log(`   ✅ 已自动计算6个字段：计划排程日期、当天已排程工时、当天可用工时、计划排程工时、计划排程数量、下一个排程日期`);
-          
-          // ✅ 更新备料计划的是否下推工序计划字段为是
-          if (realProcessPlanNo) {
-            await connection.execute(
-              'UPDATE material_preparation_plans SET push_to_process = ? WHERE plan_no = ?',
-              [1, data.planNo]
-            );
-            console.log(`   ✅ 更新备料计划push_to_process字段为true`);
+          } catch (pushError) {
+            console.error(`❌ 自动推送失败:`, pushError.message);
           }
         } else {
-          console.log('⚠️ 不符合自动推送条件，跳过生成/更新工序计划');
+          console.log('⏭️ 需补货数量≤0，跳过推送');
         }
       }
       
-      await connection.commit();
-      
-      console.log('🔍 返回结果检查:', {
-        insertedId,
-        processPlanNo
-      });
-      
       return { 
-        id: insertedId,
-        processPlanNo: processPlanNo
+        id: insertedId
       };
     } catch (error) {
       await connection.rollback();
@@ -890,16 +439,15 @@ if (requiredWorkHours > 0 && dailyAvailableHours > 0) {
         return;
       }
 
-      // ⚠️ 注意：应该根据产品物料库的"产出工序"(process_name)推送，而非备料计划的"来源工序"(source_process)
-      // 从产品物料库查询定时工额、定额工时和产出工序
+      // ✅ 根据规则文档：使用备料计划的"来源工序"(source_process)进行路由
+      // 从产品物料库查询定时工额、定额工时
       let standardWorkQuota = 0;
       let standardWorkHours = 0;
-      let outputProcess = null;  // ✅ 新增：产出工序字段
       
       if (data.materialCode) {
         try {
           const [materialRows] = await connection.execute(
-            'SELECT material_code, standard_time, quota_time, process_name FROM materials WHERE material_code = ? LIMIT 1',
+            'SELECT material_code, standard_time, quota_time FROM materials WHERE material_code = ? LIMIT 1',
             [data.materialCode]
           );
           
@@ -907,8 +455,7 @@ if (requiredWorkHours > 0 && dailyAvailableHours > 0) {
             const material = materialRows[0];
             standardWorkQuota = parseFloat(material.standard_time || 0);  // 定时工额
             standardWorkHours = parseFloat(material.quota_time || 0);      // 定额工时
-            outputProcess = material.process_name;  // ✅ 产出工序
-            console.log(`✅ 查询到物料数据: 定时工额=${standardWorkQuota}, 定额工时=${standardWorkHours}, 产出工序=${outputProcess}`);
+            console.log(`✅ 查询到物料数据: 定时工额=${standardWorkQuota}, 定额工时=${standardWorkHours}`);
           } else {
             console.warn(`⚠️ 未找到物料数据: ${data.materialCode}`);
           }
@@ -917,24 +464,29 @@ if (requiredWorkHours > 0 && dailyAvailableHours > 0) {
         }
       }
 
-      // ✅ 检查产出工序是否为空
-      if (!outputProcess) {
-        console.warn(`⚠️ 产出工序为空，无法推送: 物料编号=${data.materialCode}`);
-        return { success: false, reason: 'no_output_process', materialCode: data.materialCode };
+      // ✅ 使用来源工序（而非产出工序）
+      const processName = data.sourceProcess;
+      
+      // ✅ 检查来源工序是否为空
+      if (!processName) {
+        console.warn(`⚠️ 来源工序为空，无法推送: 物料编号=${data.materialCode}`);
+        return { success: false, reason: 'no_source_process', materialCode: data.materialCode };
       }
 
-      // ✅ 检查产出工序是否支持（仅支持打包和组装）
-      if (outputProcess !== '打包' && outputProcess !== '组装') {
-        console.log(`⏭️ 产出工序=${outputProcess}，不在推送范围内（仅支持打包/组装），跳过推送`);
-        return { success: false, reason: 'unsupported_output_process', outputProcess };
+      // ✅ 检查来源工序是否支持（支持打包、组装、喷塑）
+      if (processName !== '打包' && processName !== '组装' && processName !== '喷塑') {
+        console.log(`⏭️ 来源工序=${processName}，不在推送范围内（仅支持打包/组装/喷塑），跳过推送`);
+        return { success: false, reason: 'unsupported_source_process', processName };
       }
 
-      // ✅ 防重复推送检查（必须在获取outputProcess之后，使用产出工序来确定检查表）
+      // ✅ 防重复推送检查（使用来源工序确定检查表）
       let checkTable;
-      if (outputProcess === '打包') {
-        checkTable = 'packing_process_plans';
-      } else if (outputProcess === '组装') {
-        checkTable = 'assembly_process_plans';
+      if (processName === '打包') {
+        checkTable = 'real_process_plans';  // ✅ 打包工序计划表
+      } else if (processName === '组装') {
+        checkTable = 'assembly_process_plans';  // ✅ 组装工序计划表
+      } else if (processName === '喷塑') {
+        checkTable = 'packing_process_plans';  // ✅ 喷塑工序计划表（原打包表改名）
       }
 
       // 执行防重检查
@@ -946,9 +498,8 @@ if (requiredWorkHours > 0 && dailyAvailableHours > 0) {
 
       if (existingPlans.length > 0) {
         console.log(`⏭️ [防重检查] 检测到重复推送，跳过: 备料计划=${data.planNo} → 工序计划=${existingPlans[0].plan_no}`);
-        console.log(`   产出工序=${outputProcess}, 目标表=${checkTable}`);
-        console.log(`   备料计划来源工序=${data.sourceProcess} (仅作记录)`);
-        return { success: false, reason: 'duplicate', planNo: existingPlans[0].plan_no, table: checkTable, outputProcess };
+        console.log(`   来源工序=${processName}, 目标表=${checkTable}`);
+        return { success: false, reason: 'duplicate', planNo: existingPlans[0].plan_no, table: checkTable, processName };
       }
 
       // 生成真工序计划编号
@@ -977,7 +528,7 @@ if (requiredWorkHours > 0 && dailyAvailableHours > 0) {
 
       // 查询计划结束日期
       let planEndDate = null;
-      if (requiredWorkHours > 0 && outputProcess && completionDate) {  // ✅ 使用outputProcess
+      if (requiredWorkHours > 0 && processName && completionDate) {  // ✅ 使用processName
         try {
           const minRemainingHours = 0.5;
           const [capacityRows] = await connection.execute(`
@@ -988,7 +539,7 @@ if (requiredWorkHours > 0 && dailyAvailableHours > 0) {
               AND remaining_hours >= ? 
             ORDER BY date DESC 
             LIMIT 1
-          `, [outputProcess, completionDate, minRemainingHours]);  // ✅ 使用outputProcess
+          `, [processName, completionDate, minRemainingHours]);  // ✅ 使用processName
           
           if (capacityRows.length > 0) {
             planEndDate = capacityRows[0].date;
@@ -1001,7 +552,7 @@ if (requiredWorkHours > 0 && dailyAvailableHours > 0) {
 
       // 查询计划开始日期
       let planStartDate = null;
-      if (requiredWorkHours > 0 && outputProcess && planEndDate) {  // ✅ 使用outputProcess
+      if (requiredWorkHours > 0 && processName && planEndDate) {  // ✅ 使用processName
         try {
           const minRemainingHours = 0.5;
           const [validRows] = await connection.execute(`
@@ -1011,7 +562,7 @@ if (requiredWorkHours > 0 && dailyAvailableHours > 0) {
               AND date <= ?
               AND remaining_hours >= ?
             ORDER BY date DESC
-          `, [outputProcess, planEndDate, minRemainingHours]);  // ✅ 使用outputProcess
+          `, [processName, planEndDate, minRemainingHours]);  // ✅ 使用processName
           
           let accumulated = 0;
           for (const row of validRows) {
@@ -1048,55 +599,57 @@ if (requiredWorkHours > 0 && dailyAvailableHours > 0) {
 
       // ✅ 查询当天总工时 (从工序能力负荷表)
       let dailyTotalHours = 0;
-      if (scheduleDate && outputProcess) {  // ✅ 使用outputProcess
+      if (scheduleDate && processName) {  // ✅ 使用processName
         try {
           const [capacityRows] = await connection.execute(`
             SELECT work_shift, available_workstations 
             FROM process_capacity_load 
             WHERE process_name = ? AND DATE_FORMAT(date, '%Y-%m-%d') = ?
             LIMIT 1
-          `, [outputProcess, scheduleDate]);  // ✅ 使用outputProcess
+          `, [processName, scheduleDate]);  // ✅ 使用processName
           
           if (capacityRows.length > 0) {
             const workShift = parseFloat(capacityRows[0].work_shift || 0);
             const availableWorkstations = parseFloat(capacityRows[0].available_workstations || 0);
             dailyTotalHours = parseFloat((workShift * availableWorkstations).toFixed(2));
-            console.log(`✅ 查询当天总工时: 工序=${outputProcess}, 日期=${scheduleDate}, 班次=${workShift}, 工位数=${availableWorkstations}, 总工时=${dailyTotalHours}`);
+            console.log(`✅ 查询当天总工时: 工序=${processName}, 日期=${scheduleDate}, 班次=${workShift}, 工位数=${availableWorkstations}, 总工时=${dailyTotalHours}`);
           } else {
-            console.warn(`⚠️ 未查询到工序能力负荷记录: 工序=${outputProcess}, 日期=${scheduleDate}`);
+            console.warn(`⚠️ 未查询到工序能力负荷记录: 工序=${processName}, 日期=${scheduleDate}`);
           }
         } catch (error) {
           console.error(`❌ 查询当天总工时失败:`, error.message);
         }
       }
 
-      // ✅ 提前确定目标表名（根据产出工序路由）
+      // ✅ 提前确定目标表名（根据来源工序路由）
       let targetTable;
-      if (outputProcess === '打包') {
-        targetTable = 'packing_process_plans';
-      } else if (outputProcess === '组装') {
-        targetTable = 'assembly_process_plans';
+      if (processName === '打包') {
+        targetTable = 'real_process_plans';  // ✅ 打包工序计划表
+      } else if (processName === '组装') {
+        targetTable = 'assembly_process_plans';  // ✅ 组装工序计划表
+      } else if (processName === '喷塑') {
+        targetTable = 'packing_process_plans';  // ✅ 喷塑工序计划表（原打包表改名）
       } else {
         // 不支持的工序类型（已在前面检查过，这里不应该执行到）
-        console.warn(`⚠️ [查询已排程工时] 不支持的工序类型: ${outputProcess}，已跳过推送`);
-        return { success: false, reason: 'unsupported_process', processName: outputProcess };
+        console.warn(`⚠️ [查询已排程工时] 不支持的工序类型: ${processName}，已跳过推送`);
+        return { success: false, reason: 'unsupported_process', processName };
       }
 
       // ✅ 查询当天已排程工时 (累积之前所有记录的scheduled_work_hours)
       // 规则: 后生成的记录(ID大)累积前面记录(ID小)的排程工时
       let dailyScheduledHours = 0;
-      if (scheduleDate && outputProcess) {  // ✅ 使用outputProcess
+      if (scheduleDate && processName) {  // ✅ 使用processName
         try {
           const [scheduledRows] = await connection.execute(`
             SELECT COALESCE(SUM(scheduled_work_hours), 0) as total_scheduled_hours
             FROM ${targetTable}
             WHERE process_name = ?
               AND DATE_FORMAT(schedule_date, '%Y-%m-%d') = ?
-          `, [outputProcess, scheduleDate]);  // ✅ 使用outputProcess
+          `, [processName, scheduleDate]);  // ✅ 使用processName
           
           if (scheduledRows.length > 0) {
             dailyScheduledHours = parseFloat(scheduledRows[0].total_scheduled_hours || 0);
-            console.log(`✅ 查询当天已排程工时: 工序=${outputProcess}, 日期=${scheduleDate}, 累积已排程=${dailyScheduledHours} (表: ${targetTable})`);
+            console.log(`✅ 查询当天已排程工时: 工序=${processName}, 日期=${scheduleDate}, 累积已排程=${dailyScheduledHours} (表: ${targetTable})`);
           }
         } catch (error) {
           console.error(`❌ 查询当天已排程工时失败:`, error.message);
@@ -1135,7 +688,7 @@ if (requiredWorkHours > 0 && dailyAvailableHours > 0) {
         masterPlanProductName: data.mainPlanProductName,  // ✅ 修复：mainPlanProductName → masterPlanProductName
         productCode: data.materialCode,
         productName: data.materialName,
-        processName: outputProcess,  // ✅ 使用产出工序，而非sourceProcess
+        processName: processName,  // ✅ 使用来源工序，而非sourceProcess
         productUnit: data.materialUnit,
         level0Demand: data.mainPlanQuantity,
         completionDate: completionDate,
@@ -1160,34 +713,79 @@ if (requiredWorkHours > 0 && dailyAvailableHours > 0) {
         submittedAt: new Date().toLocaleString('zh-CN', { timeZone: 'Asia/Shanghai', hour12: false })
       };
 
-      // ✅ 根据产出工序路由到不同的Service（targetTable已在上面声明）
+      // ✅ 根据来源工序路由到不同的Service（targetTable已在上面声明）
       let ProcessPlanService;
       let planNoPrefix;
       let serviceName;
       
-      if (outputProcess === '打包') {  // ✅ 使用outputProcess
-        ProcessPlanService = require('./packingProcessPlanService');
-        planNoPrefix = 'PKPP';
+      if (processName === '打包') {  // ✅ 打包 → real_process_plans（打包工序计划）
+        ProcessPlanService = require('./realProcessPlanService');
+        planNoPrefix = 'RPP';  // Real Process Plan
         serviceName = '打包工序计划';
-      } else if (outputProcess === '组装') {  // ✅ 使用outputProcess
+      } else if (processName === '组装') {  // ✅ 组装 → assembly_process_plans（组装工序计划）
         ProcessPlanService = require('./assemblyProcessPlanService');
-        planNoPrefix = 'ASPP';
+        planNoPrefix = 'ASPP';  // Assembly Process Plan
         serviceName = '组装工序计划';
+      } else if (processName === '喷塑') {  // ✅ 喷塑 → packing_process_plans（喷塑工序计划）
+        ProcessPlanService = require('./packingProcessPlanService');
+        planNoPrefix = 'SPPP';  // Spray Painting Process Plan
+        serviceName = '喷塑工序计划';
       } else {
-        // ⚠️ 禁止推送到真工序计划，仅支持打包和组装（已在前面检查过，这里不应该执行到）
-        console.warn(`⚠️ [数据路由] 不支持的工序类型: ${outputProcess}，已跳过推送`);
-        return { success: false, reason: 'unsupported_process', processName: outputProcess };
+        // ⚠️ 不支持的工序类型（已在前面检查过，这里不应该执行到）
+        console.warn(`⚠️ [数据路由] 不支持的工序类型: ${processName}，已跳过推送`);
+        return { success: false, reason: 'unsupported_process', processName };
       }
       
-      console.log(`📍 [数据路由] 产出工序=${outputProcess} → 推送到${serviceName} (表: ${targetTable})`);
-      console.log(`   备料计划的来源工序=${data.sourceProcess} (仅作记录，不用于路由)`);
+      console.log(`📍 [数据路由] 来源工序=${processName} → 推送到${serviceName} (表: ${targetTable})`);
+      console.log(`   备料计划编号=${data.planNo}`);
       console.log(`   物料编号=${data.materialCode}, 物料名称=${data.materialName}`);
+      console.log(`   需补货数量=${replenishmentQty}`);
 
       // 调用对应Service创建工序计划
       const createResult = await ProcessPlanService.create(realProcessPlanData);
       const createdPlanId = createResult.id;
       
       console.log(`✅ ${serviceName}创建成功: ${realProcessPlanNo}, ID: ${createdPlanId}`);
+
+      // ✅ 新增：创建后立即计算3个关键字段
+      console.log(`\n🧮 开始计算字段: 累积排程数量、未排数量、剩余需求工时`);
+      
+      try {
+        // 1. 计算累积排程数量 = SUMIFS(计划排程数量, 来源编号=本行来源编号, 包含本行)
+        const sourceNo = data.planNo; // 来源编号=备料计划编号
+        const [sumRows] = await connection.execute(
+          `SELECT COALESCE(SUM(schedule_quantity), 0) as cumulative_qty
+           FROM ${targetTable}
+           WHERE source_no = ?`,
+          [sourceNo]
+        );
+        
+        const cumulativeScheduleQty = parseFloat(sumRows[0].cumulative_qty || 0);
+        console.log(`   1️⃣ 累积排程数量 = ${cumulativeScheduleQty} (来源编号=${sourceNo})`);
+        
+        // 2. 计算未排数量 = 需补货数量 - 累积排程数量
+        const unscheduledQty = parseFloat((replenishmentQty - cumulativeScheduleQty).toFixed(4));
+        console.log(`   2️⃣ 未排数量 = ${replenishmentQty} - ${cumulativeScheduleQty} = ${unscheduledQty}`);
+        
+        // 3. 计算剩余需求工时 = 需求工时 - 已排程工时
+        const remainingRequiredHours = parseFloat((requiredWorkHours - scheduledWorkHours).toFixed(2));
+        console.log(`   3️⃣ 剩余需求工时 = ${requiredWorkHours} - ${scheduledWorkHours} = ${remainingRequiredHours}`);
+        
+        // 4. 更新数据库
+        await connection.execute(
+          `UPDATE ${targetTable}
+           SET cumulative_schedule_qty = ?,
+               unscheduled_qty = ?,
+               remaining_required_hours = ?
+           WHERE id = ?`,
+          [cumulativeScheduleQty, unscheduledQty, remainingRequiredHours, createdPlanId]
+        );
+        
+        console.log(`✅ 字段计算完成并已更新到数据库`);
+      } catch (calcError) {
+        console.error(`⚠️ 字段计算失败:`, calcError.message);
+        // 不阻塞主流程
+      }
 
       // 检查是否需要自增行
       const [checkRows] = await connection.execute(
@@ -1205,7 +803,7 @@ if (requiredWorkHours > 0 && dailyAvailableHours > 0) {
         }
       }
 
-      return { success: true, planNo: realProcessPlanNo, id: createdPlanId, targetTable, serviceName, outputProcess };  // ✅ 返回产出工序
+      return { success: true, planNo: realProcessPlanNo, id: createdPlanId, targetTable, serviceName, processName };  // ✅ 返回来源工序
 
     } catch (error) {
       console.error('❌ 推送到真工序计划失败:', error);
