@@ -1,4 +1,5 @@
 const { pool } = require('../config/database');
+const { getProcessConfig } = require('../config/processTypes');
 const RealProcessPlanService = require('./realProcessPlanService');  // ✅ 引入真工序计划Service
 
 /**
@@ -621,35 +622,30 @@ id: row.id,
         }
       }
 
-      // ✅ 提前确定目标表名（根据来源工序路由）
-      let targetTable;
-      if (processName === '打包') {
-        targetTable = 'real_process_plans';  // ✅ 打包工序计划表
-      } else if (processName === '组装') {
-        targetTable = 'assembly_process_plans';  // ✅ 组装工序计划表
-      } else if (processName === '喷塑') {
-        targetTable = 'packing_process_plans';  // ✅ 喷塑工序计划表（原打包表改名）
-      } else {
-        // 不支持的工序类型（已在前面检查过，这里不应该执行到）
-        console.warn(`⚠️ [查询已排程工时] 不支持的工序类型: ${processName}，已跳过推送`);
-        return { success: false, reason: 'unsupported_process', processName };
-      }
-
       // ✅ 查询当天已排程工时 (累积之前所有记录的scheduled_work_hours)
       // 规则: 后生成的记录(ID大)累积前面记录(ID小)的排程工时
       let dailyScheduledHours = 0;
       if (scheduleDate && processName) {  // ✅ 使用processName
         try {
+          // ✅ 根据工序类型获取配置，确定目标表名
+          const processConfig = getProcessConfig(processName);
+          if (!processConfig) {
+            console.warn(`⚠️ 不支持的工序类型: ${processName}，已跳过推送`);
+            return { success: false, reason: 'unsupported_process', processName };
+          }
+          
+          const targetTableForQuery = processConfig.tableName;
+          
           const [scheduledRows] = await connection.execute(`
             SELECT COALESCE(SUM(scheduled_work_hours), 0) as total_scheduled_hours
-            FROM ${targetTable}
+            FROM ${targetTableForQuery}
             WHERE process_name = ?
               AND DATE_FORMAT(schedule_date, '%Y-%m-%d') = ?
           `, [processName, scheduleDate]);  // ✅ 使用processName
           
           if (scheduledRows.length > 0) {
             dailyScheduledHours = parseFloat(scheduledRows[0].total_scheduled_hours || 0);
-            console.log(`✅ 查询当天已排程工时: 工序=${processName}, 日期=${scheduleDate}, 累积已排程=${dailyScheduledHours} (表: ${targetTable})`);
+            console.log(`✅ 查询当天已排程工时: 工序=${processName}, 日期=${scheduleDate}, 累积已排程=${dailyScheduledHours} (表: ${targetTableForQuery})`);
           }
         } catch (error) {
           console.error(`❌ 查询当天已排程工时失败:`, error.message);
@@ -726,28 +722,20 @@ id: row.id,
         submittedAt: new Date().toLocaleString('zh-CN', { timeZone: 'Asia/Shanghai', hour12: false })
       };
 
-      // ✅ 根据来源工序路由到不同的Service（targetTable已在上面声明）
-      let ProcessPlanService;
-      let planNoPrefix;
-      let serviceName;
+      // ✅ 根据来源工序路由到不同的Service（使用配置系统）
+      const processConfig = getProcessConfig(processName);
       
-      if (processName === '打包') {  // ✅ 打包 → real_process_plans（打包工序计划）
-        ProcessPlanService = require('./realProcessPlanService');
-        planNoPrefix = 'RPP';  // Real Process Plan
-        serviceName = '打包工序计划';
-      } else if (processName === '组装') {  // ✅ 组装 → assembly_process_plans（组装工序计划）
-        ProcessPlanService = require('./assemblyProcessPlanService');
-        planNoPrefix = 'ASPP';  // Assembly Process Plan
-        serviceName = '组装工序计划';
-      } else if (processName === '喷塑') {  // ✅ 喷塑 → packing_process_plans（喷塑工序计划）
-        ProcessPlanService = require('./packingProcessPlanService');
-        planNoPrefix = 'SPPP';  // Spray Painting Process Plan
-        serviceName = '喷塑工序计划';
-      } else {
-        // ⚠️ 不支持的工序类型（已在前面检查过，这里不应该执行到）
+      if (!processConfig) {
+        // ⚠️ 不支持的工序类型
         console.warn(`⚠️ [数据路由] 不支持的工序类型: ${processName}，已跳过推送`);
         return { success: false, reason: 'unsupported_process', processName };
       }
+      
+      // 动态加载Service
+      const ProcessPlanService = require(`./${processConfig.serviceName}`);
+      const planNoPrefix = processConfig.planNoPrefix;
+      const serviceName = processConfig.displayName;
+      const targetTable = processConfig.tableName;
       
       console.log(`📍 [数据路由] 来源工序=${processName} → 推送到${serviceName} (表: ${targetTable})`);
       console.log(`   备料计划编号=${data.planNo}`);
