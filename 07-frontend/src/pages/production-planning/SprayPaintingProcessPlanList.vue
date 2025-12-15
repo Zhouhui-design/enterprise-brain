@@ -508,7 +508,7 @@ const allColumns = ref([
     formatter: (row) => row.unscheduledQty !== undefined ? parseFloat(row.unscheduledQty).toFixed(2) : '0.00' },
   { prop: 'progressStatus', label: '进度状态', width: 140, sortable: true, filterable: true, align: 'center', visible: true, slot: 'progressStatus' },
   { prop: 'replenishmentQty', label: '需补货数量', width: 120, sortable: true, align: 'right', visible: true },
-  { prop: 'sourcePageName', label: '来源页面名称', width: 130, filterable: true, visible: false },
+{ prop: 'sourcePageName', label: '来源页面名称', width: 130, filterable: true, visible: false },
   { prop: 'sourceNo', label: '来源编号', width: 160, filterable: true, visible: true },
   { prop: 'previousScheduleNo', label: '上一个排程单号', width: 160, filterable: true, visible: false },
   { prop: 'customerName', label: '客户名称', width: 150, filterable: true, visible: true },
@@ -815,7 +815,7 @@ const loadData = async () => {
       masterPlanNo: searchForm.masterPlanNo,
       salesOrderNo: searchForm.salesOrderNo,
       customerOrderNo: searchForm.customerOrderNo,
-      processName: '组装',  // ✅ 强制过滤：只显示喷塑工序
+      processName: '喷塑',  // ✅ 修复：改为喷塑工序
       productCode: searchForm.productCode,
       sourceNo: searchForm.sourceNo,
       progressStatus: searchForm.progressStatus

@@ -118,6 +118,16 @@ export default {
         title: '缝纫工序计划',
         icon: 'Scissors'
       }
+    },  // 这里添加逗号！
+    // ✅ 喷塑工序计划（只显示喷塑工序）
+    {
+      path: 'spray-painting-process-plan',
+      name: 'SprayPaintingProcessPlanList',
+      component: () => import('@/pages/production-planning/SprayPaintingProcessPlanList.vue'),
+      meta: { 
+        title: '喷塑工序计划',
+        icon: 'Palette'
+      }
     }
 
   ]

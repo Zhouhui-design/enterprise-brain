@@ -40,7 +40,7 @@ const PROCESS_TYPE_CONFIG = {
     enabled: true
   },
   
-  // 缝纫工序
+  // 缝纫工序 (已禁用 - 外协工序不需要内部排程)
   '缝纫': {
     code: 'SEWING',
     tableName: 'sewing_process_plans',
@@ -49,7 +49,7 @@ const PROCESS_TYPE_CONFIG = {
     planNoPrefix: 'SWPP',
     displayName: '缝纫工序计划',
     menuPath: '/production-planning/sewing-process-plan',
-    enabled: true
+    enabled: false  // ✅ 已禁用：外协工序不纳入内部产能排程
   },
   
   // 抛丸工序
@@ -200,10 +200,16 @@ const PROCESS_TYPE_CONFIG = {
 /**
  * 根据工序名称获取配置
  * @param {string} processName - 工序名称
- * @returns {Object|null} 工序配置对象
+ * @returns {Object|null} 工序配置对象，如果工序禁用则返回null
  */
 function getProcessConfig(processName) {
-  return PROCESS_TYPE_CONFIG[processName] || null;
+  const config = PROCESS_TYPE_CONFIG[processName];
+  // ✅ 检查工序是否启用
+  if (config && config.enabled === false) {
+    console.log(`⏭️ 工序"${processName}"已禁用，跳过处理`);
+    return null;
+  }
+  return config || null;
 }
 
 /**

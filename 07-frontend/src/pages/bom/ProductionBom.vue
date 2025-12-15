@@ -529,7 +529,17 @@
           </el-table-column>
           <el-table-column prop="source" label="子件来源" min-width="150">
             <template #default="{ row }">
-              <span>{{ row.source || '-' }}</span>
+              <el-select 
+                v-model="row.source" 
+                placeholder="请选择子件来源" 
+                size="small"
+                style="width: 100%;"
+              >
+                <el-option label="自制" value="自制" />
+                <el-option label="外购" value="外购" />
+                <el-option label="外协" value="外协" />
+                <el-option label="客供" value="客供" />
+              </el-select>
             </template>
           </el-table-column>
           <el-table-column prop="processWage" label="工序工资" min-width="120" align="right">
