@@ -890,37 +890,16 @@ if (requiredWorkHours > 0 && dailyAvailableHours > 0) {
         return;
       }
 
-      // ✅ 最后一次防重复推送检查（根据工序类型检查对应表）
-      let checkTable;
-      if (data.sourceProcess === '打包') {
-        checkTable = 'packing_process_plans';
-      } else if (data.sourceProcess === '组装') {
-        checkTable = 'assembly_process_plans';
-      } else {
-        // 不支持的工序类型，直接返回
-        console.warn(`⚠️ [防重检查] 不支持的工序类型: ${data.sourceProcess}，已跳过推送`);
-        return { success: false, reason: 'unsupported_process', processName: data.sourceProcess };
-      }
-
-      const [existingPlans] = await connection.execute(`
-        SELECT id, plan_no FROM ${checkTable}
-        WHERE source_no = ? AND product_code = ?
-        LIMIT 1
-      `, [data.planNo, data.materialCode]);
-
-      if (existingPlans.length > 0) {
-        console.log(`⏭️ 检测到重复推送，跳过: ${data.planNo} → ${existingPlans[0].plan_no} (表: ${checkTable})`);
-        return { success: false, reason: 'duplicate', planNo: existingPlans[0].plan_no, table: checkTable };
-      }
-
-      // 从产品物料库查询定时工额和定额工时
+      // ⚠️ 注意：应该根据产品物料库的"产出工序"(process_name)推送，而非备料计划的"来源工序"(source_process)
+      // 从产品物料库查询定时工额、定额工时和产出工序
       let standardWorkQuota = 0;
       let standardWorkHours = 0;
+      let outputProcess = null;  // ✅ 新增：产出工序字段
       
       if (data.materialCode) {
         try {
           const [materialRows] = await connection.execute(
-            'SELECT material_code, standard_time, quota_time FROM materials WHERE material_code = ? LIMIT 1',
+            'SELECT material_code, standard_time, quota_time, process_name FROM materials WHERE material_code = ? LIMIT 1',
             [data.materialCode]
           );
           
@@ -928,11 +907,48 @@ if (requiredWorkHours > 0 && dailyAvailableHours > 0) {
             const material = materialRows[0];
             standardWorkQuota = parseFloat(material.standard_time || 0);  // 定时工额
             standardWorkHours = parseFloat(material.quota_time || 0);      // 定额工时
-            console.log(`✅ 查询到工时数据: 定时工额=${standardWorkQuota}, 定额工时=${standardWorkHours}`);
+            outputProcess = material.process_name;  // ✅ 产出工序
+            console.log(`✅ 查询到物料数据: 定时工额=${standardWorkQuota}, 定额工时=${standardWorkHours}, 产出工序=${outputProcess}`);
+          } else {
+            console.warn(`⚠️ 未找到物料数据: ${data.materialCode}`);
           }
         } catch (queryError) {
           console.error(`❌ 查询物料数据失败:`, queryError.message);
         }
+      }
+
+      // ✅ 检查产出工序是否为空
+      if (!outputProcess) {
+        console.warn(`⚠️ 产出工序为空，无法推送: 物料编号=${data.materialCode}`);
+        return { success: false, reason: 'no_output_process', materialCode: data.materialCode };
+      }
+
+      // ✅ 检查产出工序是否支持（仅支持打包和组装）
+      if (outputProcess !== '打包' && outputProcess !== '组装') {
+        console.log(`⏭️ 产出工序=${outputProcess}，不在推送范围内（仅支持打包/组装），跳过推送`);
+        return { success: false, reason: 'unsupported_output_process', outputProcess };
+      }
+
+      // ✅ 防重复推送检查（必须在获取outputProcess之后，使用产出工序来确定检查表）
+      let checkTable;
+      if (outputProcess === '打包') {
+        checkTable = 'packing_process_plans';
+      } else if (outputProcess === '组装') {
+        checkTable = 'assembly_process_plans';
+      }
+
+      // 执行防重检查
+      const [existingPlans] = await connection.execute(`
+        SELECT id, plan_no FROM ${checkTable}
+        WHERE source_no = ? AND product_code = ?
+        LIMIT 1
+      `, [data.planNo, data.materialCode]);
+
+      if (existingPlans.length > 0) {
+        console.log(`⏭️ [防重检查] 检测到重复推送，跳过: 备料计划=${data.planNo} → 工序计划=${existingPlans[0].plan_no}`);
+        console.log(`   产出工序=${outputProcess}, 目标表=${checkTable}`);
+        console.log(`   备料计划来源工序=${data.sourceProcess} (仅作记录)`);
+        return { success: false, reason: 'duplicate', planNo: existingPlans[0].plan_no, table: checkTable, outputProcess };
       }
 
       // 生成真工序计划编号
@@ -961,7 +977,7 @@ if (requiredWorkHours > 0 && dailyAvailableHours > 0) {
 
       // 查询计划结束日期
       let planEndDate = null;
-      if (requiredWorkHours > 0 && data.sourceProcess && completionDate) {
+      if (requiredWorkHours > 0 && outputProcess && completionDate) {  // ✅ 使用outputProcess
         try {
           const minRemainingHours = 0.5;
           const [capacityRows] = await connection.execute(`
@@ -972,7 +988,7 @@ if (requiredWorkHours > 0 && dailyAvailableHours > 0) {
               AND remaining_hours >= ? 
             ORDER BY date DESC 
             LIMIT 1
-          `, [data.sourceProcess, completionDate, minRemainingHours]);
+          `, [outputProcess, completionDate, minRemainingHours]);  // ✅ 使用outputProcess
           
           if (capacityRows.length > 0) {
             planEndDate = capacityRows[0].date;
@@ -985,7 +1001,7 @@ if (requiredWorkHours > 0 && dailyAvailableHours > 0) {
 
       // 查询计划开始日期
       let planStartDate = null;
-      if (requiredWorkHours > 0 && data.sourceProcess && planEndDate) {
+      if (requiredWorkHours > 0 && outputProcess && planEndDate) {  // ✅ 使用outputProcess
         try {
           const minRemainingHours = 0.5;
           const [validRows] = await connection.execute(`
@@ -995,7 +1011,7 @@ if (requiredWorkHours > 0 && dailyAvailableHours > 0) {
               AND date <= ?
               AND remaining_hours >= ?
             ORDER BY date DESC
-          `, [data.sourceProcess, planEndDate, minRemainingHours]);
+          `, [outputProcess, planEndDate, minRemainingHours]);  // ✅ 使用outputProcess
           
           let accumulated = 0;
           for (const row of validRows) {
@@ -1032,55 +1048,55 @@ if (requiredWorkHours > 0 && dailyAvailableHours > 0) {
 
       // ✅ 查询当天总工时 (从工序能力负荷表)
       let dailyTotalHours = 0;
-      if (scheduleDate && data.sourceProcess) {
+      if (scheduleDate && outputProcess) {  // ✅ 使用outputProcess
         try {
           const [capacityRows] = await connection.execute(`
             SELECT work_shift, available_workstations 
             FROM process_capacity_load 
             WHERE process_name = ? AND DATE_FORMAT(date, '%Y-%m-%d') = ?
             LIMIT 1
-          `, [data.sourceProcess, scheduleDate]);
+          `, [outputProcess, scheduleDate]);  // ✅ 使用outputProcess
           
           if (capacityRows.length > 0) {
             const workShift = parseFloat(capacityRows[0].work_shift || 0);
             const availableWorkstations = parseFloat(capacityRows[0].available_workstations || 0);
             dailyTotalHours = parseFloat((workShift * availableWorkstations).toFixed(2));
-            console.log(`✅ 查询当天总工时: 工序=${data.sourceProcess}, 日期=${scheduleDate}, 班次=${workShift}, 工位数=${availableWorkstations}, 总工时=${dailyTotalHours}`);
+            console.log(`✅ 查询当天总工时: 工序=${outputProcess}, 日期=${scheduleDate}, 班次=${workShift}, 工位数=${availableWorkstations}, 总工时=${dailyTotalHours}`);
           } else {
-            console.warn(`⚠️ 未查询到工序能力负荷记录: 工序=${data.sourceProcess}, 日期=${scheduleDate}`);
+            console.warn(`⚠️ 未查询到工序能力负荷记录: 工序=${outputProcess}, 日期=${scheduleDate}`);
           }
         } catch (error) {
           console.error(`❌ 查询当天总工时失败:`, error.message);
         }
       }
 
-      // ✅ 提前确定目标表名（用于查询已排程工时）
+      // ✅ 提前确定目标表名（根据产出工序路由）
       let targetTable;
-      if (data.sourceProcess === '打包') {
+      if (outputProcess === '打包') {
         targetTable = 'packing_process_plans';
-      } else if (data.sourceProcess === '组装') {
+      } else if (outputProcess === '组装') {
         targetTable = 'assembly_process_plans';
       } else {
-        // 不支持的工序类型
-        console.warn(`⚠️ [查询已排程工时] 不支持的工序类型: ${data.sourceProcess}，已跳过推送`);
-        return { success: false, reason: 'unsupported_process', processName: data.sourceProcess };
+        // 不支持的工序类型（已在前面检查过，这里不应该执行到）
+        console.warn(`⚠️ [查询已排程工时] 不支持的工序类型: ${outputProcess}，已跳过推送`);
+        return { success: false, reason: 'unsupported_process', processName: outputProcess };
       }
 
       // ✅ 查询当天已排程工时 (累积之前所有记录的scheduled_work_hours)
       // 规则: 后生成的记录(ID大)累积前面记录(ID小)的排程工时
       let dailyScheduledHours = 0;
-      if (scheduleDate && data.sourceProcess) {
+      if (scheduleDate && outputProcess) {  // ✅ 使用outputProcess
         try {
           const [scheduledRows] = await connection.execute(`
             SELECT COALESCE(SUM(scheduled_work_hours), 0) as total_scheduled_hours
             FROM ${targetTable}
             WHERE process_name = ?
               AND DATE_FORMAT(schedule_date, '%Y-%m-%d') = ?
-          `, [data.sourceProcess, scheduleDate]);
+          `, [outputProcess, scheduleDate]);  // ✅ 使用outputProcess
           
           if (scheduledRows.length > 0) {
             dailyScheduledHours = parseFloat(scheduledRows[0].total_scheduled_hours || 0);
-            console.log(`✅ 查询当天已排程工时: 工序=${data.sourceProcess}, 日期=${scheduleDate}, 累积已排程=${dailyScheduledHours} (表: ${targetTable})`);
+            console.log(`✅ 查询当天已排程工时: 工序=${outputProcess}, 日期=${scheduleDate}, 累积已排程=${dailyScheduledHours} (表: ${targetTable})`);
           }
         } catch (error) {
           console.error(`❌ 查询当天已排程工时失败:`, error.message);
@@ -1119,7 +1135,7 @@ if (requiredWorkHours > 0 && dailyAvailableHours > 0) {
         masterPlanProductName: data.mainPlanProductName,  // ✅ 修复：mainPlanProductName → masterPlanProductName
         productCode: data.materialCode,
         productName: data.materialName,
-        processName: data.sourceProcess,
+        processName: outputProcess,  // ✅ 使用产出工序，而非sourceProcess
         productUnit: data.materialUnit,
         level0Demand: data.mainPlanQuantity,
         completionDate: completionDate,
@@ -1144,26 +1160,28 @@ if (requiredWorkHours > 0 && dailyAvailableHours > 0) {
         submittedAt: new Date().toLocaleString('zh-CN', { timeZone: 'Asia/Shanghai', hour12: false })
       };
 
-      // ✅ 根据来源工序路由到不同的Service（targetTable已在上面声明）
+      // ✅ 根据产出工序路由到不同的Service（targetTable已在上面声明）
       let ProcessPlanService;
       let planNoPrefix;
       let serviceName;
       
-      if (data.sourceProcess === '打包') {
+      if (outputProcess === '打包') {  // ✅ 使用outputProcess
         ProcessPlanService = require('./packingProcessPlanService');
         planNoPrefix = 'PKPP';
         serviceName = '打包工序计划';
-      } else if (data.sourceProcess === '组装') {
+      } else if (outputProcess === '组装') {  // ✅ 使用outputProcess
         ProcessPlanService = require('./assemblyProcessPlanService');
         planNoPrefix = 'ASPP';
         serviceName = '组装工序计划';
       } else {
-        // ⚠️ 禁止推送到真工序计划，仅支持打包和组装
-        console.warn(`⚠️ [数据路由] 不支持的工序类型: ${data.sourceProcess}，已跳过推送`);
-        return { success: false, reason: 'unsupported_process', processName: data.sourceProcess };
+        // ⚠️ 禁止推送到真工序计划，仅支持打包和组装（已在前面检查过，这里不应该执行到）
+        console.warn(`⚠️ [数据路由] 不支持的工序类型: ${outputProcess}，已跳过推送`);
+        return { success: false, reason: 'unsupported_process', processName: outputProcess };
       }
       
-      console.log(`📍 [数据路由] 来源工序=${data.sourceProcess} → 推送到${serviceName} (表: ${targetTable})`);
+      console.log(`📍 [数据路由] 产出工序=${outputProcess} → 推送到${serviceName} (表: ${targetTable})`);
+      console.log(`   备料计划的来源工序=${data.sourceProcess} (仅作记录，不用于路由)`);
+      console.log(`   物料编号=${data.materialCode}, 物料名称=${data.materialName}`);
 
       // 调用对应Service创建工序计划
       const createResult = await ProcessPlanService.create(realProcessPlanData);
@@ -1187,7 +1205,7 @@ if (requiredWorkHours > 0 && dailyAvailableHours > 0) {
         }
       }
 
-      return { success: true, planNo: realProcessPlanNo, id: createdPlanId, targetTable, serviceName };
+      return { success: true, planNo: realProcessPlanNo, id: createdPlanId, targetTable, serviceName, outputProcess };  // ✅ 返回产出工序
 
     } catch (error) {
       console.error('❌ 推送到真工序计划失败:', error);
