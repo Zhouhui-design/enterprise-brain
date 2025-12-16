@@ -100,6 +100,34 @@
           <el-button @click="handleReset">重置</el-button>
         </el-form-item>
       </el-form>
+      
+      <!-- ✅ 计划统筹控制区域（放在搜索表单内部） -->
+      <div style="display: flex; align-items: center; gap: 12px; margin-top: 16px; padding: 12px; background: #f5f7fa; border-radius: 4px; border: 1px solid #e4e7ed;">
+        <el-text type="info" size="small" style="font-weight: 500;">📊 计划统筹:</el-text>
+        <el-select
+          v-model="consolidationRule"
+          placeholder="请选择统筹规则"
+          style="width: 240px;"
+          size="small"
+        >
+          <el-option label="按销售订单合并" value="sales_order" />
+          <el-option label="按来源主计划编号合并" value="master_plan" />
+          <el-option label="按备料计划编号合并" value="material_plan" />
+          <el-option label="按需求日期合并" value="demand_date" />
+          <el-option label="按计划物料编号合并" value="material_code" />
+        </el-select>
+        <el-button
+          type="primary"
+          size="small"
+          :loading="consolidating"
+          @click="handleConsolidation"
+        >
+          确认统筹
+        </el-button>
+        <el-text type="info" size="small" style="margin-left: 12px; color: #909399;">
+          提示：选择合并规则后点击确认，将跳转到对应的统筹页面
+        </el-text>
+      </div>
     </template>
 
     <!-- 产品图片列 -->
@@ -257,6 +285,7 @@
 
 <script setup>
 import { ref, reactive, onMounted, computed, nextTick, watch } from 'vue'
+import { useRouter } from 'vue-router'  // ✅ 添加router
 import { ElMessage, ElMessageBox, ElLoading } from 'element-plus'
 import { CircleCheck, Loading } from '@element-plus/icons-vue'
 import StandardTablePage from '@/components/common/layout/StandardTablePage.vue'
@@ -265,6 +294,9 @@ import BomDetailDialog from './BomDetailDialog.vue'  // ✅ 导入BOM详情弹�
 import * as api from '@/api/realProcessPlan'
 import capacityLoadApi from '@/api/capacityLoad'  // ✅ 导入工序能力负荷API
 import dateUtils from '@/services/utils/date-utils'  // ✅ 导入日期工具
+
+// ✅ 初始化router
+const router = useRouter()
 
 // ✅ 日期格式化函数：年-月-日
 const formatDateYMD = (date) => {
@@ -287,6 +319,10 @@ const formRef = ref(null)
 const selectedRows = ref([])
 const searchInputRef = ref(null)
 const bomDetailDialogRef = ref(null)  // ✅ BOM详情弹窗引用
+
+// ✅ 计划统筹相关
+const consolidationRule = ref('master_plan')  // 默认按主计划编号合并
+const consolidating = ref(false)  // 统筹计算中
 
 // 分页
 const pagination = reactive({
@@ -986,6 +1022,67 @@ const handleReset = () => {
 
 const handleSavePageSettings = (settings) => {
   // TODO: 实现保存页面设置功能
+}
+
+// ✅ 处理计划统筹
+const handleConsolidation = async () => {
+  if (!consolidationRule.value) {
+    ElMessage.warning('请选择统筹规则')
+    return
+  }
+
+  try {
+    await ElMessageBox.confirm(
+      `确定要执行「${getRuleName(consolidationRule.value)}」统筹吗？执行后将跳转到对应的统筹页面。`,
+      '确认统筹操作',
+      {
+        confirmButtonText: '确认',
+        cancelButtonText: '取消',
+        type: 'info'
+      }
+    )
+
+    consolidating.value = true
+
+    // TODO: 调用后端API执行统筹计算
+    // await api.consolidate({ processType: 'packing', mergeRule: consolidationRule.value })
+
+    // 跳转到对应的统筹页面
+    const routeMap = {
+      'sales_order': '/production-planning/real-process-plan/by-sales-order',
+      'master_plan': '/production-planning/real-process-plan/by-master-plan',
+      'material_plan': '/production-planning/real-process-plan/by-material-plan',
+      'demand_date': '/production-planning/real-process-plan/by-demand-date',
+      'material_code': '/production-planning/real-process-plan/by-material-code'
+    }
+
+    const targetRoute = routeMap[consolidationRule.value]
+    if (targetRoute) {
+      ElMessage.success('统筹计算完成，即将跳转...')
+      setTimeout(() => {
+        router.push(targetRoute)  // ✅ 使用router.push
+      }, 500)
+    }
+  } catch (error) {
+    if (error !== 'cancel') {
+      console.error('统筹失败:', error)
+      ElMessage.error('统筹失败: ' + (error.message || '未知错误'))
+    }
+  } finally {
+    consolidating.value = false
+  }
+}
+
+// 获取规则名称
+const getRuleName = (rule) => {
+  const names = {
+    'sales_order': '按销售订单合并',
+    'master_plan': '按来源主计划编号合并',
+    'material_plan': '按备料计划编号合并',
+    'demand_date': '按需求日期合并',
+    'material_code': '按计划物料编号合并'
+  }
+  return names[rule] || rule
 }
 
 // ✅ 打开BOM详情弹窗

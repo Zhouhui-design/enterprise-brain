@@ -3,6 +3,21 @@ const { formatLocalDate } = require('../utils/dateFormatter');
 
 /**
  * 打包工序计划服务
+ * 
+ * ⚠️ 重要说明：命名变更历史
+ * - 数据库表名：packing_process_plans（历史原因保留，实际存储喷塑工序数据）
+ * - 表注释：'喷塑工序计划表'
+ * - Service文件名：packingProcessPlanService.js（保留原名，避免大规模重构）
+ * - 前端路由：/production-planning/packing-process-plan（打包工序计划）
+ * - 实际用途：此Service操作的packing_process_plans表现在用于存储打包工序数据
+ * 
+ * 命名映射关系：
+ * - 打包工序计划 = 原真工序计划（功能继承）
+ * - 喷塑工序计划 = 原打包工序计划（已迁移到独立表spray_painting_process_plans）
+ * - 真工序计划 = 保留，显示所有工序类型
+ * 
+ * 注意：虽然表名是packing_process_plans，但数据库注释标注为'喷塑工序计划表'，
+ * 这是重构遗留问题。当前实际使用中，此表存储的是打包工序数据。
  */
 class PackingProcessPlanService {
   /**
@@ -218,8 +233,8 @@ class PackingProcessPlanService {
         data.salesOrderNo || null,                    // 3. sales_order_no
         data.customerOrderNo || null,                 // 4. customer_order_no (✅ 新增)
         data.masterPlanNo || null,                    // 5. master_plan_no
-        data.mainPlanProductCode || null,             // 6. master_plan_product_code (✅ 新增)
-        data.mainPlanProductName || null,             // 7. master_plan_product_name (✅ 新增)
+        data.masterPlanProductCode || null,           // 6. master_plan_product_code (✅ 修复：使用masterPlanProductCode)
+        data.masterPlanProductName || null,           // 7. master_plan_product_name (✅ 修复：使用masterPlanProductName)
         data.shippingPlanNo || null,                  // 8. shipping_plan_no
         data.productCode || null,                     // 9. product_code
         data.productName || null,                     // 10. product_name
@@ -1040,8 +1055,11 @@ class PackingProcessPlanService {
       const newRecordId = createResult.id;
       console.log(`   ✅ 自增行创建成功, ID: ${newRecordId}`);
 
-      // 17. 重新计算累积排程数量 (SUMIFS - 包含刚创建的这一行)
+      // 17. 批量重新计算所有同源记录的累积排程数量和未排数量
       if (sourceRecord.source_no) {
+        console.log(`\n🧮 批量重新计算所有同源记录...`);
+        
+        // 17.1 计算累积排程数量 (SUMIFS - 包含刚创建的这一行)
         const [cumulativeRows] = await connection.execute(`
           SELECT COALESCE(SUM(schedule_quantity), 0) as total
           FROM packing_process_plans
@@ -1049,24 +1067,44 @@ class PackingProcessPlanService {
         `, [sourceRecord.source_no]);
         
         cumulativeScheduleQty = parseFloat(cumulativeRows[0].total || 0);
-        console.log(`   📊 重新计算累积排程数量: ${cumulativeScheduleQty}`);
+        console.log(`   📊 累积排程数量 = ${cumulativeScheduleQty} (来源编号=${sourceRecord.source_no})`);
 
-        // 18. 重新计算未排数量
+        // 17.2 重新计算未排数量
         let newUnscheduledQty = 0;
         if (newReplenishmentQty > 0 && cumulativeScheduleQty >= 0) {
           newUnscheduledQty = parseFloat((newReplenishmentQty - cumulativeScheduleQty).toFixed(2));
         } else if (newReplenishmentQty > 0) {
           newUnscheduledQty = newReplenishmentQty;
         }
-        console.log(`   📊 重新计算未排数量: ${newUnscheduledQty}`);
+        console.log(`   📊 未排数量 = ${newReplenishmentQty} - ${cumulativeScheduleQty} = ${newUnscheduledQty}`);
 
-        // 19. 更新刚创建的记录
+        // 17.3 批量更新所有同源记录的累积排程数量和未排数量
+        console.log(`   📝 批量更新所有来源编号=${sourceRecord.source_no}的记录...`);
         await connection.execute(`
           UPDATE packing_process_plans 
           SET cumulative_schedule_qty = ?, unscheduled_qty = ?
-          WHERE id = ?
-        `, [cumulativeScheduleQty, newUnscheduledQty, newRecordId]);
-        console.log(`   ✅ 累积数量和未排数量已更新`);
+          WHERE source_no = ?
+        `, [cumulativeScheduleQty, newUnscheduledQty, sourceRecord.source_no]);
+        console.log(`   ✅ 批量更新累积排程数量和未排数量完成`);
+        
+        // 17.4 逐行更新剩余需求工时（每行的剩余需求工时不同）
+        console.log(`   📝 逐行更新剩余需求工时...`);
+        const [allRecords] = await connection.execute(
+          `SELECT id, required_work_hours, scheduled_work_hours FROM packing_process_plans WHERE source_no = ?`,
+          [sourceRecord.source_no]
+        );
+        
+        for (const record of allRecords) {
+          const recordRequiredHours = parseFloat(record.required_work_hours || 0);
+          const recordScheduledHours = parseFloat(record.scheduled_work_hours || 0);
+          const recordRemainingHours = parseFloat((recordRequiredHours - recordScheduledHours).toFixed(2));
+          
+          await connection.execute(
+            `UPDATE packing_process_plans SET remaining_required_hours = ? WHERE id = ?`,
+            [recordRemainingHours, record.id]
+          );
+        }
+        console.log(`   ✅ 逐行更新剩余需求工时完成，共更新${allRecords.length}条记录`);
       }
 
       console.log(`\n✅ 自增行 #${newScheduleCount} 创建完成`);

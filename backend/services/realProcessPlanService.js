@@ -3,6 +3,19 @@ const { formatLocalDate } = require('../utils/dateFormatter');
 
 /**
  * 真工序计划服务
+ * 
+ * ⚠️ 重要说明：命名与定位
+ * - 数据库表名：real_process_plans
+ * - 表注释：'真工序计划表'
+ * - 功能定位：显示所有工序类型的工序计划（综合视图）
+ * - 与打包工序关系：打包工序计划继承了原真工序计划的核心功能
+ * 
+ * 系统工序计划架构：
+ * 1. 真工序计划（本Service）：全工序类型视图，用于统筹管理
+ * 2. 打包工序计划：独立工序表，使用packing_process_plans表
+ * 3. 组装工序计划：独立工序表，使用assembly_process_plans表
+ * 4. 喷塑工序计划：独立工序表，使用spray_painting_process_plans表
+ * 5. 其他工序计划：各自独立表（缝纫、抛丸、焊接等）
  */
 class RealProcessPlanService {
   /**

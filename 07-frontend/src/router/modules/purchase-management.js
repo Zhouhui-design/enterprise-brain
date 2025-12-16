@@ -1,9 +1,12 @@
 /**
  * 采购管理路由模块
  */
+import Layout from '@/layout/index.vue'
+
 export default {
   path: '/purchase',
   name: 'Purchase',
+  component: Layout,
   meta: { 
     title: '采购管理',
     icon: 'ShoppingCart'
@@ -65,9 +68,18 @@ export default {
       }
     },
     {
+      path: 'supplier-management',
+      name: 'SupplierManagement',
+      component: () => import('@/pages/purchase/SupplierManagement.vue'),
+      meta: { 
+        title: '供应商管理',
+        icon: 'OfficeBuilding'
+      }
+    },
+    {
       path: 'procurement-plan',
       name: 'ProcurementPlan',
-      component: () => import('@/pages/purchase/purchase-order/ProcurementPlan.vue'),
+      component: () => import('@/pages/purchase/ProcurementPlanList.vue'),
       meta: { 
         title: '采购计划',
         icon: 'Calendar'

@@ -748,6 +748,122 @@ async function initializeDatabase() {
       ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='真工序计划表'
     `);
 
+    // ✅ 创建组装工序计划表（复用real_process_plans结构）
+    await connection.execute(`
+      CREATE TABLE IF NOT EXISTS assembly_process_plans LIKE real_process_plans
+    `);
+    await connection.execute(`
+      ALTER TABLE assembly_process_plans COMMENT='组装工序计划表'
+    `);
+
+    // ✅ 创建打包工序计划表（使用packing_process_plans表名）
+    // ⚠️ 重要：此表原名packing（打包），现用于存储打包工序数据
+    // 命名变更历史：打包工序计划 = 原真工序计划（功能继承）
+    // 喷塑工序已迁移至独立表spray_painting_process_plans
+    await connection.execute(`
+      CREATE TABLE IF NOT EXISTS packing_process_plans LIKE real_process_plans
+    `);
+    await connection.execute(`
+      ALTER TABLE packing_process_plans COMMENT='打包工序计划表（原名packing，此表用于存储打包工序数据）'
+    `);
+
+    // ✅ 创建缝纫工序计划表
+    await connection.execute(`
+      CREATE TABLE IF NOT EXISTS sewing_process_plans LIKE real_process_plans
+    `);
+    await connection.execute(`
+      ALTER TABLE sewing_process_plans COMMENT='缝纫工序计划表'
+    `);
+
+    // ✅ 创建抛丸工序计划表
+    await connection.execute(`
+      CREATE TABLE IF NOT EXISTS shot_blasting_process_plans LIKE real_process_plans
+    `);
+    await connection.execute(`
+      ALTER TABLE shot_blasting_process_plans COMMENT='抛丸工序计划表'
+    `);
+
+    // ✅ 创建人工焊接工序计划表
+    await connection.execute(`
+      CREATE TABLE IF NOT EXISTS manual_welding_process_plans LIKE real_process_plans
+    `);
+    await connection.execute(`
+      ALTER TABLE manual_welding_process_plans COMMENT='人工焊接工序计划表'
+    `);
+
+    // ✅ 创建弯管工序计划表
+    await connection.execute(`
+      CREATE TABLE IF NOT EXISTS tube_bending_process_plans LIKE real_process_plans
+    `);
+    await connection.execute(`
+      ALTER TABLE tube_bending_process_plans COMMENT='弯管工序计划表'
+    `);
+
+    // ✅ 创建激光切管工序计划表
+    await connection.execute(`
+      CREATE TABLE IF NOT EXISTS laser_tube_cutting_process_plans LIKE real_process_plans
+    `);
+    await connection.execute(`
+      ALTER TABLE laser_tube_cutting_process_plans COMMENT='激光切管工序计划表'
+    `);
+
+    // ✅ 创建激光下料工序计划表
+    await connection.execute(`
+      CREATE TABLE IF NOT EXISTS laser_cutting_process_plans LIKE real_process_plans
+    `);
+    await connection.execute(`
+      ALTER TABLE laser_cutting_process_plans COMMENT='激光下料工序计划表'
+    `);
+
+    // ✅ 创建折弯工序计划表
+    await connection.execute(`
+      CREATE TABLE IF NOT EXISTS bending_process_plans LIKE real_process_plans
+    `);
+    await connection.execute(`
+      ALTER TABLE bending_process_plans COMMENT='折弯工序计划表'
+    `);
+
+    // ✅ 创建打孔工序计划表
+    await connection.execute(`
+      CREATE TABLE IF NOT EXISTS drilling_process_plans LIKE real_process_plans
+    `);
+    await connection.execute(`
+      ALTER TABLE drilling_process_plans COMMENT='打孔工序计划表'
+    `);
+
+    // ✅ 创建冲床工序计划表
+    await connection.execute(`
+      CREATE TABLE IF NOT EXISTS punching_process_plans LIKE real_process_plans
+    `);
+    await connection.execute(`
+      ALTER TABLE punching_process_plans COMMENT='冲床工序计划表'
+    `);
+
+    // ✅ 创建人工下料工序计划表
+    await connection.execute(`
+      CREATE TABLE IF NOT EXISTS manual_cutting_process_plans LIKE real_process_plans
+    `);
+    await connection.execute(`
+      ALTER TABLE manual_cutting_process_plans COMMENT='人工下料工序计划表'
+    `);
+
+    // ✅ 创建机器打磨工序计划表
+    await connection.execute(`
+      CREATE TABLE IF NOT EXISTS machine_grinding_process_plans LIKE real_process_plans
+    `);
+    await connection.execute(`
+      ALTER TABLE machine_grinding_process_plans COMMENT='机器打磨工序计划表'
+    `);
+
+    // ✅ 创建裁剪工序计划表
+    await connection.execute(`
+      CREATE TABLE IF NOT EXISTS cutting_process_plans LIKE real_process_plans
+    `);
+    await connection.execute(`
+      ALTER TABLE cutting_process_plans COMMENT='裁剪工序计划表'
+    `);
+
+
     // 创建工序能力负荷表
     await connection.execute(`
       CREATE TABLE IF NOT EXISTS process_capacity_load (
@@ -766,6 +882,132 @@ async function initializeDatabase() {
         INDEX idx_process_name (process_name),
         INDEX idx_date (date)
       ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='工序能力负荷表'
+    `);
+
+    // 创建采购计划表
+    await connection.execute(`
+      CREATE TABLE IF NOT EXISTS procurement_plans (
+        id INT AUTO_INCREMENT PRIMARY KEY COMMENT '主键ID',
+        procurement_plan_no VARCHAR(100) UNIQUE NOT NULL COMMENT '采购计划编号',
+        purchase_order_no VARCHAR(100) COMMENT '采购订单编号',
+        source_form_name VARCHAR(100) COMMENT '来源单据名称',
+        source_no VARCHAR(100) COMMENT '来源单号',
+        material_code VARCHAR(100) COMMENT '物料编码',
+        material_name VARCHAR(200) COMMENT '物料名称',
+        material_image VARCHAR(500) COMMENT '物料图片',
+        required_quantity DECIMAL(15,4) DEFAULT 0 COMMENT '需求数量',
+        base_unit VARCHAR(20) DEFAULT '个' COMMENT '基本单位',
+        sales_order_no VARCHAR(100) COMMENT '销售订单号',
+        customer_order_no VARCHAR(100) COMMENT '客户订单号',
+        master_plan_no VARCHAR(100) COMMENT '主计划编号',
+        process_plan_no VARCHAR(100) COMMENT '工序计划编号',
+        material_plan_no VARCHAR(100) COMMENT '物料计划编号',
+        plan_arrival_date DATE COMMENT '计划到货日期',
+        procurement_status VARCHAR(50) DEFAULT 'PENDING_INQUIRY' COMMENT '采购状态',
+        supplier_name VARCHAR(200) COMMENT '供应商名称',
+        purchaser VARCHAR(100) COMMENT '采购员',
+        inquiry_date DATE COMMENT '询价日期',
+        order_date DATE COMMENT '下单日期',
+        promised_arrival_date DATE COMMENT '承诺到货日期',
+        plan_purchase_quantity DECIMAL(15,4) DEFAULT 0 COMMENT '计划采购数量',
+        conversion_rate DECIMAL(10,4) DEFAULT 1 COMMENT '换算率',
+        purchase_unit VARCHAR(20) COMMENT '采购单位',
+        plan_unit_price DECIMAL(10,2) DEFAULT 0 COMMENT '计划单价',
+        plan_total_amount DECIMAL(15,2) DEFAULT 0 COMMENT '计划总金额',
+        actual_purchase_quantity DECIMAL(15,4) DEFAULT 0 COMMENT '实际采购数量',
+        actual_unit_price DECIMAL(10,2) DEFAULT 0 COMMENT '实际单价',
+        actual_total_amount DECIMAL(15,2) DEFAULT 0 COMMENT '实际总金额',
+        actual_arrival_date DATE COMMENT '实际到货日期',
+        actual_warehouse_quantity DECIMAL(15,4) DEFAULT 0 COMMENT '实际入库数量',
+        warehouse_receipt_no VARCHAR(100) COMMENT '入库单号',
+        warehouse_person VARCHAR(100) COMMENT '库管员',
+        quality_inspector VARCHAR(100) COMMENT '质检员',
+        return_order_no VARCHAR(100) COMMENT '退货单号',
+        return_handler VARCHAR(100) COMMENT '退货处理人',
+        actual_warehouse_unit_price DECIMAL(10,2) DEFAULT 0 COMMENT '实际入库单价',
+        supplier_delivery_note_no VARCHAR(100) COMMENT '供应商送货单号',
+        delivery_note_image VARCHAR(500) COMMENT '送货单图片',
+        payment_method VARCHAR(50) COMMENT '付款方式',
+        is_paid TINYINT DEFAULT 0 COMMENT '是否付款',
+        payment_no VARCHAR(100) COMMENT '付款单号',
+        payment_person VARCHAR(100) COMMENT '付款人',
+        reimbursement_no VARCHAR(100) COMMENT '报销单号',
+        reimbursement_person VARCHAR(100) COMMENT '报销人',
+        monthly_reconciliation_date DATE COMMENT '月结对账日期',
+        monthly_payment_date DATE COMMENT '月结付款日期',
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+        INDEX idx_procurement_plan_no (procurement_plan_no),
+        INDEX idx_material_code (material_code),
+        INDEX idx_procurement_status (procurement_status),
+        INDEX idx_supplier_name (supplier_name),
+        INDEX idx_plan_arrival_date (plan_arrival_date),
+        INDEX idx_created_at (created_at)
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='采购计划表'
+    `);
+
+    // 创建供应商评价表
+    await connection.execute(`
+      CREATE TABLE IF NOT EXISTS supplier_evaluations (
+        id INT AUTO_INCREMENT PRIMARY KEY COMMENT '主键ID',
+        evaluation_no VARCHAR(100) UNIQUE NOT NULL COMMENT '评价编号',
+        supplier_code VARCHAR(100) NOT NULL COMMENT '供应商编码',
+        supplier_name VARCHAR(200) NOT NULL COMMENT '供应商名称',
+        contact_person VARCHAR(100) COMMENT '联系人',
+        contact_phone VARCHAR(50) COMMENT '联系电话',
+        evaluation_date DATE NOT NULL COMMENT '评价日期',
+        evaluator VARCHAR(100) NOT NULL COMMENT '评价人',
+        quality_score DECIMAL(5,2) DEFAULT 0 COMMENT '质量得分(0-100)',
+        delivery_score DECIMAL(5,2) DEFAULT 0 COMMENT '交期得分(0-100)',
+        price_score DECIMAL(5,2) DEFAULT 0 COMMENT '价格得分(0-100)',
+        service_score DECIMAL(5,2) DEFAULT 0 COMMENT '服务得分(0-100)',
+        total_score DECIMAL(5,2) DEFAULT 0 COMMENT '总得分(0-100)',
+        evaluation_level VARCHAR(10) DEFAULT 'D' COMMENT '评价等级(A/B/C/D)',
+        remarks TEXT COMMENT '备注',
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+        INDEX idx_evaluation_no (evaluation_no),
+        INDEX idx_supplier_code (supplier_code),
+        INDEX idx_supplier_name (supplier_name),
+        INDEX idx_evaluation_date (evaluation_date),
+        INDEX idx_evaluation_level (evaluation_level),
+        INDEX idx_created_at (created_at)
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='供应商评价表'
+    `);
+
+    // 创建供应商管理表
+    await connection.execute(`
+      CREATE TABLE IF NOT EXISTS supplier_management (
+        id INT AUTO_INCREMENT PRIMARY KEY COMMENT '主键ID',
+        supplier_code VARCHAR(100) UNIQUE NOT NULL COMMENT '供应商编码',
+        supplier_name VARCHAR(200) NOT NULL COMMENT '供应商名称',
+        supplier_type VARCHAR(50) NOT NULL COMMENT '供应商类型',
+        contact_person VARCHAR(100) NOT NULL COMMENT '联系人',
+        contact_phone VARCHAR(50) NOT NULL COMMENT '联系电话',
+        contact_email VARCHAR(100) COMMENT '联系邮箱',
+        address VARCHAR(500) COMMENT '地址',
+        tax_no VARCHAR(100) COMMENT '税号',
+        bank_name VARCHAR(200) COMMENT '开户银行',
+        bank_account VARCHAR(100) COMMENT '银行账号',
+        payment_terms VARCHAR(50) COMMENT '付款条款',
+        credit_rating VARCHAR(10) COMMENT '信用等级(A/B/C/D)',
+        evaluation_score DECIMAL(5,2) DEFAULT 0 COMMENT '评分(0-100)',
+        status VARCHAR(20) DEFAULT 'active' COMMENT '状态(active/inactive/pending)',
+        supplier_category VARCHAR(100) COMMENT '供应商类别',
+        cooperation_start_date DATE COMMENT '合作开始日期',
+        business_license VARCHAR(500) COMMENT '营业执照附件',
+        qualification_cert VARCHAR(500) COMMENT '资质证书附件',
+        remarks TEXT COMMENT '备注',
+        creator VARCHAR(100) COMMENT '创建人',
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+        INDEX idx_supplier_code (supplier_code),
+        INDEX idx_supplier_name (supplier_name),
+        INDEX idx_supplier_type (supplier_type),
+        INDEX idx_status (status),
+        INDEX idx_credit_rating (credit_rating),
+        INDEX idx_created_at (created_at)
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='供应商管理表'
     `);
 
     console.log('✅ 数据库表结构初始化完成');

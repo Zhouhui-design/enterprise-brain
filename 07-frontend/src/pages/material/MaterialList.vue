@@ -303,6 +303,7 @@ const filterTableColumns = ref([
   { prop: 'processName', label: '产出工序名称', width: 150, filterable: true },
   { prop: 'standardTime', label: '定时工额', width: 120, align: 'right', sortable: true },
   { prop: 'quotaTime', label: '定额工时', width: 120, align: 'right', sortable: true },
+  { prop: 'defaultProcurementLeadTime', label: '默认采购提前期', width: 150, align: 'right', sortable: true },
   { prop: 'minimumPackagingQuantity', label: '最小包装量', width: 130, align: 'right', sortable: true, 
     formatter: (row) => {
       const value = row.minimumPackagingQuantity

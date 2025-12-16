@@ -112,9 +112,17 @@ router.post('/', async (req, res) => {
     
     console.log('✅ 产品手册创建成功:', { id: insertId, productCode: productData.productCode });
     
+    // 获取刚创建的产品完整数据
+    const createdProduct = await productManualService.getById(insertId);
+    
+    // 解析source字段
+    if (createdProduct && typeof createdProduct.source === 'string') {
+      createdProduct.source = JSON.parse(createdProduct.source);
+    }
+    
     res.json({
       code: 200,
-      data: { id: insertId },
+      data: createdProduct,  // 返回完整产品数据
       message: '创建成功'
     });
   } catch (error) {

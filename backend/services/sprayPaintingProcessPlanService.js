@@ -3,6 +3,14 @@ const { formatLocalDate } = require('../utils/dateFormatter');
 
 /**
  * 喷塑工序计划服务
+ * 
+ * ⚠️ 重要说明：独立表实现
+ * - 数据库表名：spray_painting_process_plans
+ * - 创建原因：从原packing_process_plans表中分离出来的独立工序
+ * - 历史背景：原packing_process_plans表的注释是'喷塑工序计划表'，
+ *   但现在该表实际存储打包工序数据。为避免混淆，喷塑工序使用此独立表。
+ * 
+ * 注意：不要与PackingProcessPlanService混淆，两者操作不同的数据表。
  */
 class SprayPaintingProcessPlanService {
   /**

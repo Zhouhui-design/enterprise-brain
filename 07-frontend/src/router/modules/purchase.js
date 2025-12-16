@@ -346,6 +346,17 @@ export default {
         }
       ]
     },
+    // 采购计划
+    {
+      path: 'procurement-plan',
+      name: 'ProcurementPlan',
+      component: () => import('@/pages/purchase/ProcurementPlanList.vue'),
+      meta: { 
+        title: '采购计划',
+        icon: 'Calendar',
+        permission: ['purchase:plan:list']
+      }
+    },
     // 采购报表
     {
       path: 'reports',

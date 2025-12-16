@@ -87,7 +87,55 @@ export default {
       meta: { 
         title: '真工序计划',
         icon: 'List'
-      }
+      },
+      // ✅ 添加统筹页面子路由
+      children: [
+        {
+          path: 'by-sales-order',
+          name: 'RealProcessPlanBySalesOrder',
+          component: () => import('@/pages/production-planning/consolidated/RealProcessPlanBySalesOrder.vue'),
+          meta: { 
+            title: '按销售订单合并',
+            hidden: true
+          }
+        },
+        {
+          path: 'by-master-plan',
+          name: 'RealProcessPlanByMasterPlan',
+          component: () => import('@/pages/production-planning/consolidated/RealProcessPlanByMasterPlan.vue'),
+          meta: { 
+            title: '按来源主计划编号合并',
+            hidden: true
+          }
+        },
+        {
+          path: 'by-material-plan',
+          name: 'RealProcessPlanByMaterialPlan',
+          component: () => import('@/pages/production-planning/consolidated/RealProcessPlanByMaterialPlan.vue'),
+          meta: { 
+            title: '按备料计划编号合并',
+            hidden: true
+          }
+        },
+        {
+          path: 'by-demand-date',
+          name: 'RealProcessPlanByDemandDate',
+          component: () => import('@/pages/production-planning/consolidated/RealProcessPlanByDemandDate.vue'),
+          meta: { 
+            title: '按需求日期合并',
+            hidden: true
+          }
+        },
+        {
+          path: 'by-material-code',
+          name: 'RealProcessPlanByMaterialCode',
+          component: () => import('@/pages/production-planning/consolidated/RealProcessPlanByMaterialCode.vue'),
+          meta: { 
+            title: '按计划物料编号合并',
+            hidden: true
+          }
+        }
+      ]
     },
     // ✅ 打包工序计划（只显示打包工序）
     {

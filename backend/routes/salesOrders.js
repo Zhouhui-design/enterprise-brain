@@ -617,6 +617,14 @@ router.delete('/:id', async (req, res) => {
     
     console.log(`✅ 级联删除备料计划: ${materialPlanResult.affectedRows} 条`);
     
+    // ✅ 需求4：级联删除采购计划（采购计划.sales_order_no = 内部销售订单编号）
+    const [procurementPlanResult] = await connection.execute(
+      'DELETE FROM procurement_plans WHERE sales_order_no = ?',
+      [internalOrderNo]
+    );
+    
+    console.log(`✅ 级联删除采购计划: ${procurementPlanResult.affectedRows} 条`);
+    
     // ✅ 级联删除工序计划（销售订单编号 = 内部销售订单编号）
     const [processPlanResult] = await connection.execute(
       'DELETE FROM process_plans WHERE sales_order_no = ?',
@@ -631,12 +639,12 @@ router.delete('/:id', async (req, res) => {
     );
     console.log(`✅ 级联删除组装工序计划: ${assemblyPlanResult.affectedRows} 条`);
     
-    // ✅ 级联删除喷塑工序计划
-    const [sprayPaintingPlanResult] = await connection.execute(
-      'DELETE FROM spray_painting_process_plans WHERE sales_order_no = ?',
+    // ✅ 级联删除喷塑工序计划（packing_process_plans表）
+    const [packingPlanResult] = await connection.execute(
+      'DELETE FROM packing_process_plans WHERE sales_order_no = ?',
       [internalOrderNo]
     );
-    console.log(`✅ 级联删除喷塑工序计划: ${sprayPaintingPlanResult.affectedRows} 条`);
+    console.log(`✅ 级联删除喷塑工序计划: ${packingPlanResult.affectedRows} 条`);
     
     // ✅ 级联删除缝纫工序计划
     const [sewingPlanResult] = await connection.execute(
@@ -644,6 +652,80 @@ router.delete('/:id', async (req, res) => {
       [internalOrderNo]
     );
     console.log(`✅ 级联删除缝纫工序计划: ${sewingPlanResult.affectedRows} 条`);
+    
+    // ✅ 级联删阄11个新工序计划
+    const [shotBlastingPlanResult] = await connection.execute(
+      'DELETE FROM shot_blasting_process_plans WHERE sales_order_no = ?',
+      [internalOrderNo]
+    );
+    console.log(`✅ 级联删除抛丸工序计划: ${shotBlastingPlanResult.affectedRows} 条`);
+    
+    const [manualWeldingPlanResult] = await connection.execute(
+      'DELETE FROM manual_welding_process_plans WHERE sales_order_no = ?',
+      [internalOrderNo]
+    );
+    console.log(`✅ 级联删除人工焊接工序计划: ${manualWeldingPlanResult.affectedRows} 条`);
+    
+    const [tubeBendingPlanResult] = await connection.execute(
+      'DELETE FROM tube_bending_process_plans WHERE sales_order_no = ?',
+      [internalOrderNo]
+    );
+    console.log(`✅ 级联删除弯管工序计划: ${tubeBendingPlanResult.affectedRows} 条`);
+    
+    const [laserTubeCuttingPlanResult] = await connection.execute(
+      'DELETE FROM laser_tube_cutting_process_plans WHERE sales_order_no = ?',
+      [internalOrderNo]
+    );
+    console.log(`✅ 级联删除激光切管工序计划: ${laserTubeCuttingPlanResult.affectedRows} 条`);
+    
+    const [laserCuttingPlanResult] = await connection.execute(
+      'DELETE FROM laser_cutting_process_plans WHERE sales_order_no = ?',
+      [internalOrderNo]
+    );
+    console.log(`✅ 级联删除激光下料工序计划: ${laserCuttingPlanResult.affectedRows} 条`);
+    
+    const [bendingPlanResult] = await connection.execute(
+      'DELETE FROM bending_process_plans WHERE sales_order_no = ?',
+      [internalOrderNo]
+    );
+    console.log(`✅ 级联删除折弯工序计划: ${bendingPlanResult.affectedRows} 条`);
+    
+    const [drillingPlanResult] = await connection.execute(
+      'DELETE FROM drilling_process_plans WHERE sales_order_no = ?',
+      [internalOrderNo]
+    );
+    console.log(`✅ 级联删除打孔工序计划: ${drillingPlanResult.affectedRows} 条`);
+    
+    const [punchingPlanResult] = await connection.execute(
+      'DELETE FROM punching_process_plans WHERE sales_order_no = ?',
+      [internalOrderNo]
+    );
+    console.log(`✅ 级联删除冲床工序计划: ${punchingPlanResult.affectedRows} 条`);
+    
+    const [manualCuttingPlanResult] = await connection.execute(
+      'DELETE FROM manual_cutting_process_plans WHERE sales_order_no = ?',
+      [internalOrderNo]
+    );
+    console.log(`✅ 级联删除人工下料工序计划: ${manualCuttingPlanResult.affectedRows} 条`);
+    
+    const [machineGrindingPlanResult] = await connection.execute(
+      'DELETE FROM machine_grinding_process_plans WHERE sales_order_no = ?',
+      [internalOrderNo]
+    );
+    console.log(`✅ 级联删除机器打磨工序计划: ${machineGrindingPlanResult.affectedRows} 条`);
+    
+    const [cuttingPlanResult] = await connection.execute(
+      'DELETE FROM cutting_process_plans WHERE sales_order_no = ?',
+      [internalOrderNo]
+    );
+    console.log(`✅ 级联删除裁剪工序计划: ${cuttingPlanResult.affectedRows} 条`);
+    
+    // ✅ 旧的喷塑工序计划表（保留兼容）
+    const [sprayPaintingPlanResult] = await connection.execute(
+      'DELETE FROM spray_painting_process_plans WHERE sales_order_no = ?',
+      [internalOrderNo]
+    );
+    console.log(`✅ 级联删除旧喷塑工序计划: ${sprayPaintingPlanResult.affectedRows} 条`);
     
     // ✅ 级联删除真工序计划(打包) - 先记录受影响的工序+日期
     const [realProcessPlans] = await connection.execute(
@@ -787,6 +869,18 @@ router.post('/batch-delete', async (req, res) => {
     let totalAssemblyPlans = 0
     let totalSprayPaintingPlans = 0
     let totalSewingPlans = 0
+    let totalPackingPlans = 0
+    let totalShotBlastingPlans = 0
+    let totalManualWeldingPlans = 0
+    let totalTubeBendingPlans = 0
+    let totalLaserTubeCuttingPlans = 0
+    let totalLaserCuttingPlans = 0
+    let totalBendingPlans = 0
+    let totalDrillingPlans = 0
+    let totalPunchingPlans = 0
+    let totalManualCuttingPlans = 0
+    let totalMachineGrindingPlans = 0
+    let totalCuttingPlans = 0
     const affectedProcessDates = new Set() // 记录受影响的工序+日期
     
     // 逐个处理，确保级联删除
@@ -828,12 +922,12 @@ router.post('/batch-delete', async (req, res) => {
         );
         totalAssemblyPlans += assemblyPlanResult.affectedRows;
         
-        // 4.2 级联删除喷塑工序计划
-        const [sprayPaintingPlanResult] = await connection.execute(
-          'DELETE FROM spray_painting_process_plans WHERE sales_order_no = ?',
+        // 4.2 级联删除喷塑工序计划（packing_process_plans表）
+        const [packingPlanResult] = await connection.execute(
+          'DELETE FROM packing_process_plans WHERE sales_order_no = ?',
           [internalOrderNo]
         );
-        totalSprayPaintingPlans += sprayPaintingPlanResult.affectedRows;
+        totalPackingPlans += packingPlanResult.affectedRows;
         
         // 4.3 级联删除缝纫工序计划
         const [sewingPlanResult] = await connection.execute(
@@ -841,6 +935,80 @@ router.post('/batch-delete', async (req, res) => {
           [internalOrderNo]
         );
         totalSewingPlans += sewingPlanResult.affectedRows;
+        
+        // 4.4-4.14 级联删除11个新工序计划
+        const [shotBlastingPlanResult] = await connection.execute(
+          'DELETE FROM shot_blasting_process_plans WHERE sales_order_no = ?',
+          [internalOrderNo]
+        );
+        totalShotBlastingPlans += shotBlastingPlanResult.affectedRows;
+        
+        const [manualWeldingPlanResult] = await connection.execute(
+          'DELETE FROM manual_welding_process_plans WHERE sales_order_no = ?',
+          [internalOrderNo]
+        );
+        totalManualWeldingPlans += manualWeldingPlanResult.affectedRows;
+        
+        const [tubeBendingPlanResult] = await connection.execute(
+          'DELETE FROM tube_bending_process_plans WHERE sales_order_no = ?',
+          [internalOrderNo]
+        );
+        totalTubeBendingPlans += tubeBendingPlanResult.affectedRows;
+        
+        const [laserTubeCuttingPlanResult] = await connection.execute(
+          'DELETE FROM laser_tube_cutting_process_plans WHERE sales_order_no = ?',
+          [internalOrderNo]
+        );
+        totalLaserTubeCuttingPlans += laserTubeCuttingPlanResult.affectedRows;
+        
+        const [laserCuttingPlanResult] = await connection.execute(
+          'DELETE FROM laser_cutting_process_plans WHERE sales_order_no = ?',
+          [internalOrderNo]
+        );
+        totalLaserCuttingPlans += laserCuttingPlanResult.affectedRows;
+        
+        const [bendingPlanResult] = await connection.execute(
+          'DELETE FROM bending_process_plans WHERE sales_order_no = ?',
+          [internalOrderNo]
+        );
+        totalBendingPlans += bendingPlanResult.affectedRows;
+        
+        const [drillingPlanResult] = await connection.execute(
+          'DELETE FROM drilling_process_plans WHERE sales_order_no = ?',
+          [internalOrderNo]
+        );
+        totalDrillingPlans += drillingPlanResult.affectedRows;
+        
+        const [punchingPlanResult] = await connection.execute(
+          'DELETE FROM punching_process_plans WHERE sales_order_no = ?',
+          [internalOrderNo]
+        );
+        totalPunchingPlans += punchingPlanResult.affectedRows;
+        
+        const [manualCuttingPlanResult] = await connection.execute(
+          'DELETE FROM manual_cutting_process_plans WHERE sales_order_no = ?',
+          [internalOrderNo]
+        );
+        totalManualCuttingPlans += manualCuttingPlanResult.affectedRows;
+        
+        const [machineGrindingPlanResult] = await connection.execute(
+          'DELETE FROM machine_grinding_process_plans WHERE sales_order_no = ?',
+          [internalOrderNo]
+        );
+        totalMachineGrindingPlans += machineGrindingPlanResult.affectedRows;
+        
+        const [cuttingPlanResult] = await connection.execute(
+          'DELETE FROM cutting_process_plans WHERE sales_order_no = ?',
+          [internalOrderNo]
+        );
+        totalCuttingPlans += cuttingPlanResult.affectedRows;
+        
+        // 4.15 旧的喷塑工序计划表（保留兼容）
+        const [sprayPaintingPlanResult] = await connection.execute(
+          'DELETE FROM spray_painting_process_plans WHERE sales_order_no = ?',
+          [internalOrderNo]
+        );
+        totalSprayPaintingPlans += sprayPaintingPlanResult.affectedRows;
         
         // 5. 级联删除真工序计划(打包) - 先记录受影响的工序+日期
         const [realProcessPlans] = await connection.execute(
@@ -977,6 +1145,200 @@ router.post('/batch-delete', async (req, res) => {
     res.status(500).json({
       success: false,
       message: '批量删除订单失败',
+      error: error.message
+    })
+  } finally {
+    if (connection) connection.release()
+  }
+})
+
+/**
+ * 确认下单 - 推送数据到主生产计划或采购计划
+ * POST /api/sales-orders/confirm-order
+ */
+router.post('/confirm-order', async (req, res) => {
+  let connection
+  try {
+    const { ids } = req.body
+    console.log('=== 确认下单 ===', ids)
+    
+    if (!ids || ids.length === 0) {
+      return res.status(400).json({
+        success: false,
+        message: '请选择至少一个订单'
+      })
+    }
+    
+    connection = await pool.getConnection()
+    await connection.beginTransaction()
+    
+    let totalMasterPlans = 0 // 推送到主生产计划数量
+    let totalProcurementPlans = 0 // 推送到采购计划数量
+    
+    try {
+      // 遍历每个订单
+      for (const orderId of ids) {
+        // 1. 查询订单及产品明细
+        const [orders] = await connection.execute(
+          'SELECT * FROM sales_orders WHERE id = ?',
+          [orderId]
+        )
+        
+        if (orders.length === 0) {
+          console.warn(`订单 ${orderId} 不存在`)
+          continue
+        }
+        
+        const order = orders[0]
+        
+        // 2. 查询产品明细(包含output_process)
+        const [products] = await connection.execute(
+          'SELECT * FROM sales_order_products WHERE order_id = ?',
+          [orderId]
+        )
+        
+        if (products.length === 0) {
+          console.warn(`订单 ${order.internal_order_no} 无产品明细`)
+          continue
+        }
+        
+        // 3. 查询库存以计算建议补货数量
+        const [inventoryRows] = await connection.execute(
+          `SELECT material_code, COALESCE(available_quantity, 0) as available_quantity 
+           FROM inventory`
+        )
+        const inventoryMap = new Map()
+        inventoryRows.forEach(row => {
+          inventoryMap.set(row.material_code, row.available_quantity)
+        })
+        
+        // 4. 遍历产品，根据产出工序分流
+        for (const product of products) {
+          const outputProcess = product.output_process || ''
+          const productCode = product.product_code
+          const availableStock = inventoryMap.get(productCode) || 0
+          const suggestedQty = Math.max(0, product.order_quantity - availableStock)
+          
+          if (outputProcess === '采购' && suggestedQty > 0) {
+            // ===== 推送到采购计划（仅当产出工序=采购 且 建议补货数量>0时） =====
+            // 生成采购计划编号
+            const [countResult] = await connection.execute(
+              `SELECT COUNT(*) as count FROM procurement_plans WHERE DATE(created_at) = CURDATE()`
+            )
+            const dailyCount = countResult[0].count + 1
+            const today = new Date().toISOString().split('T')[0].replace(/-/g, '')
+            const procurementPlanNo = `CG${today}${String(dailyCount).padStart(4, '0')}`
+            
+            // 查询物料的默认采购提前期
+            const [materialRows] = await connection.execute(
+              `SELECT default_procurement_lead_time FROM materials WHERE material_code = ?`,
+              [productCode]
+            )
+            const defaultLeadTime = materialRows.length > 0 ? (materialRows[0].default_procurement_lead_time || 3) : 3
+            
+            // 计算计划到货日期 = 客户交期 - 采购提前期
+            let planArrivalDate = null
+            if (order.customer_delivery) {
+              const customerDelivery = new Date(order.customer_delivery)
+              customerDelivery.setDate(customerDelivery.getDate() - defaultLeadTime)
+              planArrivalDate = customerDelivery.toISOString().split('T')[0]
+            }
+            
+            // 插入采购计划
+            console.log(`📤 准备推送到采购计划: 产品=${product.product_name}, 建议补货数量=${suggestedQty}`);
+            await connection.execute(
+              `INSERT INTO procurement_plans (
+                procurement_plan_no, source_form_name, source_no,
+                material_code, material_name, required_quantity, base_unit,
+                sales_order_no, customer_order_no,
+                procurement_lead_time, plan_arrival_date,
+                procurement_status
+              ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+              [
+                procurementPlanNo,
+                '销售订单列表',
+                order.internal_order_no,
+                productCode,
+                product.product_name,
+                suggestedQty,
+                product.product_unit,
+                order.internal_order_no,
+                order.customer_order_no,
+                defaultLeadTime,
+                planArrivalDate,
+                'PENDING_INQUIRY'
+              ]
+            )
+            
+            totalProcurementPlans++
+            console.log(`✅ 推送到采购计划: ${procurementPlanNo} (${product.product_name})`)
+          } else {
+            // ===== 推送到主生产计划 =====
+            // 生成主生产计划编号
+            const [countResult] = await connection.execute(
+              `SELECT COUNT(*) as count FROM master_production_plans WHERE DATE(created_at) = CURDATE()`
+            )
+            const dailyCount = countResult[0].count + 1
+            const today = new Date().toISOString().split('T')[0].replace(/-/g, '')
+            const planCode = `MP${today}${String(dailyCount).padStart(4, '0')}`
+            
+            // 插入主生产计划
+            await connection.execute(
+              `INSERT INTO master_production_plans (
+                plan_code, product_code, product_name, order_quantity,
+                salesperson, sales_unit, available_stock, plan_quantity,
+                output_process, promised_delivery_date, status,
+                internal_order_no, customer_order_no, customer_name
+              ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+              [
+                planCode,
+                productCode,
+                product.product_name,
+                product.order_quantity,
+                order.salesperson,
+                product.product_unit,
+                availableStock,
+                suggestedQty,
+                outputProcess,
+                order.promised_delivery || order.customer_delivery,
+                '已下单',
+                order.internal_order_no,
+                order.customer_order_no,
+                order.customer_name
+              ]
+            )
+            
+            totalMasterPlans++
+            console.log(`✅ 推送到主生产计划: ${planCode} (${product.product_name})`)
+          }
+        }
+        
+        // 5. 更新订单状态
+        await connection.execute(
+          'UPDATE sales_orders SET status = ? WHERE id = ?',
+          ['已确认', orderId]
+        )
+      }
+      
+      await connection.commit()
+      
+      res.json({
+        success: true,
+        message: `确认下单成功！推送 ${totalMasterPlans} 条到主生产计划，${totalProcurementPlans} 条到采购计划`,
+        data: {
+          masterPlansCreated: totalMasterPlans,
+          procurementPlansCreated: totalProcurementPlans
+        }
+      })
+    } catch (error) {
+      await connection.rollback()
+      throw error
+    }
+  } catch (error) {
+    console.error('❌ 确认下单失败:', error)
+    res.status(500).json({
+      success: false,
+      message: '确认下单失败',
       error: error.message
     })
   } finally {

@@ -628,6 +628,73 @@ export default {
                   meta: { title: '缝纫工序计划' },
                   icon: 'el-icon-scissors'
                 },
+                // ✅ 新增11个工序计划菜单项
+                {
+                  path: '/production-planning/shot-blasting-process-plan',
+                  name: 'ShotBlastingProcessPlanList',
+                  meta: { title: '抛丸工序计划' },
+                  icon: 'el-icon-magic-stick'
+                },
+                {
+                  path: '/production-planning/manual-welding-process-plan',
+                  name: 'ManualWeldingProcessPlanList',
+                  meta: { title: '人工焊接工序计划' },
+                  icon: 'el-icon-connection'
+                },
+                {
+                  path: '/production-planning/tube-bending-process-plan',
+                  name: 'TubeBendingProcessPlanList',
+                  meta: { title: '弯管工序计划' },
+                  icon: 'el-icon-turn-off'
+                },
+                {
+                  path: '/production-planning/laser-tube-cutting-process-plan',
+                  name: 'LaserTubeCuttingProcessPlanList',
+                  meta: { title: '激光切管工序计划' },
+                  icon: 'el-icon-scissors'
+                },
+                {
+                  path: '/production-planning/laser-cutting-process-plan',
+                  name: 'LaserCuttingProcessPlanList',
+                  meta: { title: '激光下料工序计划' },
+                  icon: 'el-icon-position'
+                },
+                {
+                  path: '/production-planning/bending-process-plan',
+                  name: 'BendingProcessPlanList',
+                  meta: { title: '折弯工序计划' },
+                  icon: 'el-icon-finished'
+                },
+                {
+                  path: '/production-planning/drilling-process-plan',
+                  name: 'DrillingProcessPlanList',
+                  meta: { title: '打孔工序计划' },
+                  icon: 'el-icon-aim'
+                },
+                {
+                  path: '/production-planning/punching-process-plan',
+                  name: 'PunchingProcessPlanList',
+                  meta: { title: '冲床工序计划' },
+                  icon: 'el-icon-postcard'
+                },
+                {
+                  path: '/production-planning/manual-cutting-process-plan',
+                  name: 'ManualCuttingProcessPlanList',
+                  meta: { title: '人工下料工序计划' },
+                  icon: 'el-icon-knife-fork'
+                },
+                {
+                  path: '/production-planning/machine-grinding-process-plan',
+                  name: 'MachineGrindingProcessPlanList',
+                  meta: { title: '机器打磨工序计划' },
+                  icon: 'el-icon-brush'
+                },
+                {
+                  path: '/production-planning/cutting-process-plan',
+                  name: 'CuttingProcessPlanList',
+                  meta: { title: '裁剪工序计划' },
+                  icon: 'el-icon-crop'
+                },
                 {
                   path: '/production-planning/capacity-planning',
                   name: 'CapacityPlanning',
@@ -715,13 +782,13 @@ export default {
               icon: 'el-icon-document',
               children: [
                 {
-                  path: '/purchase/order/create',
+                  path: '/purchase/order-create',
                   name: 'PurchaseOrderCreate',
                   meta: { title: '创建采购订单' },
                   icon: 'el-icon-document-add'
                 },
                 {
-                  path: '/purchase/order/approve',
+                  path: '/purchase/order-approve',
                   name: 'PurchaseOrderApprove',
                   meta: { title: '采购订单审批' },
                   icon: 'el-icon-check'
@@ -735,41 +802,31 @@ export default {
               icon: 'el-icon-view'
             },
             {
-              path: '/purchase/supplier',
-              name: 'SupplierManagement',
-              meta: { title: '供应商管理' },
-              icon: 'el-icon-user',
-              children: [
-                {
-                  path: '/purchase/supplier/evaluation',
-                  name: 'SupplierEvaluation',
-                  meta: { title: '供应商评估' },
-                  icon: 'el-icon-s-data',
-                  children: [
-                    {
-                      path: '/purchase/supplier/evaluation/detail',
-                      name: 'SupplierEvaluationDetail',
-                      meta: { title: '供应商评估详情页' },
-                      icon: 'el-icon-document'
-                    }
-                  ]
-                }
-              ]
+              path: '/purchase/supplier-evaluation',
+              name: 'SupplierEvaluation',
+              meta: { title: '供应商评估' },
+              icon: 'el-icon-s-data'
             },
             {
-              path: '/purchase/plan',
+              path: '/purchase/supplier-management',
+              name: 'SupplierManagement',
+              meta: { title: '供应商管理' },
+              icon: 'el-icon-office-building'
+            },
+            {
+              path: '/purchase/procurement-plan',
               name: 'ProcurementPlan',
               meta: { title: '采购计划' },
               icon: 'el-icon-s-order'
             },
             {
-              path: '/purchase/statistics',
+              path: '/purchase/purchase-statistics',
               name: 'PurchaseStatistics',
               meta: { title: '采购统计' },
               icon: 'el-icon-s-data'
             },
             {
-              path: '/purchase/tracking/detail',
+              path: '/purchase/purchase-tracking-detail',
               name: 'PurchaseTrackingDetail',
               meta: { title: '采购跟踪详情页' },
               icon: 'el-icon-document'

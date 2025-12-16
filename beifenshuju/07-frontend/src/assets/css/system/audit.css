@@ -1,0 +1,16 @@
+/* 审计页面通用样式 */
+.audit-log-container,
+.data-change-container,
+.operation-trace-container {
+  padding: 16px;
+  background-color: #fff;
+  border-radius: 8px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+}
+
+.search-bar {
+  margin-bottom: 16px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+}

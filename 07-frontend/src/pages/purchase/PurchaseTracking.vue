@@ -932,3 +932,6 @@ export default {
   font-weight: 600;
 }
 </style>
+</div>
+</ResponsiveLayout>
+</template>

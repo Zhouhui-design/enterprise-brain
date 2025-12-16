@@ -184,6 +184,13 @@
         <el-table-column prop="estimatedBalance" label="预计结存" width="100" align="right" />
         <el-table-column prop="productUnit" label="产品单位" width="100" />
         <el-table-column prop="orderQuantity" label="订单数量" width="100" align="right" />
+        <el-table-column prop="suggestedReplenishment" label="建议补货数量" width="140" align="right">
+          <template #default="{ row }">
+            <el-tag :type="row.suggestedReplenishment > 0 ? 'warning' : 'success'">
+              {{ row.suggestedReplenishment || 0 }}
+            </el-tag>
+          </template>
+        </el-table-column>
         <el-table-column prop="unitPriceExcludingTax" label="销售单价（未税）" width="150" align="right">
           <template #default="{ row }">
             {{ formatCurrency(row.unitPriceExcludingTax) }}
@@ -917,6 +924,9 @@ const loadOrders = async () => {
             orderQuantity: product.orderQuantity,
             outputProcess: product.outputProcess || '', // ✅ 直接从产品数据中读取，无需lookup
             
+            // ✅ 计算建议补货数量 = 订单数量 - 有效库存
+            suggestedReplenishment: Math.max(0, (product.orderQuantity || 0) - (order.effective_inventory || 0)),
+            
             // 时间信息
             orderTime: order.order_time,
             promisedDelivery: order.promised_delivery,
@@ -1235,7 +1245,7 @@ const canConfirmOrder = computed(() => {
 })
 
 const handleConfirmOrder = async () => {
-  console.log('📋 点击正式下单按钮，选中订单:', selectedRows.value)
+  console.log('📋 点击确认下单按钮，选中订单:', selectedRows.value)
   
   // 检查是否选中订单
   if (selectedRows.value.length === 0) {
@@ -1245,8 +1255,12 @@ const handleConfirmOrder = async () => {
 
   try {
     await ElMessageBox.confirm(
-      `确定要对选中的 ${selectedRows.value.length} 个订单执行正式下单吗？\n\n正式下单后将自动创建主生产计划。`,
-      '正式下单确认',
+      `确定要对选中的 ${selectedRows.value.length} 个订单执行确认下单吗？
+
+确认后将根据“产出工序”分流：
+- 产出工序 = “采购” → 推送到采购计划
+- 产出工序 ≠ “采购” → 推送到主生产计划`,
+      '确认下单确认',
       {
         confirmButtonText: '确定',
         cancelButtonText: '取消',
@@ -1259,91 +1273,29 @@ const handleConfirmOrder = async () => {
 
   const loading = ElLoading.service({
     lock: true,
-    text: '正在创建主生产计划...',
+    text: '正在处理订单数据分流...',
     background: 'rgba(0, 0, 0, 0.7)'
   })
 
   try {
-    console.log('📋 开始正式下单流程，选中订单数:', selectedRows.value.length)
+    console.log('📋 开始确认下单流程，选中订单数:', selectedRows.value.length)
     
-    // ⚠️ 重要：订单列表是按产品展开的，需要先按订单ID去重，然后从后端获取完整的产品列表
     // 收集唯一的订单ID
     const orderIds = [...new Set(selectedRows.value.map(row => row.id))]
     console.log('📦 唯一订单ID:', orderIds)
     
-    // 从后端获取每个订单的完整信息（包括所有产品）
-    const orderPromises = orderIds.map(async orderId => {
-      // 获取订单基本信息
-      const orderResponse = await salesOrderApi.getSalesOrderById(orderId)
-      const orderData = orderResponse.data.data
+    // 调用后端API执行数据分流
+    const response = await salesOrderApi.confirmOrder(orderIds)
+    
+    if (response.data && response.data.success) {
+      const result = response.data.data
+      console.log('✅ 确认下单成功:', result)
       
-      // 获取订单产品列表
-      const productsResponse = await salesOrderApi.getOrderProducts(orderId)
-      const products = productsResponse.data || []
-      
-      console.log(`📦 订单 ${orderData.internal_order_no} 产品数量:`, products.length)
-      
-      return {
-        id: orderData.id,
-        internalOrderNo: orderData.internal_order_no,
-        customerOrderNo: orderData.customer_order_no,
-        salesperson: orderData.salesperson,
-        customerName: orderData.customer_name, // ✅ 客户名称
-        submitter: orderData.submitter || 'admin', // ✅ 提交人
-        customerDeliveryDate: orderData.customer_delivery,
-        promisedDeliveryDate: orderData.promised_delivery,
-        products: products.map(p => ({
-          productCode: p.product_code,
-          productName: p.product_name,
-          orderQuantity: p.order_quantity,
-          productUnit: p.product_unit,
-          productImage: p.product_image || '',
-          outputProcess: p.output_process || ''
-        }))
-      }
-    })
-    
-    const salesOrders = await Promise.all(orderPromises)
-    
-    console.log('📦 整理后的订单数据:', salesOrders.map(o => ({
-      internalOrderNo: o.internalOrderNo,
-      客户交期: o.customerDeliveryDate,
-      客户交期类型: typeof o.customerDeliveryDate,
-      产品数量: o.products.length,
-      产品编码: o.products.map(p => p.productCode)
-    })))
-    
-    console.log('📦 构造的销售订单数据:', salesOrders)
-    
-    // ✅ 获取提前入库期设置
-    const advanceStorageDays = settings.value.advanceStorageDays || 3;
-    console.log('📅 提前入库期:', advanceStorageDays, '天');
-    
-    // 调用后端API创建主生产计划
-    const response = await fetch('http://192.168.2.229:3005/api/master-production-plans/from-sales-order', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({ 
-        salesOrders,
-        advanceStorageDays // ✅ 传递提前入库期
-      })
-    })
-    
-    const result = await response.json()
-    
-    if (result.code === 200) {
-      console.log('✅ 主生产计划创建成功:', result.data)
-      
-      // 更新订单状态为"已下单"
-      for (const order of selectedRows.value) {
-        await salesOrderApi.updateSalesOrder(order.id, {
-          status: '已下单'
-        })
-      }
-      
-      ElMessage.success(`已成功下单 ${selectedRows.value.length} 个订单，创建了 ${result.data.length} 条主生产计划`)
+      ElMessage.success(
+        `确认下单成功！\n` +
+        `推送 ${result.masterPlansCreated || 0} 条到主生产计划\n` +
+        `推送 ${result.procurementPlansCreated || 0} 条到采购计划`
+      )
       
       // 刷新订单列表
       await loadOrders()
@@ -1351,11 +1303,11 @@ const handleConfirmOrder = async () => {
       // 清空选择
       selectedRows.value = []
     } else {
-      throw new Error(result.message || '创建主生产计划失败')
+      throw new Error(response.data.message || '确认下单失败')
     }
     
   } catch (error) {
-    console.error('❌ 正式下单失败:', error)
+    console.error('❌ 确认下单失败:', error)
     ElMessage.error(`下单失败: ${error.message || '请检查网络连接'}`)
   } finally {
     loading.close()

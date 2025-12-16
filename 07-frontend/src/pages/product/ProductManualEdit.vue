@@ -46,13 +46,16 @@
               <el-form-item label="产出工序名称">
                 <el-input 
                   v-model="formData.outputProcessName" 
-                  placeholder="从产品物料库自动获取" 
+                  :placeholder="formData.source && formData.source.includes('外购') ? '来源=外购，自动设置为采购' : '从产品物料库自动获取'" 
                   disabled
                   style="background-color: #f5f7fa;"
                 />
                 <div v-if="lookupLoading" style="margin-top: 5px; color: #409eff; font-size: 12px;">
                   <el-icon class="is-loading"><Loading /></el-icon>
                   正在查询产出工序...
+                </div>
+                <div v-else-if="formData.source && formData.source.includes('外购')" style="margin-top: 5px; color: #67c23a; font-size: 12px;">
+                  ✅ 来源包含“外购”，已自动设置为“采购”
                 </div>
               </el-form-item>
             </el-col>
@@ -256,6 +259,14 @@ const handleProductCodeChange = async () => {
     lookupLoading.value = false
   }
 }
+
+// 监听来源字段变化 - 当选择"外购"时，自动设置产出工序名称为"采购"
+watch(() => formData.source, (newSource) => {
+  if (Array.isArray(newSource) && newSource.includes('外购')) {
+    formData.outputProcessName = '采购'
+    console.log('✅ 来源包含"外购"，自动设置产出工序名称为"采购"')
+  }
+}, { deep: true })
 
 // 监听 props 变化
 watch(() => props.productData, (newVal) => {

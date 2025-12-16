@@ -47,6 +47,11 @@ export const salesOrderApi = {
   // 批量删除销售订单
   batchDeleteSalesOrders(ids) {
     return axios.post(`${API_BASE_URL}/sales-orders/batch-delete`, { ids })
+  },
+
+  // 确认下单（推送到主生产计划或采购计划）
+  confirmOrder(ids) {
+    return axios.post(`${API_BASE_URL}/sales-orders/confirm-order`, { ids })
   }
 }
 

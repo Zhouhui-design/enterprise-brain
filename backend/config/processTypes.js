@@ -1,18 +1,31 @@
 /**
  * 工序类型配置管理
  * 根据列表式生产BOM中的父件产出工序动态配置所有工序计划
+ * 
+ * ⚠️ 重要说明：命名变更历史
+ * - 打包工序计划 = 原真工序计划（功能继承）
+ * - 数据库表：packing_process_plans
+ * - Service：packingProcessPlanService
+ * 
+ * - 喷塑工序计划 = 原打包工序计划（已迁移到独立表）
+ * - 数据库表：spray_painting_process_plans
+ * - Service：sprayPaintingProcessPlanService
+ * 
+ * - 真工序计划 = 保留，显示所有工序类型
+ * - 数据库表：real_process_plans
+ * - Service：realProcessPlanService
  */
 
 const PROCESS_TYPE_CONFIG = {
-  // 打包工序（已有）
+  // 打包工序（✅ 使用real_process_plans表 - 打包工序计划页面继承了原真工序计划的功能和数据）
   '打包': {
     code: 'PACKING',
-    tableName: 'real_process_plans',
-    serviceName: 'realProcessPlanService',
+    tableName: 'real_process_plans',  // ✅ 正确：打包工序使用原真工序计划表
+    serviceName: 'realProcessPlanService',  // ✅ 正确：使用真工序计划Service
     routePath: 'real-process-plans',
-    planNoPrefix: 'RPP',
-    displayName: '打包工序计划',
-    menuPath: '/production-planning/packing-process-plan',
+    planNoPrefix: 'RPP',  // Real Process Plan
+    displayName: '打包工序计划（原真工序计划）',
+    menuPath: '/process-planning/real-process-plan',  // ✅ 修正：前端实际路径
     enabled: true
   },
   
@@ -28,15 +41,15 @@ const PROCESS_TYPE_CONFIG = {
     enabled: true
   },
   
-  // 喷塑工序（使用packing_process_plans表，原打包工序表改名）
+  // 喷塑工序（✅ 修复：使用独立表spray_painting_process_plans）
   '喷塑': {
     code: 'SPRAY_PAINTING',
-    tableName: 'packing_process_plans',  // ✅ 修正：使用packing_process_plans表
-    serviceName: 'packingProcessPlanService',  // ✅ 修正：使用packingProcessPlanService
-    routePath: 'packing-process-plan',
+    tableName: 'spray_painting_process_plans',  // ✅ 修复：使用独立表
+    serviceName: 'sprayPaintingProcessPlanService',  // ✅ 修复：使用独立 Service
+    routePath: 'spray-painting-process-plans',
     planNoPrefix: 'SPPP',
     displayName: '喷塑工序计划',
-    menuPath: '/production-planning/packing-process-plan',
+    menuPath: '/production-planning/spray-painting-process-plan',
     enabled: true
   },
   

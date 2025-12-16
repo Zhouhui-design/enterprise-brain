@@ -662,11 +662,12 @@ id: row.id,
         console.log(`⌛ 计算计划排程工时: min(${requiredWorkHours}, ${dailyAvailableHours}) = ${scheduledWorkHours}`);
       }
 
-      // ✅ 计算计划排程数量 = 计划排程工时 * 定时工额
+      // ✅ 计算计划排程数量 = ROUNDUP(计划排程工时 * 定时工额) - 向上取整
       let scheduleQuantity = 0;
       if (scheduledWorkHours > 0 && standardWorkQuota > 0) {
-        scheduleQuantity = parseFloat((scheduledWorkHours * standardWorkQuota).toFixed(4));
-        console.log(`📊 计算计划排程数量: ${scheduledWorkHours} * ${standardWorkQuota} = ${scheduleQuantity}`);
+        const rawQuantity = scheduledWorkHours * standardWorkQuota;
+        scheduleQuantity = Math.ceil(rawQuantity);  // ✅ 使用Math.ceil()向上取整
+        console.log(`📊 计算计划排程数量: ROUNDUP(${scheduledWorkHours} * ${standardWorkQuota}) = ROUNDUP(${rawQuantity.toFixed(4)}) = ${scheduleQuantity}`);
       }
 
       // ✅ 计算下一个排程日期 = 计划排程日期 + 1天
@@ -682,13 +683,18 @@ id: row.id,
       }
 
       // 创建真工序计划数据
+      // ⚠️ 注意：字段命名不一致问题
+      // - 备料计划表：main_plan_product_code/main_plan_product_name
+      // - 真工序计划表：main_plan_product_code/main_plan_product_name (历史遗留)
+      // - 组装工序计划表：master_plan_product_code/master_plan_product_name (正确)
+      // → 为了兼容，使用mainPlanProductCode字段名（与realProcessPlanService保持一致）
       const realProcessPlanData = {
         planNo: realProcessPlanNo,
         salesOrderNo: data.salesOrderNo,
         customerOrderNo: data.customerOrderNo,
         masterPlanNo: data.sourcePlanNo,
-        masterPlanProductCode: data.mainPlanProductCode,  // ✅ 修复：mainPlanProductCode → masterPlanProductCode
-        masterPlanProductName: data.mainPlanProductName,  // ✅ 修复：mainPlanProductName → masterPlanProductName
+        mainPlanProductCode: data.mainPlanProductCode || data.materialCode,  // ✅ 使用mainPlanProductCode（对应数据库main_plan_product_code字段）
+        mainPlanProductName: data.mainPlanProductName || data.materialName,  // ✅ 使用mainPlanProductName（对应数据库main_plan_product_name字段）
         productCode: data.materialCode,
         productName: data.materialName,
         processName: processName,  // ✅ 使用来源工序，而非sourceProcess
@@ -717,6 +723,21 @@ id: row.id,
         submittedAt: new Date().toLocaleString('zh-CN', { timeZone: 'Asia/Shanghai', hour12: false })
       };
 
+      console.log(`📦 待推送数据检查:`);
+      console.log(`   销售订单编号(salesOrderNo): ${realProcessPlanData.salesOrderNo}`);
+      console.log(`   客户订单编号(customerOrderNo): ${realProcessPlanData.customerOrderNo}`);
+      console.log(`   主计划产品编号(mainPlanProductCode): ${realProcessPlanData.mainPlanProductCode}`);
+      console.log(`   主计划产品名称(mainPlanProductName): ${realProcessPlanData.mainPlanProductName}`);
+      console.log(`   来源编号(sourceNo): ${realProcessPlanData.sourceNo}`);
+      console.log(`   需补货数量(replenishmentQty): ${realProcessPlanData.replenishmentQty}`);
+      console.log(`   计划排程数量(scheduleQuantity): ${realProcessPlanData.scheduleQuantity}`);
+      console.log(`   计划排程工时(scheduledWorkHours): ${realProcessPlanData.scheduledWorkHours}`);
+      console.log(`   需求工时(requiredWorkHours): ${realProcessPlanData.requiredWorkHours}`);
+      console.log(`   工序名称(processName): ${realProcessPlanData.processName}`);
+      console.log(`   计划排程日期(scheduleDate): ${realProcessPlanData.scheduleDate}`);
+      console.log(`   ⚠️ 字段命名说明：使用mainPlanProductCode/mainPlanProductName（对应数据库main_plan_product_code/main_plan_product_name字段）`);
+
+
       // ✅ 根据来源工序路由到不同的Service（使用配置系统）
       // processConfig 已在第478行声明，这里直接使用
       
@@ -737,11 +758,11 @@ id: row.id,
       
       console.log(`✅ ${serviceName}创建成功: ${realProcessPlanNo}, ID: ${createdPlanId}`);
 
-      // ✅ 新增：创建后立即计算3个关键字段
-      console.log(`\n🧮 开始计算字段: 累积排程数量、未排数量、剩余需求工时`);
+      // ✅ 新增：创建后立即批量更新所有同源记录的计算字段
+      console.log(`\n🧮 开始批量更新同源记录的计算字段: 累积排程数量、未排数量、剩余需求工时`);
       
       try {
-        // 1. 计算累积排程数量 = SUMIFS(计划排程数量, 来源编号=本行来源编号, 包含本行)
+        // 1. 计算累积排程数量 = SUMIFS(计划排程数量, 来源编号=本行来源编号)
         const sourceNo = data.planNo; // 来源编号=备料计划编号
         const [sumRows] = await connection.execute(
           `SELECT COALESCE(SUM(schedule_quantity), 0) as cumulative_qty
@@ -757,21 +778,37 @@ id: row.id,
         const unscheduledQty = parseFloat((replenishmentQty - cumulativeScheduleQty).toFixed(4));
         console.log(`   2️⃣ 未排数量 = ${replenishmentQty} - ${cumulativeScheduleQty} = ${unscheduledQty}`);
         
-        // 3. 计算剩余需求工时 = 需求工时 - 已排程工时
-        const remainingRequiredHours = parseFloat((requiredWorkHours - scheduledWorkHours).toFixed(2));
-        console.log(`   3️⃣ 剩余需求工时 = ${requiredWorkHours} - ${scheduledWorkHours} = ${remainingRequiredHours}`);
-        
-        // 4. 更新数据库
+        // 3. 批量更新所有同源记录的累积排程数量和未排数量
+        console.log(`   📝 批量更新所有来源编号=${sourceNo}的记录...`);
         await connection.execute(
           `UPDATE ${targetTable}
            SET cumulative_schedule_qty = ?,
-               unscheduled_qty = ?,
-               remaining_required_hours = ?
-           WHERE id = ?`,
-          [cumulativeScheduleQty, unscheduledQty, remainingRequiredHours, createdPlanId]
+               unscheduled_qty = ?
+           WHERE source_no = ?`,
+          [cumulativeScheduleQty, unscheduledQty, sourceNo]
+        );
+        console.log(`   ✅ 批量更新累积排程数量和未排数量完成`);
+        
+        // 4. 逐行更新剩余需求工时（每行的剩余需求工时不同）
+        console.log(`   📝 逐行更新剩余需求工时...`);
+        const [allRecords] = await connection.execute(
+          `SELECT id, required_work_hours, scheduled_work_hours FROM ${targetTable} WHERE source_no = ?`,
+          [sourceNo]
         );
         
-        console.log(`✅ 字段计算完成并已更新到数据库`);
+        for (const record of allRecords) {
+          const recordRequiredHours = parseFloat(record.required_work_hours || 0);
+          const recordScheduledHours = parseFloat(record.scheduled_work_hours || 0);
+          const recordRemainingHours = parseFloat((recordRequiredHours - recordScheduledHours).toFixed(2));
+          
+          await connection.execute(
+            `UPDATE ${targetTable} SET remaining_required_hours = ? WHERE id = ?`,
+            [recordRemainingHours, record.id]
+          );
+        }
+        console.log(`   ✅ 逐行更新剩余需求工时完成，共更新${allRecords.length}条记录`);
+        
+        console.log(`✅ 所有计算字段更新完成`);
       } catch (calcError) {
         console.error(`⚠️ 字段计算失败:`, calcError.message);
         // 不阻塞主流程

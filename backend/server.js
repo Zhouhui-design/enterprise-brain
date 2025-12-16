@@ -26,6 +26,12 @@ app.use(express.urlencoded({ extended: true, limit: '50mb' }));
 // 静态文件服务
 app.use('/uploads', express.static(path.join(__dirname, '../uploads')));
 
+// 测试中间件 - 记录所有请求
+app.use((req, res, next) => {
+  console.log(`[Request] ${req.method} ${req.path}`);
+  next();
+});
+
 // 路由
 const materialsRouter = require('./routes/materials');
 const productionBomsRouter = require('./routes/productionBoms');
@@ -48,10 +54,25 @@ const realProcessPlansRouter = require('./routes/realProcessPlans');
 const assemblyProcessPlansRouter = require('./routes/assemblyProcessPlans');
 const sewingProcessPlansRouter = require('./routes/sewingProcessPlans');
 const sprayPaintingProcessPlansRouter = require('./routes/sprayPaintingProcessPlans');
+// ✅ 新增11个工序计划路由
+const shotBlastingProcessPlansRouter = require('./routes/shotBlastingProcessPlans');
+const manualWeldingProcessPlansRouter = require('./routes/manualWeldingProcessPlans');
+const tubeBendingProcessPlansRouter = require('./routes/tubeBendingProcessPlans');
+const laserTubeCuttingProcessPlansRouter = require('./routes/laserTubeCuttingProcessPlans');
+const laserCuttingProcessPlansRouter = require('./routes/laserCuttingProcessPlans');
+const bendingProcessPlansRouter = require('./routes/bendingProcessPlans');
+const drillingProcessPlansRouter = require('./routes/drillingProcessPlans');
+const punchingProcessPlansRouter = require('./routes/punchingProcessPlans');
+const manualCuttingProcessPlansRouter = require('./routes/manualCuttingProcessPlans');
+const machineGrindingProcessPlansRouter = require('./routes/machineGrindingProcessPlans');
+const cuttingProcessPlansRouter = require('./routes/cuttingProcessPlans');
 const capacityLoadRouter = require('./routes/capacityLoad');
 const companyCalendarRouter = require('./routes/companyCalendar');
 const listStyleProductionBomsRouter = require('./routes/listStyleProductionBoms');
 const testDataFlowRouter = require('./routes/testDataFlow');
+const procurementPlansRouter = require('./routes/procurementPlans');
+const supplierEvaluationsRouter = require('./routes/supplierEvaluations');
+const supplierManagementRouter = require('./routes/supplierManagement');
 
 app.use('/api/materials', materialsRouter);
 app.use('/api/production-boms', productionBomsRouter);
@@ -77,12 +98,41 @@ app.use('/api/sewing-process-plans', sewingProcessPlansRouter);
 console.log('🔧 缝纫工序计划路由已注册: /api/sewing-process-plans');
 app.use('/api/spray-painting-process-plans', sprayPaintingProcessPlansRouter);
 console.log('🔧 喷塑工序计划路由已注册: /api/spray-painting-process-plans');
+// ✅ 注册11个新工序计划路由
+app.use('/api/shot-blasting-process-plans', shotBlastingProcessPlansRouter);
+console.log('🔧 抛丸工序计划路由已注册: /api/shot-blasting-process-plans');
+app.use('/api/manual-welding-process-plans', manualWeldingProcessPlansRouter);
+console.log('🔧 人工焊接工序计划路由已注册: /api/manual-welding-process-plans');
+app.use('/api/tube-bending-process-plans', tubeBendingProcessPlansRouter);
+console.log('🔧 弯管工序计划路由已注册: /api/tube-bending-process-plans');
+app.use('/api/laser-tube-cutting-process-plans', laserTubeCuttingProcessPlansRouter);
+console.log('🔧 激光切管工序计划路由已注册: /api/laser-tube-cutting-process-plans');
+app.use('/api/laser-cutting-process-plans', laserCuttingProcessPlansRouter);
+console.log('🔧 激光下料工序计划路由已注册: /api/laser-cutting-process-plans');
+app.use('/api/bending-process-plans', bendingProcessPlansRouter);
+console.log('🔧 折弯工序计划路由已注册: /api/bending-process-plans');
+app.use('/api/drilling-process-plans', drillingProcessPlansRouter);
+console.log('🔧 打孔工序计划路由已注册: /api/drilling-process-plans');
+app.use('/api/punching-process-plans', punchingProcessPlansRouter);
+console.log('🔧 冲床工序计划路由已注册: /api/punching-process-plans');
+app.use('/api/manual-cutting-process-plans', manualCuttingProcessPlansRouter);
+console.log('🔧 人工下料工序计划路由已注册: /api/manual-cutting-process-plans');
+app.use('/api/machine-grinding-process-plans', machineGrindingProcessPlansRouter);
+console.log('🔧 机器打磨工序计划路由已注册: /api/machine-grinding-process-plans');
+app.use('/api/cutting-process-plans', cuttingProcessPlansRouter);
+console.log('🔧 裁剪工序计划路由已注册: /api/cutting-process-plans');
 app.use('/api/capacity-load', capacityLoadRouter);
 console.log('📡 工序能力负荷表路由已注册: /api/capacity-load');
 app.use('/api/company-calendar', companyCalendarRouter);
 app.use('/api/list-style-production-boms', listStyleProductionBomsRouter);
 app.use('/api/test-data-flow', testDataFlowRouter);
 console.log('🧪 测试数据流路由已注册: /api/test-data-flow');
+app.use('/api/procurement-plans', procurementPlansRouter);
+console.log('🛒 采购计划路由已注册: /api/procurement-plans');
+app.use('/api/supplier-evaluations', supplierEvaluationsRouter);
+console.log('⭐ 供应商评价路由已注册: /api/supplier-evaluations');
+app.use('/api/supplier-management', supplierManagementRouter);
+console.log('🏢 供应商管理路由已注册: /api/supplier-management');
 
 
 
