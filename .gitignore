@@ -21,3 +21,25 @@ dist
 *.sw?
 # Environment variables
 .env.local
+
+# Database files
+*.db
+!backend/database/.gitkeep
+data/backups/*.db
+
+# Backup files
+*.tar.gz
+*.zip
+beifenshuju/
+beifenshuju_backup_*/
+backup_*/
+
+# Test and debug files
+test_*.js
+!test/
+diagnose-*.js
+manual-*.js
+
+# IDE and system files
+.vscode/
+.idea/
