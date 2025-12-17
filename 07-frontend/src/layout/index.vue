@@ -597,24 +597,48 @@ export default {
                   meta: { title: '备料计划' },
                   icon: 'el-icon-s-grid'
                 },
-                // 注释或删除以下行
+                // ========================================
+                // ⛔ 已禁用：旧的打包工序计划菜单
+                // 路由：/process-planning/real-process-plan
+                // 原因：该路径为历史遗留路由，已迁移至新路径
+                // 禁用时间：2025-12-17
+                // 替代方案：使用下方新的打包工序计划菜单
+                // ========================================
                 // {
-                //   path: '/production-planning/process-plan',
-                //   name: 'ProcessPlanList',
-                //   meta: { title: '工序计划' },
-                //   icon: 'el-icon-s-order'
+                //   path: '/process-planning/real-process-plan',
+                //   name: 'RealProcessPlanList',
+                //   meta: { title: '打包工序计划(旧-已禁用)' },
+                //   icon: 'el-icon-s-claim'
                 // },
-                {
-                  path: '/process-planning/real-process-plan',
-                  name: 'RealProcessPlanList',
-                  meta: { title: '打包工序计划' },
-                  icon: 'el-icon-s-claim'
-                },
+                
+                // ✅ 当前启用：新的打包工序计划菜单
                 {
                   path: '/production-planning/packing-process-plan',
                   name: 'PackingProcessPlanList',
-                  meta: { title: '喷塑工序计划' },
+                  meta: { title: '打包工序计划' },
                   icon: 'el-icon-box'
+                },
+                
+                // ========================================
+                // ⛔ 已禁用：旧的喷塑工序计划配置（路径冲突）
+                // 路由：/production-planning/packing-process-plan
+                // 原因：与打包工序路径冲突，命名混淆
+                // 禁用时间：2025-12-17
+                // 替代方案：使用下方独立的喷塑工序计划菜单
+                // ========================================
+                // {
+                //   path: '/production-planning/packing-process-plan',
+                //   name: 'PackingProcessPlanList',
+                //   meta: { title: '喷塑工序计划(旧-已禁用)' },
+                //   icon: 'el-icon-box'
+                // },
+                
+                // ✅ 当前启用：新的喷塑工序计划菜单
+                {
+                  path: '/production-planning/spray-painting-process-plan',
+                  name: 'SprayPaintingProcessPlanList',
+                  meta: { title: '喷塑工序计划' },
+                  icon: 'el-icon-brush'
                 },
                 {
                   path: '/production-planning/assembly-process-plan',

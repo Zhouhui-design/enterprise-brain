@@ -83,7 +83,8 @@ class ProcurementPlanService {
       masterPlanNo: record.master_plan_no,
       processPlanNo: record.process_plan_no,
       materialPlanNo: record.material_plan_no,
-      procurementLeadTime: record.procurement_lead_time,
+      procurementLeadTime: record.procurement_lead_time, // ✅ 新增：采购提前期
+      demandDate: record.demand_date, // ✅ 新增：需求日期
       planArrivalDate: record.plan_arrival_date,
       procurementStatus: record.procurement_status,
       supplierName: record.supplier_name,
@@ -147,6 +148,7 @@ class ProcurementPlanService {
         procurement_plan_no, purchase_order_no, source_form_name, source_no,
         material_code, material_name, material_image, required_quantity, base_unit,
         sales_order_no, customer_order_no, master_plan_no, process_plan_no, material_plan_no,
+        procurement_lead_time, demand_date,
         plan_arrival_date, procurement_status, supplier_name, purchaser,
         inquiry_date, order_date, promised_arrival_date,
         plan_purchase_quantity, conversion_rate, purchase_unit, plan_unit_price, plan_total_amount,
@@ -157,13 +159,14 @@ class ProcurementPlanService {
         payment_method, is_paid, payment_no, payment_person,
         reimbursement_no, reimbursement_person,
         monthly_reconciliation_date, monthly_payment_date
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `;
 
     const params = [
       data.procurementPlanNo, data.purchaseOrderNo, data.sourceFormName, data.sourceNo,
       data.materialCode, data.materialName, data.materialImage, data.requiredQuantity, data.baseUnit,
       data.salesOrderNo, data.customerOrderNo, data.masterPlanNo, data.processPlanNo, data.materialPlanNo,
+      data.procurementLeadTime || 3, data.demandDate || null, // ✅ 新增字段
       data.planArrivalDate, data.procurementStatus, data.supplierName, data.purchaser,
       data.inquiryDate, data.orderDate, data.promisedArrivalDate,
       data.planPurchaseQuantity, data.conversionRate, data.purchaseUnit, data.planUnitPrice, data.planTotalAmount,

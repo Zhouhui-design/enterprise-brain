@@ -176,6 +176,116 @@ export default {
         title: '喷塑工序计划',
         icon: 'Palette'
       }
+    },
+    // ✅ 抛丸工序计划
+    {
+      path: 'shot-blasting-process-plan',
+      name: 'ShotBlastingProcessPlanList',
+      component: () => import('@/pages/production-planning/ShotBlastingProcessPlanList.vue'),
+      meta: { 
+        title: '抛丸工序计划',
+        icon: 'MagicStick'
+      }
+    },
+    // ✅ 人工焊接工序计划
+    {
+      path: 'manual-welding-process-plan',
+      name: 'ManualWeldingProcessPlanList',
+      component: () => import('@/pages/production-planning/ManualWeldingProcessPlanList.vue'),
+      meta: { 
+        title: '人工焊接工序计划',
+        icon: 'Connection'
+      }
+    },
+    // ✅ 弯管工序计划
+    {
+      path: 'tube-bending-process-plan',
+      name: 'TubeBendingProcessPlanList',
+      component: () => import('@/pages/production-planning/TubeBendingProcessPlanList.vue'),
+      meta: { 
+        title: '弯管工序计划',
+        icon: 'TurnOff'
+      }
+    },
+    // ✅ 激光切管工序计划
+    {
+      path: 'laser-tube-cutting-process-plan',
+      name: 'LaserTubeCuttingProcessPlanList',
+      component: () => import('@/pages/production-planning/LaserTubeCuttingProcessPlanList.vue'),
+      meta: { 
+        title: '激光切管工序计划',
+        icon: 'Scissors'
+      }
+    },
+    // ✅ 激光下料工序计划
+    {
+      path: 'laser-cutting-process-plan',
+      name: 'LaserCuttingProcessPlanList',
+      component: () => import('@/pages/production-planning/LaserCuttingProcessPlanList.vue'),
+      meta: { 
+        title: '激光下料工序计划',
+        icon: 'Position'
+      }
+    },
+    // ✅ 折弯工序计划
+    {
+      path: 'bending-process-plan',
+      name: 'BendingProcessPlanList',
+      component: () => import('@/pages/production-planning/BendingProcessPlanList.vue'),
+      meta: { 
+        title: '折弯工序计划',
+        icon: 'Finished'
+      }
+    },
+    // ✅ 打孔工序计划
+    {
+      path: 'drilling-process-plan',
+      name: 'DrillingProcessPlanList',
+      component: () => import('@/pages/production-planning/DrillingProcessPlanList.vue'),
+      meta: { 
+        title: '打孔工序计划',
+        icon: 'Aim'
+      }
+    },
+    // ✅ 冲床工序计划
+    {
+      path: 'punching-process-plan',
+      name: 'PunchingProcessPlanList',
+      component: () => import('@/pages/production-planning/PunchingProcessPlanList.vue'),
+      meta: { 
+        title: '冲床工序计划',
+        icon: 'Postcard'
+      }
+    },
+    // ✅ 人工下料工序计划
+    {
+      path: 'manual-cutting-process-plan',
+      name: 'ManualCuttingProcessPlanList',
+      component: () => import('@/pages/production-planning/ManualCuttingProcessPlanList.vue'),
+      meta: { 
+        title: '人工下料工序计划',
+        icon: 'KnifeFork'
+      }
+    },
+    // ✅ 机器打磨工序计划
+    {
+      path: 'machine-grinding-process-plan',
+      name: 'MachineGrindingProcessPlanList',
+      component: () => import('@/pages/production-planning/MachineGrindingProcessPlanList.vue'),
+      meta: { 
+        title: '机器打磨工序计划',
+        icon: 'Brush'
+      }
+    },
+    // ✅ 裁剪工序计划
+    {
+      path: 'cutting-process-plan',
+      name: 'CuttingProcessPlanList',
+      component: () => import('@/pages/production-planning/CuttingProcessPlanList.vue'),
+      meta: { 
+        title: '裁剪工序计划',
+        icon: 'Crop'
+      }
     }
 
   ]

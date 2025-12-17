@@ -259,6 +259,37 @@ id: row.id,
         }
       }
       
+      // ✅ 新增：自动推送到采购计划（在事务提交后）
+      if (data.planNo && data.sourceProcess === '采购') {
+        const demandQty = parseFloat(data.demandQuantity || 0);
+        const availableQty = parseFloat(data.availableStock || 0);
+        const replenishmentQty = demandQty - availableQty;
+        
+        if (replenishmentQty > 0) {
+          console.log('🛒 备料计划创建成功，来源工序=采购，开始自动推送到采购计划...');
+          
+          try {
+            const pushResult = await this.pushToProcurementPlan(data);
+            
+            if (pushResult && pushResult.success) {
+              console.log(`✅ 推送采购计划成功: ${data.planNo} → 采购计划 (${pushResult.procurementPlanNo})`);
+              
+              // 更新推送状态
+              await pool.execute(
+                'UPDATE material_preparation_plans SET push_to_purchase = ? WHERE plan_no = ?',
+                [1, data.planNo]
+              );
+            } else {
+              console.log(`⏭️ 推送采购计划跳过: ${pushResult ? pushResult.reason : '未知原因'}`);
+            }
+          } catch (pushError) {
+            console.error(`❌ 推送采购计划失败:`, pushError.message);
+          }
+        } else {
+          console.log('⏭️ 需补货数量≤0，跳过推送到采购计划');
+        }
+      }
+      
       return { 
         id: insertedId
       };
@@ -841,10 +872,214 @@ id: row.id,
   }
   /**
    * ✅ 新增：备料计划推送到真工序计划 - 为realpProcessPlanService调用
-   * 与 pushToRealProcessPlan 方法相同，但为了遻免循环依赖，单独定义
+   * 与 pushToRealProcessPlan 方法相同，但为了遗免循环依赖，单独定义
    */
   static async pushMaterialPlanToRealProcessPlan(data) {
     return await this.pushToRealProcessPlan(data);
+  }
+
+  /**
+   * ✅ 新增：备料计划推送到采购计划（新增+更新双重规则）
+   * 触发条件：备料计划编号不为空 && 来源工序="采购" && 需补货数量>0
+   * 逻辑：先查询，如果存在则更新，不存在则新增
+   */
+  static async pushToProcurementPlan(data) {
+    const ProcurementPlanService = require('./procurementPlanService');
+    const connection = await pool.getConnection();
+    
+    try {
+      await connection.beginTransaction();
+      
+      // 检查推送条件
+      const demandQty = parseFloat(data.demandQuantity || 0);
+      const availableQty = parseFloat(data.availableStock || 0);
+      const replenishmentQty = demandQty - availableQty;
+      
+      const shouldPush = (
+        data.planNo &&
+        data.sourceProcess === '采购' &&
+        replenishmentQty > 0
+      );
+      
+      if (!shouldPush) {
+        console.log('⚠️ 不符合推送到采购计划的条件');
+        await connection.rollback();
+        return { success: false, reason: 'conditions_not_met' };
+      }
+
+      console.log('🔍 开始查询采购计划，检查是否需要更新...');
+      console.log(`   销售订单编号: ${data.salesOrderNo}`);
+      console.log(`   备料物料编号: ${data.materialCode}`);
+
+      // 查询目标表格：采购计划
+      const [existingPlans] = await connection.execute(`
+        SELECT 
+          id, procurement_plan_no, source_no, required_quantity,
+          master_plan_no, process_plan_no, procurement_lead_time, demand_date,
+          plan_arrival_date
+        FROM procurement_plans
+        WHERE sales_order_no = ? AND material_code = ?
+        LIMIT 1
+      `, [data.salesOrderNo, data.materialCode]);
+
+      if (existingPlans.length > 0) {
+        // ✅ 执行更新规则
+        const existingPlan = existingPlans[0];
+        console.log(`✅ 找到已存在的采购计划: ${existingPlan.procurement_plan_no}，执行更新规则...`);
+
+        // 4. 来源编号 = textjoin(目标表格的"来源编号"，"-"，来源表格的"备料计划编号&":"&需补货数量")
+        const existingSourceNo = existingPlan.source_no || '';
+        const newSourcePart = `${data.planNo}:${replenishmentQty}`;
+        const updatedSourceNo = existingSourceNo ? `${existingSourceNo}, ${newSourcePart}` : newSourcePart;
+
+        // 17. 需补货数量 = 目标表格的需补货数量 + 来源表格的需补货数量
+        const existingRequiredQty = parseFloat(existingPlan.required_quantity || 0);
+        const updatedRequiredQty = existingRequiredQty + replenishmentQty;
+
+        // 21. 主生产计划编号 = textjoin(目标表格的"主生产计划编号"，来源表格的"来源主计划编号") 字段去重复
+        const existingMasterPlanNos = existingPlan.master_plan_no ? existingPlan.master_plan_no.split(',').map(s => s.trim()) : [];
+        const newMasterPlanNo = data.mainPlanProductCode || data.sourcePlanNo || '';
+        if (newMasterPlanNo && !existingMasterPlanNos.includes(newMasterPlanNo)) {
+          existingMasterPlanNos.push(newMasterPlanNo);
+        }
+        const updatedMasterPlanNo = existingMasterPlanNos.filter(n => n).join(', ');
+
+        // 22. 工序计划编号 = textjoin(目标表格的"工序计划编号"，来源表格的"来源工序计划编号") 字段去重复
+        const existingProcessPlanNos = existingPlan.process_plan_no ? existingPlan.process_plan_no.split(',').map(s => s.trim()) : [];
+        const newProcessPlanNo = data.sourceProcessPlanNo || '';
+        if (newProcessPlanNo && !existingProcessPlanNos.includes(newProcessPlanNo)) {
+          existingProcessPlanNos.push(newProcessPlanNo);
+        }
+        const updatedProcessPlanNo = existingProcessPlanNos.filter(n => n).join(', ');
+
+        // 24. 计划到货日期 = min(目标表格的"计划到货日期"， 需求日期 - 采购提前期)
+        let updatedPlanArrivalDate = existingPlan.plan_arrival_date;
+        if (data.demandDate && existingPlan.procurement_lead_time) {
+          const demandDate = new Date(data.demandDate);
+          const leadTime = parseInt(existingPlan.procurement_lead_time || 3);
+          demandDate.setDate(demandDate.getDate() - leadTime);
+          const calculatedArrivalDate = demandDate.toISOString().split('T')[0];
+          
+          if (existingPlan.plan_arrival_date) {
+            updatedPlanArrivalDate = new Date(existingPlan.plan_arrival_date) < new Date(calculatedArrivalDate)
+              ? existingPlan.plan_arrival_date
+              : calculatedArrivalDate;
+          } else {
+            updatedPlanArrivalDate = calculatedArrivalDate;
+          }
+        }
+
+        // 执行更新
+        await connection.execute(`
+          UPDATE procurement_plans
+          SET 
+            source_no = ?,
+            required_quantity = ?,
+            master_plan_no = ?,
+            process_plan_no = ?,
+            plan_arrival_date = ?,
+            updated_at = CURRENT_TIMESTAMP
+          WHERE id = ?
+        `, [
+          updatedSourceNo,
+          updatedRequiredQty,
+          updatedMasterPlanNo,
+          updatedProcessPlanNo,
+          updatedPlanArrivalDate,
+          existingPlan.id
+        ]);
+
+        console.log(`✅ 采购计划更新成功: ${existingPlan.procurement_plan_no}`);
+        console.log(`   来源编号: ${existingSourceNo} → ${updatedSourceNo}`);
+        console.log(`   需补货数量: ${existingRequiredQty} → ${updatedRequiredQty}`);
+        console.log(`   计划到货日期: ${existingPlan.plan_arrival_date} → ${updatedPlanArrivalDate}`);
+
+        await connection.commit();
+        return {
+          success: true,
+          action: 'update',
+          procurementPlanNo: existingPlan.procurement_plan_no,
+          id: existingPlan.id
+        };
+
+      } else {
+        // ✅ 执行新增规则
+        console.log('❌ 未找到已存在的采购计划，执行新增规则...');
+
+        // 1. 生成采购计划编号
+        const year = new Date().getFullYear();
+        const timestamp = Date.now().toString().slice(-6);
+        const random = Math.floor(Math.random() * 1000).toString().padStart(3, '0');
+        const procurementPlanNo = `CGGH${year}${timestamp}${random}`;
+
+        // 24. 采购提前期 = lookup(产品物料的物料编码=采购计划的"采购物料编号")
+        let procurementLeadTime = 3; // 默认值
+        if (data.materialCode) {
+          const [materialRows] = await connection.execute(
+            'SELECT default_procurement_lead_time FROM materials WHERE material_code = ? LIMIT 1',
+            [data.materialCode]
+          );
+          if (materialRows.length > 0 && materialRows[0].default_procurement_lead_time) {
+            procurementLeadTime = parseInt(materialRows[0].default_procurement_lead_time);
+          }
+        }
+
+        // 24. 计划到货日期 = 需求日期 - 采购提前期
+        let planArrivalDate = null;
+        if (data.demandDate && procurementLeadTime) {
+          const demandDate = new Date(data.demandDate);
+          demandDate.setDate(demandDate.getDate() - procurementLeadTime);
+          planArrivalDate = demandDate.toISOString().split('T')[0];
+        }
+
+        // 构建采购计划数据
+        const procurementPlanData = {
+          procurementPlanNo: procurementPlanNo,
+          purchaseOrderNo: null, // 2. 采购订单编号暂为空
+          sourceFormName: '备料计划', // 3. 来源表单
+          sourceNo: data.planNo, // 4. 来源编号
+          materialCode: data.materialCode, // 14. 采购物料编号
+          materialName: data.materialName, // 15. 采购物料名称
+          materialImage: null, // 16. 图片
+          requiredQuantity: replenishmentQty, // 17. 需补货数量
+          baseUnit: data.materialUnit, // 18. 基本单位
+          salesOrderNo: data.salesOrderNo, // 19. 销售订单编号
+          customerOrderNo: data.customerOrderNo, // 20. 客户订单编号
+          masterPlanNo: data.mainPlanProductCode || data.sourcePlanNo, // 21. 主生产计划编号
+          processPlanNo: data.sourceProcessPlanNo, // 22. 工序计划编号
+          materialPlanNo: data.planNo, // 23. 备料计划编号
+          procurementLeadTime: procurementLeadTime, // 24. 采购提前期
+          demandDate: data.demandDate, // 新增：需求日期
+          planArrivalDate: planArrivalDate, // 24. 计划到货日期
+          procurementStatus: 'PENDING_INQUIRY' // 默认状态
+        };
+
+        // 调用采购计划Service创建
+        const insertId = await ProcurementPlanService.create(procurementPlanData);
+        
+        console.log(`✅ 采购计划创建成功: ${procurementPlanNo}, ID: ${insertId}`);
+        console.log(`   采购物料: ${data.materialCode} - ${data.materialName}`);
+        console.log(`   需补货数量: ${replenishmentQty}`);
+        console.log(`   采购提前期: ${procurementLeadTime}天`);
+        console.log(`   需求日期: ${data.demandDate}`);
+        console.log(`   计划到货日期: ${planArrivalDate}`);
+
+        await connection.commit();
+        return {
+          success: true,
+          action: 'create',
+          procurementPlanNo: procurementPlanNo,
+          id: insertId
+        };
+      }
+
+    } catch (error) {
+      await connection.rollback();
+      console.error('❌ 推送到采购计划失败:', error);
+      throw error;
+    } finally {
+      connection.release();
+    }
   }
 }
 
