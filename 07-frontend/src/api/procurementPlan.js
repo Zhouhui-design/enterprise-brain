@@ -73,5 +73,15 @@ export const procurementPlanApi = {
    */
   batchRecall(ids) {
     return request.post('/procurement-plans/batch-recall', { ids })
+  },
+
+  /**
+   * ✅ 新增：采购计划合并为采购订单
+   * @param {Object} data - 合并数据
+   * @param {Array<Number>} data.planIds - 采购计划ID数组
+   * @param {String} data.mergeRule - 合并规则（sameSupplierSameDate / customRule）
+   */
+  mergeToOrder(data) {
+    return request.post('/procurement-plans/merge-to-order', data)
   }
 }

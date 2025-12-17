@@ -258,6 +258,96 @@ class ProcurementPlanService {
     await query(sql, ids);
     return true;
   }
+
+  /**
+   * ✅ 新增：采购计划合并为采购订单
+   * @param {Array<Number>} planIds - 采购计划ID数组
+   * @param {String} mergeRule - 合并规则（sameSupplierSameDate / customRule）
+   */
+  async mergeToOrder(planIds, mergeRule) {
+    if (!planIds || planIds.length === 0) {
+      throw new Error('采购计划ID列表不能为空');
+    }
+
+    // 查询所有选中的采购计划
+    const placeholders = planIds.map(() => '?').join(',');
+    const selectSql = `SELECT * FROM procurement_plans WHERE id IN (${placeholders})`;
+    const plans = await query(selectSql, planIds);
+
+    if (plans.length === 0) {
+      throw new Error('未找到有效的采购计划');
+    }
+
+    console.log(`📋 查询到 ${plans.length} 条采购计划，开始按规则分组...`);
+
+    // 根据合并规则分组
+    const groups = {};
+    
+    if (mergeRule === 'sameSupplierSameDate') {
+      // 相同供应商 + 相同承诺回厂日期合并
+      plans.forEach(plan => {
+        const supplierName = plan.supplier_name || 'NO_SUPPLIER';
+        const promisedDate = plan.promised_arrival_date || 'NO_DATE';
+        const groupKey = `${supplierName}||${promisedDate}`;
+        
+        if (!groups[groupKey]) {
+          groups[groupKey] = [];
+        }
+        groups[groupKey].push(plan);
+      });
+    } else {
+      // 其他规则（默认全部合并为一个）
+      groups['all'] = plans;
+    }
+
+    console.log(`📋 分组结果: ${Object.keys(groups).length} 个组`);
+
+    // 生成采购订单编号
+    const generateOrderNo = () => {
+      const year = new Date().getFullYear();
+      const timestamp = Date.now().toString().slice(-6);
+      const random = Math.floor(Math.random() * 1000).toString().padStart(3, '0');
+      return `CGDD${year}${timestamp}${random}`;
+    };
+
+    // 为每个组生成采购订单编号
+    const orders = [];
+    for (const groupKey in groups) {
+      const groupPlans = groups[groupKey];
+      const purchaseOrderNo = generateOrderNo();
+      
+      console.log(`📝 生成采购订单: ${purchaseOrderNo}, 包含 ${groupPlans.length} 条采购计划`);
+      
+      // 更新所有属于该组的采购计划
+      const planIdsInGroup = groupPlans.map(p => p.id);
+      const updatePlaceholders = planIdsInGroup.map(() => '?').join(',');
+      const updateSql = `
+        UPDATE procurement_plans 
+        SET purchase_order_no = ?, 
+            procurement_status = 'ORDERED',
+            updated_at = CURRENT_TIMESTAMP 
+        WHERE id IN (${updatePlaceholders})
+      `;
+      
+      await query(updateSql, [purchaseOrderNo, ...planIdsInGroup]);
+      
+      orders.push({
+        purchaseOrderNo,
+        planCount: groupPlans.length,
+        supplierName: groupPlans[0].supplier_name,
+        promisedArrivalDate: groupPlans[0].promised_arrival_date,
+        planIds: planIdsInGroup
+      });
+    }
+
+    console.log(`✅ 合并完成！生成了 ${orders.length} 个采购订单`);
+
+    return {
+      success: true,
+      orderCount: orders.length,
+      orders: orders
+    };
+  }
 }
 
 module.exports = new ProcurementPlanService();

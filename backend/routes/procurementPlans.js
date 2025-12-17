@@ -217,4 +217,45 @@ router.post('/batch-recall', async (req, res) => {
   }
 });
 
+/**
+ * ✅ 新增：采购计划合并为采购订单
+ * POST /api/procurement-plans/merge-to-order
+ * Body: { planIds: [1, 2, 3], mergeRule: 'sameSupplierSameDate' }
+ */
+router.post('/merge-to-order', async (req, res) => {
+  try {
+    const { planIds, mergeRule } = req.body;
+    
+    if (!planIds || !Array.isArray(planIds) || planIds.length === 0) {
+      return res.status(400).json({
+        code: 400,
+        message: '请提供要合并的采购计划ID列表'
+      });
+    }
+    
+    if (!mergeRule) {
+      return res.status(400).json({
+        code: 400,
+        message: '请选择合并规则'
+      });
+    }
+    
+    console.log(`🔗 开始合并采购计划: ${planIds.length}条, 规则: ${mergeRule}`);
+    
+    const result = await procurementPlanService.mergeToOrder(planIds, mergeRule);
+    
+    res.json({
+      code: 200,
+      message: `成功合并${planIds.length}条采购计划，生成${result.orderCount}个采购订单`,
+      data: result
+    });
+  } catch (error) {
+    console.error('合并采购计划失败:', error);
+    res.status(500).json({
+      code: 500,
+      message: '合并采购计划失败: ' + error.message
+    });
+  }
+});
+
 module.exports = router;

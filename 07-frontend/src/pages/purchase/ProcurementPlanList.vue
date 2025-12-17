@@ -18,9 +18,43 @@
         <el-button type="info" size="small" @click="handleBatchRecall" :disabled="!hasSelection">
           批量撤回
         </el-button>
+        
+        <!-- ✅ 新增：采购订单合并规则下拉 + 一键合并按钮 -->
+        <el-select 
+          v-model="mergeRuleValue" 
+          placeholder="采购订单合并规则"
+          size="small"
+          style="width: 260px; margin-left: 10px"
+        >
+          <el-option 
+            label="相同供应商，相同承诺回厂日期合并" 
+            value="sameSupplierSameDate" 
+          />
+          <el-option 
+            label="其他规则（需要其他规则，请联系周辉18627407019添加）" 
+            value="customRule" 
+            disabled
+          />
+        </el-select>
+        <el-button 
+          type="success" 
+          size="small" 
+          @click="handleMergeOrders"
+          :disabled="!hasSelection || !mergeRuleValue"
+        >
+          <el-icon><Connection /></el-icon>
+          一键合并
+        </el-button>
+        
         <el-button size="small" @click="loadData">
           <el-icon><Refresh /></el-icon>
           刷新
+        </el-button>
+        
+        <!-- ✅ 新增：页面设置按钮 -->
+        <el-button size="small" @click="pageSettingsVisible = true">
+          <el-icon><Setting /></el-icon>
+          页面设置
         </el-button>
       </div>
     </div>
@@ -107,13 +141,71 @@
         />
       </div>
     </div>
+
+    <!-- ✅ 新增：页面设置对话框 -->
+    <el-dialog 
+      v-model="pageSettingsVisible" 
+      title="页面设置" 
+      width="600px"
+      @close="handlePageSettingsClose"
+    >
+      <el-tabs v-model="activeSettingsTab" type="border-card">
+        <!-- 业务变量标签页 -->
+        <el-tab-pane label="业务变量" name="businessVars">
+          <el-form label-width="180px" style="max-width: 500px">
+            <el-form-item label="采购订单合并规则">
+              <el-select 
+                v-model="businessVars.mergeRule" 
+                placeholder="请选择合并规则"
+                style="width: 100%"
+              >
+                <el-option 
+                  label="相同供应商，相同承诺回厂日期合并" 
+                  value="sameSupplierSameDate" 
+                />
+                <el-option 
+                  label="其他规则（需要其他规则，请联系周辉18627407019添加）" 
+                  value="customRule" 
+                  disabled
+                />
+              </el-select>
+              <div style="margin-top: 8px; color: #909399; font-size: 12px">
+                📝 说明：设置默认的采购订单合并规则，用于一键合并功能<br/>
+                • 相同供应商，相同承诺回厂日期合并：将相同供应商且承诺回厂日期相同的采购计划合并为一个采购订单<br/>
+                • 如需其他合并规则，请联系周辉18627407019
+              </div>
+            </el-form-item>
+          </el-form>
+        </el-tab-pane>
+
+        <!-- 列字段控制标签页 -->
+        <el-tab-pane label="列字段控制" name="columnControl">
+          <div style="max-height: 400px; overflow-y: auto">
+            <el-checkbox-group v-model="selectedColumns" style="display: flex; flex-direction: column; gap: 8px">
+              <el-checkbox 
+                v-for="col in defaultColumns" 
+                :key="col.prop" 
+                :label="col.prop"
+              >
+                {{ col.label }}
+              </el-checkbox>
+            </el-checkbox-group>
+          </div>
+        </el-tab-pane>
+      </el-tabs>
+
+      <template #footer>
+        <el-button @click="pageSettingsVisible = false">取消</el-button>
+        <el-button type="primary" @click="handleSavePageSettings">保存</el-button>
+      </template>
+    </el-dialog>
   </div>
 </template>
 
 <script setup>
 import { ref, computed, onMounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { Plus, Delete, Refresh, Search, ArrowDown } from '@element-plus/icons-vue'
+import { Plus, Delete, Refresh, Search, ArrowDown, Connection, Setting } from '@element-plus/icons-vue'
 import { procurementPlanApi } from '@/api/procurementPlan'
 
 // 响应式数据
@@ -122,6 +214,17 @@ const tableData = ref([])
 const selectedRows = ref([])
 const pagination = ref({ page: 1, pageSize: 20, total: 0 })
 const columnSearchValues = ref({})
+
+// ✅ 新增：页面设置相关状态
+const pageSettingsVisible = ref(false)
+const activeSettingsTab = ref('businessVars')
+const businessVars = ref({
+  mergeRule: 'sameSupplierSameDate' // 默认规则
+})
+const selectedColumns = ref([])
+
+// ✅ 新增：合并规则下拉选中值
+const mergeRuleValue = ref('sameSupplierSameDate')
 
 // 默认列配置（采购计划50个字段）
 const defaultColumns = [
@@ -174,7 +277,14 @@ const defaultColumns = [
   { prop: 'updatedAt', label: '更新时间', width: 160, filterable: true, visible: true }
 ]
 
-const visibleColumns = computed(() => defaultColumns.filter(col => col.visible))
+const visibleColumns = computed(() => {
+  // 如果没有设置，显示所有列
+  if (selectedColumns.value.length === 0) {
+    return defaultColumns.filter(col => col.visible)
+  }
+  // 根据用户选择显示列
+  return defaultColumns.filter(col => selectedColumns.value.includes(col.prop))
+})
 const hasSelection = computed(() => selectedRows.value.length > 0)
 
 // 筛选后的表格数据
@@ -374,7 +484,109 @@ const getFormattedValue = (row, prop) => {
   return String(cellValue)
 }
 
+// ✅ 新增：页面设置处理
+const handlePageSettingsClose = () => {
+  // 关闭时同步业务变量到主界面的下拉框
+  mergeRuleValue.value = businessVars.value.mergeRule
+}
+
+const handleSavePageSettings = () => {
+  // 保存业务变量
+mergeRuleValue.value = businessVars.value.mergeRule
+  
+  // 保存列字段设置到localStorage
+  if (selectedColumns.value.length > 0) {
+    localStorage.setItem('procurementPlan_selectedColumns', JSON.stringify(selectedColumns.value))
+  }
+  
+  // 保存业务变量到localStorage
+  localStorage.setItem('procurementPlan_businessVars', JSON.stringify(businessVars.value))
+  
+  ElMessage.success('页面设置保存成功')
+  pageSettingsVisible.value = false
+}
+
+// ✅ 新增：一键合并处理
+const handleMergeOrders = async () => {
+  if (!mergeRuleValue.value) {
+    ElMessage.warning('请先选择合并规则')
+    return
+  }
+  
+  if (selectedRows.value.length === 0) {
+    ElMessage.warning('请先选择要合并的采购计划')
+    return
+  }
+  
+  try {
+    await ElMessageBox.confirm(
+      `将选中的 ${selectedRows.value.length} 条采购计划按“${mergeRuleValue.value === 'sameSupplierSameDate' ? '相同供应商，相同承诺回厂日期' : '其他规则'}”合并为采购订单，是否继续？`,
+      '采购订单合并确认',
+      {
+        confirmButtonText: '确定合并',
+        cancelButtonText: '取消',
+        type: 'warning'
+      }
+    )
+    
+    loading.value = true
+    
+    // 调用后端API进行合并
+    const mergeData = {
+      planIds: selectedRows.value.map(row => row.id),
+      mergeRule: mergeRuleValue.value
+    }
+    
+    const result = await procurementPlanApi.mergeToOrder(mergeData)
+    
+    ElMessage.success(`合并成功！生成了 ${result.orderCount || 1} 个采购订单`)
+    
+    // 清空选中行
+    selectedRows.value = []
+    
+    // 重新加载数据
+    await loadData()
+    
+  } catch (error) {
+    if (error !== 'cancel') {
+      console.error('合并失败:', error)
+      ElMessage.error('合并失败: ' + (error.message || '未知错误'))
+    }
+  } finally {
+    loading.value = false
+  }
+}
+
+// ✅ 新增：初始化加载设置
+const loadPageSettings = () => {
+  // 加载列字段设置
+  const savedColumns = localStorage.getItem('procurementPlan_selectedColumns')
+  if (savedColumns) {
+    try {
+      selectedColumns.value = JSON.parse(savedColumns)
+    } catch (e) {
+      console.error('加载列字段设置失败:', e)
+    }
+  } else {
+    // 默认显示所有列
+    selectedColumns.value = defaultColumns.map(col => col.prop)
+  }
+  
+  // 加载业务变量
+  const savedBusinessVars = localStorage.getItem('procurementPlan_businessVars')
+  if (savedBusinessVars) {
+    try {
+      const parsed = JSON.parse(savedBusinessVars)
+      businessVars.value = { ...businessVars.value, ...parsed }
+      mergeRuleValue.value = parsed.mergeRule || 'sameSupplierSameDate'
+    } catch (e) {
+      console.error('加载业务变量失败:', e)
+    }
+  }
+}
+
 onMounted(() => {
+  loadPageSettings() // 加载页面设置
   loadData()
 })
 </script>
