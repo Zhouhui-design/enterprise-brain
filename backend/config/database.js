@@ -1010,6 +1010,27 @@ async function initializeDatabase() {
       ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='供应商管理表'
     `);
 
+    // ✅ 创建物料供货商信息表
+    await connection.execute(`
+      CREATE TABLE IF NOT EXISTS material_suppliers (
+        id INT AUTO_INCREMENT PRIMARY KEY COMMENT '主键ID',
+        material_code VARCHAR(100) NOT NULL COMMENT '物料编码',
+        supplier_name VARCHAR(200) NOT NULL COMMENT '供应商名称',
+        minimum_order_quantity DECIMAL(15,4) DEFAULT 0 COMMENT '起定量',
+        tier_range VARCHAR(100) COMMENT '阶梯范围',
+        tier_unit_price DECIMAL(10,2) DEFAULT 0 COMMENT '阶梯单价',
+        tax_rate DECIMAL(5,2) DEFAULT 13.00 COMMENT '税率(%)',
+        standard_packaging_quantity DECIMAL(15,4) DEFAULT 0 COMMENT '标准包装数量',
+        ordering_rule VARCHAR(50) DEFAULT '默认' COMMENT '下单规则(默认/备用)',
+        sequence INT DEFAULT 0 COMMENT '序号',
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+        INDEX idx_material_code (material_code),
+        INDEX idx_supplier_name (supplier_name),
+        INDEX idx_ordering_rule (ordering_rule)
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='物料供货商信息表'
+    `);
+
     console.log('✅ 数据库表结构初始化完成');
     
   } catch (error) {

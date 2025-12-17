@@ -207,6 +207,123 @@
               </el-form-item>
             </el-col>
           </el-row>
+
+          <!-- ✅ 供货商信息子表格 -->
+          <el-divider content-position="left">供货商信息</el-divider>
+          
+          <div style="margin-bottom: 10px;">
+            <el-button type="primary" size="small" @click="handleAddSupplier">
+              <el-icon><Plus /></el-icon>
+              添加供应商
+            </el-button>
+          </div>
+
+          <el-table :data="formData.suppliers" border stripe style="width: 100%;">
+            <el-table-column prop="sequence" label="序号" width="80" align="center">
+              <template #default="{ $index }">
+                {{ $index + 1 }}
+              </template>
+            </el-table-column>
+            
+            <el-table-column prop="supplierName" label="供应商名称" width="200">
+              <template #default="{ row }">
+                <el-select 
+                  v-model="row.supplierName" 
+                  filterable 
+                  placeholder="请选择供应商"
+                  style="width: 100%;"
+                >
+                  <el-option
+                    v-for="supplier in supplierList"
+                    :key="supplier.supplierName"
+                    :label="supplier.supplierName"
+                    :value="supplier.supplierName"
+                  />
+                </el-select>
+              </template>
+            </el-table-column>
+
+            <el-table-column prop="minimumOrderQuantity" label="起定量" width="120">
+              <template #default="{ row }">
+                <el-input-number 
+                  v-model="row.minimumOrderQuantity" 
+                  :precision="4" 
+                  :min="0"
+                  size="small"
+                  style="width: 100%;"
+                />
+              </template>
+            </el-table-column>
+
+            <el-table-column prop="tierRange" label="阶梯范围" width="150">
+              <template #default="{ row }">
+                <el-input 
+                  v-model="row.tierRange" 
+                  size="small"
+                  placeholder="如1000-5000"
+                />
+              </template>
+            </el-table-column>
+
+            <el-table-column prop="tierUnitPrice" label="阶梯单价" width="120">
+              <template #default="{ row }">
+                <el-input-number 
+                  v-model="row.tierUnitPrice" 
+                  :precision="2" 
+                  :min="0"
+                  size="small"
+                  style="width: 100%;"
+                />
+              </template>
+            </el-table-column>
+
+            <el-table-column prop="taxRate" label="税率(%)" width="100">
+              <template #default="{ row }">
+                <el-input-number 
+                  v-model="row.taxRate" 
+                  :precision="2" 
+                  :min="0"
+                  :max="100"
+                  size="small"
+                  style="width: 100%;"
+                />
+              </template>
+            </el-table-column>
+
+            <el-table-column prop="standardPackagingQuantity" label="标准包装数量" width="150">
+              <template #default="{ row }">
+                <el-input-number 
+                  v-model="row.standardPackagingQuantity" 
+                  :precision="4" 
+                  :min="0"
+                  size="small"
+                  style="width: 100%;"
+                />
+              </template>
+            </el-table-column>
+
+            <el-table-column prop="orderingRule" label="下单规则" width="120">
+              <template #default="{ row }">
+                <el-select v-model="row.orderingRule" size="small" style="width: 100%;">
+                  <el-option label="默认" value="默认" />
+                  <el-option label="备用" value="备用" />
+                </el-select>
+              </template>
+            </el-table-column>
+
+            <el-table-column label="操作" width="80" fixed="right" align="center">
+              <template #default="{ $index }">
+                <el-button 
+                  type="danger" 
+                  size="small" 
+                  link
+                  @click="handleDeleteSupplier($index)"
+                >
+                  删除
+                </el-button>
+              </template>
+            </el-table-column>
+          </el-table>
         </el-form>
       </el-tab-pane>
 
@@ -251,6 +368,7 @@ import { ref, reactive, watch, onMounted, computed } from 'vue'
 import { ElMessage } from 'element-plus'
 import { Plus, ArrowLeft, ArrowRight } from '@element-plus/icons-vue'
 import SmartSelect from '@/components/SmartSelect.vue'
+import request from '@/utils/request'
 
 const props = defineProps({
   materialData: {
@@ -276,6 +394,7 @@ const emit = defineEmits(['success', 'save', 'cancel', 'navigate'])
 
 const activeTab = ref('basic')
 const processList = ref([]) // 工序列表
+const supplierList = ref([]) // ✅ 供应商列表
 
 const formData = reactive({
   materialCode: '',
@@ -306,7 +425,8 @@ const formData = reactive({
   processPrice: 0,
   purchaseCycle: '',
   purchasePrice: 0,
-  basePrice: 0 // 基础单价（计算字段）
+  basePrice: 0, // 基础单价（计算字段）
+  suppliers: [] // ✅ 供货商信息列表
 })
 
 // 计算属性：基础单价
@@ -377,6 +497,7 @@ const handleSave = () => {
     return
   }
   
+  // 发送数据到父组件
   emit('save', { ...formData })
   ElMessage.success('保存成功')
 }
@@ -389,6 +510,7 @@ const handleSubmit = () => {
     return
   }
   
+  // 发送数据到父组件
   emit('success', { ...formData })
 }
 
@@ -419,6 +541,7 @@ const handleNext = () => {
 // 加载工序列表
 onMounted(() => {
   loadProcessList()
+  loadSupplierList() // ✅ 加载供应商列表
 })
 
 // 从 localStorage 加载工序数据
@@ -436,6 +559,38 @@ const loadProcessList = () => {
     console.error('加载工序数据失败:', error)
     ElMessage.error('加载工序数据失败')
   }
+}
+
+// ✅ 加载供应商列表
+const loadSupplierList = async () => {
+  try {
+    const response = await request.get('/supplier-management')
+    if (response.code === 200 && response.data) {
+      supplierList.value = response.data.records || []
+      console.log('加载供应商数据成功:', supplierList.value.length, '条')
+    }
+  } catch (error) {
+    console.error('加载供应商数据失败:', error)
+    ElMessage.error('加载供应商数据失败')
+  }
+}
+
+// ✅ 添加供应商
+const handleAddSupplier = () => {
+  formData.suppliers.push({
+    supplierName: '',
+    minimumOrderQuantity: 0,
+    tierRange: '',
+    tierUnitPrice: 0,
+    taxRate: 13,
+    standardPackagingQuantity: 0,
+    orderingRule: '默认'
+  })
+}
+
+// ✅ 删除供应商
+const handleDeleteSupplier = (index) => {
+  formData.suppliers.splice(index, 1)
 }
 </script>
 

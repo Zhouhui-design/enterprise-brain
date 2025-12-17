@@ -167,7 +167,7 @@ class ProcurementPlanService {
       data.materialCode, data.materialName, data.materialImage, data.requiredQuantity, data.baseUnit,
       data.salesOrderNo, data.customerOrderNo, data.masterPlanNo, data.processPlanNo, data.materialPlanNo,
       data.procurementLeadTime || 3, data.demandDate || null, // ✅ 新增字段
-      data.planArrivalDate, data.procurementStatus, data.supplierName, data.purchaser,
+      data.planArrivalDate, data.procurementStatus || 'PENDING_ORDER', data.supplierName, data.purchaser, // ✅ 默认状态：待下单
       data.inquiryDate, data.orderDate, data.promisedArrivalDate,
       data.planPurchaseQuantity, data.conversionRate, data.purchaseUnit, data.planUnitPrice, data.planTotalAmount,
       data.actualPurchaseQuantity, data.actualUnitPrice, data.actualTotalAmount, data.actualArrivalDate,
@@ -347,6 +347,113 @@ class ProcurementPlanService {
       orderCount: orders.length,
       orders: orders
     };
+  }
+
+  /**
+   * ✅ 新增：采购前询问
+   * @param {Array<Number>} ids - 采购计划ID数组
+   */
+  async prePurchaseInquiry(ids) {
+    if (!ids || ids.length === 0) {
+      throw new Error('ID列表不能为空');
+    }
+
+    const placeholders = ids.map(() => '?').join(',');
+    const sql = `
+      UPDATE procurement_plans 
+      SET procurement_status = 'INQUIRING',
+          updated_at = CURRENT_TIMESTAMP 
+      WHERE id IN (${placeholders})
+    `;
+    
+    await query(sql, ids);
+    
+    console.log(`💬 成功将 ${ids.length} 条采购计划更新为询问中状态`);
+    return true;
+  }
+
+  /**
+   * ✅ 新增：立即下单
+   * @param {Array<Number>} ids - 采购计划ID数组
+   */
+  async placeOrder(ids) {
+    if (!ids || ids.length === 0) {
+      throw new Error('ID列表不能为空');
+    }
+
+    // 验证：只能选择采购订单编号不为空，且状态为待下单或询问中
+    const placeholders = ids.map(() => '?').join(',');
+    const checkSql = `
+      SELECT id, purchase_order_no, procurement_status 
+      FROM procurement_plans 
+      WHERE id IN (${placeholders})
+    `;
+    
+    const plans = await query(checkSql, ids);
+    
+    const invalidPlans = plans.filter(plan => {
+      if (!plan.purchase_order_no) return true;
+      if (plan.procurement_status !== 'PENDING_ORDER' && plan.procurement_status !== 'INQUIRING') {
+        return true;
+      }
+      return false;
+    });
+    
+    if (invalidPlans.length > 0) {
+      throw new Error('只能选择采购订单编号不为空，且采购状态为“待下单”或“询问中，待回复”的计划');
+    }
+
+    const updateSql = `
+      UPDATE procurement_plans 
+      SET procurement_status = 'ORDERED',
+          updated_at = CURRENT_TIMESTAMP 
+      WHERE id IN (${placeholders})
+    `;
+    
+    await query(updateSql, ids);
+    
+    console.log(`🛍️ 成功下单 ${ids.length} 条采购计划`);
+    return true;
+  }
+
+  /**
+   * ✅ 新增：撤回下单
+   * @param {Array<Number>} ids - 采购计划ID数组
+   */
+  async withdrawOrder(ids) {
+    if (!ids || ids.length === 0) {
+      throw new Error('ID列表不能为空');
+    }
+
+    // 验证：只能选择已下单状态
+    const placeholders = ids.map(() => '?').join(',');
+    const checkSql = `
+      SELECT id, procurement_status 
+      FROM procurement_plans 
+      WHERE id IN (${placeholders})
+    `;
+    
+    const plans = await query(checkSql, ids);
+    
+    const invalidPlans = plans.filter(plan => plan.procurement_status !== 'ORDERED');
+    
+    if (invalidPlans.length > 0) {
+      throw new Error('只能选择采购状态为“已下单”的计划');
+    }
+
+    // 撤回操作：恢复为待下单，清空采购订单编号
+    const updateSql = `
+      UPDATE procurement_plans 
+      SET procurement_status = 'PENDING_ORDER',
+          purchase_order_no = NULL,
+          updated_at = CURRENT_TIMESTAMP 
+      WHERE id IN (${placeholders})
+    `;
+    
+    await query(updateSql, ids);
+    
+    console.log(`🔙 成功撤回 ${ids.length} 条采购计划`);
+    return true;
   }
 }
 

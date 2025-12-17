@@ -1,4 +1,5 @@
 const { pool } = require('../config/database');
+const materialSupplierService = require('./materialSupplierService'); // ✅ 引入物料供货商服务
 
 class MaterialService {
   // 获取所有物料
@@ -48,7 +49,7 @@ class MaterialService {
       
       // ✅ 字段名转换：下划线转驼峰
       const row = rows[0];
-      return {
+      const material = {
         ...row,
         materialCode: row.material_code,
         bomNumber: row.bom_number,
@@ -76,6 +77,11 @@ class MaterialService {
         createdAt: row.created_at,
         updatedAt: row.updated_at
       };
+      
+      // ✅ 获取物料供货商信息
+      material.suppliers = await materialSupplierService.getByMaterialCode(material.materialCode);
+      
+      return material;
     } catch (error) {
       throw new Error(`获取物料失败: ${error.message}`);
     }
@@ -89,7 +95,7 @@ class MaterialService {
       
       // ✅ 字段名转换：下划线转驼峰
       const row = rows[0];
-      return {
+      const material = {
         ...row,
         materialCode: row.material_code,
         bomNumber: row.bom_number,
@@ -117,6 +123,11 @@ class MaterialService {
         createdAt: row.created_at,
         updatedAt: row.updated_at
       };
+      
+      // ✅ 获取物料供货商信息
+      material.suppliers = await materialSupplierService.getByMaterialCode(materialCode);
+      
+      return material;
     } catch (error) {
       throw new Error(`获取物料失败: ${error.message}`);
     }
@@ -124,7 +135,10 @@ class MaterialService {
 
   // 创建物料
   static async createMaterial(materialData) {
+    const connection = await pool.getConnection();
     try {
+      await connection.beginTransaction();
+      
       // 计算基础单价
       const purchasePrice = materialData.purchase_price || materialData.purchasePrice || 0;
       const purchaseConversionRate = materialData.purchase_conversion_rate || materialData.purchaseConversionRate || 1;
@@ -141,7 +155,7 @@ class MaterialService {
         ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       `;
 
-      const [result] = await pool.execute(sql, [
+      const [result] = await connection.execute(sql, [
         materialData.material_code || materialData.materialCode,
         materialData.bom_number || materialData.bomNumber || '',
         materialData.material_name || materialData.materialName,
@@ -173,13 +187,30 @@ class MaterialService {
         basePrice,
         materialData.status || 'active'
       ]);
+      
+      // ✅ 处理供货商信息
+      const materialCode = materialData.material_code || materialData.materialCode;
+      if (materialData.suppliers && Array.isArray(materialData.suppliers) && materialData.suppliers.length > 0) {
+        // 为每个供货商信息添加物料编码和序号
+        const suppliersWithCode = materialData.suppliers.map((supplier, index) => ({
+          ...supplier,
+          materialCode: materialCode,
+          sequence: index
+        }));
+        
+        await materialSupplierService.createBatch(suppliersWithCode);
+      }
 
+      await connection.commit();
       return { id: result.insertId };
     } catch (error) {
+      await connection.rollback();
       if (error.code === 'ER_DUP_ENTRY') {
         throw new Error('物料编码已存在');
       }
       throw new Error(`创建物料失败: ${error.message}`);
+    } finally {
+      connection.release();
     }
   }
 
@@ -333,7 +364,10 @@ class MaterialService {
 
   // 更新物料
   static async updateMaterial(id, materialData) {
+    const connection = await pool.getConnection();
     try {
+      await connection.beginTransaction();
+      
       // 计算基础单价
       const purchasePrice = materialData.purchase_price || materialData.purchasePrice || 0;
       const purchaseConversionRate = materialData.purchase_conversion_rate || materialData.purchaseConversionRate || 1;
@@ -352,7 +386,7 @@ class MaterialService {
         WHERE id = ?
       `;
 
-      const [result] = await pool.execute(sql, [
+      const [result] = await connection.execute(sql, [
         materialData.material_code || materialData.materialCode,
         materialData.bom_number || materialData.bomNumber || '',
         materialData.material_name || materialData.materialName,
@@ -389,13 +423,36 @@ class MaterialService {
       if (result.affectedRows === 0) {
         throw new Error('物料不存在或未更新');
       }
+      
+      // ✅ 处理供货商信息更新
+      const materialCode = materialData.material_code || materialData.materialCode;
+      if (materialCode) {
+        // 先删除原有的供货商信息
+        await materialSupplierService.deleteByMaterialCode(materialCode);
+        
+        // 如果有新的供货商信息，则创建
+        if (materialData.suppliers && Array.isArray(materialData.suppliers) && materialData.suppliers.length > 0) {
+          // 为每个供货商信息添加物料编码和序号
+          const suppliersWithCode = materialData.suppliers.map((supplier, index) => ({
+            ...supplier,
+            materialCode: materialCode,
+            sequence: index
+          }));
+          
+          await materialSupplierService.createBatch(suppliersWithCode);
+        }
+      }
 
+      await connection.commit();
       return { id };
     } catch (error) {
+      await connection.rollback();
       if (error.code === 'ER_DUP_ENTRY') {
         throw new Error('物料编码已存在');
       }
       throw new Error(`更新物料失败: ${error.message}`);
+    } finally {
+      connection.release();
     }
   }
 

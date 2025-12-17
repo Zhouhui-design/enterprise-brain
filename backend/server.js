@@ -66,6 +66,8 @@ const punchingProcessPlansRouter = require('./routes/punchingProcessPlans');
 const manualCuttingProcessPlansRouter = require('./routes/manualCuttingProcessPlans');
 const machineGrindingProcessPlansRouter = require('./routes/machineGrindingProcessPlans');
 const cuttingProcessPlansRouter = require('./routes/cuttingProcessPlans');
+// ✅ 添加打包工序计划路由
+const packingProcessPlansRouter = require('./routes/packingProcessPlans');
 const capacityLoadRouter = require('./routes/capacityLoad');
 const companyCalendarRouter = require('./routes/companyCalendar');
 const listStyleProductionBomsRouter = require('./routes/listStyleProductionBoms');
@@ -73,6 +75,7 @@ const testDataFlowRouter = require('./routes/testDataFlow');
 const procurementPlansRouter = require('./routes/procurementPlans');
 const supplierEvaluationsRouter = require('./routes/supplierEvaluations');
 const supplierManagementRouter = require('./routes/supplierManagement');
+const warehousesRouter = require('./routes/warehouses-test-simple');
 
 app.use('/api/materials', materialsRouter);
 app.use('/api/production-boms', productionBomsRouter);
@@ -121,6 +124,9 @@ app.use('/api/machine-grinding-process-plans', machineGrindingProcessPlansRouter
 console.log('🔧 机器打磨工序计划路由已注册: /api/machine-grinding-process-plans');
 app.use('/api/cutting-process-plans', cuttingProcessPlansRouter);
 console.log('🔧 裁剪工序计划路由已注册: /api/cutting-process-plans');
+// ✅ 注册打包工序计划路由
+app.use('/api/packing-process-plans', packingProcessPlansRouter);
+console.log('🔧 打包工序计划路由已注册: /api/packing-process-plans');
 app.use('/api/capacity-load', capacityLoadRouter);
 console.log('📡 工序能力负荷表路由已注册: /api/capacity-load');
 app.use('/api/company-calendar', companyCalendarRouter);
@@ -133,6 +139,8 @@ app.use('/api/supplier-evaluations', supplierEvaluationsRouter);
 console.log('⭐ 供应商评价路由已注册: /api/supplier-evaluations');
 app.use('/api/supplier-management', supplierManagementRouter);
 console.log('🏢 供应商管理路由已注册: /api/supplier-management');
+app.use('/api/warehouses', warehousesRouter);
+console.log('🏭 仓库管理路由已注册: /api/warehouses');
 
 
 

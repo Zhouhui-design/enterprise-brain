@@ -1,206 +1,173 @@
 <template>
   <div class="warehouse-manage">
-    <!-- 页面头部 -->
+    <!-- 页面标题 -->
     <div class="page-header">
-      <h1 class="page-title">仓库管理</h1>
+      <h2>仓库管理</h2>
       <div class="header-actions">
-        <el-button type="primary" icon="el-icon-plus" @click="handleCreateWarehouse">新建仓库</el-button>
+        <el-button type="primary" size="small" @click="handleAdd">
+          <el-icon><Plus /></el-icon>
+          新增
+        </el-button>
+        <el-button 
+          size="small" 
+          @click="handleBatchDelete" 
+          :disabled="!hasSelection"
+        >
+          <el-icon><Delete /></el-icon>
+          批量删除
+        </el-button>
+        <el-button size="small" @click="handleRefresh">
+          <el-icon><Refresh /></el-icon>
+          刷新
+        </el-button>
+        <el-button size="small" @click="showSettings = true">
+          <el-icon><Setting /></el-icon>
+          页面设置
+        </el-button>
       </div>
     </div>
 
-    <!-- 搜索和筛选区域 -->
-    <el-card shadow="never" class="search-card">
-      <el-form :model="searchForm" label-width="100px">
-        <el-row :gutter="20">
-          <el-col :span="6">
-            <el-form-item label="仓库名称">
-              <el-input v-model="searchForm.name" placeholder="请输入仓库名称" />
-            </el-form-item>
-          </el-col>
-          <el-col :span="6">
-            <el-form-item label="仓库编码">
-              <el-input v-model="searchForm.code" placeholder="请输入仓库编码" />
-            </el-form-item>
-          </el-col>
-          <el-col :span="6">
-            <el-form-item label="仓库状态">
-              <el-select v-model="searchForm.status" placeholder="请选择状态">
-                <el-option label="全部" value="" />
-                <el-option label="启用" value="enabled" />
-                <el-option label="禁用" value="disabled" />
-              </el-select>
-            </el-form-item>
-          </el-col>
-          <el-col :span="6">
-            <el-form-item label="仓库类型">
-              <el-select v-model="searchForm.type" placeholder="请选择类型">
-                <el-option label="全部" value="" />
-                <el-option label="原材料仓" value="raw_material" />
-                <el-option label="半成品仓" value="semi_finished" />
-                <el-option label="成品仓" value="finished_product" />
-                <el-option label="废料仓" value="waste" />
-              </el-select>
-            </el-form-item>
-          </el-col>
-        </el-row>
-        <el-row :gutter="20">
-          <el-col :span="6">
-            <el-form-item label="负责人">
-              <el-input v-model="searchForm.manager" placeholder="请输入负责人" />
-            </el-form-item>
-          </el-col>
-          <el-col :span="6">
-            <el-form-item label="所属区域">
-              <el-select v-model="searchForm.region" placeholder="请选择区域">
-                <el-option label="全部" value="" />
-                <el-option v-for="region in regionOptions" :key="region.value" :label="region.label" :value="region.value" />
-              </el-select>
-            </el-form-item>
-          </el-col>
-          <el-col :span="12" class="search-actions">
-            <el-form-item>
-              <el-button type="primary" @click="handleSearch">查询</el-button>
-              <el-button @click="handleReset">重置</el-button>
-              <el-button type="info" @click="handleExport">导出</el-button>
-            </el-form-item>
-          </el-col>
-        </el-row>
-      </el-form>
-    </el-card>
+    <!-- 筛选提示（表头筛选模式）-->
+    <el-alert 
+      type="info" 
+      :closable="false" 
+      style="margin: 0 20px 15px"
+    >
+      表头筛选模式：每列标题下方有搜索框，支持模糊查询，筛选作用于所有{{ pagination.total }}条数据
+    </el-alert>
 
-    <!-- 数据统计卡片 -->
-    <div class="stats-cards">
-      <el-card shadow="hover" class="stat-card">
-        <div class="stat-item">
-          <div class="stat-value">{{ totalWarehouses }}</div>
-          <div class="stat-label">仓库总数</div>
-        </div>
-      </el-card>
-      <el-card shadow="hover" class="stat-card">
-        <div class="stat-item">
-          <div class="stat-value">{{ enabledWarehouses }}</div>
-          <div class="stat-label">启用仓库</div>
-        </div>
-      </el-card>
-      <el-card shadow="hover" class="stat-card">
-        <div class="stat-item">
-          <div class="stat-value">{{ totalCapacity }}</div>
-          <div class="stat-label">总容量(平方米)</div>
-        </div>
-      </el-card>
-      <el-card shadow="hover" class="stat-card">
-        <div class="stat-item">
-          <div class="stat-value">{{ totalLocations }}</div>
-          <div class="stat-label">储位总数</div>
-        </div>
-      </el-card>
-    </div>
-
-    <!-- 仓库列表 -->
-    <el-card shadow="never" class="data-card">
-      <div class="table-header">
-        <span class="table-title">仓库列表</span>
-        <div class="table-actions">
-          <el-button type="info" text @click="handleRefresh">
-            <el-icon><Refresh /></el-icon>
-            刷新
-          </el-button>
-        </div>
-      </div>
-
+    <!-- 数据表格 -->
+    <div class="table-container">
       <el-table
         v-loading="loading"
-        :data="paginatedWarehouses"
-        style="width: 100%"
+        :data="filteredTableData"
         border
+        stripe
         @selection-change="handleSelectionChange"
+        height="calc(100vh - 280px)"
       >
-        <el-table-column type="selection" width="55" />
-        <el-table-column prop="code" label="仓库编码" min-width="120" />
-        <el-table-column prop="name" label="仓库名称" min-width="180">
+        <el-table-column type="selection" width="55" fixed="left" />
+        
+        <template v-for="col in visibleColumns" :key="col.prop">
+          <el-table-column
+            v-if="col && col.prop"
+            :prop="col.prop"
+            :width="col.width"
+            :fixed="col.prop === 'code' ? 'left' : false"
+            :align="col.prop.includes('Quantity') || col.prop === 'capacity' || col.prop === 'locations' ? 'right' : 'left'"
+          >
+            <template #header>
+              <div class="table-header-cell">
+                <div class="header-label">{{ col.label }}</div>
+                <el-input
+                  v-if="col.filterable"
+                  v-model="columnSearchValues[col.prop]"
+                  size="small"
+                  placeholder="模糊搜索"
+                  clearable
+                  @input="handleColumnSearch"
+                  class="header-search"
+                >
+                  <template #prefix>
+                    <el-icon><Search /></el-icon>
+                  </template>
+                </el-input>
+              </div>
+            </template>
+            <template #default="{ row, column, $index }">
+              <span>{{ getFormattedValue(row, col.prop) }}</span>
+            </template>
+          </el-table-column>
+        </template>
+        <el-table-column label="操作" width="180" fixed="right">
           <template #default="{ row }">
-            <el-tooltip effect="dark" :content="row.description" placement="top">
-              <span class="warehouse-name">{{ row.name }}</span>
-            </el-tooltip>
-          </template>
-        </el-table-column>
-        <el-table-column prop="type" label="仓库类型" min-width="120">
-          <template #default="{ row }">
-            <el-tag :type="getTypeTagType(row.type)">{{ getTypeText(row.type) }}</el-tag>
-          </template>
-        </el-table-column>
-        <el-table-column prop="status" label="状态" min-width="100">
-          <template #default="{ row }">
-            <el-tag :type="row.status === 'enabled' ? 'success' : 'danger'">
-              {{ row.status === 'enabled' ? '启用' : '禁用' }}
-            </el-tag>
-          </template>
-        </el-table-column>
-        <el-table-column prop="capacity" label="容量(㎡)" min-width="100" />
-        <el-table-column prop="locations" label="储位数量" min-width="100" />
-        <el-table-column prop="region" label="所属区域" min-width="120" />
-        <el-table-column prop="manager" label="负责人" min-width="120" />
-        <el-table-column prop="contactPhone" label="联系电话" min-width="120" />
-        <el-table-column prop="address" label="详细地址" min-width="200" />
-        <el-table-column prop="createdAt" label="创建时间" min-width="160" />
-        <el-table-column label="操作" min-width="180" fixed="right">
-          <template #default="{ row }">
-            <el-button size="small" @click="handleView(row)">查看</el-button>
-            <el-button size="small" type="primary" @click="handleEdit(row)">编辑</el-button>
+            <el-button link type="primary" size="small" @click="handleView(row)">
+              查看
+            </el-button>
+            <el-button link type="primary" size="small" @click="handleEdit(row)">
+              编辑
+            </el-button>
             <el-button 
-              size="small" 
+              link 
               :type="row.status === 'enabled' ? 'danger' : 'success'"
+              size="small" 
               @click="handleStatusChange(row)"
             >
               {{ row.status === 'enabled' ? '禁用' : '启用' }}
+            </el-button>
+            <el-button link type="danger" size="small" @click="handleDelete(row)">
+              删除
             </el-button>
           </template>
         </el-table-column>
       </el-table>
 
       <!-- 分页 -->
-      <div class="pagination">
+      <div class="pagination-container">
         <el-pagination
-          v-model:current-page="pagination.currentPage"
+          v-model:current-page="pagination.page"
           v-model:page-size="pagination.pageSize"
-          :page-sizes="[10, 20, 50, 100]"
+          :total="pagination.total"
+          :page-sizes="[20, 50, 100, 200]"
           layout="total, sizes, prev, pager, next, jumper"
-          :total="filteredWarehouses.length"
-          @size-change="handleSizeChange"
-          @current-change="handleCurrentChange"
+          @size-change="handlePageSizeChange"
+          @current-change="handlePageChange"
         />
       </div>
-    </el-card>
+    </div>
 
-    <!-- 新建/编辑仓库弹窗 -->
+    <!-- 页面设置对话框 -->
+    <PageSettingsDialog
+      v-model="showSettings"
+      :business-variables="businessVariables"
+      :workflow-configs="workflowConfigs"
+      :code-rules="codeRules"
+      :column-configs="columnConfigs"
+      @add-var="addBusinessVariable"
+      @remove-var="removeBusinessVariable"
+      @save-vars="saveBusinessVariables"
+      @add-workflow="addWorkflowConfig"
+      @remove-workflow="removeWorkflowConfig"
+      @save-workflows="saveWorkflowConfigs"
+      @add-code-rule="addCodeRule"
+      @remove-code-rule="removeCodeRule"
+      @save-code-rules="saveCodeRules"
+      @update-code-example="updateCodeExample"
+      @reorder-columns="reorderColumns"
+      @save-columns="saveColumnConfigs"
+    />
+
+    <!-- 新增/编辑对话框 -->
     <el-dialog
-      v-model="showFormDialog"
-      :title="dialogTitle"
+      v-model="dialogVisible"
+      :title="isEdit ? '编辑仓库' : '新增仓库'"
       width="60%"
-      :before-close="handleCloseDialog"
+      :close-on-click-modal="false"
     >
       <el-form
-        ref="warehouseFormRef"
-        :model="warehouseForm"
+        ref="formRef"
+        :model="formData"
         :rules="formRules"
         label-width="120px"
+        size="small"
       >
         <el-row :gutter="20">
           <el-col :span="12">
             <el-form-item label="仓库编码" prop="code">
-              <el-input v-model="warehouseForm.code" placeholder="请输入仓库编码" />
+              <el-input v-model="formData.code" placeholder="请输入仓库编码" />
             </el-form-item>
           </el-col>
           <el-col :span="12">
             <el-form-item label="仓库名称" prop="name">
-              <el-input v-model="warehouseForm.name" placeholder="请输入仓库名称" />
+              <el-input v-model="formData.name" placeholder="请输入仓库名称" />
             </el-form-item>
           </el-col>
         </el-row>
+        
         <el-row :gutter="20">
           <el-col :span="12">
             <el-form-item label="仓库类型" prop="type">
-              <el-select v-model="warehouseForm.type" placeholder="请选择仓库类型">
+              <el-select v-model="formData.type" placeholder="请选择仓库类型" style="width: 100%">
                 <el-option label="原材料仓" value="raw_material" />
                 <el-option label="半成品仓" value="semi_finished" />
                 <el-option label="成品仓" value="finished_product" />
@@ -210,58 +177,70 @@
           </el-col>
           <el-col :span="12">
             <el-form-item label="所属区域" prop="region">
-              <el-select v-model="warehouseForm.region" placeholder="请选择所属区域">
-                <el-option v-for="region in regionOptions" :key="region.value" :label="region.label" :value="region.value" />
+              <el-select v-model="formData.region" placeholder="请选择所属区域" style="width: 100%">
+                <el-option label="华东区" value="east" />
+                <el-option label="华南区" value="south" />
+                <el-option label="华北区" value="north" />
+                <el-option label="华中区" value="central" />
+                <el-option label="西南区" value="southwest" />
+                <el-option label="西北区" value="northwest" />
+                <el-option label="东北区" value="northeast" />
               </el-select>
             </el-form-item>
           </el-col>
         </el-row>
+        
         <el-row :gutter="20">
           <el-col :span="12">
             <el-form-item label="仓库容量(㎡)" prop="capacity">
               <el-input-number 
-                v-model="warehouseForm.capacity" 
+                v-model="formData.capacity" 
                 :min="0" 
                 :step="100" 
                 placeholder="请输入仓库容量"
+                style="width: 100%"
               />
             </el-form-item>
           </el-col>
           <el-col :span="12">
             <el-form-item label="储位数量" prop="locations">
               <el-input-number 
-                v-model="warehouseForm.locations" 
+                v-model="formData.locations" 
                 :min="0" 
                 :step="10" 
                 placeholder="请输入储位数量"
+                style="width: 100%"
               />
             </el-form-item>
           </el-col>
         </el-row>
+        
         <el-row :gutter="20">
           <el-col :span="12">
             <el-form-item label="负责人" prop="manager">
-              <el-input v-model="warehouseForm.manager" placeholder="请输入负责人" />
+              <el-input v-model="formData.manager" placeholder="请输入负责人" />
             </el-form-item>
           </el-col>
           <el-col :span="12">
             <el-form-item label="联系电话" prop="contactPhone">
-              <el-input v-model="warehouseForm.contactPhone" placeholder="请输入联系电话" />
+              <el-input v-model="formData.contactPhone" placeholder="请输入联系电话" />
             </el-form-item>
           </el-col>
         </el-row>
+        
         <el-row :gutter="20">
           <el-col :span="24">
             <el-form-item label="详细地址" prop="address">
-              <el-input v-model="warehouseForm.address" placeholder="请输入详细地址" />
+              <el-input v-model="formData.address" placeholder="请输入详细地址" />
             </el-form-item>
           </el-col>
         </el-row>
+        
         <el-row :gutter="20">
           <el-col :span="24">
             <el-form-item label="仓库描述" prop="description">
               <el-input 
-                v-model="warehouseForm.description" 
+                v-model="formData.description" 
                 type="textarea" 
                 placeholder="请输入仓库描述"
                 rows="3"
@@ -269,29 +248,29 @@
             </el-form-item>
           </el-col>
         </el-row>
+        
         <el-row :gutter="20">
           <el-col :span="12">
             <el-form-item label="启用状态">
-              <el-switch v-model="warehouseForm.status" :active-value="'enabled'" :inactive-value="'disabled'" />
+              <el-switch v-model="formData.status" :active-value="'enabled'" :inactive-value="'disabled'" />
             </el-form-item>
           </el-col>
         </el-row>
       </el-form>
-
       <template #footer>
-        <span class="dialog-footer">
-          <el-button @click="handleCloseDialog">取消</el-button>
-          <el-button type="primary" @click="handleSubmit">确定</el-button>
-        </span>
+        <el-button @click="handleCloseDialog(formRef)">取消</el-button>
+        <el-button type="primary" @click="handleSave(formRef)" :loading="processing">
+          保存
+        </el-button>
       </template>
     </el-dialog>
 
-    <!-- 仓库详情弹窗 -->
+    <!-- 仓库详情对话框 -->
     <el-dialog
-      v-model="showDetailDialog"
+      v-model="detailVisible"
       title="仓库详情"
       width="60%"
-      :before-close="handleCloseDetail"
+      :close-on-click-modal="false"
     >
       <el-descriptions :column="2" border v-if="selectedWarehouse.id">
         <el-descriptions-item label="仓库编码">{{ selectedWarehouse.code }}</el-descriptions-item>
@@ -306,7 +285,7 @@
         </el-descriptions-item>
         <el-descriptions-item label="仓库容量">{{ selectedWarehouse.capacity }} 平方米</el-descriptions-item>
         <el-descriptions-item label="储位数量">{{ selectedWarehouse.locations }}</el-descriptions-item>
-        <el-descriptions-item label="所属区域">{{ selectedWarehouse.region }}</el-descriptions-item>
+        <el-descriptions-item label="所属区域">{{ getRegionText(selectedWarehouse.region) }}</el-descriptions-item>
         <el-descriptions-item label="负责人">{{ selectedWarehouse.manager }}</el-descriptions-item>
         <el-descriptions-item label="联系电话">{{ selectedWarehouse.contactPhone }}</el-descriptions-item>
         <el-descriptions-item label="详细地址">{{ selectedWarehouse.address }}</el-descriptions-item>
@@ -318,208 +297,317 @@
   </div>
 </template>
 
-<script setup lang="ts">
-import { ref, reactive, computed, onMounted } from 'vue'
-import { ElMessage, ElMessageBox } from 'element-plus'
-import { Refresh } from '@element-plus/icons-vue'
+<script setup>
+import { ref, computed, onMounted, onUnmounted, nextTick } from 'vue'
+import { Plus, Delete, Refresh, Setting, Search } from '@element-plus/icons-vue'
+// 使用新架构的Composables
+import { 
+  useWarehouseList,
+  useWarehouseActions 
+} from '@/features/warehouse'
+import { usePageSettings } from '@/features/warehouse/composables/usePageSettings'
+import PageSettingsDialog from '@/features/warehouse/components/PageSettingsDialog.vue'
 
-// 定义仓库类型
-interface Warehouse {
-  id: string
-  code: string
-  name: string
-  type: 'raw_material' | 'semi_finished' | 'finished_product' | 'waste'
-  status: 'enabled' | 'disabled'
-  capacity: number
-  locations: number
-  region: string
-  manager: string
-  contactPhone: string
-  address: string
-  description?: string
-  createdAt: string
-  updatedAt?: string
-}
+// ========== 列表逻辑（独立） ==========
+const {
+  loading,
+  tableData,
+  selectedRows,
+  pagination,
+  searchForm,
+  hasSelection,
+  loadData,
+  handleSearch,
+  handleResetSearch,
+  handleRefresh,
+  handlePageChange,
+  handlePageSizeChange,
+  handleSelectionChange
+} = useWarehouseList()
 
-// 定义搜索表单类型
-interface SearchForm {
-  name: string
-  code: string
-  status: string
-  type: string
-  manager: string
-  region: string
-}
+// ========== 操作逻辑（独立） ==========
+const {
+  processing,
+  dialogVisible,
+  detailVisible,
+  isEdit,
+  formData,
+  selectedWarehouse,
+  formRules,
+  handleAdd,
+  handleEdit,
+  handleView,
+  handleSave,
+  handleStatusChange,
+  handleCloseDialog,
+  handleCloseDetail
+} = useWarehouseActions(loadData)
 
-// 定义仓库表单类型
-interface WarehouseForm extends Omit<Warehouse, 'id' | 'createdAt' | 'updatedAt'> {}
+// ========== 页面设置 ==========
+const showSettings = ref(false)
 
-// 定义区域选项类型
-interface RegionOption {
-  label: string
-  value: string
-}
+// 默认列配置（按改造前页面的完整字段）
+const defaultColumns = [
+  { prop: 'code', label: '仓库编码', width: 120, filterable: true, visible: true },
+  { prop: 'name', label: '仓库名称', width: 180, filterable: true, visible: true },
+  { prop: 'type', label: '仓库类型', width: 120, filterable: true, visible: true },
+  { prop: 'status', label: '状态', width: 100, filterable: true, visible: true },
+  { prop: 'capacity', label: '容量(㎡)', width: 100, filterable: false, visible: true },
+  { prop: 'locations', label: '储位数量', width: 120, filterable: false, visible: true },
+  { prop: 'region', label: '所属区域', width: 120, filterable: true, visible: true },
+  { prop: 'manager', label: '负责人', width: 120, filterable: true, visible: true },
+  { prop: 'contactPhone', label: '联系电话', width: 120, filterable: true, visible: true },
+  { prop: 'address', label: '详细地址', width: 200, filterable: true, visible: true },
+  { prop: 'createdAt', label: '创建时间', width: 160, filterable: true, visible: true },
+  { prop: 'updatedAt', label: '更新时间', width: 160, filterable: true, visible: false }
+]
 
-// 定义分页类型
-interface Pagination {
-  currentPage: number
-  pageSize: number
-}
+const {
+  businessVariables,
+  addBusinessVariable,
+  removeBusinessVariable,
+  saveBusinessVariables,
+  workflowConfigs,
+  addWorkflowConfig,
+  removeWorkflowConfig,
+  saveWorkflowConfigs,
+  codeRules,
+  addCodeRule,
+  removeCodeRule,
+  saveCodeRules,
+  updateCodeExample,
+  columnConfigs,
+  reorderColumns,
+  saveColumnConfigs,
+  initSettings
+} = usePageSettings('warehouse')
 
-// 响应式数据
-const loading = ref(false)
-const showFormDialog = ref(false)
-const showDetailDialog = ref(false)
-const dialogTitle = ref('新建仓库')
-const selectedWarehouse = ref<Warehouse>({} as Warehouse)
-const selectedWarehouses = ref<Warehouse[]>([])
-const warehouseFormRef = ref()
-const warehouses = ref<Warehouse[]>([])
-
-// 区域选项
-const regionOptions = ref<RegionOption[]>([
-  { label: '华东区', value: 'east' },
-  { label: '华南区', value: 'south' },
-  { label: '华北区', value: 'north' },
-  { label: '华中区', value: 'central' },
-  { label: '西南区', value: 'southwest' },
-  { label: '西北区', value: 'northwest' },
-  { label: '东北区', value: 'northeast' }
-])
-
-// 搜索表单
-const searchForm = reactive<SearchForm>({
-  name: '',
-  code: '',
-  status: '',
-  type: '',
-  manager: '',
-  region: ''
-})
-
-// 仓库表单
-const warehouseForm = reactive<WarehouseForm>({
-  code: '',
-  name: '',
-  type: 'raw_material',
-  status: 'enabled',
-  capacity: 0,
-  locations: 0,
-  region: '',
-  manager: '',
-  contactPhone: '',
-  address: '',
-  description: ''
-})
-
-// 分页
-const pagination = reactive<Pagination>({
-  currentPage: 1,
-  pageSize: 10
-})
-
-// 表单验证规则
-const formRules = {
-  code: [
-    { required: true, message: '请输入仓库编码', trigger: 'blur' },
-    { min: 3, max: 20, message: '编码长度在 3 到 20 个字符', trigger: 'blur' }
-  ],
-  name: [
-    { required: true, message: '请输入仓库名称', trigger: 'blur' },
-    { min: 2, max: 50, message: '名称长度在 2 到 50 个字符', trigger: 'blur' }
-  ],
-  type: [
-    { required: true, message: '请选择仓库类型', trigger: 'change' }
-  ],
-  capacity: [
-    { required: true, message: '请输入仓库容量', trigger: 'blur' },
-    { type: 'number', min: 0, message: '容量必须大于等于0', trigger: 'blur' }
-  ],
-  locations: [
-    { required: true, message: '请输入储位数量', trigger: 'blur' },
-    { type: 'number', min: 0, message: '储位数量必须大于等于0', trigger: 'blur' }
-  ],
-  region: [
-    { required: true, message: '请选择所属区域', trigger: 'change' }
-  ],
-  manager: [
-    { required: true, message: '请输入负责人', trigger: 'blur' }
-  ],
-  contactPhone: [
-    { required: true, message: '请输入联系电话', trigger: 'blur' },
-    { pattern: /^1[3-9]\d{9}$/, message: '请输入正确的手机号码', trigger: 'blur' }
-  ],
-  address: [
-    { required: true, message: '请输入详细地址', trigger: 'blur' },
-    { min: 5, message: '地址长度不能少于5个字符', trigger: 'blur' }
-  ]
-}
-
-// 计算属性：筛选后的仓库列表
-const filteredWarehouses = computed(() => {
-  return warehouses.value.filter(warehouse => {
-    let match = true
-    
-    if (searchForm.name) {
-      match = match && warehouse.name.toLowerCase().includes(searchForm.name.toLowerCase())
-    }
-    if (searchForm.code) {
-      match = match && warehouse.code.toLowerCase().includes(searchForm.code.toLowerCase())
-    }
-    if (searchForm.status) {
-      match = match && warehouse.status === searchForm.status
-    }
-    if (searchForm.type) {
-      match = match && warehouse.type === searchForm.type
-    }
-    if (searchForm.manager) {
-      match = match && warehouse.manager.toLowerCase().includes(searchForm.manager.toLowerCase())
-    }
-    if (searchForm.region) {
-      match = match && warehouse.region === searchForm.region
-    }
-    
-    return match
-  })
-})
-
-// 计算属性：分页后的仓库列表
-const paginatedWarehouses = computed(() => {
-  const start = (pagination.currentPage - 1) * pagination.pageSize
-  const end = start + pagination.pageSize
-  return filteredWarehouses.value.slice(start, end)
-})
-
-// 计算属性：统计数据
-const totalWarehouses = computed(() => warehouses.value.length)
-const enabledWarehouses = computed(() => warehouses.value.filter(w => w.status === 'enabled').length)
-const totalCapacity = computed(() => warehouses.value.reduce((sum, w) => sum + w.capacity, 0))
-const totalLocations = computed(() => warehouses.value.reduce((sum, w) => sum + w.locations, 0))
-
-// 组件挂载时加载数据
-onMounted(() => {
-  loadWarehouses()
-})
-
-// 加载仓库数据
-const loadWarehouses = async () => {
-  loading.value = true
+// 可见列（按顺序排列） - 增强错误处理
+const visibleColumns = computed(() => {
   try {
-    // 模拟API调用
-    await new Promise(resolve => setTimeout(resolve, 800))
-    warehouses.value = getMockWarehouses()
+    // 如果columnConfigs还没有初始化，先使用defaultColumns
+    if (!columnConfigs.value || columnConfigs.value.length === 0) {
+      console.log('🔧 使用默认列配置:', defaultColumns.length, '个列')
+      return defaultColumns
+    }
+    
+    const visible = [...columnConfigs.value]
+      .sort((a, b) => (a?.order || 0) - (b?.order || 0))
+      .filter(col => col && col.visible)  // 添加null检查和过滤条件
+    
+    console.log('🔧 使用保存的列配置:', {
+      总数: columnConfigs.value.length,
+      可见: visible.length,
+      隐藏: columnConfigs.value.length - visible.length
+    })
+    
+    return visible
   } catch (error) {
-    ElMessage.error('加载仓库数据失败')
-    console.error('加载仓库数据失败:', error)
-  } finally {
-    loading.value = false
+    console.error('❌ visibleColumns计算属性出错:', error)
+    return defaultColumns
+  }
+})
+
+// 表头模糊搜索
+const columnSearchValues = ref({})
+
+const handleColumnSearch = () => {
+  // 触发筛选，使用computed自动更新
+}
+
+// 筛选后的表格数据（模糊搜索） - 严格数据过滤
+const filteredTableData = computed(() => {
+  try {
+    if (!tableData.value || !Array.isArray(tableData.value)) {
+      console.log('🔧 tableData不是有效数组:', tableData.value)
+      return []
+    }
+    
+    // 严格过滤：只保留有效的对象
+    let data = tableData.value.filter(row => {
+      return row && typeof row === 'object' && !Array.isArray(row) && row.code !== undefined
+    })
+    
+    console.log('🔧 过滤后的有效数据:', data.length, '条 (原始:', tableData.value.length, '条)')
+    
+    // 对每个有搜索值的列进行筛选
+    if (columnSearchValues.value) {
+      Object.keys(columnSearchValues.value).forEach(prop => {
+        const searchValue = columnSearchValues.value[prop]
+        if (searchValue && searchValue.trim()) {
+          data = data.filter(row => {
+            if (!row) return false
+            
+            const cellValue = row[prop]
+            if (cellValue === null || cellValue === undefined) return false
+            
+            // 转为字符串进行模糊匹配（不区分大小写）
+            return String(cellValue)
+              .toLowerCase()
+              .includes(searchValue.toLowerCase().trim())
+          })
+        }
+      })
+    }
+    
+    return data
+  } catch (error) {
+    console.error('❌ filteredTableData计算属性出错:', error)
+    return []
+  }
+})
+
+// ========== 事件处理（只负责UI交互） ==========
+const handleDelete = async (row) => {
+  await useWarehouseActions(loadData).deleteOne(row)
+}
+
+const handleBatchDelete = async () => {
+  await useWarehouseActions(loadData).batchDelete(selectedRows.value)
+}
+
+// ========== 工具函数 ==========
+const getTypeText = (type) => {
+  const typeMap = {
+    'raw_material': '原材料仓',
+    'semi_finished': '半成品仓',
+    'finished_product': '成品仓',
+    'waste': '废料仓'
+  }
+  return typeMap[type] || type
+}
+
+const getTypeTagType = (type) => {
+  const typeMap = {
+    'raw_material': 'primary',
+    'semi_finished': 'success',
+    'finished_product': 'warning',
+    'waste': 'info'
+  }
+  return typeMap[type] || 'default'
+}
+
+const getRegionText = (region) => {
+  const regionMap = {
+    'east': '华东区',
+    'south': '华南区',
+    'north': '华北区',
+    'central': '华中区',
+    'southwest': '西南区',
+    'northwest': '西北区',
+    'northeast': '东北区'
+  }
+  return regionMap[region] || region
+}
+
+// 获取格式化值 - 直接返回格式化后的值
+const getFormattedValue = (row, prop) => {
+  try {
+    if (!row || typeof row !== 'object') {
+      console.warn('⚠️ getFormattedValue: row is not an object', { row, prop })
+      return '-'
+    }
+
+    const cellValue = row[prop]
+    
+    // 日期字段
+    if (['createdAt', 'updatedAt'].includes(prop)) {
+      if (!cellValue) return '-'
+      try {
+        const date = new Date(cellValue)
+        if (isNaN(date.getTime())) return '-'
+        const year = date.getFullYear()
+        const month = String(date.getMonth() + 1).padStart(2, '0')
+        const day = String(date.getDate()).padStart(2, '0')
+        const hours = String(date.getHours()).padStart(2, '0')
+        const minutes = String(date.getMinutes()).padStart(2, '0')
+        return `${year}-${month}-${day} ${hours}:${minutes}`
+      } catch {
+        return '-'
+      }
+    }
+    
+    // 状态字段
+    if (prop === 'status') {
+      return cellValue === 'enabled' ? '启用' : '禁用'
+    }
+    
+    // 类型字段
+    if (prop === 'type') {
+      return getTypeText(cellValue)
+    }
+    
+    // 区域字段
+    if (prop === 'region') {
+      return getRegionText(cellValue)
+    }
+    
+    // 数值字段（保留整数）
+    if (['capacity', 'locations'].includes(prop)) {
+      if (cellValue === null || cellValue === undefined) return '0'
+      const value = parseFloat(cellValue)
+      return isNaN(value) ? '0' : value.toString()
+    }
+    
+    // 默认处理
+    if (cellValue === null || cellValue === undefined) return '-'
+    return String(cellValue)
+    
+  } catch (error) {
+    console.error('❌ getFormattedValue错误:', error, { prop, row })
+    return '-'
   }
 }
 
+// 保留原有的 getFormatter 函数以防其他地方使用
+const getFormatter = (prop) => {
+  return ({ row, column, cellValue }) => getFormattedValue(row, prop)
+}
+
+// ========== 初始化 ==========
+onMounted(async () => {
+  try {
+    console.log('🔧 仓库管理页面开始初始化')
+    
+    // 先初始化页面设置
+    initSettings(defaultColumns)
+    
+    // 等待下一个tick确保响应式更新完成
+    await nextTick()
+    
+    // 然后加载数据
+    loadData()
+    
+    console.log('✅ 仓库管理页面初始化完成')
+  } catch (error) {
+    console.error('❌ 仓库管理页面初始化失败:', error)
+  }
+})
+
+// ========== 组件清理 ==========
+onUnmounted(() => {
+  console.log('🧹 仓库管理页面开始清理')
+  
+  try {
+    // 清理搜索值，防止内存泄漏
+    columnSearchValues.value = {}
+    
+    // 清理选中行
+    selectedRows.value = []
+    
+    // 清理表格数据引用
+    tableData.value = []
+    
+    console.log('✅ 仓库管理页面清理完成')
+  } catch (error) {
+    console.error('❌ 页面清理时出错:', error)
+  }
+})
+
 // 获取模拟仓库数据
-const getMockWarehouses = (): Warehouse[] => {
+const getMockWarehouses = () => {
   const now = new Date()
-  const formatDate = (date: Date) => date.toISOString().slice(0, 16).replace('T', ' ')
+  const formatDate = (date) => date.toISOString().slice(0, 16).replace('T', ' ')
   
   return [
     {
@@ -647,203 +735,7 @@ const getMockWarehouses = (): Warehouse[] => {
   ]
 }
 
-// 获取仓库类型文本
-const getTypeText = (type: string): string => {
-  const typeMap: Record<string, string> = {
-    'raw_material': '原材料仓',
-    'semi_finished': '半成品仓',
-    'finished_product': '成品仓',
-    'waste': '废料仓'
-  }
-  return typeMap[type] || type
-}
 
-// 获取仓库类型标签样式
-const getTypeTagType = (type: string): string => {
-  const typeMap: Record<string, string> = {
-    'raw_material': 'primary',
-    'semi_finished': 'success',
-    'finished_product': 'warning',
-    'waste': 'info'
-  }
-  return typeMap[type] || 'default'
-}
-
-// 处理选择变化
-const handleSelectionChange = (selection: Warehouse[]) => {
-  selectedWarehouses.value = selection
-}
-
-// 处理查询
-const handleSearch = () => {
-  pagination.currentPage = 1
-}
-
-// 处理重置
-const handleReset = () => {
-  Object.assign(searchForm, {
-    name: '',
-    code: '',
-    status: '',
-    type: '',
-    manager: '',
-    region: ''
-  })
-  pagination.currentPage = 1
-}
-
-// 处理刷新
-const handleRefresh = () => {
-  loadWarehouses()
-}
-
-// 处理导出
-const handleExport = () => {
-  ElMessage.success('数据导出成功')
-}
-
-// 处理创建仓库
-const handleCreateWarehouse = () => {
-  dialogTitle.value = '新建仓库'
-  // 重置表单
-  Object.assign(warehouseForm, {
-    code: '',
-    name: '',
-    type: 'raw_material',
-    status: 'enabled',
-    capacity: 0,
-    locations: 0,
-    region: '',
-    manager: '',
-    contactPhone: '',
-    address: '',
-    description: ''
-  })
-  showFormDialog.value = true
-}
-
-// 处理编辑仓库
-const handleEdit = (warehouse: Warehouse) => {
-  dialogTitle.value = '编辑仓库'
-  // 填充表单
-  Object.assign(warehouseForm, {
-    code: warehouse.code,
-    name: warehouse.name,
-    type: warehouse.type,
-    status: warehouse.status,
-    capacity: warehouse.capacity,
-    locations: warehouse.locations,
-    region: warehouse.region,
-    manager: warehouse.manager,
-    contactPhone: warehouse.contactPhone,
-    address: warehouse.address,
-    description: warehouse.description || ''
-  })
-  showFormDialog.value = true
-}
-
-// 处理查看仓库
-const handleView = (warehouse: Warehouse) => {
-  selectedWarehouse.value = { ...warehouse }
-  showDetailDialog.value = true
-}
-
-// 处理状态变更
-const handleStatusChange = async (warehouse: Warehouse) => {
-  try {
-    const statusText = warehouse.status === 'enabled' ? '禁用' : '启用'
-    await ElMessageBox.confirm(
-      `确定要${statusText}仓库「${warehouse.name}」吗？`,
-      '提示',
-      {
-        confirmButtonText: '确定',
-        cancelButtonText: '取消',
-        type: warehouse.status === 'enabled' ? 'warning' : 'info'
-      }
-    )
-    
-    // 更新状态
-    const warehouseIndex = warehouses.value.findIndex(w => w.id === warehouse.id)
-    if (warehouseIndex !== -1) {
-      warehouses.value[warehouseIndex].status = warehouse.status === 'enabled' ? 'disabled' : 'enabled'
-      warehouses.value[warehouseIndex].updatedAt = new Date().toISOString().slice(0, 16).replace('T', ' ')
-    }
-    
-    ElMessage.success(`仓库${statusText}成功`)
-  } catch (error) {
-    // 取消操作
-  }
-}
-
-// 处理关闭弹窗
-const handleCloseDialog = () => {
-  showFormDialog.value = false
-  // 重置表单验证
-  if (warehouseFormRef.value) {
-    warehouseFormRef.value.resetFields()
-  }
-}
-
-// 处理关闭详情弹窗
-const handleCloseDetail = () => {
-  showDetailDialog.value = false
-}
-
-// 处理提交
-const handleSubmit = async () => {
-  try {
-    // 验证表单
-    if (warehouseFormRef.value) {
-      await warehouseFormRef.value.validate()
-    }
-    
-    // 模拟API调用
-    await new Promise(resolve => setTimeout(resolve, 500))
-    
-    const now = new Date()
-    const formatDateTime = (date: Date) => date.toISOString().slice(0, 16).replace('T', ' ')
-    
-    if (dialogTitle.value === '新建仓库') {
-      // 创建新仓库
-      const newWarehouse: Warehouse = {
-        id: Date.now().toString(),
-        ...warehouseForm,
-        createdAt: formatDateTime(now)
-      }
-      warehouses.value.unshift(newWarehouse)
-      ElMessage.success('仓库创建成功')
-    } else {
-      // 更新仓库
-      const warehouseIndex = warehouses.value.findIndex(w => w.code === warehouseForm.code)
-      if (warehouseIndex !== -1) {
-        warehouses.value[warehouseIndex] = {
-          ...warehouses.value[warehouseIndex],
-          ...warehouseForm,
-          updatedAt: formatDateTime(now)
-        }
-        ElMessage.success('仓库更新成功')
-      }
-    }
-    
-    // 关闭弹窗
-    showFormDialog.value = false
-  } catch (error) {
-    // 表单验证失败或其他错误
-    if (error !== false) {
-      ElMessage.error('操作失败，请重试')
-    }
-  }
-}
-
-// 处理分页大小变化
-const handleSizeChange = (size: number) => {
-  pagination.pageSize = size
-}
-
-// 处理当前页码变化
-const handleCurrentChange = (current: number) => {
-  pagination.currentPage = current
-}
 </script>
 
 <style scoped>

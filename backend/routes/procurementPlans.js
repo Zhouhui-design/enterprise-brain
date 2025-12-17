@@ -258,4 +258,103 @@ router.post('/merge-to-order', async (req, res) => {
   }
 });
 
+/**
+ * ✅ 新增：采购前询问
+ * POST /api/procurement-plans/pre-purchase-inquiry
+ * Body: { ids: [1, 2, 3] }
+ */
+router.post('/pre-purchase-inquiry', async (req, res) => {
+  try {
+    const { ids } = req.body;
+    
+    if (!ids || !Array.isArray(ids) || ids.length === 0) {
+      return res.status(400).json({
+        code: 400,
+        message: '请提供要询问的采购计划ID列表'
+      });
+    }
+    
+    console.log(`💬 开始采购前询问: ${ids.length}条`);
+    
+    await procurementPlanService.prePurchaseInquiry(ids);
+    
+    res.json({
+      code: 200,
+      message: `成功将${ids.length}条采购计划更新为询问中状态`
+    });
+  } catch (error) {
+    console.error('采购前询问失败:', error);
+    res.status(500).json({
+      code: 500,
+      message: '采购前询问失败: ' + error.message
+    });
+  }
+});
+
+/**
+ * ✅ 新增：立即下单
+ * POST /api/procurement-plans/place-order
+ * Body: { ids: [1, 2, 3] }
+ */
+router.post('/place-order', async (req, res) => {
+  try {
+    const { ids } = req.body;
+    
+    if (!ids || !Array.isArray(ids) || ids.length === 0) {
+      return res.status(400).json({
+        code: 400,
+        message: '请提供要下单的采购计划ID列表'
+      });
+    }
+    
+    console.log(`🛍️ 开始立即下单: ${ids.length}条`);
+    
+    await procurementPlanService.placeOrder(ids);
+    
+    res.json({
+      code: 200,
+      message: `成功下单${ids.length}条采购计划`
+    });
+  } catch (error) {
+    console.error('下单失败:', error);
+    res.status(500).json({
+      code: 500,
+      message: '下单失败: ' + error.message
+    });
+  }
+});
+
+/**
+ * ✅ 新增：撤回下单
+ * POST /api/procurement-plans/withdraw-order
+ * Body: { ids: [1, 2, 3] }
+ */
+router.post('/withdraw-order', async (req, res) => {
+  try {
+    const { ids } = req.body;
+    
+    if (!ids || !Array.isArray(ids) || ids.length === 0) {
+      return res.status(400).json({
+        code: 400,
+        message: '请提供要撤回的采购计划ID列表'
+      });
+    }
+    
+    console.log(`🔙 开始撤回下单: ${ids.length}条`);
+    
+    await procurementPlanService.withdrawOrder(ids);
+    
+    res.json({
+      code: 200,
+      message: `成功撤回${ids.length}条采购计划`
+    });
+  } catch (error) {
+    console.error('撤回下单失败:', error);
+    res.status(500).json({
+      code: 500,
+      message: '撤回下单失败: ' + error.message
+    });
+  }
+});
+
 module.exports = router;

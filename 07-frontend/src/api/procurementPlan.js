@@ -83,5 +83,29 @@ export const procurementPlanApi = {
    */
   mergeToOrder(data) {
     return request.post('/procurement-plans/merge-to-order', data)
+  },
+
+  /**
+   * ✅ 新增：采购前询问
+   * @param {Array<Number>} ids - 采购计划ID数组
+   */
+  prePurchaseInquiry(ids) {
+    return request.post('/procurement-plans/pre-purchase-inquiry', { ids })
+  },
+
+  /**
+   * ✅ 新增：立即下单
+   * @param {Array<Number>} ids - 采购计划ID数组
+   */
+  placeOrder(ids) {
+    return request.post('/procurement-plans/place-order', { ids })
+  },
+
+  /**
+   * ✅ 新增：撤回下单
+   * @param {Array<Number>} ids - 采购计划ID数组
+   */
+  withdrawOrder(ids) {
+    return request.post('/procurement-plans/withdraw-order', { ids })
   }
 }

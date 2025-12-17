@@ -19,6 +19,35 @@
           批量撤回
         </el-button>
         
+        <!-- ✅ 新增：采购流程操作按钮 -->
+        <el-button 
+          type="primary" 
+          size="small" 
+          @click="handlePrePurchaseInquiry"
+          :disabled="!hasSelection"
+        >
+          <el-icon><ChatDotRound /></el-icon>
+          采购前询问
+        </el-button>
+        <el-button 
+          type="success" 
+          size="small" 
+          @click="handlePlaceOrder"
+          :disabled="!hasSelection"
+        >
+          <el-icon><ShoppingCart /></el-icon>
+          立即下单
+        </el-button>
+        <el-button 
+          type="danger" 
+          size="small" 
+          @click="handleWithdrawOrder"
+          :disabled="!hasSelection"
+        >
+          <el-icon><RefreshLeft /></el-icon>
+          撤回下单
+        </el-button>
+        
         <!-- ✅ 新增：采购订单合并规则下拉 + 一键合并按钮 -->
         <el-select 
           v-model="mergeRuleValue" 
@@ -104,7 +133,29 @@
               </div>
             </template>
             <template #default="{ row }">
-              <span>{{ getFormattedValue(row, col.prop) }}</span>
+              <!-- 供应商名称字段特殊处理：可编辑 -->
+              <template v-if="col.prop === 'supplierName'">
+                <el-select
+                  v-model="row.supplierName"
+                  filterable
+                  allow-create
+                  default-first-option
+                  size="small"
+                  style="width: 100%"
+                  placeholder="请输入或选择供应商"
+                  @change="(value) => handleSupplierChange(row, value)"
+                >
+                  <el-option
+                    v-for="supplier in supplierList"
+                    :key="supplier.id"
+                    :label="supplier.supplierName"
+                    :value="supplier.supplierName"
+                  />
+                </el-select>
+              </template>
+              <template v-else>
+                <span>{{ getFormattedValue(row, col.prop) }}</span>
+              </template>
             </template>
           </el-table-column>
         </template>
@@ -205,8 +256,9 @@
 <script setup>
 import { ref, computed, onMounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { Plus, Delete, Refresh, Search, ArrowDown, Connection, Setting } from '@element-plus/icons-vue'
+import { Plus, Delete, Refresh, Search, ArrowDown, Connection, Setting, ChatDotRound, ShoppingCart, RefreshLeft } from '@element-plus/icons-vue'
 import { procurementPlanApi } from '@/api/procurementPlan'
+import request from '@/utils/request'
 
 // 响应式数据
 const loading = ref(false)
@@ -214,6 +266,10 @@ const tableData = ref([])
 const selectedRows = ref([])
 const pagination = ref({ page: 1, pageSize: 20, total: 0 })
 const columnSearchValues = ref({})
+
+// ✅ 新增：供应商列表状态
+const supplierList = ref([])
+const supplierLoading = ref(false)
 
 // ✅ 新增：页面设置相关状态
 const pageSettingsVisible = ref(false)
@@ -325,9 +381,37 @@ const loadData = async () => {
   }
 }
 
+// ✅ 新增：加载供应商列表
+const loadSuppliers = async () => {
+  supplierLoading.value = true
+  try {
+    const response = await request.get('/supplier-management', {
+      params: { page: 1, pageSize: 1000 }
+    })
+    supplierList.value = response.data?.records || []
+  } catch (error) {
+    console.error('加载供应商列表失败:', error)
+    ElMessage.error('加载供应商列表失败: ' + (error.message || '未知错误'))
+  } finally {
+    supplierLoading.value = false
+  }
+}
+
 // 事件处理
 const handleSelectionChange = (rows) => {
   selectedRows.value = rows
+}
+
+// ✅ 新增：处理供应商名称变更
+const handleSupplierChange = async (row, value) => {
+  try {
+    // 更新采购计划的供应商名称
+    await procurementPlanApi.update(row.id, { supplierName: value })
+    ElMessage.success('供应商名称更新成功')
+  } catch (error) {
+    console.error('更新供应商名称失败:', error)
+    ElMessage.error('更新供应商名称失败: ' + (error.message || '未知错误'))
+  }
 }
 
 const handleColumnSearch = () => {
@@ -468,6 +552,7 @@ const getFormattedValue = (row, prop) => {
       'PENDING_INQUIRY': '待询价',
       'INQUIRED': '已询价',
       'PENDING_ORDER': '待下单',
+      'INQUIRING': '询问中，待回复', // ✅ 新增状态
       'ORDERED': '已下单',
       'PENDING_ARRIVAL': '待回厂',
       'PARTIAL_ARRIVAL': '部分回厂',
@@ -557,6 +642,146 @@ const handleMergeOrders = async () => {
   }
 }
 
+// ✅ 新增：采购前询问
+const handlePrePurchaseInquiry = async () => {
+  if (selectedRows.value.length === 0) {
+    ElMessage.warning('请先选择要询问的采购计划')
+    return
+  }
+  
+  try {
+    await ElMessageBox.confirm(
+      `将选中的 ${selectedRows.value.length} 条采购计划状态更新为“询问中，待回复”，是否继续？`,
+      '采购前询问确认',
+      {
+        confirmButtonText: '确定',
+        cancelButtonText: '取消',
+        type: 'info'
+      }
+    )
+    
+    loading.value = true
+    
+    const ids = selectedRows.value.map(row => row.id)
+    await procurementPlanApi.prePurchaseInquiry(ids)
+    
+    ElMessage.success(`成功将 ${selectedRows.value.length} 条采购计划更新为询问中状态`)
+    
+    selectedRows.value = []
+    await loadData()
+    
+  } catch (error) {
+    if (error !== 'cancel') {
+      console.error('采购前询问失败:', error)
+      ElMessage.error('采购前询问失败: ' + (error.message || '未知错误'))
+    }
+  } finally {
+    loading.value = false
+  }
+}
+
+// ✅ 新增：立即下单
+const handlePlaceOrder = async () => {
+  if (selectedRows.value.length === 0) {
+    ElMessage.warning('请先选择要下单的采购计划')
+    return
+  }
+  
+  // 验证：只能选择采购订单编号不为空，且状态为待下单或询问中
+  const invalidRows = selectedRows.value.filter(row => {
+    if (!row.purchaseOrderNo) return true
+    if (row.procurementStatus !== 'PENDING_ORDER' && row.procurementStatus !== 'INQUIRING') {
+      return true
+    }
+    return false
+  })
+  
+  if (invalidRows.length > 0) {
+    ElMessage.error('只能选择采购订单编号不为空，且采购状态为“待下单”或“询问中，待回复”的计划')
+    return
+  }
+  
+  try {
+    await ElMessageBox.confirm(
+      `将选中的 ${selectedRows.value.length} 条采购计划状态更新为“已下单”，是否继续？`,
+      '立即下单确认',
+      {
+        confirmButtonText: '确定下单',
+        cancelButtonText: '取消',
+        type: 'warning'
+      }
+    )
+    
+    loading.value = true
+    
+    const ids = selectedRows.value.map(row => row.id)
+    await procurementPlanApi.placeOrder(ids)
+    
+    ElMessage.success(`成功下单 ${selectedRows.value.length} 条采购计划`)
+    
+    selectedRows.value = []
+    await loadData()
+    
+  } catch (error) {
+    if (error !== 'cancel') {
+      console.error('下单失败:', error)
+      ElMessage.error('下单失败: ' + (error.message || '未知错误'))
+    }
+  } finally {
+    loading.value = false
+  }
+}
+
+// ✅ 新增：撤回下单
+const handleWithdrawOrder = async () => {
+  if (selectedRows.value.length === 0) {
+    ElMessage.warning('请先选择要撤回的采购计划')
+    return
+  }
+  
+  // 验证：只能选择已下单状态
+  const invalidRows = selectedRows.value.filter(row => row.procurementStatus !== 'ORDERED')
+  
+  if (invalidRows.length > 0) {
+    ElMessage.error('只能选择采购状态为“已下单”的计划')
+    return
+  }
+  
+  try {
+    await ElMessageBox.confirm(
+      `确认撤回选中的 ${selectedRows.value.length} 条采购计划？
+
+注意：
+• 按采购订单编号选择：所有相同订单编号的计划都将撤回
+• 按采购计划选择：仅撤回选中的计划，订单编号将清空`,
+      '撤回下单确认',
+      {
+        confirmButtonText: '确定撤回',
+        cancelButtonText: '取消',
+        type: 'warning'
+      }
+    )
+    
+    loading.value = true
+    
+    const ids = selectedRows.value.map(row => row.id)
+    await procurementPlanApi.withdrawOrder(ids)
+    
+    ElMessage.success(`成功撤回 ${selectedRows.value.length} 条采购计划`)
+    
+    selectedRows.value = []
+    await loadData()
+    
+  } catch (error) {
+    if (error !== 'cancel') {
+      console.error('撤回下单失败:', error)
+      ElMessage.error('撤回下单失败: ' + (error.message || '未知错误'))
+    }
+  } finally {
+    loading.value = false
+  }
+}
+
 // ✅ 新增：初始化加载设置
 const loadPageSettings = () => {
   // 加载列字段设置
@@ -588,6 +813,7 @@ const loadPageSettings = () => {
 onMounted(() => {
   loadPageSettings() // 加载页面设置
   loadData()
+  loadSuppliers() // ✅ 新增：加载供应商列表
 })
 </script>
 

@@ -2,7 +2,7 @@
  * 供应商管理 Service 层
  * 处理业务逻辑和数据库操作
  */
-const pool = require('../config/database')
+const { pool } = require('../config/database')
 
 class SupplierManagementService {
   /**
@@ -64,10 +64,12 @@ class SupplierManagementService {
       // 查询数据
       const offset = (page - 1) * pageSize
       const orderClause = `ORDER BY ${sortBy} ${sortOrder.toUpperCase()}`
+      const limit = parseInt(pageSize)
+      const offsetValue = parseInt(offset)
       
       const [records] = await connection.execute(
-        `SELECT * FROM supplier_management ${whereClause} ${orderClause} LIMIT ? OFFSET ?`,
-        [...queryParams, parseInt(pageSize), parseInt(offset)]
+        `SELECT * FROM supplier_management ${whereClause} ${orderClause} LIMIT ${limit} OFFSET ${offsetValue}`,
+        queryParams
       )
 
       // ✅ 字段映射：数据库下划线格式 → 前端驼峰格式
