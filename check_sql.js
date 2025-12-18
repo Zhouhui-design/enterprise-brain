@@ -1,0 +1,6 @@
+const sql = 'INSERT INTO material_preparation_plans (plan_no, source_plan_no, source_process_plan_no, parent_code, parent_name, parent_schedule_quantity, material_code, material_name, material_source, material_unit, demand_quantity, need_mrp, realtime_stock, projected_balance, available_stock, replenishment_quantity, source_process, workshop_name, parent_process_name, process_interval_hours, process_interval_unit, process_schedule_date, demand_date, push_to_purchase, push_to_process, sales_order_no, customer_order_no, main_plan_product_code, main_plan_product_name, main_plan_quantity, promise_delivery_date, customer_name, product_image, submitter, submit_time, remark, created_by, updated_by, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)';
+const fieldCount = sql.split('(')[1].split(')')[0].split(',').length;
+const valueCount = (sql.match(/\?/g) || []).length;
+console.log('Fields:', fieldCount);
+console.log('Values:', valueCount);
+console.log('Match:', fieldCount === valueCount);

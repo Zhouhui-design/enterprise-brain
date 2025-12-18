@@ -185,17 +185,14 @@ class RealProcessPlanToMaterialService {
             plan_no,
             source_plan_no,
             source_process_plan_no,
-            parent_code,
-            parent_name,
-            parent_schedule_quantity,
             material_code,
             material_name,
             material_source,
             material_unit,
             demand_quantity,
-            need_mrp,
-            realtime_stock,
-            projected_balance,
+            is_mrp_needed,
+            real_time_inventory,
+            expected_balance,
             available_stock,
             replenishment_quantity,
             source_process,
@@ -215,14 +212,11 @@ class RealProcessPlanToMaterialService {
             created_by,
             created_at,
             updated_at
-          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW())
+          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW())
         `, [
           planNo,
           realProcessPlan.master_plan_no || '',
           realProcessPlan.plan_no || '',
-          productCode,
-          realProcessPlan.product_name || '',
-          scheduleQuantity,
           bomChild.child_code,
           bomChild.child_name,
           bomChild.component_source || '/',
@@ -247,7 +241,7 @@ class RealProcessPlanToMaterialService {
           realProcessPlan.level0_demand || 0, // ✅ 新增：主计划排程数量（真工序计划的0阶需求数量）
           realProcessPlan.promise_delivery_date || null, // ✅ 新增：订单承诺交期
           realProcessPlan.customer_name || null, // ✅ 新增：客户名称
-          'system' // ✅ created_by（新增第31个参数）
+          'system' // ✅ created_by
         ]);
         
         createdRecords.push({

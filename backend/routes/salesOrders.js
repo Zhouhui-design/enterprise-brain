@@ -1244,13 +1244,11 @@ router.post('/confirm-order', async (req, res) => {
           
           if (outputProcess === '采购' && suggestedQty > 0) {
             // ===== 推送到采购计划（仅当产出工序=采购 且 建议补货数量>0时） =====
-            // 生成采购计划编号
-            const [countResult] = await connection.execute(
-              `SELECT COUNT(*) as count FROM procurement_plans WHERE DATE(created_at) = CURDATE()`
-            )
-            const dailyCount = countResult[0].count + 1
+            // ✅ 修复：生成唯一的采购计划编号，避免重复
             const today = new Date().toISOString().split('T')[0].replace(/-/g, '')
-            const procurementPlanNo = `CG${today}${String(dailyCount).padStart(4, '0')}`
+            const timestamp = Date.now().toString().slice(-4)
+            const random = Math.floor(Math.random() * 1000).toString().padStart(3, '0')
+            const procurementPlanNo = `CG${today}${timestamp}${random}`
             
             // 查询物料的默认采购提前期
             const [materialRows] = await connection.execute(
@@ -1297,13 +1295,11 @@ router.post('/confirm-order', async (req, res) => {
             console.log(`✅ 推送到采购计划: ${procurementPlanNo} (${product.product_name})`)
           } else {
             // ===== 推送到主生产计划 =====
-            // 生成主生产计划编号
-            const [countResult] = await connection.execute(
-              `SELECT COUNT(*) as count FROM master_production_plans WHERE DATE(created_at) = CURDATE()`
-            )
-            const dailyCount = countResult[0].count + 1
+            // ✅ 修复：生成唯一的主生产计划编号，避免重复
             const today = new Date().toISOString().split('T')[0].replace(/-/g, '')
-            const planCode = `MP${today}${String(dailyCount).padStart(4, '0')}`
+            const timestamp = Date.now().toString().slice(-4)
+            const random = Math.floor(Math.random() * 1000).toString().padStart(3, '0')
+            const planCode = `MP${today}${timestamp}${random}`
             
             // 插入主生产计划
             await connection.execute(

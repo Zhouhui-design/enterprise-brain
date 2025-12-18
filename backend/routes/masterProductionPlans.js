@@ -90,9 +90,9 @@ router.post('/from-sales-order', async (req, res) => {
           
           // ✅ 计算计划入库日期 = 订单承诺交期 - 提前入库期
           let plannedStorageDate = null;
-          if (promisedDeliveryDate && advanceStorageDays !== undefined && advanceStorageDays !== null) {
+          if (promisedDeliveryDate) {
             // 直接处理YYYY-MM-DD格式，避免Date对象时区转换
-            const advanceDays = parseInt(advanceStorageDays || 0);
+            const advanceDays = parseInt(advanceStorageDays || 0); // 默认为0天
             if (/^\d{4}-\d{2}-\d{2}$/.test(promisedDeliveryDate)) {
               const [year, month, day] = promisedDeliveryDate.split('-').map(Number);
               const deliveryDate = new Date(year, month - 1, day); // month-1 because JS months are 0-indexed
@@ -114,6 +114,9 @@ router.post('/from-sales-order', async (req, res) => {
               提前天数: advanceDays,
               计划入库日期: plannedStorageDate
             });
+          } else {
+            // 如果承诺交期为空，计划入库日期也为空
+            console.log('⚠️ 订单承诺交期为空，无法计算计划入库日期');
           }
           
           // 从产品物料库lookup产品图片和产品来源
@@ -180,9 +183,9 @@ router.post('/from-sales-order', async (req, res) => {
               plan_quantity, product_image, output_process, promised_delivery_date,
               status, planned_storage_date, product_source,
               internal_order_no, customer_order_no,
-              customer_name, submitter, submit_time,
+              customer_name, submitter,
               created_at, updated_at
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW(), NOW())
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW())
           `, [
             planCode,
             product.productCode || '',
@@ -202,7 +205,7 @@ router.post('/from-sales-order', async (req, res) => {
             order.internalOrderNo || '',
             order.customerOrderNo || '',
             order.customerName || '', // ✅ 客户名称
-            order.submitter || 'admin' // ✅ 提交人，默认admin（移除了末尾逗号）
+            order.submitter || 'admin' // ✅ 提交人，默认admin
           ]);
           
           results.push({
@@ -260,7 +263,8 @@ router.get('/', async (req, res) => {
         product_source as productSource,
         internal_order_no as internalOrderNo,
         customer_order_no as customerOrderNo,
-        created_at as createdAt, updated_at as updatedAt
+        created_at as createdAt, updated_at as updatedAt,
+        created_at as submitTime
       FROM master_production_plans
       WHERE 1=1
     `;
@@ -315,7 +319,8 @@ router.get('/', async (req, res) => {
         promisedDeliveryDate: row.promisedDeliveryDate ? (typeof row.promisedDeliveryDate === 'string' ? row.promisedDeliveryDate.split('T')[0] : row.promisedDeliveryDate.toISOString().split('T')[0]) : null,
         plannedStorageDate: row.plannedStorageDate ? (typeof row.plannedStorageDate === 'string' ? row.plannedStorageDate.split('T')[0] : row.plannedStorageDate.toISOString().split('T')[0]) : null,
         createdAt: row.createdAt ? (typeof row.createdAt === 'string' ? row.createdAt.split('T')[0] : row.createdAt.toISOString().split('T')[0]) : null,
-        updatedAt: row.updatedAt ? (typeof row.updatedAt === 'string' ? row.updatedAt.split('T')[0] : row.updatedAt.toISOString().split('T')[0]) : null
+        updatedAt: row.updatedAt ? (typeof row.updatedAt === 'string' ? row.updatedAt.split('T')[0] : row.updatedAt.toISOString().split('T')[0]) : null,
+        submitTime: row.submitTime ? (typeof row.submitTime === 'string' ? row.submitTime.split('T')[0] : row.submitTime.toISOString().split('T')[0]) : null
       };
       
       console.log('🔍 调试格式化后:', {

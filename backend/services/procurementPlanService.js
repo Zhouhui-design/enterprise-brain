@@ -163,20 +163,20 @@ class ProcurementPlanService {
     `;
 
     const params = [
-      data.procurementPlanNo, data.purchaseOrderNo, data.sourceFormName, data.sourceNo,
-      data.materialCode, data.materialName, data.materialImage, data.requiredQuantity, data.baseUnit,
-      data.salesOrderNo, data.customerOrderNo, data.masterPlanNo, data.processPlanNo, data.materialPlanNo,
+      data.procurementPlanNo || null, data.purchaseOrderNo || null, data.sourceFormName || null, data.sourceNo || null,
+      data.materialCode || null, data.materialName || null, data.materialImage || null, data.requiredQuantity || 0, data.baseUnit || null,
+      data.salesOrderNo || null, data.customerOrderNo || null, data.masterPlanNo || null, data.processPlanNo || null, data.materialPlanNo || null,
       data.procurementLeadTime || 3, data.demandDate || null, // ✅ 新增字段
-      data.planArrivalDate, data.procurementStatus || 'PENDING_ORDER', data.supplierName, data.purchaser, // ✅ 默认状态：待下单
-      data.inquiryDate, data.orderDate, data.promisedArrivalDate,
-      data.planPurchaseQuantity, data.conversionRate, data.purchaseUnit, data.planUnitPrice, data.planTotalAmount,
-      data.actualPurchaseQuantity, data.actualUnitPrice, data.actualTotalAmount, data.actualArrivalDate,
-      data.actualWarehouseQuantity, data.warehouseReceiptNo, data.warehousePerson, data.qualityInspector,
-      data.returnOrderNo, data.returnHandler, data.actualWarehouseUnitPrice,
-      data.supplierDeliveryNoteNo, data.deliveryNoteImage,
-      data.paymentMethod, data.isPaid, data.paymentNo, data.paymentPerson,
-      data.reimbursementNo, data.reimbursementPerson,
-      data.monthlyReconciliationDate, data.monthlyPaymentDate
+      data.planArrivalDate || null, data.procurementStatus || 'PENDING_ORDER', data.supplierName || null, data.purchaser || null, // ✅ 默认状态：待下单
+      data.inquiryDate || null, data.orderDate || null, data.promisedArrivalDate || null,
+      data.planPurchaseQuantity || 0, data.conversionRate || 1, data.purchaseUnit || null, data.planUnitPrice || 0, data.planTotalAmount || 0,
+      data.actualPurchaseQuantity || 0, data.actualUnitPrice || 0, data.actualTotalAmount || 0, data.actualArrivalDate || null,
+      data.actualWarehouseQuantity || 0, data.warehouseReceiptNo || null, data.warehousePerson || null, data.qualityInspector || null,
+      data.returnOrderNo || null, data.returnHandler || null, data.actualWarehouseUnitPrice || 0,
+      data.supplierDeliveryNoteNo || null, data.deliveryNoteImage || null,
+      data.paymentMethod || null, data.isPaid || 0, data.paymentNo || null, data.paymentPerson || null,
+      data.reimbursementNo || null, data.reimbursementPerson || null,
+      data.monthlyReconciliationDate || null, data.monthlyPaymentDate || null
     ];
 
     const result = await query(sql, params);
