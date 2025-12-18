@@ -70,8 +70,8 @@ class SprayPaintingProcessPlanService {
       const dataSQL = `
         SELECT 
           id, plan_no, schedule_date, DATE_FORMAT(schedule_date, '%Y-%m-%d') as schedule_date_formatted,
-          sales_order_no, customer_order_no, master_plan_no, master_plan_product_code,
-          master_plan_product_name, shipping_plan_no, product_code, product_name,
+          sales_order_no, customer_order_no, master_plan_no, main_plan_product_code,
+          main_plan_product_name, shipping_plan_no, product_code, product_name,
           product_image, process_manager, process_name, schedule_quantity,
           product_unit, level0_demand, completion_date, order_promise_delivery_date,
           DATE_FORMAT(plan_start_date, '%Y-%m-%d') as plan_start_date,
@@ -150,8 +150,8 @@ class SprayPaintingProcessPlanService {
       const [rows] = await pool.execute(`
         SELECT 
           id, plan_no, schedule_date, DATE_FORMAT(schedule_date, '%Y-%m-%d') as schedule_date_formatted,
-          sales_order_no, customer_order_no, master_plan_no, master_plan_product_code,
-          master_plan_product_name, shipping_plan_no, product_code, product_name,
+          sales_order_no, customer_order_no, master_plan_no, main_plan_product_code,
+          main_plan_product_name, shipping_plan_no, product_code, product_name,
           product_image, process_manager, process_name, schedule_quantity,
           product_unit, level0_demand, completion_date, order_promise_delivery_date,
           DATE_FORMAT(plan_start_date, '%Y-%m-%d') as plan_start_date,
@@ -207,7 +207,7 @@ class SprayPaintingProcessPlanService {
       const sql = `
         INSERT INTO spray_painting_process_plans (
           plan_no, schedule_date, sales_order_no, customer_order_no, master_plan_no, 
-          master_plan_product_code, master_plan_product_name, shipping_plan_no,
+          main_plan_product_code, main_plan_product_name, shipping_plan_no,
           product_code, product_name, product_image, process_manager, process_name,
           schedule_quantity, product_unit, level0_demand, completion_date, order_promise_delivery_date,
           plan_start_date, real_plan_start_date, plan_end_date,
@@ -218,7 +218,7 @@ class SprayPaintingProcessPlanService {
           product_source, bom_no, submitted_by, submitted_at, replenishment_qty,
           required_work_hours,
           daily_total_hours, daily_scheduled_hours, scheduled_work_hours, next_schedule_date
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       `;
       
       const [result] = await pool.execute(sql, [
@@ -227,8 +227,8 @@ class SprayPaintingProcessPlanService {
         data.salesOrderNo || null,                    // 3. sales_order_no
         data.customerOrderNo || null,                 // 4. customer_order_no (✅ 新增)
         data.masterPlanNo || null,                    // 5. master_plan_no
-        data.mainPlanProductCode || null,             // 6. master_plan_product_code (✅ 新增)
-        data.mainPlanProductName || null,             // 7. master_plan_product_name (✅ 新增)
+        data.mainPlanProductCode || null,             // 6. main_plan_product_code (✅ 新增)
+        data.mainPlanProductName || null,             // 7. main_plan_product_name (✅ 新增)
         data.shippingPlanNo || null,                  // 8. shipping_plan_no
         data.productCode || null,                     // 9. product_code
         data.productName || null,                     // 10. product_name
@@ -294,8 +294,8 @@ class SprayPaintingProcessPlanService {
           const [createdPlanRows] = await pool.execute(
             `SELECT 
               id, plan_no, schedule_date, DATE_FORMAT(schedule_date, '%Y-%m-%d') as schedule_date_formatted,
-              sales_order_no, customer_order_no, master_plan_no, master_plan_product_code,
-              master_plan_product_name, shipping_plan_no, product_code, product_name,
+              sales_order_no, customer_order_no, master_plan_no, main_plan_product_code,
+              main_plan_product_name, shipping_plan_no, product_code, product_name,
               product_image, process_manager, process_name, schedule_quantity,
               product_unit, level0_demand, completion_date, order_promise_delivery_date,
               plan_start_date, real_plan_start_date, plan_end_date, workshop_name,
@@ -472,7 +472,7 @@ class SprayPaintingProcessPlanService {
       const sql = `
         UPDATE spray_painting_process_plans SET
           schedule_date = ?, sales_order_no = ?, customer_order_no = ?, master_plan_no = ?, 
-          master_plan_product_code = ?, master_plan_product_name = ?, shipping_plan_no = ?,
+          main_plan_product_code = ?, main_plan_product_name = ?, shipping_plan_no = ?,
           product_code = ?, product_name = ?, product_image = ?, process_manager = ?,
           process_name = ?, schedule_quantity = ?, product_unit = ?,
           level0_demand = ?, completion_date = ?, order_promise_delivery_date = ?, 
@@ -491,58 +491,53 @@ class SprayPaintingProcessPlanService {
       const [result] = await pool.execute(sql, [
         data.scheduleDate || null,
         data.salesOrderNo || null,
-        data.customerOrderNo || null,                 // ✅ 新增
+        data.customerOrderNo || null,
         data.masterPlanNo || null,
-        data.mainPlanProductCode || null,             // ✅ 新增
-        data.mainPlanProductName || null,             // ✅ 新增
+        data.masterPlanProductCode || null,
+        data.masterPlanProductName || null,
         data.shippingPlanNo || null,
         data.productCode || null,
         data.productName || null,
         data.productImage || null,
         data.processManager || null,
         data.processName || null,
-        data.scheduleQuantity || 0,
+        data.scheduleQuantity || null,
         data.productUnit || null,
-        data.level0Demand || 0,
+        data.level0Demand || null,
         data.completionDate || null,
-        data.promiseDeliveryDate || null,             // ✅ 新增
+        data.orderPromiseDeliveryDate || null,
         data.planStartDate || null,
         data.realPlanStartDate || null,
         data.planEndDate || null,
         data.workshopName || null,
-        data.dailyAvailableHours || 0,
-        data.remainingRequiredHours || 0,
-        data.scheduleCount || 0,
-        data.standardWorkHours || 0,
-        data.standardWorkQuota || 0,
-        data.cumulativeScheduleQty || 0,
-        data.unscheduledQty || 0,
+        data.dailyAvailableHours || null,
+        data.remainingRequiredHours || null,
+        data.scheduleCount || null,
+        data.standardWorkHours || null,
+        data.standardWorkQuota || null,
+        data.cumulativeScheduleQty || null,
+        data.unscheduledQty || null,
         data.sourcePageName || null,
         data.sourceNo || null,
         data.previousScheduleNo || null,
         data.customerName || null,
         data.level0ProductName || null,
         data.level0ProductCode || null,
-        data.level0ProductionQty || 0,
+        data.level0ProductionQty || null,
         data.productSource || null,
         data.bomNo || null,
         data.submittedBy || null,
         data.submittedAt || null,
-        data.replenishmentQty || 0,
-        data.requiredWorkHours || 0,
-        data.dailyTotalHours || 0,
-        data.dailyScheduledHours || 0,
-        data.scheduledWorkHours || 0,
+        data.replenishmentQty || null,
+        data.requiredWorkHours || null,
+        data.dailyTotalHours || null,
+        data.dailyScheduledHours || null,
+        data.scheduledWorkHours || null,
         data.nextScheduleDate || null,
         id
       ]);
       
-      if (result.affectedRows === 0) {
-        throw new Error('喷塑工序计划不存在或未更新');
-      }
-      
-      console.log(`喷塑工序计划更新成功, ID: ${id}`);
-      return { id };
+      return result;
     } catch (error) {
       console.error('更新喷塑工序计划失败:', error);
       throw error;
@@ -1000,8 +995,8 @@ class SprayPaintingProcessPlanService {
         salesOrderNo: sourceRecord.sales_order_no,
         customerOrderNo: sourceRecord.customer_order_no,  // ✅ 新增：客户订单编号
         masterPlanNo: sourceRecord.master_plan_no,
-        mainPlanProductCode: sourceRecord.master_plan_product_code,  // ✅ 新增：主计划产品编号
-        mainPlanProductName: sourceRecord.master_plan_product_name,  // ✅ 新增：主计划产品名称
+        mainPlanProductCode: sourceRecord.main_plan_product_code,  // ✅ 新增：主计划产品编号
+        mainPlanProductName: sourceRecord.main_plan_product_name,  // ✅ 新增：主计划产品名称
         shippingPlanNo: sourceRecord.shipping_plan_no,
         productCode: sourceRecord.product_code,
         productName: sourceRecord.product_name,

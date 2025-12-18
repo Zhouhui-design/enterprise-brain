@@ -209,7 +209,7 @@ class SewingProcessPlanService {
           product_source, bom_no, submitted_by, submitted_at, replenishment_qty,
           required_work_hours,
           daily_total_hours, daily_scheduled_hours, scheduled_work_hours, next_schedule_date
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       `;
       
       const [result] = await pool.execute(sql, [
@@ -482,58 +482,53 @@ class SewingProcessPlanService {
       const [result] = await pool.execute(sql, [
         data.scheduleDate || null,
         data.salesOrderNo || null,
-        data.customerOrderNo || null,                 // ✅ 新增
+        data.customerOrderNo || null,
         data.masterPlanNo || null,
-        data.mainPlanProductCode || null,             // ✅ 新增
-        data.mainPlanProductName || null,             // ✅ 新增
+        data.masterPlanProductCode || null,
+        data.masterPlanProductName || null,
         data.shippingPlanNo || null,
         data.productCode || null,
         data.productName || null,
         data.productImage || null,
         data.processManager || null,
         data.processName || null,
-        data.scheduleQuantity || 0,
+        data.scheduleQuantity || null,
         data.productUnit || null,
-        data.level0Demand || 0,
+        data.level0Demand || null,
         data.completionDate || null,
-        data.promiseDeliveryDate || null,             // ✅ 新增
+        data.orderPromiseDeliveryDate || null,
         data.planStartDate || null,
         data.realPlanStartDate || null,
         data.planEndDate || null,
         data.workshopName || null,
-        data.dailyAvailableHours || 0,
-        data.remainingRequiredHours || 0,
-        data.scheduleCount || 0,
-        data.standardWorkHours || 0,
-        data.standardWorkQuota || 0,
-        data.cumulativeScheduleQty || 0,
-        data.unscheduledQty || 0,
+        data.dailyAvailableHours || null,
+        data.remainingRequiredHours || null,
+        data.scheduleCount || null,
+        data.standardWorkHours || null,
+        data.standardWorkQuota || null,
+        data.cumulativeScheduleQty || null,
+        data.unscheduledQty || null,
         data.sourcePageName || null,
         data.sourceNo || null,
         data.previousScheduleNo || null,
         data.customerName || null,
         data.level0ProductName || null,
         data.level0ProductCode || null,
-        data.level0ProductionQty || 0,
+        data.level0ProductionQty || null,
         data.productSource || null,
         data.bomNo || null,
         data.submittedBy || null,
         data.submittedAt || null,
-        data.replenishmentQty || 0,
-        data.requiredWorkHours || 0,
-        data.dailyTotalHours || 0,
-        data.dailyScheduledHours || 0,
-        data.scheduledWorkHours || 0,
+        data.replenishmentQty || null,
+        data.requiredWorkHours || null,
+        data.dailyTotalHours || null,
+        data.dailyScheduledHours || null,
+        data.scheduledWorkHours || null,
         data.nextScheduleDate || null,
         id
       ]);
       
-      if (result.affectedRows === 0) {
-        throw new Error('缝纫工序计划不存在或未更新');
-      }
-      
-      console.log(`缝纫工序计划更新成功, ID: ${id}`);
-      return { id };
+      return result;
     } catch (error) {
       console.error('更新缝纫工序计划失败:', error);
       throw error;
