@@ -358,19 +358,16 @@ class ListStyleProductionBomService {
           await connection.execute(`
             INSERT INTO list_style_bom_children (
               parent_id, child_sequence, output_process, child_code, child_name, 
-              child_output_process, component_source, standard_usage, required_quantity, required_date
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+              component_source, standard_usage
+            ) VALUES (?, ?, ?, ?, ?, ?, ?)
           `, [
             listStyleBomId,
             i + 1, // 子件序号
             child.output_process || '', // 产出工序
             child.component_code, // 子件编号
             child.component_name, // 子件名称
-            child.output_process || '', // 子件产出工序
             child.component_source || '', // 子件来源（从生产BOM获取）
-            child.standard_quantity || 0, // 标准用量
-            child.standard_quantity || 0, // 需求数量（默认=标准用量）
-            null // 需求日期
+            child.standard_quantity || 0 // 标准用量
           ]);
         }
         
@@ -449,7 +446,7 @@ class ListStyleProductionBomService {
             child.childSequence,
             child.childCode,
             child.childName,
-            child.outputProcess,
+            child.outputProcess || '',
             child.componentSource || '',
             child.standardUsage || 0
           ]);
@@ -525,7 +522,7 @@ class ListStyleProductionBomService {
             child.childSequence,
             child.childCode,
             child.childName,
-            child.outputProcess,
+            child.outputProcess || '',
             child.componentSource || '',
             child.standardUsage || 0
           ]);
