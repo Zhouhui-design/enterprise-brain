@@ -1120,16 +1120,21 @@ const handleDelete = async () => {
     })
     
     const ids = selectedRows.value.map(row => row.id)
+    console.log('🔄 准备批量删除订单:', ids)
     const response = await salesOrderApi.batchDeleteSalesOrders(ids)
+    console.log('📡 批量删除API响应:', response)
     
-    if (response.data.success) {
+    if (response.data && response.data.success) {
       selectedRows.value = []
       ElMessage.success('删除成功')
       await loadOrders()
+    } else {
+      throw new Error(response.data?.message || '删除失败')
     }
   } catch (error) {
     if (error !== 'cancel') {
-      ElMessage.error('删除失败')
+      console.error('❌ 批量删除订单失败:', error)
+      ElMessage.error(`删除失败: ${error.message || '网络错误'}`)
     }
   }
 }
@@ -1142,14 +1147,20 @@ const handleDeleteRow = async (row) => {
       type: 'warning'
     })
     
+    console.log('🔄 准备删除订单:', { id: row.id, internalOrderNo: row.internalOrderNo })
     const response = await salesOrderApi.deleteSalesOrder(row.id)
-    if (response.data.success) {
+    console.log('📡 删除API响应:', response)
+    
+    if (response.data && response.data.success) {
       ElMessage.success('删除成功')
       await loadOrders()
+    } else {
+      throw new Error(response.data?.message || '删除失败')
     }
   } catch (error) {
     if (error !== 'cancel') {
-      ElMessage.error('删除失败')
+      console.error('❌ 删除订单失败:', error)
+      ElMessage.error(`删除失败: ${error.message || '网络错误'}`)
     }
   }
 }
