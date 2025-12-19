@@ -536,7 +536,7 @@ const loadData = async () => {
     // response已经是解包后的data，不需要再检查code
     const data = await api.getList(params)
     
-    tableData.value = data.records || []
+    tableData.value = data.list || []
     pagination.total = data.total || 0
     ElMessage.success('数据加载成功')
   } catch (error) {

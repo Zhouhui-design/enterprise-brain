@@ -47,16 +47,15 @@ class MaterialPreparationPlanService {
       
       const whereClauseStr = whereClause.length > 0 ? `WHERE ${whereClause.join(' AND ')}` : '';
       
-      // 简化查询，先测试基本功能
+      // 使用参数化查询的正确方式
       const offset = (pageNum - 1) * size;
       
-      // 获取总数（不使用条件）
-      const countSql = `SELECT COUNT(*) as total FROM material_preparation_plans`;
-      const [countResult] = await pool.execute(countSql);
+      // 获取总数
+      const countSql = `SELECT COUNT(*) as total FROM material_preparation_plans ${whereClauseStr}`;
+      const [countResult] = await pool.execute(countSql, [...queryParams]);
       const total = countResult[0].total;
       
-      // 获取分页数据（不使用条件）
-      // 修复：直接在SQL中拼接LIMIT和OFFSET，避免参数化问题
+      // 获取分页数据
       const dataSql = `
         SELECT 
           id,
@@ -80,12 +79,13 @@ class MaterialPreparationPlanService {
           created_at as createdAt,
           updated_at as updatedAt
         FROM material_preparation_plans 
+        ${whereClauseStr}
         ORDER BY created_at DESC
-        LIMIT ${Math.max(0, parseInt(size))} OFFSET ${Math.max(0, parseInt(offset))}
+        LIMIT ? OFFSET ?
       `;
       
-      // 执行查询，无需传递LIMIT和OFFSET参数
-      const [data] = await pool.execute(dataSql);
+      // 执行查询，正确传递所有参数
+      const [data] = await pool.execute(dataSql, [...queryParams, size, offset]);
       
       return {
         list: data,
@@ -122,45 +122,128 @@ class MaterialPreparationPlanService {
     try {
       await connection.beginTransaction();
       
-      // ✅ 修复：使用更安全的INSERT语法，只包含核心必要字段
+      // ✅ 修复：使用标准INSERT语法，避免字段不匹配错误
       const sql = `
         INSERT INTO material_preparation_plans (
-          plan_no, material_code, material_name, material_unit, 
-          demand_quantity, replenishment_quantity, source_process, 
-          demand_date, push_to_purchase, push_to_process, 
-          sales_order_no, main_plan_product_code, main_plan_product_name, 
-          created_at, updated_at
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+          plan_no, source_plan_no, material_code, material_name, 
+          material_source, material_unit, demand_quantity, replenishment_quantity, 
+          source_process, demand_date, push_to_purchase, push_to_process, 
+          sales_order_no, customer_order_no, main_plan_product_code, 
+          main_plan_product_name, main_plan_quantity, promise_delivery_date, 
+          customer_name, created_by, created_at, updated_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       `;
+      
+      // 计算需补货数量
+      const demandQuantity = parseFloat(data.demandQuantity || 0);
+      const availableStock = parseFloat(data.availableStock || 0);
+      const replenishmentQuantity = demandQuantity - availableStock;
       
       const values = [
         data.planNo,
+        data.sourcePlanNo || null,
         data.materialCode,
         data.materialName,
-        data.materialUnit || '个',
-        data.demandQuantity || 0,
-        (data.demandQuantity || 0) - (data.availableStock || 0), // replenishment_quantity
+        data.materialSource || null,
+        data.materialUnit || null,
+        demandQuantity,
+        replenishmentQuantity,
         data.sourceProcess || null,
         data.demandDate || null,
         data.pushToPurchase ? 1 : 0,
         data.pushToProcess ? 1 : 0,
         data.salesOrderNo || null,
+        data.customerOrderNo || null,
         data.mainPlanProductCode || null,
         data.mainPlanProductName || null,
-        new Date(), // created_at
-        new Date()  // updated_at
+        data.mainPlanQuantity || 0,
+        data.promiseDeliveryDate || null,
+        data.customerName || null,
+        data.submitter || 'admin',  // ✅ 修复：submitter映射到created_by字段
+        new Date(),  // created_at
+        new Date()   // updated_at
       ];
       
       const [result] = await connection.execute(sql, values);
-      const insertId = result.insertId;
+      
+      const insertedId = result.insertId;
+      console.log(`备料计划创建成功, ID: ${insertedId}, 编号: ${data.planNo}`);
       
       await connection.commit();
       
-      return {
-        id: insertId,
-        planNo: data.planNo,
-        message: '备料计划创建成功'
-      };
+      // ✅ 自动推送到工序计划（在事务提交后）
+      if (data.planNo && data.materialSource === '自制' && data.sourceProcess) {
+        const replenishmentQty = parseFloat(replenishmentQuantity || 0);
+        
+        if (replenishmentQty > 0) {
+          console.log('🔄 备料计划创建成功，开始自动推送到工序计划...');
+          
+          // 补充完整数据给推送函数使用
+          const fullData = {
+            ...data,
+            id: insertedId,
+            replenishmentQuantity: replenishmentQty
+          };
+          
+          try {
+            const pushResult = await this.pushToRealProcessPlan(fullData);
+            
+            if (pushResult && pushResult.success) {
+              console.log(`✅ 自动推送成功: ${data.planNo} → ${pushResult.serviceName} (${pushResult.planNo})`);
+              
+              // 更新推送状态
+              await pool.execute(
+                'UPDATE material_preparation_plans SET push_to_process = ? WHERE plan_no = ?',
+                [1, data.planNo]
+              );
+            } else {
+              console.log(`⏭️ 推送跳过: ${pushResult ? pushResult.reason : '未知原因'}`);
+            }
+          } catch (pushError) {
+            console.error(`❌ 自动推送失败:`, pushError.message);
+          }
+        } else {
+          console.log('⏭️ 需补货数量≤0，跳过推送');
+        }
+      }
+      
+      // ✅ 新增：自动推送到采购计划（在事务提交后）
+      if (data.planNo && data.sourceProcess === '采购') {
+        const replenishmentQty = parseFloat(replenishmentQuantity || 0);
+        
+        if (replenishmentQty > 0) {
+          console.log('🛒 备料计划创建成功，来源工序=采购，开始自动推送到采购计划...');
+          
+          // 补充完整数据给推送函数使用
+          const fullData = {
+            ...data,
+            id: insertedId,
+            replenishmentQuantity: replenishmentQty
+          };
+          
+          try {
+            const pushResult = await this.pushToProcurementPlan(fullData);
+            
+            if (pushResult && pushResult.success) {
+              console.log(`✅ 推送采购计划成功: ${data.planNo} → 采购计划 (${pushResult.procurementPlanNo})`);
+              
+              // 更新推送状态
+              await pool.execute(
+                'UPDATE material_preparation_plans SET push_to_purchase = ? WHERE plan_no = ?',
+                [1, data.planNo]
+              );
+            } else {
+              console.log(`⏭️ 推送采购计划跳过: ${pushResult ? pushResult.reason : '未知原因'}`);
+            }
+          } catch (pushError) {
+            console.error(`❌ 自动推送采购计划失败:`, pushError.message);
+          }
+        } else {
+          console.log('⏭️ 需补货数量≤0，跳过采购计划推送');
+        }
+      }
+      
+      return { insertId: insertedId };
     } catch (error) {
       await connection.rollback();
       console.error('创建备料计划失败:', error);
@@ -463,6 +546,203 @@ class MaterialPreparationPlanService {
       };
     } catch (error) {
       console.error('自动推送备料计划失败:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * 推送备料计划到真工序计划
+   * @param {*} materialPlanData 备料计划数据
+   */
+  static async pushToRealProcessPlan(materialPlanData) {
+    try {
+      console.log('\n🔄 开始推送备料计划到工序计划...');
+      console.log('   备料计划数据:', {
+        planNo: materialPlanData.planNo,
+        materialSource: materialPlanData.materialSource,
+        sourceProcess: materialPlanData.sourceProcess,
+        replenishmentQuantity: materialPlanData.replenishmentQuantity
+      });
+
+      // 检查推送条件
+      if (!materialPlanData.planNo) {
+        return { success: false, reason: '备料计划编号为空' };
+      }
+
+      if (materialPlanData.materialSource !== '自制') {
+        return { success: false, reason: '物料来源非自制' };
+      }
+
+      const replenishmentQty = parseFloat(materialPlanData.replenishmentQuantity || materialPlanData.demandQuantity - materialPlanData.availableStock || 0);
+      if (replenishmentQty <= 0) {
+        return { success: false, reason: '需补货数量<=0' };
+      }
+
+      if (!materialPlanData.sourceProcess) {
+        return { success: false, reason: '来源工序为空' };
+      }
+
+      // 根据sourceProcess路由到不同的工序计划服务
+      const processMapping = {
+        '打包': {
+          service: require('./packingProcessPlanService'),
+          serviceName: '打包工序计划服务',
+          tableName: 'packing_process_plans'
+        },
+        '组装': {
+          service: require('./assemblyProcessPlanService'),
+          serviceName: '组装工序计划服务',
+          tableName: 'assembly_process_plans'
+        },
+        '喷塑': {
+          service: require('./packingProcessPlanService'), // 注意：这里使用的是packingProcessPlanService，因为历史原因
+          serviceName: '喷塑工序计划服务',
+          tableName: 'packing_process_plans' // 注意：这里也是packing_process_plans，因为历史原因
+        },
+        '缝纫': {
+          service: require('./sewingProcessPlanService'),
+          serviceName: '缝纫工序计划服务',
+          tableName: 'sewing_process_plans'
+        },
+        '抛丸': {
+          service: require('./shotBlastingProcessPlanService'),
+          serviceName: '抛丸工序计划服务',
+          tableName: 'shot_blasting_process_plans'
+        },
+        '人工焊接': {
+          service: require('./manualWeldingProcessPlanService'),
+          serviceName: '人工焊接工序计划服务',
+          tableName: 'manual_welding_process_plans'
+        },
+        '弯管': {
+          service: require('./tubeBendingProcessPlanService'),
+          serviceName: '弯管工序计划服务',
+          tableName: 'tube_bending_process_plans'
+        },
+        '激光切管': {
+          service: require('./laserTubeCuttingProcessPlanService'),
+          serviceName: '激光切管工序计划服务',
+          tableName: 'laser_tube_cutting_process_plans'
+        },
+        '激光下料': {
+          service: require('./laserCuttingProcessPlanService'),
+          serviceName: '激光下料工序计划服务',
+          tableName: 'laser_cutting_process_plans'
+        },
+        '折弯': {
+          service: require('./bendingProcessPlanService'),
+          serviceName: '折弯工序计划服务',
+          tableName: 'bending_process_plans'
+        },
+        '打孔': {
+          service: require('./drillingProcessPlanService'),
+          serviceName: '打孔工序计划服务',
+          tableName: 'drilling_process_plans'
+        },
+        '冲床': {
+          service: require('./punchingProcessPlanService'),
+          serviceName: '冲床工序计划服务',
+          tableName: 'punching_process_plans'
+        },
+        '人工下料': {
+          service: require('./manualCuttingProcessPlanService'),
+          serviceName: '人工下料工序计划服务',
+          tableName: 'manual_cutting_process_plans'
+        },
+        '机器打磨': {
+          service: require('./machineGrindingProcessPlanService'),
+          serviceName: '机器打磨工序计划服务',
+          tableName: 'machine_grinding_process_plans'
+        },
+        '裁剪': {
+          service: require('./cuttingProcessPlanService'),
+          serviceName: '裁剪工序计划服务',
+          tableName: 'cutting_process_plans'
+        }
+      };
+
+      const processInfo = processMapping[materialPlanData.sourceProcess];
+      if (!processInfo) {
+        console.log(`   ⚠️ 不支持的工序类型: ${materialPlanData.sourceProcess}`);
+        return { success: false, reason: `不支持的工序类型: ${materialPlanData.sourceProcess}` };
+      }
+
+      console.log(`   🎯 路由到: ${processInfo.serviceName}`);
+
+      // 准备工序计划数据
+      const processPlanData = {
+        // 基础信息
+        planNo: `RPP${new Date().toISOString().slice(2, 10).replace(/-/g, '')}${String(Math.floor(Math.random() * 10000)).padStart(4, '0')}`,
+        scheduleDate: materialPlanData.demandDate || new Date(),
+        salesOrderNo: materialPlanData.salesOrderNo || null,
+        customerOrderNo: materialPlanData.customerOrderNo || null,
+        masterPlanNo: materialPlanData.sourcePlanNo || null,
+        masterPlanProductCode: materialPlanData.mainPlanProductCode || null,
+        masterPlanProductName: materialPlanData.mainPlanProductName || null,
+        productCode: materialPlanData.materialCode || null,
+        productName: materialPlanData.materialName || null,
+        productImage: materialPlanData.productImage || null,
+        processManager: null, // 可从系统配置中获取
+        processName: materialPlanData.sourceProcess,
+        scheduleQuantity: replenishmentQty,
+        productUnit: materialPlanData.materialUnit || null,
+        level0Demand: 0, // 可根据业务逻辑计算
+        completionDate: materialPlanData.demandDate || null,
+        orderPromiseDeliveryDate: materialPlanData.promiseDeliveryDate || null,
+        
+        // 工序相关信息
+        planStartDate: null,
+        realPlanStartDate: null,
+        planEndDate: null,
+        workshopName: null,
+        dailyAvailableHours: 0,
+        remainingRequiredHours: 0,
+        scheduleCount: 1,
+        standardWorkHours: 0,
+        standardWorkQuota: 0,
+        cumulativeScheduleQty: replenishmentQty,
+        unscheduledQty: 0,
+        sourcePageName: '备料计划',
+        sourceNo: materialPlanData.planNo, // 关键：关联备料计划编号
+        previousScheduleNo: null,
+        customerName: materialPlanData.customerName || null,
+        level0ProductName: null,
+        level0ProductCode: null,
+        level0ProductionQty: 0,
+        productSource: materialPlanData.materialSource || null,
+        bomNo: null,
+        submittedBy: materialPlanData.submitter || 'system',
+        submittedAt: new Date(),
+        replenishmentQty: replenishmentQty,
+        requiredWorkHours: 0,
+        dailyTotalHours: 0,
+        dailyScheduledHours: 0,
+        scheduledWorkHours: 0,
+        nextScheduleDate: null
+      };
+
+      console.log('   工序计划数据准备完成:', processPlanData);
+
+      // 创建工序计划
+      console.log('   调用工序计划服务创建方法...');
+      const createResult = await processInfo.service.create(processPlanData);
+      
+      if (!createResult || !createResult.insertId) {
+        throw new Error('工序计划创建失败');
+      }
+
+      console.log(`   ✅ 工序计划创建成功，ID: ${createResult.insertId}`);
+      
+      return {
+        success: true,
+        insertId: createResult.insertId,
+        planNo: processPlanData.planNo,
+        service: processInfo.service,
+        serviceName: processInfo.serviceName,
+        tableName: processInfo.tableName
+      };
+    } catch (error) {
+      console.error('❌ 推送备料计划到工序计划失败:', error);
       throw error;
     }
   }
