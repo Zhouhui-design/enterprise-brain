@@ -375,23 +375,12 @@ const loadData = async () => {
     if (result.code === 200) {
       console.log('✅ [CapacityLoad] 数据获取成功，总数:', result.data.total, '返回:', result.data.records.length)
       
-      // ✅ 步骤1: 转换字段名
-      const records = result.data.records.map(item => ({
-        id: item.id,
-        processName: item.process_name,
-        date: item.date,
-        availableWorkstations: item.available_workstations,
-        workShift: item.work_shift,  // 先保留原值
-        occupiedHours: item.occupied_hours,
-        remainingShift: item.remaining_shift,
-        remainingHours: item.remaining_hours,
-        overtimeShift: item.overtime_shift
-      }))
+      // ✅ 后端API已返回驼峰格式，直接使用
+      const records = result.data.records
       
-      console.log('🔄 [CapacityLoad] 字段映射完成，记录数:', records.length)
       console.log('📝 [CapacityLoad] 第一条记录:', records[0])
       
-      // ✅ 步骤2: 通过lookup企业日历自动填充上班时段
+      // ✅ 通过lookup企业日历自动填充上班时段
       await syncWorkShiftFromCalendar(records)
       
       console.log('💾 [CapacityLoad] 设置tableData，长度:', records.length)
