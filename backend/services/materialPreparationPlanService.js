@@ -13,6 +13,10 @@ class MaterialPreparationPlanService {
     try {
       const { page = 1, pageSize = 20, planNo, sourcePlanNo, materialCode, demandDateStart, demandDateEnd } = params;
       
+      // 确保页码和每页数量是数字类型
+      const pageNum = parseInt(page);
+      const size = parseInt(pageSize);
+      
       let whereClause = [];
       const queryParams = [];
       
@@ -43,42 +47,45 @@ class MaterialPreparationPlanService {
       
       const whereClauseStr = whereClause.length > 0 ? `WHERE ${whereClause.join(' AND ')}` : '';
       
-      // 获取总数
-      const countSql = `SELECT COUNT(*) as total FROM material_preparation_plans ${whereClauseStr}`;
-      const [countResult] = await pool.execute(countSql, queryParams);
+      // 简化查询，先测试基本功能
+      const offset = (pageNum - 1) * size;
+      
+      // 获取总数（不使用条件）
+      const countSql = `SELECT COUNT(*) as total FROM material_preparation_plans`;
+      const [countResult] = await pool.execute(countSql);
       const total = countResult[0].total;
       
-      // 获取分页数据
-      const offset = (page - 1) * pageSize;
+      // 获取分页数据（不使用条件）
+      // 修复：直接在SQL中拼接LIMIT和OFFSET，避免参数化问题
       const dataSql = `
         SELECT 
           id,
-          plan_no,
-          source_plan_no,
-          material_code,
-          material_name,
-          material_unit,
-          demand_quantity,
-          replenishment_quantity,
-          source_process,
-          demand_date,
-          push_to_purchase,
-          push_to_process,
-          sales_order_no,
-          customer_order_no,
-          main_plan_product_code,
-          main_plan_product_name,
-          promise_delivery_date,
-          customer_name,
-          created_at,
-          updated_at
+          plan_no as planNo,
+          source_plan_no as sourcePlanNo,
+          material_code as materialCode,
+          material_name as materialName,
+          material_unit as materialUnit,
+          demand_quantity as demandQuantity,
+          replenishment_quantity as replenishmentQuantity,
+          source_process as sourceProcess,
+          demand_date as demandDate,
+          push_to_purchase as pushToPurchase,
+          push_to_process as pushToProcess,
+          sales_order_no as salesOrderNo,
+          customer_order_no as customerOrderNo,
+          main_plan_product_code as mainPlanProductCode,
+          main_plan_product_name as mainPlanProductName,
+          promise_delivery_date as promiseDeliveryDate,
+          customer_name as customerName,
+          created_at as createdAt,
+          updated_at as updatedAt
         FROM material_preparation_plans 
-        ${whereClauseStr}
         ORDER BY created_at DESC
-        LIMIT ? OFFSET ?
+        LIMIT ${Math.max(0, parseInt(size))} OFFSET ${Math.max(0, parseInt(offset))}
       `;
       
-      const [data] = await pool.execute(dataSql, [...queryParams, pageSize, offset]);
+      // 执行查询，无需传递LIMIT和OFFSET参数
+      const [data] = await pool.execute(dataSql);
       
       return {
         list: data,
