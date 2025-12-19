@@ -122,16 +122,19 @@ class MaterialPreparationPlanService {
     try {
       await connection.beginTransaction();
       
-      // ✅ 修复：使用标准INSERT语法，避免字段不匹配错误
+      // ✅ 修复：使用与数据库表结构匹配的INSERT语法，确保字段数量与值的数量精确匹配
       const sql = `
         INSERT INTO material_preparation_plans (
-          plan_no, source_plan_no, material_code, material_name, 
-          material_source, material_unit, demand_quantity, replenishment_quantity, 
-          source_process, demand_date, push_to_purchase, push_to_process, 
-          sales_order_no, customer_order_no, main_plan_product_code, 
-          main_plan_product_name, main_plan_quantity, promise_delivery_date, 
-          customer_name, created_by, created_at, updated_at
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+          plan_no, source_plan_no, source_process_plan_no, parent_code, parent_name,
+          parent_schedule_quantity, material_code, material_name, material_source, material_unit,
+          demand_quantity, need_mrp, realtime_stock, projected_balance, available_stock,
+          replenishment_quantity, source_process, workshop_name, parent_process_name,
+          process_interval_hours, process_interval_unit, process_schedule_date, demand_date,
+          push_to_purchase, push_to_process, sales_order_no, customer_order_no,
+          main_plan_product_code, main_plan_product_name, main_plan_quantity,
+          promise_delivery_date, customer_name, product_image, submitter, submit_time,
+          remark, created_by, updated_by, created_at, updated_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       `;
       
       // 计算需补货数量
@@ -140,28 +143,46 @@ class MaterialPreparationPlanService {
       const replenishmentQuantity = demandQuantity - availableStock;
       
       const values = [
-        data.planNo,
-        data.sourcePlanNo || null,
-        data.materialCode,
-        data.materialName,
-        data.materialSource || null,
-        data.materialUnit || null,
-        demandQuantity,
-        replenishmentQuantity,
-        data.sourceProcess || null,
-        data.demandDate || null,
-        data.pushToPurchase ? 1 : 0,
-        data.pushToProcess ? 1 : 0,
-        data.salesOrderNo || null,
-        data.customerOrderNo || null,
-        data.mainPlanProductCode || null,
-        data.mainPlanProductName || null,
-        data.mainPlanQuantity || 0,
-        data.promiseDeliveryDate || null,
-        data.customerName || null,
-        data.submitter || 'admin',  // ✅ 修复：submitter映射到created_by字段
-        new Date(),  // created_at
-        new Date()   // updated_at
+        data.planNo,                         // plan_no
+        data.sourcePlanNo || null,           // source_plan_no
+        data.sourceProcessPlanNo || null,    // source_process_plan_no
+        data.parentCode || null,             // parent_code
+        data.parentName || null,             // parent_name
+        data.parentScheduleQuantity || null, // parent_schedule_quantity
+        data.materialCode,                   // material_code
+        data.materialName,                   // material_name
+        data.materialSource || null,         // material_source
+        data.materialUnit || null,           // material_unit
+        demandQuantity,                      // demand_quantity
+        data.needMrp ? 1 : 0,                // need_mrp
+        data.realtimeStock || 0,             // realtime_stock
+        data.projectedBalance || 0,          // projected_balance
+        availableStock,                      // available_stock
+        replenishmentQuantity,               // replenishment_quantity
+        data.sourceProcess || null,          // source_process
+        data.workshopName || null,           // workshop_name
+        data.parentProcessName || null,      // parent_process_name
+        data.processIntervalHours || null,   // process_interval_hours
+        data.processIntervalUnit || null,    // process_interval_unit
+        data.processScheduleDate || null,    // process_schedule_date
+        data.demandDate || null,             // demand_date
+        data.pushToPurchase ? 1 : 0,         // push_to_purchase
+        data.pushToProcess ? 1 : 0,          // push_to_process
+        data.salesOrderNo || null,           // sales_order_no
+        data.customerOrderNo || null,        // customer_order_no
+        data.mainPlanProductCode || null,    // main_plan_product_code
+        data.mainPlanProductName || null,    // main_plan_product_name
+        data.mainPlanQuantity || 0,          // main_plan_quantity
+        data.promiseDeliveryDate || null,    // promise_delivery_date
+        data.customerName || null,           // customer_name
+        data.productImage || null,           // product_image
+        data.submitter || null,              // submitter
+        new Date(),                          // submit_time
+        data.remark || null,                 // remark
+        data.submitter || 'admin',           // created_by
+        data.updatedBy || null,              // updated_by
+        new Date(),                          // created_at
+        new Date()                           // updated_at
       ];
       
       const [result] = await connection.execute(sql, values);
