@@ -206,6 +206,8 @@
                 <el-table-column type="index" label="序号" width="60" />
                 <el-table-column prop="product_code" label="产品编号" width="140" />
                 <el-table-column prop="product_name" label="产品名称" width="150" />
+                <el-table-column prop="output_process" label="产出工序" width="100" />
+                <el-table-column prop="product_source" label="产品来源" width="100" />
                 <el-table-column prop="product_spec" label="规格" width="100" />
                 <el-table-column prop="product_color" label="颜色" width="80" />
                 <el-table-column prop="product_unit" label="单位" width="70" />

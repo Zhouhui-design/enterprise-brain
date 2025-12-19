@@ -263,6 +263,8 @@ router.get('/', async (req, res) => {
         product_source as productSource,
         internal_order_no as internalOrderNo,
         customer_order_no as customerOrderNo,
+        customer_name as customerName,
+        submitter,
         created_at as createdAt, updated_at as updatedAt,
         created_at as submitTime
       FROM master_production_plans
@@ -334,11 +336,12 @@ router.get('/', async (req, res) => {
     res.json({
       code: 200,
       data: {
-        list: formattedRows,
-        total,
+        list: formattedRows,  // ✅ 修改为 list 以匹配前端期望
+        total: total,
         page: parseInt(page),
         pageSize: parseInt(pageSize)
-      }
+      },
+      message: '获取成功'
     });
     
   } catch (error) {
@@ -646,8 +649,8 @@ router.post('/:id/execute-schedule', async (req, res) => {
       productName: plan.product_name,
       planQuantity: plan.plan_quantity,
       outputProcess: plan.output_process,
-      plannedStorageDate: plan.planned_storage_date,  // ✅ 添加计划入库日期
-      promisedDeliveryDate: plan.promised_delivery_date  // ✅ 添加承诺交期
+      plannedStorageDate: plan.planned_storage_date,
+      promisedDeliveryDate: plan.promised_delivery_date
     });
     
     // 检查关键字段是否存在
@@ -700,10 +703,10 @@ router.post('/:id/execute-schedule', async (req, res) => {
       sourceProcess: plan.output_process,
       materialCode: plan.product_code,
       materialName: plan.product_name,
-      materialSource: materialSource,  // ✅ 使用推断后的物料来源
+      materialSource: materialSource,
       materialUnit: plan.sales_unit,
       demandQuantity: plan.plan_quantity,
-      demandDate: plan.planned_storage_date,  // ✅ 关键: 需求日期 = 主计划的计划入库日期
+      demandDate: plan.planned_storage_date,
       salesOrderNo: plan.internal_order_no,
       customerOrderNo: plan.customer_order_no,
       mainPlanProductCode: plan.product_code,
@@ -716,9 +719,9 @@ router.post('/:id/execute-schedule', async (req, res) => {
     
     console.log('📝 备料计划数据:', {
       planNo: materialPlanNo,
-      demandDate: materialPlanData.demandDate,  // ✅ 日志输出
+      demandDate: materialPlanData.demandDate,
       sourcePlanNo: plan.plan_code,
-      plannedStorageDate: plan.planned_storage_date  // ✅ 源数据日志
+      plannedStorageDate: plan.planned_storage_date
     });
     
     // ✅ 数据验证
@@ -734,11 +737,13 @@ router.post('/:id/execute-schedule', async (req, res) => {
     console.log(`   需求数量: ${plan.plan_quantity} ${plan.sales_unit || ''}`);
     
     // 4. 返回结果
+    const hasProcessPlan = result.processPlanNo && result.processPlanNo.trim() !== '';
+    
     res.json({
       code: 200,
       data: {
         materialPlanCount: 1,
-        processPlanCount: result.processPlanNo ? 1 : 0,
+        processPlanCount: hasProcessPlan ? 1 : 0,
         materialPlan: {
           id: result.id,
           planNo: materialPlanNo,
@@ -746,9 +751,9 @@ router.post('/:id/execute-schedule', async (req, res) => {
           materialName: plan.product_name,
           demandQuantity: plan.plan_quantity
         },
-        processPlanNo: result.processPlanNo
+        processPlanNo: hasProcessPlan ? result.processPlanNo : null
       },
-      message: `排程执行成功，生成1条备料计划${result.processPlanNo ? '、1条工序计划' : ''}`
+      message: `排程执行成功，生成1条备料计划${hasProcessPlan ? '、1条工序计划' : ''}`
     });
     
   } catch (error) {

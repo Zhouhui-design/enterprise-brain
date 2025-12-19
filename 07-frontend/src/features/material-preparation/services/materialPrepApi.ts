@@ -19,16 +19,31 @@ class MaterialPreparationApi {
     const response = await request.get(this.basePath, params)
     console.log('🔍 API原始响应:', response)
     
-    // 处理后端返回格式：{ code: 200, data: { records: [...], total: 7 }, message: '...' }
-    if (response.data && response.data.records) {
-      return response.data
+    // ✅ 修复：request.js已经解包，返回的直接是 { list: [], total: 0 }
+    // 需要转换为前端期望的 { records: [], total: 0 }
+    if (response.list) {
+      console.log('✅ 转换数据格式: list → records')
+      return {
+        records: response.list,
+        total: response.total || 0
+      }
     }
     // 如果响应直接包含records，直接返回
     else if (response.records) {
+      console.log('✅ 已是records格式，直接返回')
       return response
+    }
+    // 兼容旧格式：{ data: { list: [] } }
+    else if (response.data && response.data.list) {
+      console.log('✅ 转换旧格式: data.list → records')
+      return {
+        records: response.data.list,
+        total: response.data.total || 0
+      }
     }
     // 否则包装成标准格式
     else {
+      console.warn('⚠️  未知响应格式，使用默认转换')
       return response.data || response
     }
   }

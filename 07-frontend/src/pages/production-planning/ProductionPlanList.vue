@@ -650,11 +650,20 @@ export default {
         
         const result = await api.executeSchedule(selectedPlan.id);
         
+        // ✅ 修复：request.js已经解包，result直接是data内容，不包含code字段
+        // 后端返回: { code: 200, data: { materialPlanCount: X, processPlanCount: Y } }
+        // request.js拦截器返回: { materialPlanCount: X, processPlanCount: Y }
+        const materialPlanCount = result?.materialPlanCount || 
+                                result?.materialPlan?.length || 
+                                (result?.materialPlan ? 1 : 0) || 0;
+        const processPlanCount = result?.processPlanCount || 0;
+        
         this.$message.success(
           `排程执行成功！\n` +
-          `生成备料计划: ${result.materialPlanCount || 0} 条\n` +
-          `生成工序计划: ${result.processPlanCount || 0} 条`
+          `生成备料计划: ${materialPlanCount} 条\n` +
+          `生成工序计划: ${processPlanCount} 条`
         );
+        
         // 刷新列表
         this.fetchPlanList();
       } catch (error) {

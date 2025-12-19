@@ -8,112 +8,77 @@ console.log('✅ capacityLoad路由模块已加载');
 
 
 
-// 获取工序能力负荷表数据
+// 获取工序能力负荷表列表
 router.get('/list', async (req, res) => {
   try {
-    const page = parseInt(req.query.page) || 1;
-    const pageSize = parseInt(req.query.pageSize) || 50;
-    const { processName, processNameOperator, startDate, endDate } = req.query;
-    const offset = (page - 1) * pageSize;
-    
-    console.log('[API] 请求参数:', { page, pageSize, offset, processName, processNameOperator, startDate, endDate });
-    
-    // 构建 WHERE条件
-    let whereConditions = [];
-    let queryParams = [];
+    const { 
+      page = 1, 
+      pageSize = 20, 
+      processName,
+      startDate,
+      endDate,
+      sortBy = 'date',
+      sortOrder = 'ASC'
+    } = req.query;
+
+    // 构建查询条件
+    let whereClause = 'WHERE 1=1';
+    const queryParams = [];
     
     if (processName) {
-      const operator = processNameOperator || 'contains';
-      
-      switch (operator) {
-        case 'contains':
-          whereConditions.push('process_name LIKE ?');
-          queryParams.push(`%${processName}%`);
-          break;
-        case 'equals':
-          whereConditions.push('process_name = ?');
-          queryParams.push(processName);
-          break;
-        case 'notEquals':
-          whereConditions.push('process_name != ?');
-          queryParams.push(processName);
-          break;
-        case 'startsWith':
-          whereConditions.push('process_name LIKE ?');
-          queryParams.push(`${processName}%`);
-          break;
-        case 'endsWith':
-          whereConditions.push('process_name LIKE ?');
-          queryParams.push(`%${processName}`);
-          break;
-        default:
-          // 默认使用包含
-          whereConditions.push('process_name LIKE ?');
-          queryParams.push(`%${processName}%`);
-      }
+      whereClause += ' AND process_name LIKE ?';
+      queryParams.push(`%${processName}%`);
     }
     
-    if (startDate && endDate) {
-      whereConditions.push('date BETWEEN ? AND ?');
-      queryParams.push(startDate, endDate);
-    } else if (startDate) {
-      whereConditions.push('date >= ?');
+    if (startDate) {
+      whereClause += ' AND date >= ?';
       queryParams.push(startDate);
-    } else if (endDate) {
-      whereConditions.push('date <= ?');
+    }
+    
+    if (endDate) {
+      whereClause += ' AND date <= ?';
       queryParams.push(endDate);
     }
-    
-    const whereClause = whereConditions.length > 0 
-      ? 'WHERE ' + whereConditions.join(' AND ') 
-      : '';
-    
-    // 查询总数
+
+    // 获取总数
     const countSql = `SELECT COUNT(*) as total FROM process_capacity_load ${whereClause}`;
-    console.log('[SQL] COUNT:', countSql, queryParams);
     const [countResult] = await pool.execute(countSql, queryParams);
     const total = countResult[0].total;
-    
-    // 分页查询数据 - 使用query方法而不是execute，并格式化日期
+
+    // 计算分页
+    const pageNum = parseInt(page);
+    const size = parseInt(pageSize);
+    const offset = (pageNum - 1) * size;
+
+    // 获取数据
     const dataSql = `
       SELECT 
-        id, process_name, available_workstations, 
-        DATE_FORMAT(date, '%Y-%m-%d') as date,
-        work_shift, occupied_hours, remaining_shift, remaining_hours, 
-        overtime_shift, created_at, updated_at
+        id,
+        process_name as processName,
+        date,
+        available_workstations as availableWorkstations,
+        work_shift as workShift,
+        occupied_hours as occupiedHours,
+        remaining_shift as remainingShift,
+        remaining_hours as remainingHours,
+        overtime_shift as overtimeShift,
+        created_at as createdAt,
+        updated_at as updatedAt
       FROM process_capacity_load 
-      ${whereClause} 
-      ORDER BY date ASC, process_name ASC 
-      LIMIT ${pageSize} OFFSET ${offset}
+      ${whereClause}
+      ORDER BY ${sortBy} ${sortOrder === 'DESC' ? 'DESC' : 'ASC'}
+      LIMIT ? OFFSET ?
     `;
-    console.log('[SQL] DATA:', dataSql);
     
-    const [rows] = await pool.query(dataSql, queryParams);
-    
-    console.log(`[API] 查询成功: 总数=${total}, 返回=${rows.length}条`);
-    
-    // 转换数据格式，确保字段名一致
-    const formattedRecords = rows.map(row => ({
-      id: row.id,
-      process_name: row.process_name,
-      available_workstations: row.available_workstations,
-      date: row.date,
-      work_shift: row.work_shift,
-      occupied_hours: row.occupied_hours,
-      remaining_shift: row.remaining_shift,
-      remaining_hours: row.remaining_hours,
-      overtime_shift: row.overtime_shift,
-      created_at: row.created_at,
-      updated_at: row.updated_at
-    }));
-    
+    const [data] = await pool.execute(dataSql, [...queryParams, size, offset]);
+
     res.json({
       code: 200,
       data: {
-        records: formattedRecords,
-        total: total,
-        page: page,
-        pageSize: pageSize
+        records: data,
+        total,
+        page: pageNum,
+        pageSize: size
       },
       message: '获取成功'
     });
@@ -121,7 +86,7 @@ router.get('/list', async (req, res) => {
     console.error('获取工序能力负荷表失败:', error);
     res.status(500).json({
       code: 500,
-      message: error.message
+      message: '获取失败: ' + error.message
     });
   }
 });

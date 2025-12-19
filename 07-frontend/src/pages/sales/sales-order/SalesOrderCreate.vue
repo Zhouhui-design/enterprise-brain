@@ -304,6 +304,11 @@
                     <el-input v-model="row.outputProcess" size="small" disabled />
                   </template>
                 </el-table-column>
+                <el-table-column label="产品来源" width="100">
+                  <template #default="{ row }">
+                    <el-input v-model="row.productSource" size="small" disabled />
+                  </template>
+                </el-table-column>
                 <el-table-column label="产品规格" width="150">
                   <template #default="{ row }">
                     <el-input v-model="row.productSpec" size="small" disabled />
@@ -962,7 +967,8 @@ const addProduct = () => {
     unitPriceExcludingTax: 0,
     taxRate: formData.taxRate || 13,
     accessories: [],
-    outputProcess: ''
+    outputProcess: '',
+    productSource: ''  // 🆕 添加产品来源字段
   })
 }
 
@@ -979,6 +985,9 @@ const handleProductSelect = async (row, index) => {
     
     // 🔍 Lookup产出工序：从产品手册获取
     await lookupOutputProcess(row)
+    
+    // 🔍 Lookup产品来源：从产品手册获取
+    await lookupProductSource(row)
   }
 }
 
@@ -1042,6 +1051,73 @@ const lookupOutputProcess = async (row) => {
   } catch (error) {
     console.error('❌ Lookup产出工序失败:', error)
     row.outputProcess = ''
+  }
+}
+
+// 🆕 Lookup产品来源从产品手册
+const lookupProductSource = async (row) => {
+  if (!row.productCode) {
+    row.productSource = ''
+    return
+  }
+  
+  try {
+    console.log('🔍 开始lookup产品来源, 产品编码:', row.productCode)
+    
+    // 从产品手册API获取数据
+    const response = await productManualAPI.getAll()
+    
+    // 处理不同的响应格式
+    let productList = []
+    if (response.success && response.data) {
+      productList = response.data
+    } else if (Array.isArray(response)) {
+      productList = response
+    } else if (response.data && Array.isArray(response.data)) {
+      productList = response.data
+    }
+    
+    if (productList.length > 0) {
+      // 查找匹配的产品
+      const matchedProduct = productList.find(p => {
+        const code = p.product_code || p.productCode || p.code
+        return code === row.productCode
+      })
+      
+      if (matchedProduct) {
+        // 产品来源字段：source (可能是JSON数组，如 ["自制"] 或 ["外购"])
+        let productSource = matchedProduct.source || ''
+        
+        // 如果是JSON字符串，解析并取第一个值
+        if (typeof productSource === 'string' && productSource.startsWith('[')) {
+          try {
+            const sourceArray = JSON.parse(productSource)
+            if (Array.isArray(sourceArray) && sourceArray.length > 0) {
+              productSource = sourceArray[0]
+            }
+          } catch (e) {
+            console.warn('⚠️ 解析产品来源JSON失败:', productSource)
+          }
+        }
+        
+        row.productSource = productSource
+        
+        console.log('✅ Lookup产品来源成功:', {
+          productCode: row.productCode,
+          productSource: productSource,
+          原始值: matchedProduct.source
+        })
+      } else {
+        console.log('⚠️ 未找到匹配的产品:', row.productCode)
+        row.productSource = ''
+      }
+    } else {
+      console.log('⚠️ 产品手册数据为空或格式不正确')
+      row.productSource = ''
+    }
+  } catch (error) {
+    console.error('❌ Lookup产品来源失败:', error)
+    row.productSource = ''
   }
 }
 
@@ -1238,7 +1314,7 @@ const saveOrderData = async (closeAfterSave = false) => {
     // 状态
     status: closeAfterSave ? 'pending' : 'draft',
     
-    // 产品列表（⚠️ 重要：必须包含outputProcess字段）
+    // 产品列表（⚠️ 重要：必须包含outputProcess和productSource字段）
     products: formData.products
       .filter(p => p.productCode)
       .map(p => ({
@@ -1251,7 +1327,8 @@ const saveOrderData = async (closeAfterSave = false) => {
         unitPriceExcludingTax: p.unitPriceExcludingTax,
         taxRate: p.taxRate,
         accessories: p.accessories,
-        outputProcess: p.outputProcess || ''  // ✅ 关键：保存产出工序
+        outputProcess: p.outputProcess || '',  // ✅ 关键：保存产出工序
+        productSource: p.productSource || ''  // 🆕 关键：保存产品来源
       })),
     
     // 回款计划

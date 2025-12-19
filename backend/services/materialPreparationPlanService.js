@@ -13,9 +13,9 @@ class MaterialPreparationPlanService {
     try {
       const { page = 1, pageSize = 20, planNo, sourcePlanNo, materialCode, demandDateStart, demandDateEnd } = params;
       
-      // 确保页码和每页数量是数字类型
-      const pageNum = parseInt(page);
-      const size = parseInt(pageSize);
+      // 确保页码和每页数量是有效数字
+      const pageNum = Math.max(1, parseInt(page) || 1);
+      const size = Math.max(1, Math.min(200, parseInt(pageSize) || 20));
       
       let whereClause = [];
       const queryParams = [];
@@ -52,7 +52,7 @@ class MaterialPreparationPlanService {
       
       // 获取总数
       const countSql = `SELECT COUNT(*) as total FROM material_preparation_plans ${whereClauseStr}`;
-      const [countResult] = await pool.execute(countSql, [...queryParams]);
+      const [countResult] = await pool.query(countSql, queryParams);
       const total = countResult[0].total;
       
       // 获取分页数据
@@ -84,8 +84,8 @@ class MaterialPreparationPlanService {
         LIMIT ? OFFSET ?
       `;
       
-      // 执行查询，正确传递所有参数
-      const [data] = await pool.execute(dataSql, [...queryParams, size, offset]);
+      // 执行查询
+      const [data] = await pool.query(dataSql, [...queryParams, size, offset]);
       
       return {
         list: data,
@@ -122,7 +122,7 @@ class MaterialPreparationPlanService {
     try {
       await connection.beginTransaction();
       
-      // ✅ 修复：使用与数据库表结构匹配的INSERT语法，确保字段数量与值的数量精确匹配
+      // ✅ 严格按照数据库表结构的40个字段构造INSERT语句（不含自增id字段）
       const sql = `
         INSERT INTO material_preparation_plans (
           plan_no, source_plan_no, source_process_plan_no, parent_code, parent_name,
@@ -134,7 +134,7 @@ class MaterialPreparationPlanService {
           main_plan_product_code, main_plan_product_name, main_plan_quantity,
           promise_delivery_date, customer_name, product_image, submitter, submit_time,
           remark, created_by, updated_by, created_at, updated_at
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       `;
       
       // 计算需补货数量
@@ -143,46 +143,46 @@ class MaterialPreparationPlanService {
       const replenishmentQuantity = demandQuantity - availableStock;
       
       const values = [
-        data.planNo,                         // plan_no
-        data.sourcePlanNo || null,           // source_plan_no
-        data.sourceProcessPlanNo || null,    // source_process_plan_no
-        data.parentCode || null,             // parent_code
-        data.parentName || null,             // parent_name
-        data.parentScheduleQuantity || null, // parent_schedule_quantity
-        data.materialCode,                   // material_code
-        data.materialName,                   // material_name
-        data.materialSource || null,         // material_source
-        data.materialUnit || null,           // material_unit
-        demandQuantity,                      // demand_quantity
-        data.needMrp ? 1 : 0,                // need_mrp
-        data.realtimeStock || 0,             // realtime_stock
-        data.projectedBalance || 0,          // projected_balance
-        availableStock,                      // available_stock
-        replenishmentQuantity,               // replenishment_quantity
-        data.sourceProcess || null,          // source_process
-        data.workshopName || null,           // workshop_name
-        data.parentProcessName || null,      // parent_process_name
-        data.processIntervalHours || null,   // process_interval_hours
-        data.processIntervalUnit || null,    // process_interval_unit
-        data.processScheduleDate || null,    // process_schedule_date
-        data.demandDate || null,             // demand_date
-        data.pushToPurchase ? 1 : 0,         // push_to_purchase
-        data.pushToProcess ? 1 : 0,          // push_to_process
-        data.salesOrderNo || null,           // sales_order_no
-        data.customerOrderNo || null,        // customer_order_no
-        data.mainPlanProductCode || null,    // main_plan_product_code
-        data.mainPlanProductName || null,    // main_plan_product_name
-        data.mainPlanQuantity || 0,          // main_plan_quantity
-        data.promiseDeliveryDate || null,    // promise_delivery_date
-        data.customerName || null,           // customer_name
-        data.productImage || null,           // product_image
-        data.submitter || null,              // submitter
-        new Date(),                          // submit_time
-        data.remark || null,                 // remark
-        data.submitter || 'admin',           // created_by
-        data.updatedBy || null,              // updated_by
-        new Date(),                          // created_at
-        new Date()                           // updated_at
+        data.planNo,                         // plan_no (1)
+        data.sourcePlanNo || null,           // source_plan_no (2)
+        data.sourceProcessPlanNo || null,    // source_process_plan_no (3)
+        data.parentCode || null,             // parent_code (4)
+        data.parentName || null,             // parent_name (5)
+        data.parentScheduleQuantity || null, // parent_schedule_quantity (6)
+        data.materialCode,                   // material_code (7)
+        data.materialName,                   // material_name (8)
+        data.materialSource || null,         // material_source (9)
+        data.materialUnit || null,           // material_unit (10)
+        demandQuantity,                      // demand_quantity (11)
+        data.needMrp ? 1 : 0,                // need_mrp (12)
+        data.realtimeStock || 0,             // realtime_stock (13)
+        data.projectedBalance || 0,          // projected_balance (14)
+        availableStock,                      // available_stock (15)
+        replenishmentQuantity,               // replenishment_quantity (16)
+        data.sourceProcess || null,          // source_process (17)
+        data.workshopName || null,           // workshop_name (18)
+        data.parentProcessName || null,      // parent_process_name (19)
+        data.processIntervalHours || null,   // process_interval_hours (20)
+        data.processIntervalUnit || null,    // process_interval_unit (21)
+        data.processScheduleDate || null,    // process_schedule_date (22)
+        data.demandDate || null,             // demand_date (23)
+        data.pushToPurchase ? 1 : 0,         // push_to_purchase (24)
+        data.pushToProcess ? 1 : 0,          // push_to_process (25)
+        data.salesOrderNo || null,           // sales_order_no (26)
+        data.customerOrderNo || null,        // customer_order_no (27)
+        data.mainPlanProductCode || null,    // main_plan_product_code (28)
+        data.mainPlanProductName || null,    // main_plan_product_name (29)
+        data.mainPlanQuantity || 0,          // main_plan_quantity (30)
+        data.promiseDeliveryDate || null,    // promise_delivery_date (31)
+        data.customerName || null,           // customer_name (32)
+        data.productImage || null,           // product_image (33)
+        data.submitter || null,              // submitter (34)
+        new Date(),                          // submit_time (35)
+        data.remark || null,                 // remark (36)
+        data.submitter || 'admin',           // created_by (37)
+        data.updatedBy || null,              // updated_by (38)
+        new Date(),                          // created_at (39)
+        new Date()                           // updated_at (40)
       ];
       
       const [result] = await connection.execute(sql, values);
@@ -192,43 +192,11 @@ class MaterialPreparationPlanService {
       
       await connection.commit();
       
-      // ✅ 自动推送到工序计划（在事务提交后）
-      if (data.planNo && data.materialSource === '自制' && data.sourceProcess) {
-        const replenishmentQty = parseFloat(replenishmentQuantity || 0);
-        
-        if (replenishmentQty > 0) {
-          console.log('🔄 备料计划创建成功，开始自动推送到工序计划...');
-          
-          // 补充完整数据给推送函数使用
-          const fullData = {
-            ...data,
-            id: insertedId,
-            replenishmentQuantity: replenishmentQty
-          };
-          
-          try {
-            const pushResult = await this.pushToRealProcessPlan(fullData);
-            
-            if (pushResult && pushResult.success) {
-              console.log(`✅ 自动推送成功: ${data.planNo} → ${pushResult.serviceName} (${pushResult.planNo})`);
-              
-              // 更新推送状态
-              await pool.execute(
-                'UPDATE material_preparation_plans SET push_to_process = ? WHERE plan_no = ?',
-                [1, data.planNo]
-              );
-            } else {
-              console.log(`⏭️ 推送跳过: ${pushResult ? pushResult.reason : '未知原因'}`);
-            }
-          } catch (pushError) {
-            console.error(`❌ 自动推送失败:`, pushError.message);
-          }
-        } else {
-          console.log('⏭️ 需补货数量≤0，跳过推送');
-        }
-      }
+      // ❌ 禁止推送到真工序计划（包含real字符串）- 防止工序能力负荷表已占用工时错误
+      let processPlanNo = null;
+      console.log('⏭️ 备料计划创建成功，推送到真工序计划已永久禁用（防止工时冲突）');
       
-      // ✅ 新增：自动推送到采购计划（在事务提交后）
+      // ✅ 解禁：自动推送到采购计划
       if (data.planNo && data.sourceProcess === '采购') {
         const replenishmentQty = parseFloat(replenishmentQuantity || 0);
         
@@ -264,7 +232,11 @@ class MaterialPreparationPlanService {
         }
       }
       
-      return { insertId: insertedId };
+      // 返回创建结果
+      return { 
+        id: insertedId,
+        processPlanNo: null
+      };
     } catch (error) {
       await connection.rollback();
       console.error('创建备料计划失败:', error);

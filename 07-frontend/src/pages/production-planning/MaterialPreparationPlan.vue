@@ -533,15 +533,22 @@ const loadData = async () => {
       params.demandDateEnd = searchForm.demandDateRange[1]
     }
     
-    // response已经是解包后的data，不需要再检查code
+    console.log('📤 备料计划请求参数:', params)
+    
+    // ✅ request.js已经解包，返回的是 { list: [], total: 0 }
     const data = await api.getList(params)
+    
+    console.log('📥 备料计划响应数据:', data)
+    console.log('   - list数量:', data.list?.length || 0)
+    console.log('   - total:', data.total || 0)
     
     tableData.value = data.list || []
     pagination.total = data.total || 0
-    ElMessage.success('数据加载成功')
+    
+    ElMessage.success(`数据加载成功，共 ${pagination.total} 条记录`)
   } catch (error) {
-    console.error('加载数据失败:', error)
-    ElMessage.error('加载数据失败')
+    console.error('❌ 加载数据失败:', error)
+    ElMessage.error(`加载数据失败: ${error.message || '未知错误'}`)
   } finally {
     loading.value = false
   }

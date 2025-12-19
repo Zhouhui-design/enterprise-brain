@@ -842,7 +842,8 @@ const loadOrders = async () => {
               productDescription: p.product_description || p.productDescription,
               productUnit: p.product_unit || p.productUnit,
               orderQuantity: p.order_quantity || p.orderQuantity,
-              outputProcess: p.output_process || p.outputProcess || '' // ✅ 从数据库读取产出工序
+              outputProcess: p.output_process || p.outputProcess || '', // ✅ 从数据库读取产出工序
+              productSource: p.product_source || p.productSource || '' // 🆕 从数据库读取产品来源
             }))
           } catch (e) {
             console.warn('解析产品列表失败:', e)
@@ -859,7 +860,8 @@ const loadOrders = async () => {
             productDescription: p.product_description || p.productDescription,
             productUnit: p.product_unit || p.productUnit,
             orderQuantity: p.order_quantity || p.orderQuantity,
-            outputProcess: p.output_process || p.outputProcess || '' // ✅ 从数据库读取产出工序
+            outputProcess: p.output_process || p.outputProcess || '', // ✅ 从数据库读取产出工序
+            productSource: p.product_source || p.productSource || '' // 🆕 从数据库读取产品来源
           }))
         }
         
@@ -875,7 +877,8 @@ const loadOrders = async () => {
             productDescription: order.productDescription,
             productUnit: order.productUnit,
             orderQuantity: order.orderQuantity,
-            outputProcess: order.output_process || order.outputProcess || '' // ✅ 从数据库读取产出工序
+            outputProcess: order.output_process || order.outputProcess || '', // ✅ 从数据库读取产出工序
+            productSource: order.product_source || order.productSource || '' // 🆕 从数据库读取产品来源
           }]
         }
         
@@ -923,6 +926,7 @@ const loadOrders = async () => {
             productUnit: product.productUnit,
             orderQuantity: product.orderQuantity,
             outputProcess: product.outputProcess || '', // ✅ 直接从产品数据中读取，无需lookup
+            productSource: product.productSource || '', // 🆕 产品来源
             
             // ✅ 计算建议补货数量 = 订单数量 - 有效库存
             suggestedReplenishment: Math.max(0, (product.orderQuantity || 0) - (order.effective_inventory || 0)),

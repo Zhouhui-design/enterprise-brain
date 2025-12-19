@@ -74,14 +74,14 @@
             <el-table-column prop="planned" label="计划使用" width="120" align="right" />
             <el-table-column prop="actual" label="实际使用" width="120" align="right" />
             <el-table-column prop="available" label="可用产能" width="120" align="right">
-              <template slot-scope="scope">
+              <template #default="scope">
                 <span :class="{ 'available-low': scope.row.available < 0 }">
                   {{ scope.row.available }}
                 </span>
               </template>
             </el-table-column>
             <el-table-column prop="utilization" label="利用率" width="100" align="right">
-              <template slot-scope="scope">
+              <template #default="scope">
                 <span :class="{ 'utilization-high': scope.row.utilization > 90 }">
                   {{ scope.row.utilization.toFixed(2) }}%
                 </span>
@@ -100,21 +100,12 @@
             <el-timeline-item
               v-for="(alert, index) in capacityAlerts"
               :key="index"
-              :timestamp="alert.time"
-              :type="alert.level === 'high' ? 'danger' : 'warning'"
+              :timestamp="alert.timestamp"
+              :type="alert.type"
             >
-              <div class="alert-content">
-                <div class="alert-title">{{ alert.title }}</div>
-                <div class="alert-description">{{ alert.description }}</div>
-              </div>
+              {{ alert.message }}
             </el-timeline-item>
           </el-timeline>
-        </el-card>
-        
-        <!-- 资源分配 -->
-        <el-card class="allocation-card">
-          <h3>资源分配</h3>
-          <resource-allocation :workshop-id="searchForm.workshopId" :date-range="dateRange" />
         </el-card>
       </el-col>
     </el-row>
@@ -122,133 +113,151 @@
 </template>
 
 <script>
-import ResourceAllocation from './components/ResourceAllocation.vue';
+import { ref, reactive, onMounted } from 'vue'
+import { ElMessage } from 'element-plus'
+import capacityLoadAPI from '@/api/capacityLoad'
 
 export default {
   name: 'CapacityPlanning',
-  components: {
-    ResourceAllocation
-  },
-  data() {
-    return {
-      loading: false,
-      searchForm: {
-        workshopId: '',
-        productionLineId: ''
-      },
-      dateRange: [],
-      viewMode: 'month',
-      workshops: [
-        { id: '1', name: '总装车间' },
-        { id: '2', name: '部件车间' },
-        { id: '3', name: '测试车间' }
-      ],
-      productionLines: [
-        { id: '1', name: '生产线A', workshopId: '1' },
-        { id: '2', name: '生产线B', workshopId: '1' },
-        { id: '3', name: '生产线C', workshopId: '2' },
-        { id: '4', name: '生产线D', workshopId: '3' }
-      ],
-      totalCapacity: 0,
-      plannedProduction: 0,
-      actualProduction: 0,
-      utilizationRate: 0,
-      capacityDetails: [],
-      capacityAlerts: []
-    };
-  },
-  created() {
-    // 设置默认时间范围（最近6个月）
-    const endDate = new Date();
-    const startDate = new Date();
-    startDate.setMonth(startDate.getMonth() - 5);
+  setup() {
+    // 数据
+    const loading = ref(false)
+    const dateRange = ref([])
+    const viewMode = ref('month')
+    const workshops = ref([])
+    const productionLines = ref([])
     
-    this.dateRange = [
-      `${startDate.getFullYear()}-${String(startDate.getMonth() + 1).padStart(2, '0')}`,
-      `${endDate.getFullYear()}-${String(endDate.getMonth() + 1).padStart(2, '0')}`
-    ];
+    const searchForm = reactive({
+      workshopId: '',
+      productionLineId: ''
+    })
     
-    this.fetchCapacityData();
-  },
-  methods: {
-    fetchCapacityData() {
-      this.loading = true;
-      // 模拟API调用
-      setTimeout(() => {
-        this.generateMockData();
-        this.loading = false;
-      }, 800);
-    },
+    // 概览数据
+    const totalCapacity = ref(0)
+    const plannedProduction = ref(0)
+    const actualProduction = ref(0)
+    const utilizationRate = ref(0)
     
-    generateMockData() {
-      // 生成模拟数据
-      this.totalCapacity = 50000;
-      this.plannedProduction = 35000;
-      this.actualProduction = 32000;
-      this.utilizationRate = (this.actualProduction / this.totalCapacity) * 100;
-      
-      // 生成产能明细数据
-      this.capacityDetails = [];
-      const periods = ['2024-01', '2024-02', '2024-03', '2024-04', '2024-05', '2024-06'];
-      
-      periods.forEach(period => {
-        this.workshops.forEach(workshop => {
-          const workshopLines = this.productionLines.filter(line => line.workshopId === workshop.id);
-          workshopLines.forEach(line => {
-            const capacity = Math.floor(Math.random() * 5000) + 8000;
-            const planned = Math.floor(Math.random() * 3000) + 5000;
-            const actual = Math.floor(Math.random() * 2000) + 4500;
-            
-            this.capacityDetails.push({
-              period,
-              workshopName: workshop.name,
-              productionLineName: line.name,
-              capacity,
-              planned,
-              actual,
-              available: capacity - planned,
-              utilization: (actual / capacity) * 100
-            });
-          });
-        });
-      });
-      
-      // 生成产能预警
-      this.capacityAlerts = [
-        {
-          time: '2024-06-10 14:30',
-          level: 'high',
-          title: '产能不足预警',
-          description: '总装车间生产线A在2024-06月份产能严重不足，建议调整生产计划。'
-        },
-        {
-          time: '2024-06-08 09:15',
-          level: 'warning',
-          title: '产能紧张提醒',
-          description: '测试车间生产线D在2024-06月中旬计划产能使用率达到85%，请注意监控。'
-        },
-        {
-          time: '2024-06-05 16:45',
-          level: 'high',
-          title: '设备维护通知',
-          description: '部件车间将于2024-06-15至2024-06-16进行设备维护，期间产能将下降30%。'
+    // 明细数据
+    const capacityDetails = ref([])
+    
+    // 预警数据
+    const capacityAlerts = ref([])
+    
+    // 方法
+    const handleSearch = async () => {
+      loading.value = true
+      try {
+        // 获取产能明细数据
+        const params = {
+          startDate: dateRange.value?.[0],
+          endDate: dateRange.value?.[1],
+          workshopId: searchForm.workshopId,
+          productionLineId: searchForm.productionLineId
         }
-      ];
-    },
+        
+        const response = await capacityLoadAPI.getList(params)
+        
+        // 处理API返回数据
+        if (response && response.code === 200) {
+          capacityDetails.value = response.data?.records || []
+          
+          // 计算概览数据
+          totalCapacity.value = capacityDetails.value.reduce((sum, item) => sum + (item.capacity || 0), 0)
+          plannedProduction.value = capacityDetails.value.reduce((sum, item) => sum + (item.planned || 0), 0)
+          actualProduction.value = capacityDetails.value.reduce((sum, item) => sum + (item.actual || 0), 0)
+          utilizationRate.value = totalCapacity.value > 0 ? (plannedProduction.value / totalCapacity.value) * 100 : 0
+          
+          // 生成预警信息
+          capacityAlerts.value = capacityDetails.value
+            .filter(item => item.utilization > 90)
+            .map(item => ({
+              timestamp: item.period,
+              type: 'warning',
+              message: `${item.workshopName}在${item.period}产能利用率高达${item.utilization.toFixed(2)}%`
+            }))
+        } else {
+          throw new Error(response?.message || '获取数据失败')
+        }
+      } catch (error) {
+        console.error('获取产能数据失败:', error)
+        ElMessage.error('获取产能数据失败: ' + (error.message || '未知错误'))
+      } finally {
+        loading.value = false
+      }
+    }
     
-    handleSearch() {
-      this.fetchCapacityData();
-    },
+    const handleReset = () => {
+      dateRange.value = []
+      searchForm.workshopId = ''
+      searchForm.productionLineId = ''
+      capacityDetails.value = []
+      capacityAlerts.value = []
+      totalCapacity.value = 0
+      plannedProduction.value = 0
+      actualProduction.value = 0
+      utilizationRate.value = 0
+    }
     
-    handleReset() {
-      this.searchForm = {
-        workshopId: '',
-        productionLineId: ''
-      };
-      this.fetchCapacityData();
+    // 初始化数据
+    const initData = async () => {
+      try {
+        // 模拟获取车间和生产线数据
+        workshops.value = [
+          { id: '1', name: '装配车间' },
+          { id: '2', name: '加工车间' },
+          { id: '3', name: '包装车间' }
+        ]
+        
+        productionLines.value = [
+          { id: '1', name: '装配线A' },
+          { id: '2', name: '装配线B' },
+          { id: '3', name: '加工线A' },
+          { id: '4', name: '包装线A' }
+        ]
+        
+        // 默认加载当前月度数据
+        const now = new Date()
+        const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1)
+        const endOfMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0)
+        dateRange.value = [
+          startOfMonth.toISOString().slice(0, 7),
+          endOfMonth.toISOString().slice(0, 7)
+        ]
+        
+        await handleSearch()
+      } catch (error) {
+        console.error('初始化数据失败:', error)
+        ElMessage.error('初始化数据失败: ' + (error.message || '未知错误'))
+      }
+    }
+    
+    // 生命周期
+    onMounted(() => {
+      initData()
+    })
+    
+    return {
+      // 数据
+      loading,
+      dateRange,
+      viewMode,
+      workshops,
+      productionLines,
+      searchForm,
+      totalCapacity,
+      plannedProduction,
+      actualProduction,
+      utilizationRate,
+      capacityDetails,
+      capacityAlerts,
+      
+      // 方法
+      handleSearch,
+      handleReset
     }
   }
-};
+}
 </script>
 
 <style scoped>
@@ -260,17 +269,6 @@ export default {
   margin-bottom: 20px;
 }
 
-.search-form {
-  margin-top: 10px;
-}
-
-.overview-card,
-.detail-card,
-.alert-card,
-.allocation-card {
-  margin-bottom: 20px;
-}
-
 .card-header {
   display: flex;
   justify-content: space-between;
@@ -278,25 +276,15 @@ export default {
   margin-bottom: 20px;
 }
 
-.card-header h3 {
-  margin: 0;
-  font-size: 16px;
-  color: #333;
-}
-
 .overview-stats {
   display: flex;
-  justify-content: space-between;
-  margin-bottom: 30px;
-}
-
-.overview-stats .el-statistic {
-  width: 23%;
+  justify-content: space-around;
+  margin-bottom: 20px;
 }
 
 .chart-container {
   height: 300px;
-  background-color: #f5f7fa;
+  border: 1px solid #eee;
   border-radius: 4px;
   display: flex;
   align-items: center;
@@ -304,19 +292,7 @@ export default {
 }
 
 .chart-placeholder {
-  color: #909399;
-  font-size: 14px;
-}
-
-.detail-card h3,
-.alert-card h3,
-.allocation-card h3 {
-  margin-top: 0;
-  margin-bottom: 20px;
-  font-size: 16px;
-  color: #333;
-  padding-bottom: 10px;
-  border-bottom: 1px solid #eaeaea;
+  color: #999;
 }
 
 .available-low {
@@ -328,19 +304,173 @@ export default {
   color: #e6a23c;
   font-weight: bold;
 }
-
-.alert-content {
-  padding: 5px 0;
-}
-
-.alert-title {
-  font-weight: bold;
-  margin-bottom: 5px;
-}
-
-.alert-description {
-  font-size: 12px;
-  color: #606266;
-  line-height: 1.5;
-}
 </style>
+</script>
+</template>
+</script>
+</script>
+</script>
+</script>
+</script>
+</script>
+</script>
+</script>
+</script>
+</script>
+</script>
+</script>
+</script>
+</script>
+</script>
+</script>
+</script>
+</script>
+</script>
+</script>
+</script>
+</script>
+</script>
+</script>
+</script>
+</script>
+</script>
+</script>
+</script>
+</script>
+</script>
+</script>
+</script>
+</script>
+</script>
+</script>
+</script>
+</script>
+</script>
+</script>
+</script>
+</script>
+</script>
+</script>
+</script>
+</script>
+</script>
+</script>
+</script>
+</script>
+</script>
+</script>
+</script>
+</script>
+</script>
+</script>
+</script>
+</script>
+</script>
+</script>
+</script>
+</script>
+</script>
+</script>
+</script>
+</script>
+</script>
+</script>
+</script>
+</script>
+</script>
+</script>
+</script>
+</script>
+</script>
+</script>
+</script>
+</script>
+</script>
+</script>
+</script>
+</script>
+</script>
+</script>
+</script>
+</script>
+</script>
+</script>
+</script>
+</script>
+</script>
+</script>
+</script>
+</script>
+</script>
+</script>
+</script>
+</script>
+</script>
+</script>
+</script>
+</script>
+</script>
+</script>
+</script>
+</script>
+</script>
+</script>
+</script>
+</script>
+</script>
+</script>
+</script>
+</script>
+</script>
+</script>
+</script>
+</script>
+</script>
+</script>
+</script>
+</script>
+</script>
+</script>
+</script>
+</script>
+</script>
+</script>
+</script>
+</script>
+</script>
+</script>
+</script>
+</script>
+</script>
+</script>
+</script>
+</script>
+</script>
+</script>
+</script>
+</script>
+</script>
+</script>
+</script>
+</script>
+</script>
+</script>
+</script>
+</script>
+</script>
+</script>
+</script>
+</script>
+</script>
+</script>
+</script>
+</script>
+</script>
+</script>
+</script>
+</script>
+</script>
+</script>
+</script>
+</script>
+</script>

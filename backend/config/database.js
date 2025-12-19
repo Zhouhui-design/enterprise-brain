@@ -370,6 +370,7 @@ async function initializeDatabase() {
         total_tax DECIMAL(10,2) DEFAULT 0.00 COMMENT '税额',
         total_price DECIMAL(10,2) DEFAULT 0.00 COMMENT '含税总价',
         accessories TEXT COMMENT '配件（JSON格式）',
+        output_process VARCHAR(100) COMMENT '产出工序',
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
         updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
         INDEX idx_order_id (order_id),
@@ -882,6 +883,53 @@ async function initializeDatabase() {
     await connection.execute(`
       ALTER TABLE spray_painting_process_plans COMMENT='喷塑工序计划表'
     `);
+
+    // ✅ 创建主生产计划计划数量自动计算触发器
+    console.log('🔧 创建主生产计划触发器...');
+    
+    // 删除旧触发器（如果存在）
+    try {
+      await connection.query('DROP TRIGGER IF EXISTS before_insert_master_production_plans_calc_plan_quantity');
+      await connection.query('DROP TRIGGER IF EXISTS before_update_master_production_plans_calc_plan_quantity');
+    } catch (e) {
+      // 忽略错误
+    }
+    
+    // 创建INSERT触发器：自动计算 plan_quantity = order_quantity - available_stock
+    await connection.query(`
+      CREATE TRIGGER before_insert_master_production_plans_calc_plan_quantity
+      BEFORE INSERT ON master_production_plans
+      FOR EACH ROW
+      BEGIN
+        IF NEW.order_quantity IS NOT NULL AND NEW.available_stock IS NOT NULL THEN
+          SET NEW.plan_quantity = IF(
+            NEW.available_stock >= NEW.order_quantity,
+            0,
+            NEW.order_quantity - NEW.available_stock
+          );
+        END IF;
+      END
+    `);
+    
+    // 创建UPDATE触发器：订单数量或可用库存变化时自动重新计算
+    await connection.query(`
+      CREATE TRIGGER before_update_master_production_plans_calc_plan_quantity
+      BEFORE UPDATE ON master_production_plans
+      FOR EACH ROW
+      BEGIN
+        IF (NEW.order_quantity != OLD.order_quantity OR NEW.available_stock != OLD.available_stock) 
+           AND NEW.order_quantity IS NOT NULL 
+           AND NEW.available_stock IS NOT NULL THEN
+          SET NEW.plan_quantity = IF(
+            NEW.available_stock >= NEW.order_quantity,
+            0,
+            NEW.order_quantity - NEW.available_stock
+          );
+        END IF;
+      END
+    `);
+    
+    console.log('✅ 主生产计划触发器创建成功');
 
     console.log('✅ 数据库表结构初始化完成');
     
