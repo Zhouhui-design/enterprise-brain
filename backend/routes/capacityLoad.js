@@ -1187,13 +1187,16 @@ router.post('/reset-work-shift', async (req, res) => {
     
     console.log('[重置上班时段] 开始重新计算...');
     
-    // ✅ 使用actual_date（真日期）查询企业日历数据
-    // 规则：工序能力负荷表.日期 = 企业日历.真日期 → 标准上班时长
+    // ✅ 修复：使用calendar_date（日历日期）查询企业日历数据
+    // 原因：工序能力负荷表的date字段在前端显示时会+8小时（UTC转本地）
+    // 因此应该匹配企业日历的calendar_date（也会+8小时后显示）
+    // 规则：工序能力负荷表.date = 企业日历.calendar_date → 标准上班时长
     const [calendarData] = await connection.execute(`
       SELECT 
-        DATE_FORMAT(actual_date, '%Y-%m-%d') as actual_date,
+        DATE_FORMAT(calendar_date, '%Y-%m-%d') as calendar_date,
         standard_work_hours,
-        is_workday
+        is_workday,
+        weekday
       FROM company_calendar
     `);
     
@@ -1203,11 +1206,12 @@ router.post('/reset-work-shift', async (req, res) => {
     
     // 批量更新工序能力负荷表
     for (const calendar of calendarData) {
-      const actualDate = calendar.actual_date;  // 真日期（已格式化为YYYY-MM-DD）
+      const calendarDate = calendar.calendar_date;  // 日历日期（已格式化为YYYY-MM-DD）
       const hours = calendar.standard_work_hours;
       const isWorkday = calendar.is_workday;
+      const weekday = calendar.weekday;
       
-      console.log(`  处理真日期: ${actualDate}, 是否工作日: ${isWorkday}, 标准工时: ${hours}`);
+      console.log(`  处理日期: ${calendarDate}, ${weekday}, 是否工作日: ${isWorkday}, 标准工时: ${hours}`);
       
       // ✅ 上班时段 = 工作日的标准上班时长，非工作日为NULL
       let workShift = null;
@@ -1215,13 +1219,13 @@ router.post('/reset-work-shift', async (req, res) => {
         workShift = parseFloat(hours).toFixed(2);
       }
       
-      // ✅ 更新该真日期所有工序的上班时段
-      // 匹配规则：工序能力负荷表.date = 企业日历.actual_date
+      // ✅ 更新该日期所有工序的上班时段
+      // 匹配规则：工序能力负荷表.date = 企业日历.calendar_date
       const [updateResult] = await connection.execute(`
         UPDATE process_capacity_load 
         SET work_shift = ? 
         WHERE DATE_FORMAT(date, '%Y-%m-%d') = ?
-      `, [workShift, actualDate]);
+      `, [workShift, calendarDate]);
       
       console.log(`  更新 ${updateResult.affectedRows} 条记录，上班时段=${workShift || 'NULL'}`);
       updatedCount += updateResult.affectedRows;
@@ -1230,9 +1234,9 @@ router.post('/reset-work-shift', async (req, res) => {
     // ✅ 处理企业日历中没有的日期，设为NULL
     const [unmatchedResult] = await connection.execute(`
       UPDATE process_capacity_load pcl
-      LEFT JOIN company_calendar cc ON DATE_FORMAT(pcl.date, '%Y-%m-%d') = DATE_FORMAT(cc.actual_date, '%Y-%m-%d')
+      LEFT JOIN company_calendar cc ON DATE_FORMAT(pcl.date, '%Y-%m-%d') = DATE_FORMAT(cc.calendar_date, '%Y-%m-%d')
       SET pcl.work_shift = NULL
-      WHERE cc.actual_date IS NULL
+      WHERE cc.calendar_date IS NULL
     `);
     
     console.log(`  未匹配日期更新 ${unmatchedResult.affectedRows} 条记录为NULL`);

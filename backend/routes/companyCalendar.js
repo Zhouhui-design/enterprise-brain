@@ -172,7 +172,8 @@ router.post('/batch-query', async (req, res) => {
     
     console.log(`[Batch Query] 查询 ${dates.length} 个日期的企业日历数据`);
     
-    // ✅ 修复：使用actual_date匹配工序能力负荷表的date
+    // ✅ 修复：使用calendar_date匹配工序能力负荷表的date
+    // 因为两者在前端显示时都会经过UTC→本地时区转换（+8小时）
     // 构建 IN 查询
     const placeholders = dates.map(() => '?').join(',');
     const sql = `
@@ -184,7 +185,7 @@ router.post('/batch-query', async (req, res) => {
         adjusted_work_hours, 
         is_adjusted
       FROM company_calendar
-      WHERE DATE_FORMAT(actual_date, '%Y-%m-%d') IN (${placeholders})
+      WHERE DATE_FORMAT(calendar_date, '%Y-%m-%d') IN (${placeholders})
     `;
     
     const [rows] = await pool.query(sql, dates);
