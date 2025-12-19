@@ -366,7 +366,7 @@ const loadData = async () => {
     console.log('📋 [CapacityLoad] 请求参数:', params.toString())
     
     const response = await fetch(
-      `http://192.168.2.229:3005/api/capacity-load/list?${params.toString()}`
+      `/api/capacity-load/list?${params.toString()}`
     )
     const result = await response.json()
     
@@ -424,7 +424,7 @@ const syncWorkShiftFromCalendar = async (records) => {
     
     // 批量查询企业日历
     const calendarResponse = await fetch(
-      `http://192.168.2.229:3005/api/company-calendar/batch-query`,
+      `/api/company-calendar/batch-query`,
       {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -534,7 +534,7 @@ const handleReset = () => {
 // 加载设置
 const loadSettings = async () => {
   try {
-    const response = await fetch('http://192.168.2.229:3005/api/capacity-load/settings/capacity-load')
+    const response = await fetch('/api/capacity-load/settings/capacity-load')
     const result = await response.json()
     
     if (result.code === 200 && result.data.displayDays) {
@@ -548,7 +548,7 @@ const loadSettings = async () => {
 // 保存设置
 const handleSaveSettings = async () => {
   try {
-    const response = await fetch('http://192.168.2.229:3005/api/capacity-load/settings/capacity-load', {
+    const response = await fetch('/api/capacity-load/settings/capacity-load', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(settings.value)
@@ -577,7 +577,7 @@ const handleEdit = (row) => {
 // 更新单行（加班时段实时更新）
 const handleUpdateRow = async (row) => {
   try {
-    const response = await fetch(`http://192.168.2.229:3005/api/capacity-load/update/${row.id}`, {
+    const response = await fetch(`/api/capacity-load/update/${row.id}`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -598,7 +598,7 @@ const handleUpdateRow = async (row) => {
 // 保存编辑
 const handleSaveEdit = async () => {
   try {
-    const response = await fetch(`http://192.168.2.229:3005/api/capacity-load/update/${editForm.value.id}`, {
+    const response = await fetch(`/api/capacity-load/update/${editForm.value.id}`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -642,7 +642,7 @@ const handleResetWorkShift = async () => {
     loading.value = true
     
     // 调用后端API
-    const response = await fetch('http://192.168.2.229:3005/api/capacity-load/reset-work-shift', {
+    const response = await fetch('/api/capacity-load/reset-work-shift', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' }
     })
@@ -682,7 +682,7 @@ const handleResetRemainingHours = async () => {
     loading.value = true
     
     // 调用后端API
-    const response = await fetch('http://192.168.2.229:3005/api/capacity-load/reset-remaining-hours', {
+    const response = await fetch('/api/capacity-load/reset-remaining-hours', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' }
     })
@@ -724,7 +724,7 @@ const handleResetOccupiedHours = async () => {
     console.log('📡 [重置占用工时] 调用API: POST /api/capacity-load/reset-all-occupied-hours')
     
     // 调用后端API
-    const response = await fetch('http://192.168.2.229:3005/api/capacity-load/reset-all-occupied-hours', {
+    const response = await fetch('/api/capacity-load/reset-all-occupied-hours', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' }
     })
