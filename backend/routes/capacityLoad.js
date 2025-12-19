@@ -50,7 +50,7 @@ router.get('/list', async (req, res) => {
     const size = parseInt(pageSize);
     const offset = (pageNum - 1) * size;
 
-    // 获取数据
+    // 获取数据 - 使用字符串拼接而不是参数绑定LIMIT/OFFSET
     const dataSql = `
       SELECT 
         id,
@@ -67,10 +67,10 @@ router.get('/list', async (req, res) => {
       FROM process_capacity_load 
       ${whereClause}
       ORDER BY ${sortBy} ${sortOrder === 'DESC' ? 'DESC' : 'ASC'}
-      LIMIT ? OFFSET ?
+      LIMIT ${size} OFFSET ${offset}
     `;
     
-    const [data] = await pool.execute(dataSql, [...queryParams, size, offset]);
+    const [data] = await pool.execute(dataSql, queryParams);
 
     res.json({
       code: 200,
