@@ -620,7 +620,7 @@ const handleLoadToCapacityTable = async () => {
     }))
     
     // 调用后端API
-    const response = await fetch('http://192.168.2.229:3005/api/capacity-load/load-from-processes', {
+    const response = await fetch('/api/capacity-load/load-from-processes', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ processes })
