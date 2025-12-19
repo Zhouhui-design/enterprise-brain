@@ -380,8 +380,10 @@ const loadData = async () => {
       
       console.log('📝 [CapacityLoad] 第一条记录:', records[0])
       
-      // ✅ 通过lookup企业日历自动填充上班时段
-      await syncWorkShiftFromCalendar(records)
+      // ✅ 修复：不要在每次加载时重新计算上班时段，直接使用数据库的值
+      // 数据库中的work_shift已经通过"重置上班时段"按钮正确更新
+      // 前端只需要显示数据库的值即可
+      // await syncWorkShiftFromCalendar(records)  // ❌ 移除：这会覆盖数据库的正确值
       
       console.log('💾 [CapacityLoad] 设置tableData，长度:', records.length)
       tableData.value = records
