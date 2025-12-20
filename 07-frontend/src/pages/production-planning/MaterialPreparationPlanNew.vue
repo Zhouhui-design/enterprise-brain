@@ -471,7 +471,7 @@ const defaultColumns = [
   { prop: 'customerOrderNo', label: '客户订单编号', width: 160, filterable: true, visible: true },
   { prop: 'mainPlanProductCode', label: '主计划产品编号', width: 160, filterable: true, visible: true },
   { prop: 'mainPlanProductName', label: '主计划产品名称', width: 180, filterable: true, visible: true },
-  { prop: 'mainPlanQuantity', label: '主计划排程数量', width: 140, filterable: false, visible: true },
+  { prop: 'mainPlanScheduleQuantity', label: '主计划排程数量', width: 140, filterable: false, visible: true },
   { prop: 'promiseDeliveryDate', label: '订单承诺交期', width: 120, filterable: true, visible: true }
 ]
 
@@ -742,7 +742,7 @@ const getFormattedValue = (row, prop) => {
     }
     
     // 数值字段（保留两位小数）
-    if (['processIntervalHours', 'realtimeStock', 'projectedBalance', 'availableStock', 'parentScheduleQuantity', 'mainPlanQuantity', 'demandQuantity'].includes(prop)) {
+    if (['processIntervalHours', 'realtimeStock', 'projectedBalance', 'availableStock', 'parentScheduleQuantity', 'mainPlanScheduleQuantity', 'demandQuantity'].includes(prop)) {
       if (cellValue === null || cellValue === undefined) return '0.00'
       const value = parseFloat(cellValue)
       return isNaN(value) ? '0.00' : value.toFixed(2)

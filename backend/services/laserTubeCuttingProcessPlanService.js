@@ -1,3 +1,4 @@
+const PlanEndDateCalculator = require('../utils/planEndDateCalculator');
 const { pool } = require('../config/database');
 const { formatLocalDate } = require('../utils/dateFormatter');
 
@@ -194,6 +195,62 @@ class LaserTubeCuttingProcessPlanService {
    */
   static async create(data) {
     try {
+      // ✅ Lookup定时工额：从产品物料库查询
+      // 规则：lookup(产品物料库的"物料编号"=当前工序计划的"生产产品编号"，产品物料库的"定时工额")
+      // 前置条件：当前工序计划"生产产品编号"不为空
+      let standardWorkQuota = data.standardWorkQuota || 0;
+      
+      if (data.productCode) {
+        try {
+          console.log(`🔍 [定时工额Lookup] 查询产品物料库: 物料编号=${data.productCode}`);
+          const [materialRows] = await pool.execute(
+            'SELECT standard_time FROM materials WHERE material_code = ?',
+            [data.productCode]
+          );
+          
+          if (materialRows.length > 0 && materialRows[0].standard_time) {
+            standardWorkQuota = parseFloat(materialRows[0].standard_time);
+            console.log(`✅ [定时工额Lookup] 找到定时工额: ${standardWorkQuota}`);
+          } else {
+            console.log(`⚠️ [定时工额Lookup] 未找到物料编号=${data.productCode}的定时工额，使用默认值: ${standardWorkQuota}`);
+          }
+        } catch (lookupError) {
+          console.error(`❌ [定时工额Lookup] 查询失败:`, lookupError);
+          // 查询失败时使用传入的值或0
+        }
+      
+      }
+      // ✅ 计算计划结束日期
+      // 规则：基于需补货数量、定时工额、计划开始日期、工序能力负荷表计算
+      // 前置条件：需补货数量 > 0 && 定时工额 > 0
+      let planEndDate = data.planEndDate || null;
+      
+      const replenishment = parseFloat(data.replenishmentQty || data.scheduleQuantity || 0);
+      if (replenishment > 0 && standardWorkQuota > 0) {
+        try {
+          console.log(`🔍 [计划结束日期计算] 开始计算...`);
+          const calculatedEndDate = await PlanEndDateCalculator.calculate({
+            replenishmentQty: replenishment,
+            standardWorkQuota: standardWorkQuota,
+            planStartDate: data.planStartDate,
+            scheduleDate: data.scheduleDate,
+            processName: data.processName
+          });
+          
+          if (calculatedEndDate) {
+            planEndDate = calculatedEndDate;
+            console.log(`✅ [计划结束日期计算] 计算成功: ${planEndDate.toISOString().split('T')[0]}`);
+          } else {
+            console.log(`⚠️ [计划结束日期计算] 计算失败，使用传入值或null`);
+          }
+        } catch (calcError) {
+          console.error(`❌ [计划结束日期计算] 计算异常:`, calcError);
+          // 计算失败时使用传入的值或null
+        }
+      } else {
+        console.log(`⚠️ [计划结束日期计算] 不满足计算条件 (需补货数量=${replenishment}, 定时工额=${standardWorkQuota})`);
+      }
+      
       // 正确的SQL，包含所有字段，数量匹配
       const sql = `
         INSERT INTO laser_tube_cutting_process_plans (
@@ -233,13 +290,13 @@ class LaserTubeCuttingProcessPlanService {
         data.promiseDeliveryDate || null,             // 18. order_promise_delivery_date (✅ 新增)
         data.planStartDate || null,                    // 19. plan_start_date
         data.realPlanStartDate || null,                // 20. real_plan_start_date
-        data.planEndDate || null,                      // 21. plan_end_date
+        planEndDate,                                  // 21. plan_end_date (✅ 使用计算的值)
         data.workshopName || null,                    // 22. workshop_name
         data.dailyAvailableHours || 0,                 // 23. daily_available_hours
         data.remainingRequiredHours || 0,              // 24. remaining_required_hours
         data.scheduleCount || 0,                       // 25. schedule_count
         data.standardWorkHours || 0,                  // 26. standard_work_hours
-        data.standardWorkQuota || 0,                  // 27. standard_work_quota
+        standardWorkQuota,                            // 27. standard_work_quota (✅ 使用lookup的值)
         data.cumulativeScheduleQty || 0,              // 28. cumulative_schedule_qty
         data.unscheduledQty || 0,                     // 29. unscheduled_qty
         data.sourcePageName || null,                  // 30. source_page_name

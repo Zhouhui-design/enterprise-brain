@@ -627,8 +627,10 @@ router.post('/batch-delete', async (req, res) => {
 router.post('/:id/execute-schedule', async (req, res) => {
   try {
     const { id } = req.params;
+    const { plannedStorageDate } = req.body;
     
     console.log('📦 开始执行排程, 主计划ID:', id);
+    console.log('📅 前端传入计划入库日期:', plannedStorageDate);
     
     // 1. 查询主生产计划详情
     const [planRows] = await pool.execute(`
@@ -643,6 +645,18 @@ router.post('/:id/execute-schedule', async (req, res) => {
     }
     
     const plan = planRows[0];
+    
+    // ✅ 如果前端传入了计划入库日期，先更新到数据库
+    if (plannedStorageDate) {
+      await pool.execute(`
+        UPDATE master_production_plans 
+        SET planned_storage_date = ? 
+        WHERE id = ?
+      `, [plannedStorageDate, id]);
+      console.log('✅ 已更新主生产计划的计划入库日期:', plannedStorageDate);
+      plan.planned_storage_date = plannedStorageDate;
+    }
+    
     console.log('📝 主计划信息:', {
       planCode: plan.plan_code,
       productCode: plan.product_code,

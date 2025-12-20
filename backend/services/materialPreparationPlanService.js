@@ -63,6 +63,7 @@ class MaterialPreparationPlanService {
           source_plan_no as sourcePlanNo,
           material_code as materialCode,
           material_name as materialName,
+          material_source as materialSource,
           material_unit as materialUnit,
           demand_quantity as demandQuantity,
           replenishment_quantity as replenishmentQuantity,
@@ -74,6 +75,7 @@ class MaterialPreparationPlanService {
           customer_order_no as customerOrderNo,
           main_plan_product_code as mainPlanProductCode,
           main_plan_product_name as mainPlanProductName,
+          main_plan_quantity as mainPlanScheduleQuantity,
           promise_delivery_date as promiseDeliveryDate,
           customer_name as customerName,
           created_at as createdAt,
@@ -192,50 +194,56 @@ class MaterialPreparationPlanService {
       
       await connection.commit();
       
-      // ❌ 禁止推送到真工序计划（包含real字符串）- 防止工序能力负荷表已占用工时错误
+      const replenishmentQty = parseFloat(replenishmentQuantity || 0);
       let processPlanNo = null;
-      console.log('⏭️ 备料计划创建成功，推送到真工序计划已永久禁用（防止工时冲突）');
       
-      // ✅ 解禁：自动推送到采购计划
-      if (data.planNo && data.sourceProcess === '采购') {
-        const replenishmentQty = parseFloat(replenishmentQuantity || 0);
+      // ✅ 自动推送规则：需补货数量>0
+      if (data.planNo && replenishmentQty > 0) {
+        const fullData = {
+          ...data,
+          id: insertedId,
+          replenishmentQuantity: replenishmentQty
+        };
         
-        if (replenishmentQty > 0) {
-          console.log('🛒 备料计划创建成功，来源工序=采购，开始自动推送到采购计划...');
-          
-          // 补充完整数据给推送函数使用
-          const fullData = {
-            ...data,
-            id: insertedId,
-            replenishmentQuantity: replenishmentQty
-          };
-          
+        // 规则1：来源工序=采购 → 推送到采购计划
+        if (data.sourceProcess === '采购') {
+          console.log('🛒 来源工序=采购，需补货数量>0，推送到采购计划...');
           try {
             const pushResult = await this.pushToProcurementPlan(fullData);
-            
             if (pushResult && pushResult.success) {
-              console.log(`✅ 推送采购计划成功: ${data.planNo} → 采购计划 (${pushResult.procurementPlanNo})`);
-              
-              // 更新推送状态
+              console.log(`✅ 推送采购计划成功: ${data.planNo} → ${pushResult.procurementPlanNo}`);
               await pool.execute(
                 'UPDATE material_preparation_plans SET push_to_purchase = ? WHERE plan_no = ?',
                 [1, data.planNo]
               );
-            } else {
-              console.log(`⏭️ 推送采购计划跳过: ${pushResult ? pushResult.reason : '未知原因'}`);
             }
           } catch (pushError) {
-            console.error(`❌ 自动推送采购计划失败:`, pushError.message);
+            console.error(`❌ 推送采购计划失败:`, pushError.message);
           }
-        } else {
-          console.log('⏭️ 需补货数量≤0，跳过采购计划推送');
+        }
+        // 规则2：来源工序≠采购 → 推送到对应工序计划
+        else if (data.sourceProcess && data.sourceProcess !== '采购') {
+          console.log(`⚙️ 来源工序=${data.sourceProcess}，需补货数量>0，推送到工序计划...`);
+          try {
+            const pushResult = await this.pushToProcessPlanBySource(fullData);
+            if (pushResult && pushResult.success) {
+              console.log(`✅ 推送工序计划成功: ${data.planNo} → ${pushResult.processPlanNo}`);
+              processPlanNo = pushResult.processPlanNo;
+              await pool.execute(
+                'UPDATE material_preparation_plans SET push_to_process = ? WHERE plan_no = ?',
+                [1, data.planNo]
+              );
+            }
+          } catch (pushError) {
+            console.error(`❌ 推送工序计划失败:`, pushError.message);
+          }
         }
       }
       
       // 返回创建结果
       return { 
         id: insertedId,
-        processPlanNo: null
+        processPlanNo
       };
     } catch (error) {
       await connection.rollback();
@@ -666,27 +674,31 @@ class MaterialPreparationPlanService {
       const processPlanData = {
         // 基础信息
         planNo: `RPP${new Date().toISOString().slice(2, 10).replace(/-/g, '')}${String(Math.floor(Math.random() * 10000)).padStart(4, '0')}`,
-        scheduleDate: materialPlanData.demandDate || new Date(),
-        salesOrderNo: materialPlanData.salesOrderNo || null,
-        customerOrderNo: materialPlanData.customerOrderNo || null,
-        masterPlanNo: materialPlanData.sourcePlanNo || null,
-        masterPlanProductCode: materialPlanData.mainPlanProductCode || null,
-        masterPlanProductName: materialPlanData.mainPlanProductName || null,
-        productCode: materialPlanData.materialCode || null,
-        productName: materialPlanData.materialName || null,
-        productImage: materialPlanData.productImage || null,
+        scheduleDate: materialPlanData.demandDate || materialPlanData.demand_date || new Date(),
+        salesOrderNo: materialPlanData.salesOrderNo || materialPlanData.sales_order_no || null,
+        customerOrderNo: materialPlanData.customerOrderNo || materialPlanData.customer_order_no || null,
+        masterPlanNo: materialPlanData.sourcePlanNo || materialPlanData.source_plan_no || null,
+        // ✅ 修复主计划产品编号/名称 - 兼容snake_case和camelCase
+        masterPlanProductCode: materialPlanData.mainPlanProductCode || materialPlanData.main_plan_product_code || null,
+        masterPlanProductName: materialPlanData.mainPlanProductName || materialPlanData.main_plan_product_name || null,
+        productCode: materialPlanData.materialCode || materialPlanData.material_code || null,
+        productName: materialPlanData.materialName || materialPlanData.material_name || null,
+        productImage: materialPlanData.productImage || materialPlanData.product_image || null,
         processManager: null, // 可从系统配置中获取
-        processName: materialPlanData.sourceProcess,
+        processName: materialPlanData.sourceProcess || materialPlanData.source_process,
         scheduleQuantity: replenishmentQty,
-        productUnit: materialPlanData.materialUnit || null,
-        level0Demand: 0, // 可根据业务逻辑计算
-        completionDate: materialPlanData.demandDate || null,
-        orderPromiseDeliveryDate: materialPlanData.promiseDeliveryDate || null,
+        productUnit: materialPlanData.materialUnit || materialPlanData.material_unit || null,
+        // ✅ 修复0阶需求数量 - 使用父件排程数量或需补货数量
+        level0Demand: materialPlanData.parentScheduleQuantity || materialPlanData.parent_schedule_quantity || replenishmentQty,
+        completionDate: materialPlanData.demandDate || materialPlanData.demand_date || null,
+        // ✅ 修复订单承诺交期 - 兼容两种命名格式
+        orderPromiseDeliveryDate: materialPlanData.promiseDeliveryDate || materialPlanData.promise_delivery_date || null,
         
         // 工序相关信息
-        planStartDate: null,
+        // ✅ 修复计划开始日期 - 新增行使用需求日期
+        planStartDate: materialPlanData.demandDate || materialPlanData.demand_date || null,
         realPlanStartDate: null,
-        planEndDate: null,
+        planEndDate: materialPlanData.demandDate || materialPlanData.demand_date || null,
         workshopName: null,
         dailyAvailableHours: 0,
         remainingRequiredHours: 0,
@@ -738,6 +750,13 @@ class MaterialPreparationPlanService {
       console.error('❌ 推送备料计划到工序计划失败:', error);
       throw error;
     }
+  }
+
+  /**
+   * 推送到工序计划（根据来源工序自动路由）
+   */
+  static async pushToProcessPlanBySource(materialPlanData) {
+    return await this.pushToRealProcessPlan(materialPlanData);
   }
 
   /**

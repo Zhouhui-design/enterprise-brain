@@ -34,3 +34,14 @@ export function deleteById(id) {
 export function batchDelete(ids) {
   return request.post('/packing-process-plans/batch-delete', { ids })
 }
+
+// ✅ 查询当天已排程工时
+// SUMIFS(计划排程工时, 工序名称=当前工序, 计划排程日期=当前日期, ID<>当前ID)
+export function queryDailyScheduledHours(params) {
+  return request.get('/packing-process-plans/query-daily-scheduled-hours', { params })
+}
+
+// ✅ 修复字段计算
+export function fixFieldCalculations() {
+  return request.post('/packing-process-plans/fix-field-calculations')
+}

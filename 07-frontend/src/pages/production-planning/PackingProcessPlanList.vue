@@ -256,6 +256,7 @@
 </template>
 
 <script setup>
+import materialApiService from '@/services/api/materialApiService'  // ✅ 导入产品物料库API
 import { ref, reactive, onMounted, computed, nextTick, watch } from 'vue'
 import { ElMessage, ElMessageBox, ElLoading } from 'element-plus'
 import { CircleCheck, Loading } from '@element-plus/icons-vue'
@@ -458,16 +459,23 @@ const allColumns = ref([
   { prop: 'salesOrderNo', label: '销售订单编号', width: 160, sortable: true, filterable: true, visible: true },
   { prop: 'customerOrderNo', label: '客户订单编号', width: 160, sortable: true, filterable: true, visible: true },
   { prop: 'masterPlanNo', label: '主生产计划编号', width: 160, sortable: true, filterable: true, visible: true },
-  { prop: 'mainPlanProductCode', label: '主计划产品编号', width: 160, sortable: true, filterable: true, visible: true },
-  { prop: 'mainPlanProductName', label: '主计划产品名称', width: 180, sortable: true, filterable: true, visible: true },
+  // ✅ 字段名匹配后端返回的 camelCase 格式（master_plan_product_code → masterPlanProductCode）
+  { prop: 'masterPlanProductCode', label: '主计划产品编号', width: 160, sortable: true, filterable: true, visible: true },
+  { prop: 'masterPlanProductName', label: '主计划产品名称', width: 180, sortable: true, filterable: true, visible: true },
   { prop: 'shippingPlanNo', label: '发货计划编号', width: 160, sortable: true, filterable: true, visible: true },
   { prop: 'productCode', label: '生产产品编号', width: 140, sortable: true, filterable: true, visible: true },
   { prop: 'productName', label: '生产产品名称', width: 180, sortable: true, filterable: true, visible: true },
   { prop: 'productImage', label: '产品图片', width: 100, slot: 'productImage', visible: true },
   { prop: 'processManager', label: '工序负责人', width: 120, filterable: true, visible: true },
   { prop: 'processName', label: '工序名称', width: 140, sortable: true, filterable: true, visible: true },
+  { prop: 'minRemainingHours', label: '剩余工时小于', width: 120, align: 'right', visible: true,
+    formatter: (row) => {
+      const settings = JSON.parse(localStorage.getItem('packingProcessPlanListV1') || '{}');
+      return settings.minRemainingHours || 0.5;
+    }
+  },
   { prop: 'scheduleDate', label: '计划排程日期', width: 120, sortable: true, filterable: true, visible: true,
-    formatter: (row) => formatDateYMD(row.scheduleDate) },
+    formatter: (row) => formatDateYMD(row.scheduleDate || row.planStartDate) },  // ✅ 计划排程日期 = 计划开始日期
   { prop: 'dailyTotalHours', label: '当天总工时', width: 120, sortable: true, align: 'right', visible: true,
     formatter: (row) => row.dailyTotalHours !== undefined ? parseFloat(row.dailyTotalHours).toFixed(2) : '0.00' },
   { prop: 'dailyScheduledHours', label: '当天已排程工时', width: 150, sortable: true, align: 'right', visible: true,
@@ -476,7 +484,14 @@ const allColumns = ref([
   { prop: 'dailyPlanCount', label: '当日计划行数', width: 130, sortable: true, align: 'right', visible: true,
     formatter: (row) => row.dailyPlanCount !== undefined ? row.dailyPlanCount : '0' },
   { prop: 'dailyAvailableHours', label: '工序当天可用工时', width: 160, sortable: true, align: 'right', visible: true,
-    formatter: (row) => row.dailyAvailableHours !== undefined ? parseFloat(row.dailyAvailableHours).toFixed(2) : '0.00' },
+    formatter: (row) => {
+      // ✅ 工序当天可用工时 = 当天总工时 - 当天已排程工时
+      const dailyTotal = parseFloat(row.dailyTotalHours) || 0
+      const dailyScheduled = parseFloat(row.dailyScheduledHours) || 0
+      const available = Math.max(0, dailyTotal - dailyScheduled)
+      return available.toFixed(2)
+    }
+  },
   { prop: 'scheduledWorkHours', label: '计划排程工时', width: 130, sortable: true, align: 'right', visible: true,
     formatter: (row) => row.scheduledWorkHours !== undefined ? parseFloat(row.scheduledWorkHours).toFixed(2) : '0.00' },
   { prop: 'scheduleQuantity', label: '计划排程数量', width: 130, sortable: true, align: 'right', visible: true },
@@ -484,8 +499,9 @@ const allColumns = ref([
   { prop: 'level0Demand', label: '0阶需求数量', width: 130, sortable: true, align: 'right', visible: true },
   { prop: 'completionDate', label: '计划完工日期', width: 120, sortable: true, visible: true,
     formatter: (row) => formatDateYMD(row.completionDate) },
-  { prop: 'promiseDeliveryDate', label: '订单承诺交期', width: 120, sortable: true, filterable: true, visible: true,
-    formatter: (row) => formatDateYMD(row.promiseDeliveryDate) },
+  // ✅ 字段名匹配后端返回的 camelCase 格式（order_promise_delivery_date → orderPromiseDeliveryDate）
+  { prop: 'orderPromiseDeliveryDate', label: '订单承诺交期', width: 120, sortable: true, filterable: true, visible: true,
+    formatter: (row) => formatDateYMD(row.orderPromiseDeliveryDate) },
   { prop: 'planStartDate', label: '计划开始日期', width: 120, sortable: true, filterable: true, visible: true,
     formatter: (row) => formatDateYMD(row.planStartDate) },
   { prop: 'realPlanStartDate', label: '真计划开始日期', width: 130, sortable: true, filterable: true, visible: true,
@@ -532,6 +548,100 @@ const generatePlanNo = () => {
 }
 
 // ========== 响应式计算 ==========
+// ✅ 监听计划开始日期变化，自动更新计划排程日期
+watch(
+  () => formData.value.planStartDate,
+  (newPlanStartDate) => {
+    console.log('========================================')
+    console.log('🔍 [计划排程日期监听器] 监听到计划开始日期变化！')
+    console.log(`📋 [计划排程日期监听器] 新的计划开始日期: "${newPlanStartDate}"`)
+    console.log('========================================')
+    
+    if (newPlanStartDate) {
+      // ✅ 计划排程日期 = 计划开始日期
+      formData.value.scheduleDate = newPlanStartDate
+      console.log(`✅ [计划排程日期] 已更新为: ${formData.value.scheduleDate}`)
+      
+      // ✅ 触发后续计算（当天总工时、当天已排程工时、工序当天可用工时等）
+      nextTick(async () => {
+        if (formData.value.processName && formData.value.scheduleDate) {
+          console.log('🔄 [计划排程日期监听器] 触发后续字段计算...')
+          await queryDailyTotalWorkHours()
+          await calculateSchedulingFields()
+        }
+      })
+    } else {
+      console.log('⚠️ [计划排程日期] 计划开始日期为空，清空计划排程日期')
+      formData.value.scheduleDate = null
+    }
+  },
+  { immediate: false }
+)
+
+// ✅ 监听生产产品编号变化，自动lookup定时工额
+// 规则：lookup(产品物料库的"物料编号"=当前工序计划的"生产产品编号"，产品物料库的"定时工额")
+// 前置条件：生产产品编号不为空
+watch(
+  () => formData.value.productCode,
+  async (newProductCode) => {
+    console.log('========================================')
+    console.log('🔍 [定时工额Lookup测试] 监听器触发！')
+    console.log(`📋 [定时工额Lookup测试] 新的生产产品编号: "${newProductCode}"`)
+    console.log(`📋 [定时工额Lookup测试] 是否为空: ${!newProductCode}`)
+    console.log('========================================')
+    
+    if (!newProductCode) {
+      console.log('⚠️ [定时工额Lookup] 生产产品编号为空，跳过查询')
+      formData.value.standardWorkQuota = 0
+      return
+    }
+    
+    try {
+      console.log(`🔍 [定时工额Lookup] 开始查询产品物料库...`)
+      console.log(`🔍 [定时工额Lookup] 查询参数: 物料编号="${newProductCode}"`)
+      
+      const response = await materialApiService.getMaterialByCode(newProductCode)
+      
+      console.log('========================================')
+      console.log('📦 [定时工额Lookup测试] API响应完整数据:')
+      console.log(JSON.stringify(response, null, 2))
+      console.log('========================================')
+      
+      console.log(`📊 [定时工额Lookup测试] response存在: ${!!response}`)
+      console.log(`📊 [定时工额Lookup测试] response.data存在: ${!!response?.data}`)
+      console.log(`📊 [定时工额Lookup测试] response.data.standardTime: ${response?.data?.standardTime}`)
+      console.log(`📊 [定时工额Lookup测试] response.data.quotaTime: ${response?.data?.quotaTime}`)
+      
+      if (response?.data?.standardTime) {
+        const lookupValue = parseFloat(response.data.standardTime)
+        formData.value.standardWorkQuota = lookupValue
+        console.log('========================================')
+        console.log(`✅ [定时工额Lookup] 找到定时工额并已设置！`)
+        console.log(`✅ [定时工额Lookup] 数据库值: ${response.data.standardTime}`)
+        console.log(`✅ [定时工额Lookup] 转换后的值: ${lookupValue}`)
+        console.log(`✅ [定时工额Lookup] 表单字段值: ${formData.value.standardWorkQuota}`)
+        console.log('========================================')
+      } else {
+        console.log('========================================')
+        console.log(`⚠️ [定时工额Lookup] 未找到定时工额！`)
+        console.log(`⚠️ [定时工额Lookup] 物料编号: ${newProductCode}`)
+        console.log(`⚠️ [定时工额Lookup] response.data: ${JSON.stringify(response?.data)}`)
+        console.log(`⚠️ [定时工额Lookup] 使用默认值: 0`)
+        console.log('========================================')
+        formData.value.standardWorkQuota = 0
+      }
+    } catch (error) {
+      console.log('========================================')
+      console.error(`❌ [定时工额Lookup] 查询失败！`)
+      console.error(`❌ [定时工额Lookup] 错误信息:`, error)
+      console.error(`❌ [定时工额Lookup] 错误堆栈:`, error.stack)
+      console.log('========================================')
+      formData.value.standardWorkQuota = 0
+    }
+  },
+  { immediate: false }
+)
+
 // 监听需补货数量和定时工额变化，自动计算需求工时
 watch(
   () => [formData.value.replenishmentQty, formData.value.standardWorkQuota],
@@ -630,8 +740,12 @@ const queryPlanStartDate = async () => {
     realPlanStart.setDate(realPlanStart.getDate() + 1)
     formData.value.realPlanStartDate = `${realPlanStart.getFullYear()}-${String(realPlanStart.getMonth() + 1).padStart(2, '0')}-${String(realPlanStart.getDate()).padStart(2, '0')}`
     
-    formData.value.scheduleDate = formData.value.realPlanStartDate  // ✅ 计划排程日期 = 真计划开始日期
-    console.log('📊 需求工时为0，开始日期=计划结束日期，真计划开始日期=' + formData.value.realPlanStartDate)
+    // ✅ 修改：计划排程日期 = 计划开始日期（而不是真计划开始日期）
+    formData.value.scheduleDate = formData.value.planStartDate
+    console.log('📊 需求工时为0，开始日期=计划结束日期')
+    console.log(`📊 计划开始日期: ${formData.value.planStartDate}`)
+    console.log(`📊 真计划开始日期: ${formData.value.realPlanStartDate}`)
+    console.log(`📊 计划排程日期: ${formData.value.scheduleDate}`)
     // ✅ 查询当天总工时
     await queryDailyTotalWorkHours()
     // ✅ 计算相关字段
@@ -657,8 +771,8 @@ const queryPlanStartDate = async () => {
       realPlanStart.setDate(realPlanStart.getDate() + 1)
       formData.value.realPlanStartDate = `${realPlanStart.getFullYear()}-${String(realPlanStart.getMonth() + 1).padStart(2, '0')}-${String(realPlanStart.getDate()).padStart(2, '0')}`
       
-      // ✅ 计划排程日期 = 真计划开始日期（仅对排程次数=1生效）
-      formData.value.scheduleDate = formData.value.realPlanStartDate
+      // ✅ 修改：计划排程日期 = 计划开始日期（而不是真计划开始日期）
+      formData.value.scheduleDate = formData.value.planStartDate
       
       console.log(`✅ 计划开始日期查询成功: ${response.planStartDate}`)
       console.log(`✅ 真计划开始日期: ${formData.value.realPlanStartDate}`)
@@ -690,7 +804,103 @@ const queryPlanStartDate = async () => {
 // ✅ 查询当天总工时：可用工位数量 * 上班时段
 const queryDailyTotalWorkHours = async () => {
   const processName = formData.value.processName
-  const scheduleDate = formData.value.planStartDate  // ✅ 计划排
+  const scheduleDate = formData.value.scheduleDate  // ✅ 使用计划排程日期
+  
+  if (!processName || !scheduleDate) {
+    console.log('⚠️ 查询当天总工时：缺少工序名称或排程日期')
+    formData.value.dailyTotalWorkHours = 0
+    return 0
+  }
+  
+  try {
+    const response = await capacityLoadApi.queryDailyTotalHours(
+      processName,
+      formatDateYMD(scheduleDate)
+    )
+    
+    if (response?.data?.totalHours !== undefined) {
+      formData.value.dailyTotalWorkHours = parseFloat(response.data.totalHours)
+      console.log(`✅ 当天总工时查询成功: ${formData.value.dailyTotalWorkHours}`)
+      return formData.value.dailyTotalWorkHours
+    } else {
+      formData.value.dailyTotalWorkHours = 0
+      console.log('⚠️ 未查询到当天总工时')
+      return 0
+    }
+  } catch (error) {
+    console.error('❗ 查询当天总工时失败:', error)
+    formData.value.dailyTotalWorkHours = 0
+    return 0
+  }
+}
+
+// ✅ 计算当天已排程工时：SUMIFS(计划排程工时, 工序名称=当前工序, 计划排程日期=当前日期)
+const calculateDailyScheduledHours = async () => {
+  const processName = formData.value.processName
+  const scheduleDate = formData.value.scheduleDate
+  const currentId = formData.value.id  // 排除当前记录（编辑时）
+  
+  if (!processName || !scheduleDate) {
+    formData.value.dailyScheduledHours = 0
+    return 0
+  }
+  
+  try {
+    const response = await api.queryDailyScheduledHours({
+      processName,
+      scheduleDate: formatDateYMD(scheduleDate),
+      excludeId: currentId  // 编辑时排除自己
+    })
+    
+    if (response?.data?.scheduledHours !== undefined) {
+      formData.value.dailyScheduledHours = parseFloat(response.data.scheduledHours)
+      console.log(`✅ 当天已排程工时: ${formData.value.dailyScheduledHours}`)
+      return formData.value.dailyScheduledHours
+    } else {
+      formData.value.dailyScheduledHours = 0
+      return 0
+    }
+  } catch (error) {
+    console.error('❗ 计算当天已排程工时失败:', error)
+    formData.value.dailyScheduledHours = 0
+    return 0
+  }
+}
+
+// ✅ 计算工序当天可用工时 = 当天总工时 - 当天已排程工时
+const calculateDailyAvailableHours = () => {
+  const dailyTotal = parseFloat(formData.value.dailyTotalWorkHours) || 0
+  const dailyScheduled = parseFloat(formData.value.dailyScheduledHours) || 0
+  
+  formData.value.dailyAvailableHours = Math.max(0, dailyTotal - dailyScheduled)
+  
+  console.log(`✅ 工序当天可用工时 = ${dailyTotal} - ${dailyScheduled} = ${formData.value.dailyAvailableHours}`)
+  
+  return formData.value.dailyAvailableHours
+}
+
+// ✅ 计算计划排程工时 = MIN(工序当天可用工时, 需求工时)
+const calculateScheduledWorkHours = () => {
+  const dailyAvailable = parseFloat(formData.value.dailyAvailableHours) || 0
+  const required = parseFloat(formData.value.requiredWorkHours) || 0
+  
+  formData.value.scheduledWorkHours = Math.min(dailyAvailable, required)
+  
+  console.log(`✅ 计划排程工时 = MIN(${dailyAvailable}, ${required}) = ${formData.value.scheduledWorkHours}`)
+  
+  return formData.value.scheduledWorkHours
+}
+
+// ✅ 计算计划排程数量 = 计划排程工时 * 定时工额
+const calculateScheduleQuantity = () => {
+  const scheduledHours = parseFloat(formData.value.scheduledWorkHours) || 0
+  const standardQuota = parseFloat(formData.value.standardWorkQuota) || 0
+  
+  formData.value.scheduleQuantity = parseFloat((scheduledHours * standardQuota).toFixed(2))
+  
+  console.log(`✅ 计划排程数量 = ${scheduledHours} * ${standardQuota} = ${formData.value.scheduleQuantity}`)
+  
+  return formData.value.scheduleQuantity
 }
 
 // ✅ 计算排程相关字段（严格按照生成时机和条件）
@@ -832,7 +1042,26 @@ const loadData = async () => {
     }
     
     const data = await api.getList(params)
-    tableData.value = data.records || []
+    
+    // ✅ 修正数据：确保 计划排程日期 = 计划开始日期
+    const records = (data.records || []).map(record => {
+      // 如果计划开始日期存在，但计划排程日期不等于计划开始日期，则修正
+      if (record.planStartDate && record.scheduleDate !== record.planStartDate) {
+        console.log(`🔧 修正记录 ID=${record.id}: scheduleDate ${record.scheduleDate} → ${record.planStartDate}`)
+        record.scheduleDate = record.planStartDate
+      }
+      
+      // ✅ 重新计算工序当天可用工时（前端计算，确保实时性）
+      if (record.dailyTotalHours !== undefined && record.dailyScheduledHours !== undefined) {
+        const dailyTotal = parseFloat(record.dailyTotalHours) || 0
+        const dailyScheduled = parseFloat(record.dailyScheduledHours) || 0
+        record.dailyAvailableHours = Math.max(0, dailyTotal - dailyScheduled)
+      }
+      
+      return record
+    })
+    
+    tableData.value = records
     pagination.total = data.total || 0
     
     ElMessage.success('数据加载成功')
@@ -867,7 +1096,30 @@ const handleAdd = () => {
 
 const handleEdit = (row) => {
   isEdit.value = true
-  formData.value = { ...row }
+  
+  console.log('========================================')
+  console.log('📝 [编辑] 开始编辑记录')
+  console.log('📋 [编辑] 原始row数据:', row)
+  console.log('📋 [编辑] row.standardWorkQuota:', row.standardWorkQuota)
+  console.log('📋 [编辑] row.standard_work_quota:', row.standard_work_quota)
+  console.log('========================================')
+  
+  // ✅ 修复：确保字段名正确映射，优先使用下划线格式的数据
+  formData.value = {
+    ...row,
+    standardWorkQuota: row.standardWorkQuota || row.standard_work_quota || 0,
+    requiredWorkHours: row.requiredWorkHours || row.required_work_hours || 0,
+    replenishmentQty: row.replenishmentQty || row.replenishment_qty || 0,
+    productCode: row.productCode || row.product_code || '',
+    productName: row.productName || row.product_name || ''
+  }
+  
+  console.log('========================================')
+  console.log('✅ [编辑] 映射后的formData:')
+  console.log('✅ [编辑] formData.standardWorkQuota:', formData.value.standardWorkQuota)
+  console.log('✅ [编辑] formData.productCode:', formData.value.productCode)
+  console.log('========================================')
+  
   dialogVisible.value = true
 }
 

@@ -1,27 +1,27 @@
 -- 创建工序表
-CREATE TABLE IF NOT EXISTS `processes` (
-  `id` int NOT NULL AUTO_INCREMENT COMMENT 'ID',
-  `process_code` varchar(50) COLLATE utf8mb4_unicode_ci NOT NULL COMMENT '工序编号',
-  `process_name` varchar(100) COLLATE utf8mb4_unicode_ci NOT NULL COMMENT '工序名称',
-  `responsible_person` varchar(50) COLLATE utf8mb4_unicode_ci NOT NULL COMMENT '工序负责人',
-  `dispatch_method` varchar(20) COLLATE utf8mb4_unicode_ci NOT NULL COMMENT '派工方式（自动派工/手动派工）',
-  `self_or_outsource` varchar(20) COLLATE utf8mb4_unicode_ci DEFAULT NULL COMMENT '自制/外协',
-  `available_workstations` int DEFAULT NULL COMMENT '可用工位数量',
-  `is_warehousing` tinyint DEFAULT '0' COMMENT '是否入库（0否1是）',
-  `completion_warehouse` varchar(100) COLLATE utf8mb4_unicode_ci DEFAULT NULL COMMENT '完工绑定仓库',
-  `workshop_name` varchar(100) COLLATE utf8mb4_unicode_ci NOT NULL COMMENT '所属车间名称',
-  `process_wage` decimal(10,2) DEFAULT '0.00' COMMENT '工序工资',
-  `created_at` timestamp NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
-  `updated_at` timestamp NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
-  PRIMARY KEY (`id`),
-  UNIQUE KEY `process_code` (`process_code`),
-  KEY `idx_process_code` (`process_code`),
-  KEY `idx_process_name` (`process_name`),
-  KEY `idx_workshop` (`workshop_name`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='工序表';
+CREATE TABLE processes (
+  id int NOT NULL AUTO_INCREMENT,
+  process_code varchar(50) NOT NULL COMMENT '工序编号',
+  process_name varchar(100) NOT NULL COMMENT '工序名称',
+  responsible_person varchar(50) NOT NULL COMMENT '工序负责人',
+  dispatch_method varchar(20) NOT NULL COMMENT '派工方式（自动派工/手动派工）',
+  self_or_outsource varchar(20) DEFAULT NULL COMMENT '自制/外协',
+  available_workstations int DEFAULT NULL COMMENT '可用工位数量',
+  is_warehousing tinyint DEFAULT '0' COMMENT '是否入库（0否1是）',
+  completion_warehouse varchar(100) DEFAULT NULL COMMENT '完工绑定仓库',
+  workshop_name varchar(100) NOT NULL COMMENT '所属车间名称',
+  process_wage decimal(10,2) DEFAULT '0.00' COMMENT '工序工资',
+  created_at timestamp NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+  updated_at timestamp NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+  PRIMARY KEY (id),
+  UNIQUE KEY process_code (process_code),
+  KEY idx_process_code (process_code),
+  KEY idx_process_name (process_name),
+  KEY idx_workshop (workshop_name)
+) ENGINE=InnoDB AUTO_INCREMENT=37 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='工序表';
 
 -- 插入数据
-INSERT INTO `processes` VALUES 
+INSERT INTO processes VALUES 
 (1,'GX-38','套袋（打包）','朱学佳','manual','自制',1,0,'','软包车间',0.00,'2025-12-04 10:10:46','2025-12-08 09:23:05'),
 (2,'GX-37','PE封切机流水线','朱学佳','manual','自制',1,0,'五金半成品仓','软包车间',0.00,'2025-12-04 10:10:46','2025-12-08 09:23:32'),
 (3,'GX-36','POF热缩机流水线','朱学佳','manual','自制',1,0,'五金半成品仓','软包车间',0.00,'2025-12-04 10:10:46','2025-12-08 09:23:28'),

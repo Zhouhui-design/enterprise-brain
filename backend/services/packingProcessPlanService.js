@@ -1,3 +1,5 @@
+const PlanEndDateCalculator = require('../utils/planEndDateCalculator');
+const PlanStartDateCalculator = require('../utils/planStartDateCalculator');
 const { pool } = require('../config/database');
 const { formatLocalDate } = require('../utils/dateFormatter');
 
@@ -209,6 +211,163 @@ class PackingProcessPlanService {
    */
   static async create(data) {
     try {
+      // ✅ Lookup定时工额：从产品物料库查询
+      // 规则：lookup(产品物料库的"物料编号"=当前工序计划的"生产产品编号"，产品物料库的"定时工额")
+      // 前置条件：当前工序计划"生产产品编号"不为空
+      let standardWorkQuota = data.standardWorkQuota || 0;
+      
+      console.log('========================================');
+      console.log('🔍 [定时工额Lookup] 开始处理');
+      console.log(`📋 [定时工额Lookup] 传入的productCode: "${data.productCode}"`);
+      console.log(`📋 [定时工额Lookup] 传入的standardWorkQuota: ${data.standardWorkQuota}`);
+      console.log(`📋 [定时工额Lookup] 初始standardWorkQuota变量: ${standardWorkQuota}`);
+      console.log('========================================');
+      
+      if (data.productCode) {
+        try {
+          console.log(`🔍 [定时工额Lookup] 开始查询产品物料库: 物料编号=${data.productCode}`);
+          const [materialRows] = await pool.execute(
+            'SELECT standard_time FROM materials WHERE material_code = ?',
+            [data.productCode]
+          );
+          
+          console.log(`📊 [定时工额Lookup] 查询结果行数: ${materialRows.length}`);
+          if (materialRows.length > 0) {
+            console.log(`📊 [定时工额Lookup] 查询结果:`, materialRows[0]);
+            console.log(`📊 [定时工额Lookup] standard_time值: ${materialRows[0].standard_time}`);
+            console.log(`📊 [定时工额Lookup] standard_time类型: ${typeof materialRows[0].standard_time}`);
+          }
+          
+          if (materialRows.length > 0 && materialRows[0].standard_time) {
+            const lookupValue = parseFloat(materialRows[0].standard_time);
+            standardWorkQuota = lookupValue;
+            console.log('========================================');
+            console.log(`✅ [定时工额Lookup] Lookup成功！`);
+            console.log(`✅ [定时工额Lookup] 原始值: ${materialRows[0].standard_time}`);
+            console.log(`✅ [定时工额Lookup] 解析后: ${lookupValue}`);
+            console.log(`✅ [定时工额Lookup] 赋值后的standardWorkQuota: ${standardWorkQuota}`);
+            console.log('========================================');
+          } else {
+            console.log('========================================');
+            console.log(`⚠️ [定时工额Lookup] 未找到定时工额！`);
+            console.log(`⚠️ [定时工额Lookup] 物料编号: ${data.productCode}`);
+            console.log(`⚠️ [定时工额Lookup] 使用默认值: ${standardWorkQuota}`);
+            console.log('========================================');
+          }
+        } catch (lookupError) {
+          console.log('========================================');
+          console.error(`❌ [定时工额Lookup] 查询失败！`);
+          console.error(`❌ [定时工额Lookup] 错误:`, lookupError);
+          console.log('========================================');
+          // 查询失败时使用传入的值或0
+        }
+      } else {
+        console.log('========================================');
+        console.log(`⚠️ [定时工额Lookup] productCode为空，跳过lookup`);
+        console.log('========================================');
+      }
+      
+      // ✅ 预计算 replenishment (后续多处使用)
+      const replenishment = parseFloat(data.replenishmentQty || data.scheduleQuantity || 0);
+      
+      // ✅ 计算需求工时
+      // 规则：需补货数量 ÷ 定时工额（四舍五入，保留2位小数）
+      let requiredWorkHours = 0;
+      if (standardWorkQuota > 0 && replenishment > 0) {
+        requiredWorkHours = parseFloat((replenishment / standardWorkQuota).toFixed(2));
+        console.log(`✅ [需求工时计算] ${replenishment} ÷ ${standardWorkQuota} = ${requiredWorkHours}`);
+      }
+      
+      // ✅ 查询当天总工时（从工序能力负荷表）
+      // 规则：可用工位数量 × 上班时段
+      let dailyTotalHours = 0;
+      if (data.scheduleDate && data.processName) {
+        try {
+          const scheduleDate = new Date(data.scheduleDate);
+          const formattedDate = scheduleDate.toISOString().split('T')[0];
+          
+          console.log(`🔍 [当天总工时查询] 工序=${data.processName}, 日期=${formattedDate}`);
+          const [capacityRows] = await pool.execute(`
+            SELECT available_workstations, work_shift 
+            FROM process_capacity_load 
+            WHERE process_name = ? AND date = ?
+          `, [data.processName, formattedDate]);
+          
+          if (capacityRows.length > 0) {
+            const capacity = capacityRows[0];
+            dailyTotalHours = parseFloat((capacity.available_workstations * capacity.work_shift).toFixed(2));
+            console.log(`✅ [当天总工时查询] ${capacity.available_workstations} × ${capacity.work_shift} = ${dailyTotalHours}`);
+          } else {
+            console.log(`⚠️ [当天总工时查询] 未找到工序能力负荷记录`);
+          }
+        } catch (error) {
+          console.error(`❌ [当天总工时查询失败]`, error);
+        }
+      }
+      
+      // ✅ 计算计划结束日期
+      // 规则：
+      // 1. 如果是备料计划推送的数据（sourcePageName='备料计划'），直接使用 completionDate
+      // 2. 否则，基于需补货数量、定时工额、计划开始日期、工序能力负荷表计算
+      let planEndDate = data.planEndDate || null;
+      
+      // 📌 关键规则：备料计划推送的数据，计划结束日期 = 计划完工日期
+      if (data.sourcePageName === '备料计划' && data.completionDate) {
+        planEndDate = data.completionDate;
+        console.log(`✅ [计划结束日期] 来源=备料计划，使用计划完工日期: ${planEndDate}`);
+      }
+      // 其他来源，执行计算逻辑
+      else if (replenishment > 0 && standardWorkQuota > 0) {
+        try {
+          console.log(`🔍 [计划结束日期计算] 开始计算...`);
+          const calculatedEndDate = await PlanEndDateCalculator.calculate({
+            replenishmentQty: replenishment,
+            standardWorkQuota: standardWorkQuota,
+            planStartDate: data.planStartDate,
+            scheduleDate: data.scheduleDate,
+            processName: data.processName
+          });
+          
+          if (calculatedEndDate) {
+            planEndDate = calculatedEndDate;
+            console.log(`✅ [计划结束日期计算] 计算成功: ${planEndDate.toISOString().split('T')[0]}`);
+          } else {
+            console.log(`⚠️ [计划结束日期计算] 计算失败，使用传入值或null`);
+          }
+        } catch (calcError) {
+          console.error(`❌ [计划结束日期计算] 计算异常:`, calcError);
+          // 计算失败时使用传入的值或null
+        }
+      } else {
+        console.log(`⚠️ [计划结束日期计算] 不满足计算条件 (需补货数量=${replenishment}, 定时工额=${standardWorkQuota})`);
+      }
+      
+      // ✅ 计算计划开始日期（倒拉式排程）
+      let planStartDate = data.planStartDate || null;
+      if (planEndDate && data.processName) {
+        try {
+          const minRemainingHours = data.minRemainingHours || 0.5; // 从页面设置读取
+          const calculatedStartDate = await PlanStartDateCalculator.calculate({
+            planEndDate: planEndDate,
+            processName: data.processName,
+            minRemainingHours: minRemainingHours
+          });
+          if (calculatedStartDate) {
+            planStartDate = calculatedStartDate;
+          }
+        } catch (error) {
+          console.error(`❌ [计划开始日期计算] 失败:`, error);
+        }
+      }
+      
+      // ✅ 重要修复：计划排程日期 = 计划开始日期
+      // 确保数据库中存储的 schedule_date 等于 plan_start_date
+      let scheduleDate = data.scheduleDate || null;
+      if (planStartDate) {
+        scheduleDate = planStartDate;
+        console.log(`✅ [计划排程日期] 设置为计划开始日期: ${scheduleDate}`);
+      }
+      
       // 正确的SQL，包含所有字段，数量匹配
       const sql = `
         INSERT INTO packing_process_plans (
@@ -229,7 +388,7 @@ class PackingProcessPlanService {
       
       const [result] = await pool.execute(sql, [
         data.planNo,                                 // 1. plan_no
-        data.scheduleDate || null,                    // 2. schedule_date
+        scheduleDate,                                // 2. schedule_date ✅ 修复：使用计算后的值（= planStartDate）
         data.salesOrderNo || null,                    // 3. sales_order_no
         data.customerOrderNo || null,                 // 4. customer_order_no (✅ 新增)
         data.masterPlanNo || null,                    // 5. master_plan_no
@@ -245,16 +404,16 @@ class PackingProcessPlanService {
         data.productUnit || null,                     // 15. product_unit
         data.level0Demand || 0,                       // 16. level0_demand
         data.completionDate || null,                  // 17. completion_date
-        data.promiseDeliveryDate || null,             // 18. order_promise_delivery_date (✅ 新增)
-        data.planStartDate || null,                    // 19. plan_start_date
+        data.promiseDeliveryDate || data.orderPromiseDeliveryDate || null,  // 18. order_promise_delivery_date (✅ 修复：兼容两种命名)
+        planStartDate,                                    // 19. plan_start_date (✅ 使用计算的值)
         data.realPlanStartDate || null,                // 20. real_plan_start_date
-        data.planEndDate || null,                      // 21. plan_end_date
+        planEndDate,                                  // 21. plan_end_date (✅ 使用计算的值)
         data.workshopName || null,                    // 22. workshop_name
         data.dailyAvailableHours || 0,                 // 23. daily_available_hours
         data.remainingRequiredHours || 0,              // 24. remaining_required_hours
         data.scheduleCount || 0,                       // 25. schedule_count
         data.standardWorkHours || 0,                  // 26. standard_work_hours
-        data.standardWorkQuota || 0,                  // 27. standard_work_quota
+        standardWorkQuota,                            // 27. standard_work_quota (✅ 使用lookup的值)
         data.cumulativeScheduleQty || 0,              // 28. cumulative_schedule_qty
         data.unscheduledQty || 0,                     // 29. unscheduled_qty
         data.sourcePageName || null,                  // 30. source_page_name
@@ -269,12 +428,18 @@ class PackingProcessPlanService {
         data.submittedBy || null,                      // 39. submitted_by
         data.submittedAt || null,                      // 40. submitted_at
         data.replenishmentQty || 0,                   // 41. replenishment_qty
-        data.requiredWorkHours || 0,                   // 42. required_work_hours
-        data.dailyTotalHours || 0,                    // 43. daily_total_hours
+        requiredWorkHours,                            // 42. required_work_hours (✅ 使用计算的值)
+        dailyTotalHours,                              // 43. daily_total_hours (✅ 使用查询的值)
         data.dailyScheduledHours || 0,                // 44. daily_scheduled_hours
         data.scheduledWorkHours || 0,                 // 45. scheduled_work_hours
         data.nextScheduleDate || null                 // 46. next_schedule_date
       ]);
+      
+      console.log('========================================');
+      console.log(`📝 [SQL执行] 插入完成！插入ID: ${result.insertId}`);
+      console.log(`📝 [SQL执行] 插入的standardWorkQuota值: ${standardWorkQuota}`);
+      console.log(`📝 [SQL执行] 插入的scheduleDate值: ${scheduleDate} (应等于planStartDate: ${planStartDate})`);
+      console.log('========================================');
       
       console.log(`打包工序计划创建成功, ID: ${result.insertId}, 编号: ${data.planNo}`);
       
@@ -475,6 +640,13 @@ class PackingProcessPlanService {
    */
   static async update(id, data) {
     try {
+      // ✅ 修复：确保 计划排程日期 = 计划开始日期
+      let scheduleDate = data.scheduleDate || null;
+      if (data.planStartDate) {
+        scheduleDate = data.planStartDate;
+        console.log(`✅ [更新-计划排程日期] 设置为计划开始日期: ${scheduleDate}`);
+      }
+      
       const sql = `
         UPDATE packing_process_plans SET
           schedule_date = ?, sales_order_no = ?, customer_order_no = ?, master_plan_no = ?, 
@@ -495,7 +667,7 @@ class PackingProcessPlanService {
       `;
       
       const [result] = await pool.execute(sql, [
-        data.scheduleDate || null,
+        scheduleDate,                                 // ✅ 修复：使用计算后的值（= planStartDate）
         data.salesOrderNo || null,
         data.customerOrderNo || null,                 // ✅ 新增
         data.masterPlanNo || null,
@@ -1123,6 +1295,119 @@ class PackingProcessPlanService {
     } catch (error) {
       console.error('❌ 创建自增行失败:', error);
       connection.release();
+      throw error;
+    }
+  }
+
+  /**
+   * ✅ 查询当天已排程工时
+   * SUMIFS(计划排程工时, 工序名称=当前工序, 计划排程日期=当前日期, ID<>当前ID)
+   * 
+   * @param {Object} params
+   * @param {string} params.processName - 工序名称
+   * @param {string} params.scheduleDate - 计划排程日期 (YYYY-MM-DD)
+   * @param {number} params.excludeId - 要排除的ID（编辑时排除自己）
+   * @returns {Promise<{scheduledHours: number}>}
+   */
+  static async queryDailyScheduledHours(params) {
+    try {
+      const { processName, scheduleDate, excludeId } = params;
+      
+      console.log(`🔍 [查询当天已排程工时] 工序=${processName}, 日期=${scheduleDate}, 排除ID=${excludeId}`);
+      
+      let sql = `
+        SELECT COALESCE(SUM(scheduled_work_hours), 0) as total_scheduled_hours
+        FROM packing_process_plans
+        WHERE process_name = ?
+          AND DATE_FORMAT(schedule_date, '%Y-%m-%d') = ?
+      `;
+      
+      const queryParams = [processName, scheduleDate];
+      
+      // 如果有excludeId，排除该记录（编辑时排除自己）
+      if (excludeId) {
+        sql += ` AND id != ?`;
+        queryParams.push(excludeId);
+      }
+      
+      const [rows] = await pool.execute(sql, queryParams);
+      
+      const scheduledHours = parseFloat(rows[0].total_scheduled_hours || 0);
+      
+      console.log(`✅ [查询当天已排程工时] 结果: ${scheduledHours} 小时`);
+      
+      return { scheduledHours };
+    } catch (error) {
+      console.error('❌ [查询当天已排程工时] 失败:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * ✅ 修复字段计算
+   * 重新计算所有记录的自动字段：
+   * 1. 计划排程日期 = 计划开始日期
+   * 2. 工序当天可用工时 = 当天总工时 - 当天已排程工时
+   * 
+   * @returns {Promise<{updatedCount: number}>}
+   */
+  static async fixFieldCalculations() {
+    try {
+      console.log('🔧 [修复字段计算] 开始修复所有打包工序计划的字段计算...');
+      
+      // 1. 修复计划排程日期 = 计划开始日期
+      const [updateResult1] = await pool.execute(`
+        UPDATE packing_process_plans
+        SET schedule_date = plan_start_date
+        WHERE plan_start_date IS NOT NULL
+      `);
+      
+      console.log(`✅ [修复字段计算] 计划排程日期已更新: ${updateResult1.affectedRows} 条记录`);
+      
+      // 2. 查询所有记录
+      const [allRecords] = await pool.execute(`
+        SELECT id, process_name, schedule_date, daily_total_hours
+        FROM packing_process_plans
+        WHERE schedule_date IS NOT NULL
+      `);
+      
+      console.log(`✅ [修复字段计算] 需要更新工序当天可用工时的记录: ${allRecords.length} 条`);
+      
+      let updatedCount = 0;
+      
+      // 3. 逐条计算并更新工序当天可用工时
+      for (const record of allRecords) {
+        try {
+          // 查询当天已排程工时
+          const { scheduledHours } = await this.queryDailyScheduledHours({
+            processName: record.process_name,
+            scheduleDate: formatLocalDate(record.schedule_date),
+            excludeId: record.id
+          });
+          
+          // 计算工序当天可用工时
+          const dailyTotal = parseFloat(record.daily_total_hours || 0);
+          const dailyAvailable = Math.max(0, dailyTotal - scheduledHours);
+          
+          // 更新数据库
+          await pool.execute(`
+            UPDATE packing_process_plans
+            SET daily_scheduled_hours = ?,
+                daily_available_hours = ?
+            WHERE id = ?
+          `, [scheduledHours, dailyAvailable, record.id]);
+          
+          updatedCount++;
+        } catch (error) {
+          console.error(`⚠️ [修复字段计算] 更新记录ID=${record.id}失败:`, error.message);
+        }
+      }
+      
+      console.log(`✅ [修复字段计算] 完成！共更新 ${updatedCount} 条记录`);
+      
+      return { updatedCount };
+    } catch (error) {
+      console.error('❌ [修复字段计算] 失败:', error);
       throw error;
     }
   }

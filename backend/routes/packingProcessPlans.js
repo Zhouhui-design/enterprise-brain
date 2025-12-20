@@ -39,6 +39,57 @@ router.get('/', async (req, res) => {
   }
 });
 
+// ✅ 查询当天已排程工时
+router.get('/query-daily-scheduled-hours', async (req, res) => {
+  try {
+    const { processName, scheduleDate, excludeId } = req.query;
+    
+    if (!processName || !scheduleDate) {
+      return res.status(400).json({
+        code: 400,
+        message: '缺少必要参数：processName 和 scheduleDate'
+      });
+    }
+
+    const result = await packingProcessPlanService.queryDailyScheduledHours({
+      processName,
+      scheduleDate,
+      excludeId: excludeId ? parseInt(excludeId) : null
+    });
+
+    res.json({
+      code: 200,
+      data: result,
+      message: '查询成功'
+    });
+  } catch (error) {
+    console.error('查询当天已排程工时失败:', error);
+    res.status(500).json({
+      code: 500,
+      message: error.message
+    });
+  }
+});
+
+// ✅ 修复字段计算
+router.post('/fix-field-calculations', async (req, res) => {
+  try {
+    const result = await packingProcessPlanService.fixFieldCalculations();
+    
+    res.json({
+      code: 200,
+      data: result,
+      message: '字段计算修复成功'
+    });
+  } catch (error) {
+    console.error('修复字段计算失败:', error);
+    res.status(500).json({
+      code: 500,
+      message: error.message
+    });
+  }
+});
+
 // 根据ID获取打包工序计划
 router.get('/:id', async (req, res) => {
   try {

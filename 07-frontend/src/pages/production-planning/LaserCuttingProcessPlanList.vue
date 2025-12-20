@@ -256,6 +256,7 @@
 </template>
 
 <script setup>
+import materialApiService from '@/services/api/materialApiService'  // ✅ 导入产品物料库API
 import { ref, reactive, onMounted, computed, nextTick, watch } from 'vue'
 import { ElMessage, ElMessageBox, ElLoading } from 'element-plus'
 import { CircleCheck, Loading } from '@element-plus/icons-vue'
@@ -533,7 +534,39 @@ const generatePlanNo = () => {
 
 // ========== 响应式计算 ==========
 // 监听需补货数量和定时工额变化，自动计算需求工时
+wa
+
+// ✅ 监听生产产品编号变化，自动lookup定时工额
+// 规则：lookup(产品物料库的"物料编号"=当前工序计划的"生产产品编号"，产品物料库的"定时工额")
+// 前置条件：生产产品编号不为空
 watch(
+  () => formData.value.productCode,
+  async (newProductCode) => {
+    if (!newProductCode) {
+      console.log('⚠️ [定时工额Lookup] 生产产品编号为空，跳过查询')
+      formData.value.standardWorkQuota = 0
+      return
+    }
+    
+    try {
+      console.log(`🔍 [定时工额Lookup] 查询产品物料库: 物料编号=${newProductCode}`)
+      const response = await materialApiService.getMaterialByCode(newProductCode)
+      
+      if (response?.data?.standardTime) {
+        formData.value.standardWorkQuota = parseFloat(response.data.standardTime)
+        console.log(`✅ [定时工额Lookup] 找到定时工额: ${formData.value.standardWorkQuota}`)
+      } else {
+        console.log(`⚠️ [定时工额Lookup] 未找到物料编号=${newProductCode}的定时工额，使用默认值0`)
+        formData.value.standardWorkQuota = 0
+      }
+    } catch (error) {
+      console.error(`❌ [定时工额Lookup] 查询失败:`, error)
+      formData.value.standardWorkQuota = 0
+    }
+  },
+  { immediate: false }
+)
+tch(
   () => [formData.value.replenishmentQty, formData.value.standardWorkQuota],
   ([qty, quota]) => {
     if (qty > 0 && quota > 0) {

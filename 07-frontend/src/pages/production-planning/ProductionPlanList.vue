@@ -648,7 +648,11 @@ export default {
         
         this.loading = true;
         
-        const result = await api.executeSchedule(selectedPlan.id);
+        // ✅ 计算计划入库日期并传给后端
+        const plannedStorageDate = this.calculatePlannedStorageDate(selectedPlan.promisedDeliveryDate);
+        const result = await api.executeSchedule(selectedPlan.id, {
+          plannedStorageDate: plannedStorageDate !== '-' ? plannedStorageDate : null
+        });
         
         // ✅ 修复：request.js已经解包，result直接是data内容，不包含code字段
         // 后端返回: { code: 200, data: { materialPlanCount: X, processPlanCount: Y } }

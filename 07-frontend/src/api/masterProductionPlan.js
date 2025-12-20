@@ -45,8 +45,8 @@ export const batchDelete = (ids) => {
 /**
  * 执行排程
  */
-export const executeSchedule = (id) => {
-  return request.post(`/master-production-plans/${id}/execute-schedule`)
+export const executeSchedule = (id, data = {}) => {
+  return request.post(`/master-production-plans/${id}/execute-schedule`, data)
 }
 
 export default {
