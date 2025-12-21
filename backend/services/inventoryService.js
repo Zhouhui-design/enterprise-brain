@@ -442,6 +442,150 @@ class InventoryService {
 
     return { transaction_no, before_quantity, after_quantity };
   }
+
+  /**
+   * 导出库存数据
+   */
+  async exportInventory(params = {}) {
+    const { material_code, material_name, warehouse_code, status } = params;
+
+    let whereClause = [];
+    let queryParams = [];
+
+    if (material_code) {
+      whereClause.push('material_code LIKE ?');
+      queryParams.push(`%${material_code}%`);
+    }
+
+    if (material_name) {
+      whereClause.push('material_name LIKE ?');
+      queryParams.push(`%${material_name}%`);
+    }
+
+    if (warehouse_code) {
+      whereClause.push('warehouse_code = ?');
+      queryParams.push(warehouse_code);
+    }
+
+    if (status) {
+      whereClause.push('status = ?');
+      queryParams.push(status);
+    }
+
+    const whereSQL = whereClause.length > 0 ? 'WHERE ' + whereClause.join(' AND ') : '';
+
+    const query = `
+      SELECT 
+        material_code, material_name, warehouse_code, warehouse_name, 
+        location, batch_no, quantity, unit, unit_price, total_amount, 
+        safety_stock, max_stock, min_stock, status, supplier, remark
+      FROM inventory
+      ${whereSQL}
+      ORDER BY material_code
+    `;
+
+    const [rows] = await pool.query(query, queryParams);
+    return rows;
+  }
+
+  /**
+   * 导入库存数据
+   */
+  async importInventory(data) {
+    // 开始事务
+    await pool.query('START TRANSACTION');
+    
+    try {
+      let successCount = 0;
+      let errorCount = 0;
+      const errors = [];
+
+      for (const item of data) {
+        try {
+          // 验证必填字段
+          if (!item.material_code || !item.material_name) {
+            throw new Error('物料编码和名称不能为空');
+          }
+
+          // 检查是否已存在
+          const existing = await this.getInventoryByMaterialCode(
+            item.material_code, 
+            item.warehouse_code || 'WH001', 
+            item.batch_no
+          );
+
+          if (existing && existing.length > 0) {
+            // 更新现有库存
+            await this.updateInventory(existing[0].id, {
+              location: item.location || existing[0].location,
+              quantity: item.quantity || existing[0].quantity,
+              unit_price: item.unit_price || existing[0].unit_price,
+              safety_stock: item.safety_stock || existing[0].safety_stock,
+              max_stock: item.max_stock || existing[0].max_stock,
+              min_stock: item.min_stock || existing[0].min_stock,
+              supplier: item.supplier || existing[0].supplier,
+              remark: item.remark || existing[0].remark
+            });
+          } else {
+            // 创建新库存
+            await this.createInventory({
+              material_code: item.material_code,
+              material_name: item.material_name,
+              warehouse_code: item.warehouse_code || 'WH001',
+              warehouse_name: item.warehouse_name || '默认仓库',
+              location: item.location,
+              batch_no: item.batch_no,
+              quantity: item.quantity || 0,
+              unit: item.unit || '个',
+              unit_price: item.unit_price || 0,
+              safety_stock: item.safety_stock || 0,
+              max_stock: item.max_stock || 0,
+              min_stock: item.min_stock || 0,
+              supplier: item.supplier,
+              remark: item.remark
+            });
+          }
+
+          successCount++;
+        } catch (error) {
+          errorCount++;
+          errors.push({
+            index: data.indexOf(item) + 1,
+            error: error.message
+          });
+        }
+      }
+
+      // 提交事务
+      await pool.query('COMMIT');
+
+      return {
+        successCount,
+        errorCount,
+        errors
+      };
+    } catch (error) {
+      // 回滚事务
+      await pool.query('ROLLBACK');
+      throw error;
+    }
+  }
+
+  /**
+   * 清空库存列表
+   */
+  async clearInventory(warehouseCode = null) {
+    let query = 'DELETE FROM inventory';
+    let params = [];
+
+    if (warehouseCode) {
+      query += ' WHERE warehouse_code = ?';
+      params.push(warehouseCode);
+    }
+
+    await pool.query(query, params);
+    return true;
+  }
 }
 
 module.exports = new InventoryService();

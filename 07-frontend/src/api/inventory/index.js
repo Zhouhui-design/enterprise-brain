@@ -62,6 +62,42 @@ export const inventoryApi = {
       url: '/api/inventory/stats',
       method: 'get'
     })
+  },
+
+  /**
+   * 导出库存数据
+   * @param {Object} params - 查询参数
+   */
+  exportInventory(params) {
+    return request({
+      url: '/api/inventory/export',
+      method: 'get',
+      params
+    })
+  },
+
+  /**
+   * 导入库存数据
+   * @param {Array} data - 库存数据列表
+   */
+  importInventory(data) {
+    return request({
+      url: '/api/inventory/import',
+      method: 'post',
+      data
+    })
+  },
+
+  /**
+   * 清空库存列表
+   * @param {Object} params - 查询参数
+   */
+  clearInventory(params) {
+    return request({
+      url: '/api/inventory/clear',
+      method: 'delete',
+      params
+    })
   }
 }
 

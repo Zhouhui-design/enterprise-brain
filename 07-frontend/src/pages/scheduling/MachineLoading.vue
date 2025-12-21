@@ -301,7 +301,7 @@
 
 <script setup lang="ts">
 import { ref, reactive, onMounted } from 'vue'
-import { ElMessage, ElConfirm } from 'element-plus'
+import { ElMessage, ElMessageBox } from 'element-plus'
 
 // 类型定义
 interface SearchForm {
@@ -619,7 +619,7 @@ const handleReset = () => {
 // 负载均衡
 const handleLoadBalance = async () => {
   try {
-    await ElConfirm('确认执行负载均衡操作吗？', '提示', {
+    await ElMessageBox.confirm('确认执行负载均衡操作吗？', '提示', {
       confirmButtonText: '确定',
       cancelButtonText: '取消',
       type: 'warning'

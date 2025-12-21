@@ -325,7 +325,8 @@ const formData = ref({
   requiredWorkHours: 0,  // ✅ 新增（自动计算）
   planStartDate: null,   // ✅ 新增计划开始日期
   realPlanStartDate: null, // ✅ 新增真计划开始日期
-  planEndDate: null     // ✅ 新增计划结束日期
+  planEndDate: null,     // ✅ 新增计划结束日期
+  nextScheduleDate: null // ✅ 新增下一个排程日期
 })
 
 // 表单验证规则
@@ -578,6 +579,29 @@ watch(
   { immediate: false }
 )
 
+// ✅ 监听下一个排程日期的相关字段变化，自动触发计算
+// 规则：当工序名称、剩余工时小于、计划排程日期发生变化时，重新计算下一个排程日期
+watch(
+  () => [formData.value.processName, currentBusinessVars.value.minRemainingHours, formData.value.scheduleDate],
+  async ([newProcessName, newMinRemainingHours, newScheduleDate]) => {
+    console.log('========================================')
+    console.log('🔍 [下一个排程日期监听器] 监听到相关字段变化！')
+    console.log(`📋 [下一个排程日期监听器] 工序名称: "${newProcessName}"`)
+    console.log(`📋 [下一个排程日期监听器] 剩余工时小于: "${newMinRemainingHours}"`)
+    console.log(`📋 [下一个排程日期监听器] 计划排程日期: "${newScheduleDate}"`)
+    console.log('========================================')
+    
+    // 前置条件：工序名称不为空 且 计划排程日期不为空
+    if (newProcessName && newScheduleDate) {
+      console.log('🔄 [下一个排程日期监听器] 触发下一个排程日期计算...')
+      await queryNextScheduleDate()
+    } else {
+      console.log('⚠️ [下一个排程日期监听器] 条件不满足，跳过计算')
+    }
+  },
+  { deep: true }
+)
+
 // ✅ 监听生产产品编号变化，自动lookup定时工额
 // 规则：lookup(产品物料库的"物料编号"=当前工序计划的"生产产品编号"，产品物料库的"定时工额")
 // 前置条件：生产产品编号不为空
@@ -650,6 +674,43 @@ watch(
       formData.value.requiredWorkHours = parseFloat((qty / quota).toFixed(2))
     } else {
       formData.value.requiredWorkHours = 0
+    }
+  },
+  { deep: true }
+)
+
+// ✅ 监听工序当天可用工时和需求工时变化，自动计算计划排程工时
+watch(
+  () => [formData.value.dailyAvailableHours, formData.value.requiredWorkHours],
+  ([availableHours, requiredHours]) => {
+    console.log('🔍 [计划排程工时监听器] 监听到变化:', { availableHours, requiredHours })
+    // 无论两个值是否都大于0，只要其中一个发生变化，就触发重新计算
+    calculateScheduledWorkHours()
+  },
+  { deep: true }
+)
+
+// ✅ 监听计划排程工时和定时工额变化，自动计算计划排程数量
+// 触发条件：计划排程工时或定时工额变化时
+watch(
+  () => [formData.value.scheduledWorkHours, formData.value.standardWorkQuota],
+  ([scheduledHours, standardQuota]) => {
+    console.log('🔍 [计划排程数量监听器] 监听到变化:', { scheduledHours, standardQuota })
+    // 无论两个值是否都大于0，只要其中一个发生变化，就触发重新计算
+    calculateScheduleQuantity()
+  },
+  { deep: true }
+)
+
+// ✅ 监听计划排程日期和计划结束日期变化，自动计算下一个排程日期
+// 触发条件：计划排程日期或计划结束日期变化时
+watch(
+  () => [formData.value.scheduleDate, formData.value.planEndDate],
+  ([scheduleDate, planEndDate]) => {
+    console.log('🔍 [下一个排程日期监听器] 监听到变化:', { scheduleDate, planEndDate })
+    // 如果两个值都不为空，触发重新计算
+    if (scheduleDate && planEndDate) {
+      queryNextScheduleDate()
     }
   },
   { deep: true }
@@ -891,14 +952,16 @@ const calculateScheduledWorkHours = () => {
   return formData.value.scheduledWorkHours
 }
 
-// ✅ 计算计划排程数量 = 计划排程工时 * 定时工额
+// ✅ 计算计划排程数量 = ceiling(计划排程工时 * 定时工额, 1)
 const calculateScheduleQuantity = () => {
   const scheduledHours = parseFloat(formData.value.scheduledWorkHours) || 0
   const standardQuota = parseFloat(formData.value.standardWorkQuota) || 0
   
-  formData.value.scheduleQuantity = parseFloat((scheduledHours * standardQuota).toFixed(2))
+  // 按照规则：计划排程数量 = ceiling(计划排程工时 * 定时工额, 1)
+  const rawQuantity = scheduledHours * standardQuota
+  formData.value.scheduleQuantity = Math.ceil(rawQuantity)
   
-  console.log(`✅ 计划排程数量 = ${scheduledHours} * ${standardQuota} = ${formData.value.scheduleQuantity}`)
+  console.log(`✅ 计划排程数量 = CEILING(${scheduledHours} * ${standardQuota}, 1) = CEILING(${rawQuantity}, 1) = ${formData.value.scheduleQuantity}`)
   
   return formData.value.scheduleQuantity
 }
@@ -938,37 +1001,25 @@ const calculateSchedulingFields = async () => {
   }
   
   // ✅ 需求4: 计划排程工时 = MIN(工序当天可用工时, 需求工时)
-  // 生成条件：工序当天可用工时>0 且 需求工时>0
+  // 生成条件：只要工序当天可用工时或需求工时发生变化，就触发计算
   const dailyAvailable = parseFloat(formData.value.dailyAvailableHours) || 0
   const required = parseFloat(formData.value.requiredWorkHours) || 0
-  if (dailyAvailable > 0 && required > 0) {
-    calculateScheduledWorkHours()
-    console.log(`✅ 需求4: 计划排程工时 = ${formData.value.scheduledWorkHours}`)
-  } else {
-    formData.value.scheduledWorkHours = 0
-    console.log(`⚠️ 需求4: 工序当天可用工时(${dailyAvailable})或需求工时(${required})不符合条件，跳过计算`)
-  }
+  calculateScheduledWorkHours()
+  console.log(`✅ 需求4: 计划排程工时 = ${formData.value.scheduledWorkHours}`)
   
-  // ✅ 需求5: 计划排程数量 = 计划排程工时 * 定时工额
-  // 生成条件：计划排程工时>0 且 定时工额>0
-  const scheduledHours = parseFloat(formData.value.scheduledWorkHours) || 0
-  const standardQuota = parseFloat(formData.value.standardWorkQuota) || 0
-  if (scheduledHours > 0 && standardQuota > 0) {
-    calculateScheduleQuantity()
-    console.log(`✅ 需求5: 计划排程数量 = ${formData.value.scheduleQuantity}`)
-  } else {
-    formData.value.scheduleQuantity = 0
-    console.log(`⚠️ 需求5: 计划排程工时(${scheduledHours})或定时工额(${standardQuota})不符合条件，跳过计算`)
-  }
+  // ✅ 需求5: 计划排程数量 = ceiling(计划排程工时 * 定时工额, 1)
+  // 生成条件：只要计划排程工时或定时工额变化，就触发计算
+  calculateScheduleQuantity()
+  console.log(`✅ 需求5: 计划排程数量 = ${formData.value.scheduleQuantity}`)
   
   // ✅ 需求6: 查询下一个排程日期 (MINIFS)
-  // 生成条件：计划排程日期不为空 且 计划结束日期不为空
-  if (formData.value.scheduleDate && formData.value.planEndDate) {
+  // 生成条件：工序名称不为空 且 剩余工时小于不为空 且 计划排程日期不为空
+  if (formData.value.processName && currentBusinessVars.value.minRemainingHours !== undefined && formData.value.scheduleDate) {
     await queryNextScheduleDate()
     console.log(`✅ 需求6: 下一个排程日期 = ${formData.value.nextScheduleDate}`)
   } else {
     formData.value.nextScheduleDate = null
-    console.log('⚠️ 需求6: 计划排程日期或计划结束日期为空，跳过计算')
+    console.log(`⚠️ 需求6: 条件不满足，跳过计算 - 工序名称: ${formData.value.processName}, 剩余工时小于: ${currentBusinessVars.value.minRemainingHours}, 计划排程日期: ${formData.value.scheduleDate}`)
   }
   
   console.log('✅ 所有排程字段计算完毕')
@@ -978,14 +1029,13 @@ const calculateSchedulingFields = async () => {
 const queryNextScheduleDate = async () => {
   const processName = formData.value.processName
   const scheduleDate = formData.value.scheduleDate
-  const planEndDate = formData.value.planEndDate
   const minRemainingHours = currentBusinessVars.value.minRemainingHours || 0.5
   
-  console.log('🔍 查询下一个排程日期:', { processName, scheduleDate, planEndDate, minRemainingHours })
+  console.log('🔍 查询下一个排程日期:', { processName, scheduleDate, minRemainingHours })
   
-  // ✅ 生成条件：计划排程日期不为空 且 计划结束日期不为空
-  if (!processName || !scheduleDate || !planEndDate) {
-    console.log('⚠️ 缺少必要参数')
+  // ✅ 生成条件：工序名称不为空 且 计划排程日期不为空
+  if (!processName || !scheduleDate) {
+    console.log('⚠️ 缺少必要参数：工序名称或计划排程日期')
     formData.value.nextScheduleDate = null
     return null
   }
@@ -994,7 +1044,6 @@ const queryNextScheduleDate = async () => {
     const response = await capacityLoadApi.queryNextScheduleDate(
       processName,
       formatDateYMD(scheduleDate),
-      formatDateYMD(planEndDate), // ✅ 添加计划结束日期参数
       minRemainingHours
     )
     
@@ -1058,6 +1107,21 @@ const loadData = async () => {
         record.dailyAvailableHours = Math.max(0, dailyTotal - dailyScheduled)
       }
       
+      // ✅ 重新计算计划排程工时 = MIN(工序当天可用工时, 需求工时)
+      if (record.dailyAvailableHours !== undefined && record.requiredWorkHours !== undefined) {
+        const dailyAvailable = parseFloat(record.dailyAvailableHours) || 0
+        const required = parseFloat(record.requiredWorkHours) || 0
+        record.scheduledWorkHours = Math.min(dailyAvailable, required)
+      }
+      
+      // ✅ 重新计算计划排程数量 = ceiling(计划排程工时 * 定时工额, 1)
+      if (record.scheduledWorkHours !== undefined && record.standardWorkQuota !== undefined) {
+        const scheduledHours = parseFloat(record.scheduledWorkHours) || 0
+        const standardQuota = parseFloat(record.standardWorkQuota) || 0
+        const rawQuantity = scheduledHours * standardQuota
+        record.scheduleQuantity = Math.ceil(rawQuantity)
+      }
+      
       return record
     })
     
@@ -1089,7 +1153,8 @@ const handleAdd = () => {
     requiredWorkHours: 0,
     planStartDate: null,   // ✅ 新增计划开始日期
     realPlanStartDate: null, // ✅ 新增真计划开始日期
-    planEndDate: null     // ✅ 新增计划结束日期
+    planEndDate: null,     // ✅ 新增计划结束日期
+    nextScheduleDate: null // ✅ 新增下一个排程日期
   }
   dialogVisible.value = true
 }

@@ -1,6 +1,5 @@
 const { pool } = require('../config/database');
 const { getProcessConfig } = require('../config/processTypes');
-const RealProcessPlanService = require('./realProcessPlanService');
 
 /**
  * 备料计划服务
@@ -419,7 +418,7 @@ class MaterialPreparationPlanService {
   }
 
   /**
-   * 推送备料计划到真工序计划
+   * 推送备料计划到工序计划
    */
   static async pushToProcessPlan(materialPlanId, processType) {
     try {
@@ -429,41 +428,42 @@ class MaterialPreparationPlanService {
         throw new Error('备料计划不存在');
       }
 
-      // 获取工序配置
-      const processConfig = getProcessConfig(processType);
-      if (!processConfig) {
-        throw new Error('工序配置不存在');
-      }
-
-      // 准备真工序计划数据
-      const realProcessPlanData = {
+      // 准备推送数据
+      const pushData = {
+        planNo: materialPlan.plan_no,
         materialCode: materialPlan.material_code,
         materialName: materialPlan.material_name,
-        quantity: materialPlan.replenishment_quantity,
-        unit: materialPlan.material_unit,
-        sourceMaterialPlanNo: materialPlan.plan_no,
-        processType: processType,
-        scheduledDate: materialPlan.demand_date,
+        materialUnit: materialPlan.material_unit,
+        replenishmentQuantity: materialPlan.replenishment_quantity,
+        materialSource: materialPlan.material_source,
+        sourceProcess: processType || materialPlan.source_process,
+        demandDate: materialPlan.demand_date,
         salesOrderNo: materialPlan.sales_order_no,
-        mainPlanProductCode: materialPlan.main_plan_product_code
+        mainPlanProductCode: materialPlan.main_plan_product_code,
+        mainPlanProductName: materialPlan.main_plan_product_name,
+        promiseDeliveryDate: materialPlan.promise_delivery_date
       };
 
-      // 创建真工序计划
-      const result = await RealProcessPlanService.create(realProcessPlanData);
+      // 调用统一的推送方法
+      const pushResult = await this.pushToProcessPlanBySource(pushData);
 
-      // 更新备料计划状态
-      await this.update(materialPlanId, {
-        pushToProcess: 1,
-        status: 'pushed_to_process'
-      });
+      if (pushResult && pushResult.success) {
+        // 更新备料计划状态
+        await this.update(materialPlanId, {
+          push_to_process: 1,
+          status: 'pushed_to_process'
+        });
 
-      return {
-        success: true,
-        message: '备料计划已推送到工序计划',
-        realProcessPlanId: result.id
-      };
+        return {
+          success: true,
+          message: '备料计划已推送到工序计划',
+          processPlanId: pushResult.insertId
+        };
+      } else {
+        throw new Error(pushResult.reason || '推送失败');
+      }
     } catch (error) {
-      console.error('推送备料计划到真工序计划失败:', error);
+      console.error('推送备料计划到工序计划失败:', error);
       throw error;
     }
   }

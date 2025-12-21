@@ -135,6 +135,45 @@ const inventoryAPI = {
       console.error('库存出库失败:', error)
       throw error
     }
+  },
+
+  /**
+   * 导出库存数据
+   */
+  exportInventory: async (params = {}) => {
+    try {
+      const response = await axios.get(`${API_BASE_URL}/inventory/export`, { params })
+      return response.data
+    } catch (error) {
+      console.error('导出库存数据失败:', error)
+      throw error
+    }
+  },
+
+  /**
+   * 导入库存数据
+   */
+  importInventory: async (data) => {
+    try {
+      const response = await axios.post(`${API_BASE_URL}/inventory/import`, data)
+      return response.data
+    } catch (error) {
+      console.error('导入库存数据失败:', error)
+      throw error
+    }
+  },
+
+  /**
+   * 清空库存列表
+   */
+  clearInventory: async (params = {}) => {
+    try {
+      const response = await axios.delete(`${API_BASE_URL}/inventory/clear`, { params })
+      return response.data
+    } catch (error) {
+      console.error('清空库存列表失败:', error)
+      throw error
+    }
   }
 }
 

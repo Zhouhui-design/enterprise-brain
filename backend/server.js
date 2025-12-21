@@ -90,7 +90,11 @@ app.use('/api/projected-balances', projectedBalancesRouter);
 app.use('/api/bom-tree-structures', bomTreeStructuresRouter);
 app.use('/api/processes', processesRouter);
 app.use('/api/mrp', mrpCalculationRouter);
-app.use('/api/inventory', inventoryRouter);
+// 为库存路由添加调试中间件
+app.use('/api/inventory', (req, res, next) => {
+  console.log(`[Inventory Route Debug] ${req.method} ${req.originalUrl}`);
+  next();
+}, inventoryRouter);
 app.use('/api/master-production-plans', masterProductionPlansRouter);
 app.use('/api/material-preparation-plans', materialPreparationPlansRouter);
 app.use('/api/process-plans', processPlansRouter);

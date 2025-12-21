@@ -33,12 +33,11 @@ export default {
     })
   },
 
-  // ✅ 需求 6：查询下一个排程日期（MINIFS：工序名称=本行工序，且日期>计划排程日期，且日期<=计划结束日期，且剩余工时>门槛值）
-  queryNextScheduleDate(processName, scheduleDate, planEndDate, minRemainingHours = 0.5) {
+  // ✅ 需求 6：查询下一个排程日期（MINIFS：工序名称=本行工序，且日期>计划排程日期，且剩余工时>门槛值）
+  queryNextScheduleDate(processName, scheduleDate, minRemainingHours = 0.5) {
     return request.post('/capacity-load/query-next-schedule-date', {
       processName,
       scheduleDate,
-      planEndDate,
       minRemainingHours
     })
   },
