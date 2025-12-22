@@ -380,10 +380,10 @@ class PackingProcessPlanService {
           standard_work_hours, standard_work_quota, cumulative_schedule_qty, unscheduled_qty,
           source_page_name, source_no, previous_schedule_no, customer_name,
           level0_product_name, level0_product_code, level0_production_qty,
-          product_source, bom_no, submitted_by, submitted_at, replenishment_qty,
+          product_source, bom_no, hierarchy_address, submitted_by, submitted_at, replenishment_qty,
           required_work_hours,
           daily_total_hours, daily_scheduled_hours, scheduled_work_hours, next_schedule_date
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       `;
       
       const [result] = await pool.execute(sql, [
@@ -425,14 +425,15 @@ class PackingProcessPlanService {
         data.level0ProductionQty || 0,                // 36. level0_production_qty
         data.productSource || null,                    // 37. product_source
         data.bomNo || null,                            // 38. bom_no
-        data.submittedBy || null,                      // 39. submitted_by
-        data.submittedAt || null,                      // 40. submitted_at
-        data.replenishmentQty || 0,                   // 41. replenishment_qty
-        requiredWorkHours,                            // 42. required_work_hours (✅ 使用计算的值)
-        dailyTotalHours,                              // 43. daily_total_hours (✅ 使用查询的值)
-        data.dailyScheduledHours || 0,                // 44. daily_scheduled_hours
-        data.scheduledWorkHours || 0,                 // 45. scheduled_work_hours
-        data.nextScheduleDate || null                 // 46. next_schedule_date
+        data.hierarchyAddress || null,                 // 39. hierarchy_address (✅ 新增)
+        data.submittedBy || null,                      // 40. submitted_by
+        data.submittedAt || null,                      // 41. submitted_at
+        data.replenishmentQty || 0,                   // 42. replenishment_qty
+        requiredWorkHours,                            // 43. required_work_hours (✅ 使用计算的值)
+        dailyTotalHours,                              // 44. daily_total_hours (✅ 使用查询的值)
+        data.dailyScheduledHours || 0,                // 45. daily_scheduled_hours
+        data.scheduledWorkHours || 0,                 // 46. scheduled_work_hours
+        data.nextScheduleDate || null                 // 47. next_schedule_date
       ]);
       
       console.log('========================================');

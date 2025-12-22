@@ -1,0 +1,67 @@
+说明：在http://localhost:3003/production-planning/plan-list销售订单
+执行动作：选择订单编号，点击“正式下单”按钮
+触发推送规则如下：（应该是已有代码存在：我这是系统重启之后，修复代码）
+触发页面：销售订单
+目标页面1：采购计划http://localhost:3003/purchase/procurement-plan
+目标页面2：主生产计划http://localhost:3003/production-planning/plan-list
+来源页面：销售订单
+分流到目标页面1 或目标页面2 的规则：来源页面的列字段“建议补货数量”>0 且 “产出工序”=采购，则 触发 销售订单推送 采购计划的数据流 （这个已实现）； 来源页面的列字段“建议补货数量”>0 且 “产出工序”！=采购，则 触发 销售订单推送 主生产计划的数据流
+
+销售订单推送 主生产计划的数据流 规则如下：“=”左边 是 主生产计划，“=”右边是 销售订单
+主生产计划编号 系统自动生成
+产品编号=产品编号
+产品名称=产品名称
+订单数量= 订单数量
+销售员=销售员
+销售单位=产品单位
+可用库存=默认0
+实时库存=默认0
+计划数量=主生产计划内（ 订单数量- 可用库存）
+产品图片=产品图片
+产出工序=产出工序
+订单承诺交期=客户交期（中国时区。年月日格式）
+真承诺交期=生产计划内（ 订单承诺交期+1）（中国时区。年月日格式）
+进度状态= ifs(点击执行排程前，待排程，执行点击执行排程，已排程）
+提前入库期= 生产计划内 右上角 页面设置——业务变量——提前入库期 设定的值
+产品来源=产品来源
+内部销售订单编号=内部销售订单编号
+客户订单编号=客户订单编号
+客户名称=客户名称
+提交人=提交人
+提交时间= 本行数据的 主生产计划编号生成的系统时间（格式中国时区，年月日小时分钟秒）
+
+完整数据流规则
+销售订单 → 主生产计划
+主生产计划字段	销售订单字段	说明
+plan_code	系统生成	格式： MPS2025XXXXXX
+product_code	product_code	产品编号
+product_name	product_name	产品名称
+order_quantity	order_quantity	订单数量
+salesperson	salesperson	销售员
+sales_unit	product_unit	销售单位
+available_stock	默认 0	可用库存
+current_stock	默认 0	实时库存
+plan_quantity	order_quantity - available_stock	计划数量
+product_image	product_image	产品图片
+output_process	output_process	产出工序
+promised_delivery_date	customer_delivery	订单承诺交期（中国时区）
+status	固定 "已下单"	进度状态
+internal_order_no	internal_order_no	内部销售订单编号
+customer_order_no	customer_order_no	客户订单编号
+customer_name	customer_name	客户名称
+submitter	submitter 或 "admin"	提交人
+created_at	系统时间	提交时间（中国时区）
+销售订单 → 采购计划
+采购计划字段	销售订单字段	说明
+procurement_plan_no	系统生成	格式： CG2025XXXXXX
+source_form_name	固定 "销售订单"	来源表单
+source_no	internal_order_no	来源编号
+material_code	product_code	物料编码
+material_name	product_name	物料名称
+required_quantity	order_quantity	需求数量
+base_unit	product_unit 或 "个"	基本单位
+sales_order_no	internal_order_no	销售订单编号
+customer_order_no	customer_order_no	客户订单编号
+plan_arrival_date	customer_delivery	计划到货日期
+procurement_status	固定 "PENDING_INQUIRY"	采购状态（待询价）
+

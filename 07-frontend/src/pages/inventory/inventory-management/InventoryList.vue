@@ -1,142 +1,132 @@
 <template>
   <div class="inventory-list-container">
-    <el-card shadow="hover">
-      <!-- 搜索栏 -->
-      <el-form :model="searchForm" :inline="true" class="search-form">
-        <el-form-item label="产品名称">
-          <el-input v-model="searchForm.productName" placeholder="请输入产品名称" clearable />
-        </el-form-item>
-        <el-form-item label="产品编码">
-          <el-input v-model="searchForm.productCode" placeholder="请输入产品编码" clearable />
-        </el-form-item>
-        <el-form-item label="仓库">
-          <el-select v-model="searchForm.warehouseId" placeholder="请选择仓库" clearable>
-            <el-option 
-              v-for="wh in warehouses" 
-              :key="wh.id" 
-              :label="wh.name" 
-              :value="wh.id"
-            />
-          </el-select>
-        </el-form-item>
-        <el-form-item label="库存状态">
-          <el-select v-model="searchForm.stockStatus" placeholder="请选择状态" clearable>
-            <el-option label="正常" value="normal" />
-            <el-option label="预警" value="warning" />
-            <el-option label="缺货" value="shortage" />
-          </el-select>
-        </el-form-item>
-        <el-form-item>
-          <el-button type="primary" :icon="Search" @click="handleSearch">查询</el-button>
-          <el-button :icon="Refresh" @click="resetSearch">重置</el-button>
-        </el-form-item>
-      </el-form>
+    <!-- 库存统计卡片 -->
+    <el-row :gutter="20" class="stats-row">
+      <el-col :span="6">
+        <el-card shadow="hover" class="stat-card">
+          <el-statistic title="库存总值" :value="stats.totalValue" prefix="¥" />
+        </el-card>
+      </el-col>
+      <el-col :span="6">
+        <el-card shadow="hover" class="stat-card">
+          <el-statistic title="正常库存" :value="stats.normalCount" suffix="项" />
+        </el-card>
+      </el-col>
+      <el-col :span="6">
+        <el-card shadow="hover" class="stat-card warning">
+          <el-statistic title="预警库存" :value="stats.warningCount" suffix="项" />
+        </el-card>
+      </el-col>
+      <el-col :span="6">
+        <el-card shadow="hover" class="stat-card danger">
+          <el-statistic title="缺货库存" :value="stats.shortageCount" suffix="项" />
+        </el-card>
+      </el-col>
+    </el-row>
 
-      <!-- 操作按钮 -->
-      <div class="toolbar">
-        <div>
-          <el-button type="primary" :icon="Plus" @click="handleExport">导出</el-button>
-          <el-upload
-            class="upload-demo"
-            action=""
-            :on-change="handleImportFile"
-            :auto-upload="false"
-            accept=".xlsx, .xls, .csv"
-            :file-list="fileList"
-          >
-            <el-button type="success" :icon="Plus">导入</el-button>
-          </el-upload>
-          <el-button type="danger" :icon="Plus" @click="handleClearInventory">格式化仓库</el-button>
-          <el-button type="success" :icon="Refresh" @click="loadInventoryList">刷新</el-button>
-        </div>
-        <div>
-          <el-tag type="info">总计：{{ total }} 项</el-tag>
-        </div>
-      </div>
-
-      <!-- 库存统计卡片 -->
-      <el-row :gutter="20" class="stats-row">
-        <el-col :span="6">
-          <el-card shadow="hover" class="stat-card">
-            <el-statistic title="库存总值" :value="stats.totalValue" prefix="¥" />
-          </el-card>
-        </el-col>
-        <el-col :span="6">
-          <el-card shadow="hover" class="stat-card">
-            <el-statistic title="正常库存" :value="stats.normalCount" suffix="项" />
-          </el-card>
-        </el-col>
-        <el-col :span="6">
-          <el-card shadow="hover" class="stat-card warning">
-            <el-statistic title="预警库存" :value="stats.warningCount" suffix="项" />
-          </el-card>
-        </el-col>
-        <el-col :span="6">
-          <el-card shadow="hover" class="stat-card danger">
-            <el-statistic title="缺货库存" :value="stats.shortageCount" suffix="项" />
-          </el-card>
-        </el-col>
-      </el-row>
-
-      <!-- 库存列表 -->
-      <el-table 
-        :data="inventoryList" 
-        border 
-        v-loading="loading"
-        style="margin-top: 20px;"
-        @selection-change="handleSelectionChange"
-      >
-        <el-table-column type="selection" width="55" />
-        <el-table-column type="index" label="#" width="60" />
-        <el-table-column prop="productCode" label="产品编码" width="150" />
-        <el-table-column prop="productName" label="产品名称" width="200" />
-        <el-table-column prop="warehouseName" label="仓库" width="120" />
-        <el-table-column prop="locationName" label="库位" width="120" />
-        <el-table-column prop="quantity" label="库存数量" width="120">
-          <template #default="scope">
-            <el-tag :type="getQuantityType(scope.row)">
-              {{ scope.row.quantity }} {{ scope.row.unit }}
-            </el-tag>
-          </template>
-        </el-table-column>
-        <el-table-column prop="availableQuantity" label="可用数量" width="120" />
-        <el-table-column prop="lockedQuantity" label="锁定数量" width="120" />
-        <el-table-column label="库存状态" width="100">
-          <template #default="scope">
-            <el-tag :type="getStockStatusType(scope.row.stockStatus)">
-              {{ getStockStatusText(scope.row.stockStatus) }}
-            </el-tag>
-          </template>
-        </el-table-column>
-        <el-table-column prop="safetyStock" label="安全库存" width="100" />
-        <el-table-column prop="lastUpdateTime" label="最后更新" width="180" />
-        <el-table-column label="操作" fixed="right" width="200">
-          <template #default="scope">
-            <el-button type="primary" size="small" link @click="viewDetail(scope.row)">
-              详情
-            </el-button>
-            <el-button type="success" size="small" link @click="viewMovement(scope.row)">
-              流水
-            </el-button>
-            <el-button type="warning" size="small" link @click="adjust(scope.row)">
-              调整
-            </el-button>
-          </template>
-        </el-table-column>
-      </el-table>
-
-      <!-- 分页 -->
-      <el-pagination
-        v-model:current-page="pageNum"
-        v-model:page-size="pageSize"
-        :total="total"
-        :page-sizes="[10, 20, 50, 100]"
-        layout="total, sizes, prev, pager, next, jumper"
-        @size-change="loadInventoryList"
-        @current-change="loadInventoryList"
-        style="margin-top: 20px; justify-content: flex-end;"
-      />
-    </el-card>
+    <!-- 使用标准表格页面组件 -->
+    <StandardTablePage
+      page-title="库存列表"
+      settings-key="inventory-list"
+      
+      <!-- 表格数据 -->
+      :table-data="inventoryList"
+      :columns="tableColumns"
+      :loading="loading"
+      :total="total"
+      :current-page="pageNum"
+      :page-size="pageSize"
+      
+      <!-- 功能开关 -->
+      :show-search="true"
+      :show-selection="true"
+      :show-filter="true"
+      :show-pagination="true"
+      :show-batch-delete="false"
+      :show-export="true"
+      
+      <!-- 事件监听 -->
+      @page-change="handlePageChange"
+      @size-change="handleSizeChange"
+      @selection-change="handleSelectionChange"
+      @export="handleExport"
+      @refresh="loadInventoryList"
+    >
+      <!-- 搜索表单插槽 -->
+      <template #search-form>
+        <el-form :inline="true" :model="searchForm" class="search-form">
+          <el-form-item label="产品名称">
+            <el-input v-model="searchForm.productName" placeholder="请输入产品名称" clearable />
+          </el-form-item>
+          <el-form-item label="产品编码">
+            <el-input v-model="searchForm.productCode" placeholder="请输入产品编码" clearable />
+          </el-form-item>
+          <el-form-item label="仓库">
+            <el-select v-model="searchForm.warehouseId" placeholder="请选择仓库" clearable>
+              <el-option 
+                v-for="wh in warehouses" 
+                :key="wh.id" 
+                :label="wh.name" 
+                :value="wh.id"
+              />
+            </el-select>
+          </el-form-item>
+          <el-form-item label="库存状态">
+            <el-select v-model="searchForm.stockStatus" placeholder="请选择状态" clearable>
+              <el-option label="正常" value="normal" />
+              <el-option label="预警" value="warning" />
+              <el-option label="缺货" value="shortage" />
+            </el-select>
+          </el-form-item>
+          <el-form-item>
+            <el-button type="primary" :icon="Search" @click="handleSearch">查询</el-button>
+            <el-button :icon="Refresh" @click="resetSearch">重置</el-button>
+          </el-form-item>
+        </el-form>
+      </template>
+      
+      <!-- 自定义工具栏插槽 -->
+      <template #toolbar-right>
+        <el-upload
+          class="upload-demo"
+          action=""
+          :on-change="handleImportFile"
+          :auto-upload="false"
+          accept=".xlsx, .xls, .csv"
+          :file-list="fileList"
+        >
+          <el-button type="success" :icon="Plus">导入</el-button>
+        </el-upload>
+        <el-button type="danger" :icon="Plus" @click="handleClearInventory">格式化仓库</el-button>
+      </template>
+      
+      <!-- 库存数量列插槽 -->
+      <template #quantity="scope">
+        <el-tag :type="getQuantityType(scope.row)">
+          {{ scope.row.quantity }} {{ scope.row.unit }}
+        </el-tag>
+      </template>
+      
+      <!-- 库存状态列插槽 -->
+      <template #stockStatus="scope">
+        <el-tag :type="getStockStatusType(scope.row.stockStatus)">
+          {{ getStockStatusText(scope.row.stockStatus) }}
+        </el-tag>
+      </template>
+      
+      <!-- 操作列插槽 -->
+      <template #operation="scope">
+        <el-button type="primary" size="small" link @click="viewDetail(scope.row)">
+          详情
+        </el-button>
+        <el-button type="success" size="small" link @click="viewMovement(scope.row)">
+          流水
+        </el-button>
+        <el-button type="warning" size="small" link @click="adjust(scope.row)">
+          调整
+        </el-button>
+      </template>
+    </StandardTablePage>
   </div>
 </template>
 
@@ -146,6 +136,7 @@ import { ElMessage, ElMessageBox } from 'element-plus'
 import { Search, Refresh, Plus, Upload, Delete } from '@element-plus/icons-vue'
 import { inventoryApi } from '@/api/inventory'
 import { useRouter } from 'vue-router'
+import StandardTablePage from '@/components/common/layout/StandardTablePage.vue'
 
 const router = useRouter()
 
@@ -172,6 +163,21 @@ const searchForm = reactive({
   stockStatus: ''
 })
 
+// 表格列配置
+const tableColumns = [
+  { prop: 'productCode', label: '产品编码', width: 150 },
+  { prop: 'productName', label: '产品名称', width: 200 },
+  { prop: 'warehouseName', label: '仓库', width: 120 },
+  { prop: 'locationName', label: '库位', width: 120 },
+  { prop: 'quantity', label: '库存数量', width: 120, slot: 'quantity' },
+  { prop: 'availableQuantity', label: '可用数量', width: 120 },
+  { prop: 'lockedQuantity', label: '锁定数量', width: 120 },
+  { prop: 'stockStatus', label: '库存状态', width: 100, slot: 'stockStatus' },
+  { prop: 'safetyStock', label: '安全库存', width: 100 },
+  { prop: 'lastUpdateTime', label: '最后更新', width: 180 },
+  { label: '操作', fixed: 'right', width: 200, slot: 'operation' }
+]
+
 // 导入相关数据
 const fileList = ref([])
 const importData = ref([])
@@ -195,6 +201,18 @@ const loadInventoryList = async () => {
   } finally {
     loading.value = false
   }
+}
+
+// 分页处理
+const handlePageChange = (page) => {
+  pageNum.value = page
+  loadInventoryList()
+}
+
+const handleSizeChange = (size) => {
+  pageSize.value = size
+  pageNum.value = 1
+  loadInventoryList()
 }
 
 const loadStats = async () => {

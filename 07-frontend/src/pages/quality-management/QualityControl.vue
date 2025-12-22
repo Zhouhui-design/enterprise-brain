@@ -1,81 +1,70 @@
 <template>
   <div class="quality-control">
-    <el-card>
-      <template #header>
-        <div class="card-header">
-          <span>质量控制管理</span>
-          <el-button type="primary" @click="handleCreateControlPoint">
-            <el-icon><Plus /></el-icon> 新建控制点
-          </el-button>
-        </div>
+    <standard-table-page
+      :page-title="'质量控制管理'"
+      :data-source="controlPoints"
+      :total="pagination.total"
+      :page-size="pagination.pageSize"
+      :current-page="pagination.currentPage"
+      :columns="tableColumns"
+      :selection="true"
+      :border="true"
+      :page-sizes="[10, 20, 50, 100]"
+      @page-change="handlePageChange"
+      @size-change="handleSizeChange"
+    >
+      <!-- 搜索条件区域 -->
+      <template #search-form>
+        <el-form :inline="true" :model="searchForm" class="search-form" label-width="100px">
+          <el-form-item label="控制点名称">
+            <el-input v-model="searchForm.pointName" placeholder="请输入控制点名称" clearable />
+          </el-form-item>
+          <el-form-item label="所属工序">
+            <el-input v-model="searchForm.processName" placeholder="请输入所属工序" clearable />
+          </el-form-item>
+          <el-form-item label="控制点类型">
+            <el-select v-model="searchForm.pointType" placeholder="请选择控制点类型" clearable>
+              <el-option label="关键点" value="key" />
+              <el-option label="重要点" value="important" />
+              <el-option label="一般点" value="normal" />
+            </el-select>
+          </el-form-item>
+          <el-form-item label="状态">
+            <el-select v-model="searchForm.status" placeholder="请选择状态" clearable>
+              <el-option label="启用" value="active" />
+              <el-option label="禁用" value="inactive" />
+            </el-select>
+          </el-form-item>
+          <el-form-item>
+            <el-button type="primary" @click="handleSearch">搜索</el-button>
+            <el-button @click="handleReset">重置</el-button>
+          </el-form-item>
+        </el-form>
       </template>
-      
-      <!-- 搜索条件 -->
-      <el-form :inline="true" :model="searchForm" class="search-form" label-width="100px">
-        <el-form-item label="控制点名称">
-          <el-input v-model="searchForm.pointName" placeholder="请输入控制点名称" clearable />
-        </el-form-item>
-        <el-form-item label="所属工序">
-          <el-input v-model="searchForm.processName" placeholder="请输入所属工序" clearable />
-        </el-form-item>
-        <el-form-item label="控制点类型">
-          <el-select v-model="searchForm.pointType" placeholder="请选择控制点类型" clearable>
-            <el-option label="关键点" value="key" />
-            <el-option label="重要点" value="important" />
-            <el-option label="一般点" value="normal" />
-          </el-select>
-        </el-form-item>
-        <el-form-item label="状态">
-          <el-select v-model="searchForm.status" placeholder="请选择状态" clearable>
-            <el-option label="启用" value="active" />
-            <el-option label="禁用" value="inactive" />
-          </el-select>
-        </el-form-item>
-        <el-form-item>
-          <el-button type="primary" @click="handleSearch">搜索</el-button>
-          <el-button @click="handleReset">重置</el-button>
-        </el-form-item>
-      </el-form>
-      
-      <!-- 控制点列表 -->
-      <el-table :data="controlPoints" style="width: 100%" border>
-        <el-table-column type="selection" width="55" />
-        <el-table-column prop="pointCode" label="控制点编号" width="150" />
-        <el-table-column prop="pointName" label="控制点名称" min-width="200" show-overflow-tooltip />
-        <el-table-column prop="processName" label="所属工序" width="150" />
-        <el-table-column prop="pointType" label="控制点类型" width="120">
-          <template #default="{ row }">
-            <el-tag :type="getPointTypeTag(row.pointType)">{{ getPointTypeText(row.pointType) }}</el-tag>
-          </template>
-        </el-table-column>
-        <el-table-column prop="controlStandard" label="控制标准" min-width="200" show-overflow-tooltip />
-        <el-table-column prop="responsiblePerson" label="责任人" width="100" />
-        <el-table-column prop="status" label="状态" width="80">
-          <template #default="{ row }">
-            <el-tag :type="getStatusType(row.status)">{{ getStatusText(row.status) }}</el-tag>
-          </template>
-        </el-table-column>
-        <el-table-column label="操作" width="200" fixed="right">
-          <template #default="{ row }">
-            <el-button type="primary" size="small" @click="handleViewControlPoint(row)">查看</el-button>
-            <el-button size="small" @click="handleEditControlPoint(row)">编辑</el-button>
-            <el-button type="danger" size="small" @click="handleDeleteControlPoint(row)">删除</el-button>
-          </template>
-        </el-table-column>
-      </el-table>
-      
-      <!-- 分页 -->
-      <div class="pagination" style="margin-top: 20px;">
-        <el-pagination
-          v-model:current-page="pagination.currentPage"
-          v-model:page-size="pagination.pageSize"
-          :page-sizes="[10, 20, 50, 100]"
-          layout="total, sizes, prev, pager, next, jumper"
-          :total="pagination.total"
-          @size-change="handleSizeChange"
-          @current-change="handleCurrentChange"
-        />
-      </div>
+
+      <!-- 工具栏区域 -->
+      <template #toolbar>
+        <el-button type="primary" @click="handleCreateControlPoint">
+          <el-icon><Plus /></el-icon> 新建控制点
+        </el-button>
+      </template>
+
+      <!-- 控制点类型列自定义 -->
+      <template #pointType="{ row }">
+        <el-tag :type="getPointTypeTag(row.pointType)">{{ getPointTypeText(row.pointType) }}</el-tag>
+      </template>
+
+      <!-- 状态列自定义 -->
+      <template #status="{ row }">
+        <el-tag :type="getStatusType(row.status)">{{ getStatusText(row.status) }}</el-tag>
+      </template>
+
+      <!-- 操作列自定义 -->
+      <template #action="{ row }">
+        <el-button type="primary" size="small" @click="handleViewControlPoint(row)">查看</el-button>
+        <el-button size="small" @click="handleEditControlPoint(row)">编辑</el-button>
+        <el-button type="danger" size="small" @click="handleDeleteControlPoint(row)">删除</el-button>
+      </template>
     </el-card>
     
     <!-- 新建/编辑控制点对话框 -->
@@ -158,14 +147,16 @@
 </template>
 
 <script>
-import { ref, reactive, onMounted } from 'vue';
+import { ref, reactive, onMounted, computed } from 'vue';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import { Plus } from '@element-plus/icons-vue';
+import StandardTablePage from '@/components/StandardTablePage.vue';
 
 export default {
   name: 'QualityControl',
   components: {
-    Plus
+    Plus,
+    StandardTablePage
   },
   setup() {
     // 状态管理
@@ -337,12 +328,24 @@ export default {
       });
     };
     
+    // 表格列配置
+    const tableColumns = computed(() => [
+      { prop: 'pointCode', label: '控制点编号', width: 150 },
+      { prop: 'pointName', label: '控制点名称', minWidth: 200, showOverflowTooltip: true },
+      { prop: 'processName', label: '所属工序', width: 150 },
+      { prop: 'pointType', label: '控制点类型', width: 120, slotName: 'pointType' },
+      { prop: 'controlStandard', label: '控制标准', minWidth: 200, showOverflowTooltip: true },
+      { prop: 'responsiblePerson', label: '责任人', width: 100 },
+      { prop: 'status', label: '状态', width: 80, slotName: 'status' },
+      { prop: 'action', label: '操作', width: 200, fixed: 'right', slotName: 'action' }
+    ]);
+    
     // 分页处理
     const handleSizeChange = (size) => {
       pagination.pageSize = size;
     };
     
-    const handleCurrentChange = (current) => {
+    const handlePageChange = (current) => {
       pagination.currentPage = current;
     };
     
@@ -487,11 +490,12 @@ export default {
       pagination,
       controlPointForm,
       controlPointFormRules,
+      tableColumns,
       
       handleSearch,
       handleReset,
       handleSizeChange,
-      handleCurrentChange,
+      handlePageChange,
       handleCreateControlPoint,
       handleEditControlPoint,
       handleViewControlPoint,

@@ -119,92 +119,80 @@
       </div>
 
       <!-- 回款列表 -->
-      <el-table
+      <standard-table-page
         v-loading="loading"
-        :data="collectionList"
-        style="width: 100%"
+        :data-source="collectionList"
+        :total="pagination.total"
+        :page-size="pagination.pageSize"
+        :current-page="pagination.currentPage"
+        :columns="tableColumns"
+        :selection="true"
+        :page-sizes="[10, 20, 50, 100]"
+        @page-change="handlePageChange"
+        @size-change="handleSizeChange"
         @selection-change="handleSelectionChange"
       >
-        <el-table-column type="selection" width="55" />
-        <el-table-column prop="id" label="ID" width="80" />
-        <el-table-column prop="orderNumber" label="订单编号" width="150">
-          <template #default="{ row }">
-            <a href="#" @click.stop="viewOrderDetails(row)">{{ row.orderNumber }}</a>
-          </template>
-        </el-table-column>
-        <el-table-column prop="customerName" label="客户名称" width="180" />
-        <el-table-column prop="contractAmount" label="合同金额" width="120" align="right">
-          <template #default="{ row }">
-            {{ formatCurrency(row.contractAmount) }}
-          </template>
-        </el-table-column>
-        <el-table-column prop="totalCollectionAmount" label="已回款金额" width="120" align="right">
-          <template #default="{ row }">
-            <span class="text-success">{{ formatCurrency(row.totalCollectionAmount) }}</span>
-          </template>
-        </el-table-column>
-        <el-table-column prop="remainingAmount" label="待回款金额" width="120" align="right">
-          <template #default="{ row }">
-            <span :class="{ 'text-danger': row.remainingAmount > 0 }">{{ formatCurrency(row.remainingAmount) }}</span>
-          </template>
-        </el-table-column>
-        <el-table-column prop="collectionRate" label="回款率" width="100" align="center">
-          <template #default="{ row }">
-            <el-progress :percentage="row.collectionRate" :color="getProgressColor(row.collectionRate)" stroke-width="6" />
-          </template>
-        </el-table-column>
-        <el-table-column prop="paymentTerm" label="账期" width="100">
-          <template #default="{ row }">
-            {{ row.paymentTerm }} 天
-          </template>
-        </el-table-column>
-        <el-table-column prop="dueDate" label="到期日期" width="130">
-          <template #default="{ row }">
-            <span :class="{ 'text-danger': isOverdue(row.dueDate) }">
-              {{ formatDate(row.dueDate) }}
-            </span>
-          </template>
-        </el-table-column>
-        <el-table-column prop="responsiblePerson" label="负责人" width="100" />
-        <el-table-column prop="status" label="状态" width="100">
-          <template #default="{ row }">
-            <el-tag :type="getStatusType(row.status)">{{ getStatusText(row.status) }}</el-tag>
-          </template>
-        </el-table-column>
-        <el-table-column prop="lastCollectionDate" label="最后回款" width="130">
-          <template #default="{ row }">
-            {{ row.lastCollectionDate ? formatDate(row.lastCollectionDate) : '未回款' }}
-          </template>
-        </el-table-column>
-        <el-table-column prop="remark" label="备注" min-width="120" />
-        <el-table-column label="操作" width="200" fixed="right">
-          <template #default="{ row }">
-            <el-button
-              v-if="row.status !== 'completed'"
-              type="primary"
-              size="small"
-              @click="addPayment(row)"
-            >
-              录入回款
-            </el-button>
-            <el-button size="small" @click="viewCollectionDetails(row)">回款明细</el-button>
-            <el-button size="small" @click="editCollection(row)">编辑</el-button>
-          </template>
-        </el-table-column>
-      </el-table>
+        <!-- 订单编号列自定义 -->
+        <template #orderNumber="{ row }">
+          <a href="#" @click.stop="viewOrderDetails(row)">{{ row.orderNumber }}</a>
+        </template>
 
-      <!-- 分页 -->
-      <div class="pagination-container">
-        <el-pagination
-          v-model:current-page="pagination.currentPage"
-          v-model:page-size="pagination.pageSize"
-          :page-sizes="[10, 20, 50, 100]"
-          layout="total, sizes, prev, pager, next, jumper"
-          :total="pagination.total"
-          @size-change="handleSizeChange"
-          @current-change="handleCurrentChange"
-        />
-      </div>
+        <!-- 合同金额列自定义 -->
+        <template #contractAmount="{ row }">
+          {{ formatCurrency(row.contractAmount) }}
+        </template>
+
+        <!-- 已回款金额列自定义 -->
+        <template #totalCollectionAmount="{ row }">
+          <span class="text-success">{{ formatCurrency(row.totalCollectionAmount) }}</span>
+        </template>
+
+        <!-- 待回款金额列自定义 -->
+        <template #remainingAmount="{ row }">
+          <span :class="{ 'text-danger': row.remainingAmount > 0 }">{{ formatCurrency(row.remainingAmount) }}</span>
+        </template>
+
+        <!-- 回款率列自定义 -->
+        <template #collectionRate="{ row }">
+          <el-progress :percentage="row.collectionRate" :color="getProgressColor(row.collectionRate)" stroke-width="6" />
+        </template>
+
+        <!-- 账期列自定义 -->
+        <template #paymentTerm="{ row }">
+          {{ row.paymentTerm }} 天
+        </template>
+
+        <!-- 到期日期列自定义 -->
+        <template #dueDate="{ row }">
+          <span :class="{ 'text-danger': isOverdue(row.dueDate) }">
+            {{ formatDate(row.dueDate) }}
+          </span>
+        </template>
+
+        <!-- 状态列自定义 -->
+        <template #status="{ row }">
+          <el-tag :type="getStatusType(row.status)">{{ getStatusText(row.status) }}</el-tag>
+        </template>
+
+        <!-- 最后回款列自定义 -->
+        <template #lastCollectionDate="{ row }">
+          {{ row.lastCollectionDate ? formatDate(row.lastCollectionDate) : '未回款' }}
+        </template>
+
+        <!-- 操作列自定义 -->
+        <template #action="{ row }">
+          <el-button
+            v-if="row.status !== 'completed'"
+            type="primary"
+            size="small"
+            @click="addPayment(row)"
+          >
+            录入回款
+          </el-button>
+          <el-button size="small" @click="viewCollectionDetails(row)">回款明细</el-button>
+          <el-button size="small" @click="editCollection(row)">编辑</el-button>
+        </template>
+      </standard-table-page>
     </div>
 
     <!-- 新增回款对话框 -->

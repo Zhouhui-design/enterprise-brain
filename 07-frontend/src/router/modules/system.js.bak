@@ -5,8 +5,8 @@ export default {
   component: Layout,
   redirect: '/system/overview',
   name: 'System',
-  meta: {
-    title: '系统管理',
+  meta: { 
+    title: '系统管理', 
     icon: 'Setting',
     permission: ['system:view']
   },
@@ -15,18 +15,19 @@ export default {
       path: 'overview',
       name: 'SystemOverview',
       component: () => import('@/pages/system/Overview.vue'),
-      meta: {
+      meta: { 
         title: '系统总览',
         icon: 'Monitor',
         permission: ['system:overview']
       }
     },
+    // 用户管理
     {
       path: 'users',
       name: 'UserManagement',
       redirect: '/system/users/list',
-      meta: {
-        title: '用户管理',
+      meta: { 
+        title: '用户管理', 
         icon: 'User',
         permission: ['system:users']
       },
@@ -35,7 +36,7 @@ export default {
           path: 'list',
           name: 'UserList',
           component: () => import('@/pages/system/users/UserList.vue'),
-          meta: {
+          meta: { 
             title: '用户列表',
             permission: ['system:users:list']
           }
@@ -44,7 +45,7 @@ export default {
           path: 'create',
           name: 'UserCreate',
           component: () => import('@/pages/system/users/UserForm.vue'),
-          meta: {
+          meta: { 
             title: '新增用户',
             permission: ['system:users:create'],
             hidden: true
@@ -54,7 +55,7 @@ export default {
           path: 'edit/:id',
           name: 'UserEdit',
           component: () => import('@/pages/system/users/UserForm.vue'),
-          meta: {
+          meta: { 
             title: '编辑用户',
             permission: ['system:users:edit'],
             hidden: true
@@ -64,7 +65,7 @@ export default {
           path: 'profile/:id',
           name: 'UserProfile',
           component: () => import('@/pages/system/users/UserProfile.vue'),
-          meta: {
+          meta: { 
             title: '用户资料',
             permission: ['system:users:profile'],
             hidden: true
@@ -72,12 +73,13 @@ export default {
         }
       ]
     },
+    // 角色权限
     {
       path: 'roles',
       name: 'RoleManagement',
       redirect: '/system/roles/list',
-      meta: {
-        title: '角色权限',
+      meta: { 
+        title: '角色权限', 
         icon: 'Key',
         permission: ['system:roles']
       },
@@ -86,7 +88,7 @@ export default {
           path: 'list',
           name: 'RoleList',
           component: () => import('@/pages/system/roles/RoleList.vue'),
-          meta: {
+          meta: { 
             title: '角色列表',
             permission: ['system:roles:list']
           }
@@ -95,7 +97,7 @@ export default {
           path: 'create',
           name: 'RoleCreate',
           component: () => import('@/pages/system/roles/RoleForm.vue'),
-          meta: {
+          meta: { 
             title: '新增角色',
             permission: ['system:roles:create'],
             hidden: true
@@ -105,7 +107,7 @@ export default {
           path: 'edit/:id',
           name: 'RoleEdit',
           component: () => import('@/pages/system/roles/RoleForm.vue'),
-          meta: {
+          meta: { 
             title: '编辑角色',
             permission: ['system:roles:edit'],
             hidden: true
@@ -115,19 +117,21 @@ export default {
           path: 'permissions',
           name: 'PermissionManagement',
           component: () => import('@/pages/system/roles/PermissionManagement.vue'),
-          meta: {
+          meta: { 
             title: '权限管理',
             permission: ['system:roles:permissions']
           }
         }
       ]
     },
+
+    // 菜单管理
     {
       path: 'menu',
       name: 'MenuManagement',
       redirect: '/system/menu/builder',
-      meta: {
-        title: '菜单管理',
+      meta: { 
+        title: '菜单管理', 
         icon: 'Menu',
         permission: ['system:menu']
       },
@@ -136,7 +140,7 @@ export default {
           path: 'builder',
           name: 'MenuBuilder',
           component: () => import('@/pages/system/menu-management/MenuBuilder.vue'),
-          meta: {
+          meta: { 
             title: '菜单构建器',
             permission: ['system:menu:builder']
           }
@@ -145,7 +149,7 @@ export default {
           path: 'drag-sort',
           name: 'MenuDragSort',
           component: () => import('@/pages/system/menu-management/MenuDragSort.vue'),
-          meta: {
+          meta: { 
             title: '拖拽排序',
             permission: ['system:menu:sort']
           }
@@ -154,7 +158,7 @@ export default {
           path: 'permission',
           name: 'MenuPermission',
           component: () => import('@/pages/system/menu-management/MenuPermission.vue'),
-          meta: {
+          meta: { 
             title: '权限管理',
             permission: ['system:menu:permission']
           }
@@ -163,18 +167,21 @@ export default {
           path: 'user-config',
           name: 'UserMenuConfig',
           component: () => import('@/pages/system/menu-management/UserMenuConfig.vue'),
-          meta: {
+          meta: { 
             title: '用户菜单配置',
             permission: ['system:menu:user-config']
           }
         }
       ]
     },
+
+
+    // 操作日志
     {
       path: 'audit-log',
       name: 'AuditLog',
       component: () => import('@/pages/system/audit-management/AuditLogList.vue'),
-      meta: {
+      meta: { 
         title: '操作日志',
         permission: ['system:audit:view']
       }
@@ -183,7 +190,7 @@ export default {
       path: 'data-change',
       name: 'DataChange',
       component: () => import('@/pages/system/audit-management/DataChangeList.vue'),
-      meta: {
+      meta: { 
         title: '数据变更记录',
         permission: ['system:audit:data']
       }
@@ -192,7 +199,7 @@ export default {
       path: 'operation-trace',
       name: 'OperationTrace',
       component: () => import('@/pages/system/audit-management/OperationTrace.vue'),
-      meta: {
+      meta: { 
         title: '操作轨迹',
         permission: ['system:audit:trace']
       }

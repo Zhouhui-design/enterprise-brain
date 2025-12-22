@@ -1,9 +1,85 @@
 <template>
   <div class="sales-order-container">
-    <!-- 页面标题 -->
-    <div class="page-header">
-      <h2>销售订单管理</h2>
-      <div class="header-actions">
+    <!-- 使用标准表格页面组件 -->
+    <StandardTablePage
+      page-title="销售订单管理"
+      settings-key="sales-order-list"
+      
+      <!-- 表格数据 -->
+      :table-data="filteredTableData"
+      :columns="tableColumns"
+      :loading="loading"
+      :total="pagination.total"
+      :current-page="pagination.page"
+      :page-size="pagination.pageSize"
+      
+      <!-- 功能开关 -->
+      :show-search="true"
+      :show-selection="true"
+      :show-filter="true"
+      :show-pagination="true"
+      :show-batch-delete="true"
+      :show-export="false"
+      
+      <!-- 事件监听 -->
+      @page-change="handlePageChange"
+      @size-change="handlePageSizeChange"
+      @selection-change="handleSelectionChange"
+      @refresh="handleRefresh"
+      @batch-delete="handleBatchDelete"
+    >
+      <!-- 搜索表单插槽 -->
+      <template #search-form>
+        <div class="search-bar">
+          <el-form :model="searchForm" inline size="small">
+            <el-form-item label="搜索">
+              <el-input 
+                v-model="searchForm.searchText" 
+                placeholder="订单编号、客户名称..." 
+                clearable
+                style="width: 260px"
+                @keyup.enter="handleSearch"
+              >
+                <template #prefix>
+                  <el-icon><Search /></el-icon>
+                </template>
+              </el-input>
+            </el-form-item>
+            <el-form-item label="订单状态">
+              <el-select 
+                v-model="searchForm.orderStatus" 
+                placeholder="全部" 
+                clearable
+                style="width: 180px"
+              >
+                <el-option label="全部" value="" />
+                <el-option label="待下单" value="待下单" />
+                <el-option label="已模拟排程待下单" value="已模拟排程待下单" />
+                <el-option label="草稿" value="draft" />
+                <el-option label="待审核" value="pending" />
+                <el-option label="已审核" value="approved" />
+                <el-option label="生产中" value="production" />
+                <el-option label="已发货" value="shipped" />
+                <el-option label="已完成" value="completed" />
+                <el-option label="已取消" value="cancelled" />
+                <el-option label="手动终止" value="terminated" />
+              </el-select>
+            </el-form-item>
+            <el-form-item>
+              <el-button type="primary" @click="handleSearch">查询</el-button>
+              <el-button @click="handleResetSearch">重置</el-button>
+            </el-form-item>
+          </el-form>
+          
+          <!-- 模拟排程订单提示 -->
+          <el-tag v-if="simulatedOrders.length > 0" type="warning" style="margin-left: 10px">
+            当前有 {{ simulatedOrders.length }} 个模拟排程订单未下单
+          </el-tag>
+        </div>
+      </template>
+      
+      <!-- 自定义工具栏插槽 -->
+      <template #toolbar-right>
         <el-button type="primary" size="small" @click="handleCreate">
           <el-icon><Plus /></el-icon>
           新增
@@ -34,167 +110,55 @@
         >
           手动终止
         </el-button>
-        <el-button 
-          size="small" 
-          @click="handleBatchDelete"
-          :disabled="!hasSelection"
-        >
-          <el-icon><Delete /></el-icon>
-          删除
-        </el-button>
-        <el-button size="small" @click="handleRefresh">
-          <el-icon><Refresh /></el-icon>
-          刷新
-        </el-button>
         <el-button size="small" @click="showSettings = true">
           <el-icon><Setting /></el-icon>
           页面设置
         </el-button>
-      </div>
-    </div>
-
-    <!-- 搜索筛选区 -->
-    <div class="search-bar">
-      <el-form :model="searchForm" inline size="small">
-        <el-form-item label="搜索">
-          <el-input 
-            v-model="searchForm.searchText" 
-            placeholder="订单编号、客户名称..." 
-            clearable
-            style="width: 260px"
-            @keyup.enter="handleSearch"
-          >
-            <template #prefix>
-              <el-icon><Search /></el-icon>
-            </template>
-          </el-input>
-        </el-form-item>
-        <el-form-item label="订单状态">
-          <el-select 
-            v-model="searchForm.orderStatus" 
-            placeholder="全部" 
-            clearable
-            style="width: 180px"
-          >
-            <el-option label="全部" value="" />
-            <el-option label="待下单" value="待下单" />
-            <el-option label="已模拟排程待下单" value="已模拟排程待下单" />
-            <el-option label="草稿" value="draft" />
-            <el-option label="待审核" value="pending" />
-            <el-option label="已审核" value="approved" />
-            <el-option label="生产中" value="production" />
-            <el-option label="已发货" value="shipped" />
-            <el-option label="已完成" value="completed" />
-            <el-option label="已取消" value="cancelled" />
-            <el-option label="手动终止" value="terminated" />
-          </el-select>
-        </el-form-item>
-        <el-form-item>
-          <el-button type="primary" @click="handleSearch">查询</el-button>
-          <el-button @click="handleResetSearch">重置</el-button>
-        </el-form-item>
-      </el-form>
+      </template>
       
-      <!-- 模拟排程订单提示 -->
-      <el-tag v-if="simulatedOrders.length > 0" type="warning" style="margin-left: 10px">
-        当前有 {{ simulatedOrders.length }} 个模拟排程订单未下单
-      </el-tag>
-    </div>
-
-    <!-- 筛选提示 -->
-    <el-alert 
-      type="info" 
-      :closable="false" 
-      style="margin: 0 0 15px"
-    >
-      表头筛选模式：每列标题下方有搜索框，支持模糊查询，筛选作用于所有{{ pagination.total }}条数据
-    </el-alert>
-
-    <!-- 数据表格 -->
-    <div class="table-container">
-      <el-table
-        v-loading="loading"
-        :data="filteredTableData"
-        border
-        stripe
-        @selection-change="handleSelectionChange"
-        height="calc(100vh - 360px)"
-      >
-        <el-table-column type="selection" width="55" fixed="left" />
-        
-        <template v-for="col in visibleColumns" :key="col.prop">
-          <el-table-column
-            v-if="col.visible"
-            :prop="col.prop"
-            :width="col.width"
-            :fixed="col.prop === 'internalOrderNo' || col.prop === 'orderStatus' ? 'left' : undefined"
-            :align="['orderQuantity', 'unitPriceExcludingTax', 'unitPriceIncludingTax', 'amountExcludingTax', 'amountIncludingTax', 'totalAmountExcludingTax', 'totalAmountIncludingTax', 'fees', 'totalReceivable', 'plannedPaymentAmount'].includes(col.prop) ? 'right' : undefined"
-            :formatter="formatColumnValue"
-          >
-            <template #header>
-              <div class="table-header-cell">
-                <div class="header-label">{{ col.label }}</div>
-                <el-input
-                  v-if="col.filterable"
-                  v-model="columnSearchValues[col.prop]"
-                  size="small"
-                  placeholder="模糊搜索"
-                  clearable
-                  @input="handleColumnSearch"
-                  class="header-search"
-                >
-                  <template #prefix>
-                    <el-icon><Search /></el-icon>
-                  </template>
-                </el-input>
-              </div>
-            </template>
-            
-            <!-- 特殊列渲染 -->
-            <template #default="{ row }" v-if="['orderStatus', 'productImage'].includes(col.prop)">
-              <el-tag v-if="col.prop === 'orderStatus'" :type="getStatusType(row.orderStatus)">
-                {{ row.orderStatus || '-' }}
-              </el-tag>
-              <el-image 
-                v-else-if="col.prop === 'productImage' && row.productImage" 
-                :src="row.productImage" 
-                style="width: 50px; height: 50px;" 
-                fit="cover"
-                :preview-src-list="[row.productImage]"
-              />
-              <span v-else-if="col.prop === 'productImage'">-</span>
-            </template>
-          </el-table-column>
-        </template>
-        
-        <el-table-column label="操作" width="180" fixed="right">
-          <template #default="{ row }">
-            <el-button link type="primary" size="small" @click="handleView(row)">
-              查看
-            </el-button>
-            <el-button link type="primary" size="small" @click="handleEdit(row)">
-              编辑
-            </el-button>
-            <el-button link type="danger" size="small" @click="handleDeleteOne(row)">
-              删除
-            </el-button>
-          </template>
-        </el-table-column>
-      </el-table>
-
-      <!-- 分页 -->
-      <div class="pagination-container">
-        <el-pagination
-          v-model:current-page="pagination.page"
-          v-model:page-size="pagination.pageSize"
-          :total="pagination.total"
-          :page-sizes="[20, 50, 100, 200]"
-          layout="total, sizes, prev, pager, next, jumper"
-          @size-change="handlePageSizeChange"
-          @current-change="handlePageChange"
+      <!-- 筛选提示插槽 -->
+      <template #filter-tip>
+        <el-alert 
+          type="info" 
+          :closable="false" 
+          style="margin: 0 0 15px"
+        >
+          表头筛选模式：每列标题下方有搜索框，支持模糊查询，筛选作用于所有{{ pagination.total }}条数据
+        </el-alert>
+      </template>
+      
+      <!-- 订单状态列插槽 -->
+      <template #orderStatus="{ row }">
+        <el-tag :type="getStatusType(row.orderStatus)">
+          {{ row.orderStatus || '-' }}
+        </el-tag>
+      </template>
+      
+      <!-- 产品图片列插槽 -->
+      <template #productImage="{ row }">
+        <el-image 
+          v-if="row.productImage" 
+          :src="row.productImage" 
+          style="width: 50px; height: 50px;" 
+          fit="cover"
+          :preview-src-list="[row.productImage]"
         />
-      </div>
-    </div>
+        <span v-else>-</span>
+      </template>
+      
+      <!-- 操作列插槽 -->
+      <template #operation="{ row }">
+        <el-button link type="primary" size="small" @click="handleView(row)">
+          查看
+        </el-button>
+        <el-button link type="primary" size="small" @click="handleEdit(row)">
+          编辑
+        </el-button>
+        <el-button link type="danger" size="small" @click="handleDeleteOne(row)">
+          删除
+        </el-button>
+      </template>
+    </StandardTablePage>
 
     <!-- 页面设置对话框 -->
     <PageSettingsDialog
@@ -231,6 +195,7 @@ import {
   STATUS_TYPE_MAP
 } from '@/features/sales-order'
 import PageSettingsDialog from '@/features/material-preparation/components/PageSettingsDialog.vue'
+import StandardTablePage from '@/components/common/layout/StandardTablePage.vue'
 
 // ========== 列表逻辑 ==========
 const {
@@ -379,6 +344,30 @@ const filteredTableData = computed(() => {
   })
   
   return data
+})
+
+// ========== 表格列配置 ==========
+const tableColumns = computed(() => {
+  return visibleColumns.value.map(col => {
+    // 基础配置
+    const columnConfig = {
+      prop: col.prop,
+      label: col.label,
+      width: col.width,
+      fixed: col.prop === 'internalOrderNo' || col.prop === 'orderStatus' ? 'left' : undefined,
+      align: ['orderQuantity', 'unitPriceExcludingTax', 'unitPriceIncludingTax', 'amountExcludingTax', 'amountIncludingTax', 'totalAmountExcludingTax', 'totalAmountIncludingTax', 'fees', 'totalReceivable', 'plannedPaymentAmount'].includes(col.prop) ? 'right' : undefined,
+      formatter: formatColumnValue,
+      filterable: col.filterable,
+      sortable: false
+    }
+    
+    // 添加特殊列的插槽配置
+    if (['orderStatus', 'productImage'].includes(col.prop)) {
+      columnConfig.slot = col.prop
+    }
+    
+    return columnConfig
+  })
 })
 
 // ========== 事件处理 ==========

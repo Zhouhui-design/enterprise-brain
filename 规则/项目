@@ -1,0 +1,27 @@
+gitcode:访问令牌：xuxhtRdA5w6rjM-nSCg5M1zE
+
+# 直接使用bash命令运行脚本
+bash /media/sardensy/C820-462B/ERP/backup-script.sh
+
+# 或者使用source命令
+source /media/sardensy/C820-462B/ERP/backup-script.sh
+
+
+./git-backup.sh  # 选择选项1
+# 或
+./git-backup.sh --backup
+
+# 进入项目根目录
+cd /home/sardensy/enterprise-brain/enterpise-brain
+
+# 重启所有服务（推荐）
+./restart-services.sh
+
+# 或者使用具体命令
+./restart-services.sh restart    # 重启所有服务
+./restart-services.sh stop       # 仅停止服务
+./restart-services.sh clean      # 仅清理缓存
+./restart-services.sh start      # 仅启动服务
+./restart-services.sh status     # 检查服务状态
+./restart-services.sh -h         # 显示帮助信息
+

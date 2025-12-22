@@ -23,6 +23,7 @@ import bomTreeStructureRouter from './modules/bom-tree-structure.js';
 import mrpRouter from './modules/mrp.js';
 import processPlanningRouter from './modules/process-planning.js';
 import productionResourcesRouter from './modules/production-resources.js';
+import schedulingRouter from './modules/scheduling.js';
 
 const routes = [
   {
@@ -118,6 +119,8 @@ const routes = [
   warehouseRouter,
   // 生产资源管理路由
   productionResourcesRouter,
+  // 生产调度路由
+  schedulingRouter,
   // 成本中心路由
   costCenterRouter,
   // 采购管理路由
