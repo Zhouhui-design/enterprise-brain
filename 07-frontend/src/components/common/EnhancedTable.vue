@@ -320,12 +320,15 @@ const props = defineProps({
   // 统计数据
   summaryData: { type: Object, default: () => ({}) },
   // 统计列
-  summaryColumns: { type: Array, default: () => [] }
+  summaryColumns: { type: Array, default: () => [] },
+  // 本地存储键名（用于保存列设置）
+  storageKey: { type: String, default: 'enhanced-table-columns' }
 })
 
 const emit = defineEmits([
   'add', 'edit', 'delete', 'batch-delete', 'delete-single', 'export', 'import', 'refresh',
-  'selection-change', 'sort-change', 'page-change', 'size-change', 'filter-change'
+  'selection-change', 'sort-change', 'page-change', 'size-change', 'filter-change',
+  'column-order-change', 'column-visibility-change'
 ])
 
 const tableRef = ref(null)
@@ -414,10 +417,47 @@ const visibleColumns = computed(() => {
   return draggableColumns.value.filter(col => selectedColumnProps.value.includes(col.prop))
 })
 
+// 从本地存储加载列设置
+const loadColumnSettings = () => {
+  try {
+    const saved = localStorage.getItem(props.storageKey)
+    if (saved) {
+      return JSON.parse(saved)
+    }
+  } catch (error) {
+    console.error('加载列设置失败:', error)
+  }
+  return null
+}
+
+// 保存列设置到本地存储
+const saveColumnSettings = () => {
+  try {
+    const settings = {
+      columns: draggableColumns.value,
+      visibleFields: selectedColumnProps.value
+    }
+    localStorage.setItem(props.storageKey, JSON.stringify(settings))
+  } catch (error) {
+    console.error('保存列设置失败:', error)
+  }
+}
+
 // 初始化列配置
 watch(() => props.columns, (newColumns) => {
-  draggableColumns.value = [...newColumns]
-  selectedColumnProps.value = newColumns.map(col => col.prop)
+  const savedSettings = loadColumnSettings()
+  
+  if (savedSettings && savedSettings.columns) {
+    // 使用保存的列顺序
+    draggableColumns.value = savedSettings.columns
+    // 使用保存的可见字段
+    selectedColumnProps.value = savedSettings.visibleFields || newColumns.map(col => col.prop)
+  } else {
+    // 使用默认列顺序
+    draggableColumns.value = [...newColumns]
+    selectedColumnProps.value = newColumns.map(col => col.prop)
+  }
+  
   // 初始化筛选配置
   newColumns.forEach(col => {
     if (col.filterable && !filterConfigs.value[col.prop]) {
@@ -548,7 +588,17 @@ const showFilterDialog = (column) => {
 
 // 应用列设置
 const applyColumnSettings = () => {
+  // 保存拖拽后的列顺序
   columnControlVisible.value = false
+  
+  // 保存设置到本地存储
+  saveColumnSettings()
+  
+  // 发送事件通知父组件
+  emit('column-order-change', draggableColumns.value)
+  emit('column-visibility-change', selectedColumnProps.value)
+  
+  ElMessage.success('列设置已保存')
 }
 
 // 格式化统计值

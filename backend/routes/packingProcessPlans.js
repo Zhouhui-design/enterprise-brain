@@ -9,8 +9,8 @@ router.get('/', async (req, res) => {
       page = 1,
       pageSize = 50,
       planNo,
-      masterPlanNo,
-      processName,
+      sourcePlanNo,
+      materialCode,
       scheduleDateStart,
       scheduleDateEnd
     } = req.query;
@@ -19,74 +19,26 @@ router.get('/', async (req, res) => {
       page: parseInt(page),
       pageSize: parseInt(pageSize),
       planNo,
-      masterPlanNo,
-      processName,
+      sourcePlanNo,
+      materialCode,
       scheduleDateStart,
       scheduleDateEnd
     });
 
-    res.json({
-      code: 200,
-      data: result,
-      message: '查询成功'
-    });
+    const response = {
+      list: result.records,
+      total: result.total
+    };
+    res.setHeader('Content-Type', 'application/json');
+    res.send(JSON.stringify(response));
   } catch (error) {
     console.error('获取打包工序计划列表失败:', error);
-    res.status(500).json({
+    const errorResponse = {
       code: 500,
       message: error.message
-    });
-  }
-});
-
-// ✅ 查询当天已排程工时
-router.get('/query-daily-scheduled-hours', async (req, res) => {
-  try {
-    const { processName, scheduleDate, excludeId } = req.query;
-    
-    if (!processName || !scheduleDate) {
-      return res.status(400).json({
-        code: 400,
-        message: '缺少必要参数：processName 和 scheduleDate'
-      });
-    }
-
-    const result = await packingProcessPlanService.queryDailyScheduledHours({
-      processName,
-      scheduleDate,
-      excludeId: excludeId ? parseInt(excludeId) : null
-    });
-
-    res.json({
-      code: 200,
-      data: result,
-      message: '查询成功'
-    });
-  } catch (error) {
-    console.error('查询当天已排程工时失败:', error);
-    res.status(500).json({
-      code: 500,
-      message: error.message
-    });
-  }
-});
-
-// ✅ 修复字段计算
-router.post('/fix-field-calculations', async (req, res) => {
-  try {
-    const result = await packingProcessPlanService.fixFieldCalculations();
-    
-    res.json({
-      code: 200,
-      data: result,
-      message: '字段计算修复成功'
-    });
-  } catch (error) {
-    console.error('修复字段计算失败:', error);
-    res.status(500).json({
-      code: 500,
-      message: error.message
-    });
+    };
+    res.setHeader('Content-Type', 'application/json');
+    res.status(500).send(JSON.stringify(errorResponse));
   }
 });
 
@@ -156,7 +108,7 @@ router.put('/:id', async (req, res) => {
 // 删除打包工序计划
 router.delete('/:id', async (req, res) => {
   try {
-    await packingProcessPlanService.deleteById(req.params.id);
+    await packingProcessPlanService.delete(req.params.id);
     
     res.json({
       code: 200,
@@ -175,22 +127,74 @@ router.delete('/:id', async (req, res) => {
 router.post('/batch-delete', async (req, res) => {
   try {
     const { ids } = req.body;
-    
-    if (!ids || !Array.isArray(ids) || ids.length === 0) {
-      return res.status(400).json({
-        code: 400,
-        message: '请提供要删除的ID数组'
+    if (!Array.isArray(ids)) {
+      return res.status(400).json({ 
+        code: 400, 
+        message: 'ids必须是数组'
       });
     }
-
-    await packingProcessPlanService.batchDelete(ids);
+    
+    const result = await packingProcessPlanService.batchDelete(ids);
     
     res.json({
       code: 200,
-      message: `成功删除${ids.length}条记录`
+      data: result,
+      message: '批量删除成功'
     });
   } catch (error) {
     console.error('批量删除打包工序计划失败:', error);
+    res.status(500).json({
+      code: 500,
+      message: error.message
+    });
+  }
+});
+
+// 查询当天已排程工时
+// SUMIFS(计划排程工时, 工序名称=当前工序, 计划排程日期=当前日期, ID<>当前ID)
+router.get('/query-daily-scheduled-hours', async (req, res) => {
+  try {
+    const { processName, scheduleDate, excludeId } = req.query;
+    
+    if (!processName || !scheduleDate) {
+      return res.status(400).json({ 
+        code: 400, 
+        message: '工序名称和计划排程日期不能为空'
+      });
+    }
+    
+    const result = await packingProcessPlanService.getDailyScheduledHours({ 
+      processName, 
+      scheduleDate, 
+      excludeId 
+    });
+    
+    res.json({
+      code: 200,
+      data: result,
+      message: '查询成功'
+    });
+  } catch (error) {
+    console.error('查询当天已排程工时失败:', error);
+    res.status(500).json({
+      code: 500,
+      message: error.message
+    });
+  }
+});
+
+// 修复字段计算
+router.post('/fix-field-calculations', async (req, res) => {
+  try {
+    const result = await packingProcessPlanService.fixFieldCalculations();
+    
+    res.json({
+      code: 200,
+      data: result,
+      message: '所有字段计算已修复'
+    });
+  } catch (error) {
+    console.error('修复字段计算失败:', error);
     res.status(500).json({
       code: 500,
       message: error.message

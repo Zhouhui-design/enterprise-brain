@@ -168,6 +168,19 @@ app.get('/', (req, res) => {
   });
 });
 
+// 测试路由 - 简单JSON响应
+app.get('/test-json', (req, res) => {
+  // 测试多种JSON结构
+  const testData = {
+    list: [],
+    total: 0,
+    status: 'success',
+    code: 200
+  };
+  res.setHeader('Content-Type', 'application/json');
+  res.send(JSON.stringify(testData));
+});
+
 // 错误处理中间件
 app.use((err, req, res, next) => {
   console.error(err.stack);

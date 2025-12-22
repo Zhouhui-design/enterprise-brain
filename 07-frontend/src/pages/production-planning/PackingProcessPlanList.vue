@@ -326,7 +326,8 @@ const formData = ref({
   planStartDate: null,   // ✅ 新增计划开始日期
   realPlanStartDate: null, // ✅ 新增真计划开始日期
   planEndDate: null,     // ✅ 新增计划结束日期
-  nextScheduleDate: null // ✅ 新增下一个排程日期
+  nextScheduleDate: null, // ✅ 新增下一个排程日期
+  nextScheduleDate1: null // ✅ 新增下一个计划排程日期1
 })
 
 // 表单验证规则
@@ -511,6 +512,8 @@ const allColumns = ref([
     formatter: (row) => formatDateYMD(row.planEndDate) },
   { prop: 'nextScheduleDate', label: '下一个排程日期', width: 140, sortable: true, filterable: true, visible: true,
     formatter: (row) => formatDateYMD(row.nextScheduleDate) },
+  { prop: 'nextScheduleDate1', label: '下一个计划排程日期1', width: 150, sortable: true, filterable: true, visible: true,
+    formatter: (row) => formatDateYMD(row.nextScheduleDate1) },
   { prop: 'workshopName', label: '车间名称', width: 120, filterable: true, visible: true },
   { prop: 'scheduleCount', label: '排程次数', width: 100, sortable: true, align: 'right', visible: true },
   { prop: 'standardWorkQuota', label: '定时工额', width: 100, sortable: true, align: 'right', visible: true },
@@ -595,6 +598,7 @@ watch(
     if (newProcessName && newScheduleDate) {
       console.log('🔄 [下一个排程日期监听器] 触发下一个排程日期计算...')
       await queryNextScheduleDate()
+      await queryNextScheduleDate1()
     } else {
       console.log('⚠️ [下一个排程日期监听器] 条件不满足，跳过计算')
     }
@@ -706,11 +710,12 @@ watch(
 // 触发条件：计划排程日期或计划结束日期变化时
 watch(
   () => [formData.value.scheduleDate, formData.value.planEndDate],
-  ([scheduleDate, planEndDate]) => {
+  async ([scheduleDate, planEndDate]) => {
     console.log('🔍 [下一个排程日期监听器] 监听到变化:', { scheduleDate, planEndDate })
     // 如果两个值都不为空，触发重新计算
     if (scheduleDate && planEndDate) {
-      queryNextScheduleDate()
+      await queryNextScheduleDate()
+      await queryNextScheduleDate1()
     }
   },
   { deep: true }
@@ -1016,13 +1021,27 @@ const calculateSchedulingFields = async () => {
   // 生成条件：工序名称不为空 且 剩余工时小于不为空 且 计划排程日期不为空
   if (formData.value.processName && currentBusinessVars.value.minRemainingHours !== undefined && formData.value.scheduleDate) {
     await queryNextScheduleDate()
+    await queryNextScheduleDate1()
     console.log(`✅ 需求6: 下一个排程日期 = ${formData.value.nextScheduleDate}`)
+    console.log(`✅ 需求6: 下一个计划排程日期1 = ${formData.value.nextScheduleDate1}`)
   } else {
     formData.value.nextScheduleDate = null
+    formData.value.nextScheduleDate1 = null
     console.log(`⚠️ 需求6: 条件不满足，跳过计算 - 工序名称: ${formData.value.processName}, 剩余工时小于: ${currentBusinessVars.value.minRemainingHours}, 计划排程日期: ${formData.value.scheduleDate}`)
   }
   
   console.log('✅ 所有排程字段计算完毕')
+}
+
+// ✅ 重置排程字段
+const resetSchedulingFields = () => {
+  formData.value.requiredWorkHours = 0
+  formData.value.planStartDate = null
+  formData.value.realPlanStartDate = null
+  formData.value.planEndDate = null
+  formData.value.nextScheduleDate = null
+  formData.value.nextScheduleDate1 = null
+  console.log('🔄 排程字段已重置')
 }
 
 // ✅ 需求 6: 查询下一个排程日期 (MINIFS)
@@ -1059,6 +1078,45 @@ const queryNextScheduleDate = async () => {
   } catch (error) {
     console.error('❗ 查询下一个排程日期失败:', error)
     formData.value.nextScheduleDate = null
+    return null
+  }
+}
+
+// ✅ 查询下一个计划排程日期1 (MINIFS)
+const queryNextScheduleDate1 = async () => {
+  const processName = formData.value.processName
+  const scheduleDate = formData.value.scheduleDate
+  const minRemainingHours = 0.5 // 固定为0.5小时
+  
+  console.log('🔍 查询下一个计划排程日期1:', { processName, scheduleDate, minRemainingHours })
+  
+  // ✅ 生成条件：工序名称不为空 且 计划排程日期不为空
+  if (!processName || !scheduleDate) {
+    console.log('⚠️ 缺少必要参数：工序名称或计划排程日期')
+    formData.value.nextScheduleDate1 = null
+    return null
+  }
+  
+  try {
+    // 复用现有的queryNextScheduleDate接口，因为查询条件相同
+    const response = await capacityLoadApi.queryNextScheduleDate(
+      processName,
+      formatDateYMD(scheduleDate),
+      minRemainingHours
+    )
+    
+    if (response?.data?.nextScheduleDate) {
+      formData.value.nextScheduleDate1 = response.data.nextScheduleDate
+      console.log(`✅ 下一个计划排程日期1查询成功: ${response.data.nextScheduleDate}`)
+      return response.data.nextScheduleDate
+    } else {
+      formData.value.nextScheduleDate1 = null
+      console.log('⚠️ 未找到符合条件的下一个计划排程日期1')
+      return null
+    }
+  } catch (error) {
+    console.error('❗ 查询下一个计划排程日期1失败:', error)
+    formData.value.nextScheduleDate1 = null
     return null
   }
 }
@@ -1114,16 +1172,145 @@ const loadData = async () => {
         record.scheduledWorkHours = Math.min(dailyAvailable, required)
       }
       
-      // ✅ 重新计算计划排程数量 = ceiling(计划排程工时 * 定时工额, 1)
+      // ✅ 由前端计算计划排程数量
       if (record.scheduledWorkHours !== undefined && record.standardWorkQuota !== undefined) {
         const scheduledHours = parseFloat(record.scheduledWorkHours) || 0
         const standardQuota = parseFloat(record.standardWorkQuota) || 0
-        const rawQuantity = scheduledHours * standardQuota
-        record.scheduleQuantity = Math.ceil(rawQuantity)
+        // 触发条件：计划排程工时>0 且 定时工额>0
+        if (scheduledHours > 0 && standardQuota > 0) {
+          record.scheduleQuantity = Math.ceil(scheduledHours * standardQuota)
+          console.log(`📋 [计划排程数量] 记录ID: ${record.id}, 前端计算值: ${record.scheduleQuantity}`)
+        } else {
+          record.scheduleQuantity = 0
+          console.log(`📋 [计划排程数量] 记录ID: ${record.id}, 未满足计算条件，设置为0`)
+        }
+      }
+      
+      // ✅ 计算剩余需求工时 = 需求工时 - 计划排程工时
+      if (record.requiredWorkHours !== undefined && record.scheduledWorkHours !== undefined) {
+        const requiredHours = parseFloat(record.requiredWorkHours) || 0
+        const scheduledHours = parseFloat(record.scheduledWorkHours) || 0
+        if (requiredHours > 0 && scheduledHours > 0) {
+          record.remainingRequiredHours = requiredHours - scheduledHours
+        } else {
+          record.remainingRequiredHours = requiredHours
+        }
       }
       
       return record
     })
+    
+    // ✅ 为每个记录计算下一个计划排程日期1
+    await Promise.all(records.map(async (record) => {
+      if (record.processName && record.scheduleDate) {
+        try {
+          const response = await capacityLoadApi.queryNextScheduleDate(
+            record.processName,
+            formatDateYMD(record.scheduleDate),
+            0.5 // 固定为0.5小时
+          )
+          
+          if (response?.nextScheduleDate) {
+            record.nextScheduleDate1 = response.nextScheduleDate
+            console.log(`✅ 记录 ID=${record.id} 下一个计划排程日期1计算成功: ${response.nextScheduleDate}`)
+          } else {
+            record.nextScheduleDate1 = null
+            console.log(`⚠️ 记录 ID=${record.id} 未找到符合条件的下一个计划排程日期1`)
+          }
+        } catch (error) {
+          console.error(`❌ 记录 ID=${record.id} 下一个计划排程日期1计算失败:`, error)
+          record.nextScheduleDate1 = null
+        }
+      } else {
+        record.nextScheduleDate1 = null
+      }
+    }))
+    
+    // ✅ 计算累积排程数量
+    // 按序号排序记录
+    const sortedRecords = [...records].sort((a, b) => (a.rowIndex || 0) - (b.rowIndex || 0))
+    
+    console.log('========================================')
+    console.log('🔍 [累积排程数量计算] 开始计算累积排程数量')
+    console.log(`📋 [累积排程数量计算] 记录总数: ${records.length}`)
+    console.log('========================================')
+    
+    // 为每个记录计算累积排程数量
+    for (let i = 0; i < sortedRecords.length; i++) {
+      const currentRecord = sortedRecords[i]
+      
+      console.log('----------------------------------------')
+      console.log(`🔍 [累积排程数量计算] 处理记录 ${i+1}/${sortedRecords.length}`)
+      console.log(`📋 [累积排程数量计算] 当前记录ID: ${currentRecord.id}`)
+      console.log(`📋 [累积排程数量计算] 当前记录sourceNo: ${currentRecord.sourceNo}`)
+      console.log(`📋 [累积排程数量计算] 当前记录rowIndex: ${currentRecord.rowIndex}`)
+      console.log(`📋 [累积排程数量计算] 当前记录scheduleQuantity: ${currentRecord.scheduleQuantity}`)
+      
+      // 触发条件：来源编号不为空，序号不为空，计划排程数量>0
+      if (currentRecord.sourceNo && currentRecord.rowIndex && currentRecord.scheduleQuantity > 0) {
+        // 计算sumifs：当前主表格的序号<=本行的序号，当前主表格的sourceNo=本行的sourceNo，求和列：计划排程数量
+        let cumulativeQty = 0
+        
+        // 遍历所有序号<=当前记录的记录
+        for (let j = 0; j < sortedRecords.length; j++) {
+          const prevRecord = sortedRecords[j]
+          
+          // 检查条件
+          const condition1 = prevRecord.rowIndex <= currentRecord.rowIndex
+          const condition2 = prevRecord.sourceNo === currentRecord.sourceNo
+          const condition3 = prevRecord.scheduleQuantity > 0
+          
+          console.log(`   📋 [累积排程数量计算] 检查记录 ${j+1}`)
+          console.log(`   📋 [累积排程数量计算] 条件1 (rowIndex <= ${currentRecord.rowIndex}): ${condition1} (${prevRecord.rowIndex})`)
+          console.log(`   📋 [累积排程数量计算] 条件2 (sourceNo === ${currentRecord.sourceNo}): ${condition2} (${prevRecord.sourceNo})`)
+          console.log(`   📋 [累积排程数量计算] 条件3 (scheduleQuantity > 0): ${condition3} (${prevRecord.scheduleQuantity})`)
+          
+          if (condition1 && condition2 && condition3) {
+            cumulativeQty += prevRecord.scheduleQuantity
+            console.log(`   ➕ [累积排程数量计算] 累加数量: ${prevRecord.scheduleQuantity}, 当前累积: ${cumulativeQty}`)
+          }
+        }
+        
+        currentRecord.cumulativeScheduleQty = cumulativeQty
+        console.log(`✅ [累积排程数量计算] 计算结果: ${cumulativeQty}`)
+      } else {
+        currentRecord.cumulativeScheduleQty = 0
+        console.log(`⚠️ [累积排程数量计算] 不满足触发条件，设置为0`)
+      }
+      
+      // 更新原始records数组中的记录
+      const originalRecord = records.find(record => record.id === currentRecord.id)
+      if (originalRecord) {
+        originalRecord.cumulativeScheduleQty = currentRecord.cumulativeScheduleQty
+        console.log(`📋 [累积排程数量计算] 更新原始记录累积排程数量: ${originalRecord.cumulativeScheduleQty}`)
+      }
+    }
+    
+    // ✅ 计算未排数量 = 需补货数量 - 累积排程数量
+    // 触发条件：需补货数量>0 且 累积排程数量>0
+    console.log('========================================')
+    console.log('🔍 [未排数量计算] 开始计算未排数量')
+    console.log('========================================')
+    
+    for (const record of records) {
+      console.log('----------------------------------------')
+      console.log(`🔍 [未排数量计算] 处理记录ID: ${record.id}`)
+      console.log(`📋 [未排数量计算] 当前记录sourceNo: ${record.sourceNo}`)
+      
+      const replenishmentQty = parseFloat(record.replenishmentQty || 0)
+      const cumulativeScheduleQty = parseFloat(record.cumulativeScheduleQty || 0)
+      
+      console.log(`📋 [未排数量计算] 需补货数量: ${replenishmentQty}`)
+      console.log(`📋 [未排数量计算] 累积排程数量: ${cumulativeScheduleQty}`)
+      
+      if (replenishmentQty > 0 && cumulativeScheduleQty > 0) {
+        record.unscheduledQty = replenishmentQty - cumulativeScheduleQty
+        console.log(`✅ [未排数量计算] 计算结果: ${record.unscheduledQty}`)
+      } else {
+        record.unscheduledQty = replenishmentQty
+        console.log(`⚠️ [未排数量计算] 不满足触发条件，直接使用需补货数量: ${record.unscheduledQty}`)
+      }
+    }
     
     tableData.value = records
     pagination.total = data.total || 0
@@ -1167,6 +1354,8 @@ const handleEdit = (row) => {
   console.log('📋 [编辑] 原始row数据:', row)
   console.log('📋 [编辑] row.standardWorkQuota:', row.standardWorkQuota)
   console.log('📋 [编辑] row.standard_work_quota:', row.standard_work_quota)
+  console.log('📋 [编辑] row.scheduleQuantity:', row.scheduleQuantity)
+  console.log('📋 [编辑] row.schedule_quantity:', row.schedule_quantity)
   console.log('========================================')
   
   // ✅ 修复：确保字段名正确映射，优先使用下划线格式的数据
@@ -1176,7 +1365,8 @@ const handleEdit = (row) => {
     requiredWorkHours: row.requiredWorkHours || row.required_work_hours || 0,
     replenishmentQty: row.replenishmentQty || row.replenishment_qty || 0,
     productCode: row.productCode || row.product_code || '',
-    productName: row.productName || row.product_name || ''
+    productName: row.productName || row.product_name || '',
+    scheduleQuantity: row.scheduleQuantity || row.schedule_quantity || 0
   }
   
   console.log('========================================')
@@ -1213,11 +1403,19 @@ const handleSave = () => {
   formRef.value.validate(async (valid) => {
     if (valid) {
       try {
+        // ✅ 不传递计划排程数量和累积排程数量给后端
+        // 创建一个副本，移除不需要传递给后端的字段
+        const saveData = { ...formData.value }
+        delete saveData.scheduleQuantity
+        delete saveData.cumulativeScheduleQty
+        
+        console.log(`📋 [保存] 移除不需要传递的字段后的数据:`, saveData)
+        
         if (isEdit.value) {
-          await api.updateById(formData.value.id, formData.value)
+          await api.updateById(saveData.id, saveData)
           ElMessage.success('更新成功')
         } else {
-          await api.create(formData.value)
+          await api.create(saveData)
           ElMessage.success('新增成功')
         }
         dialogVisible.value = false

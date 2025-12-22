@@ -433,7 +433,8 @@ const {
   create,
   update,
   deleteOne,
-  batchDelete
+  batchDelete,
+  pushToProcess
 } = useMaterialPrepActions(loadData) // 传入刷新回调
 
 // ========== 页面设置 ==========
@@ -663,6 +664,24 @@ const handleSave = async () => {
     : await create(formData.value)
   
   if (success) {
+    // 重新加载数据以获取最新的plan信息
+    await loadData()
+    
+    // 检查最后保存的记录是否需要推送
+    const lastPlan = tableData.value.find(plan => 
+      plan.planNo === formData.value.planNo
+    )
+    
+    if (lastPlan && lastPlan.pushToProcess) {
+      // 自动推送到工序计划
+      try {
+        await pushToProcess(lastPlan)
+      } catch (error) {
+        console.error('自动推送失败:', error)
+        ElMessage.warning('自动推送工序计划失败，请手动推送')
+      }
+    }
+    
     dialogVisible.value = false
   }
 }

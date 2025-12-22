@@ -686,7 +686,8 @@ class MaterialPreparationPlanService {
         productImage: materialPlanData.productImage || materialPlanData.product_image || null,
         processManager: null, // 可从系统配置中获取
         processName: materialPlanData.sourceProcess || materialPlanData.source_process,
-        scheduleQuantity: replenishmentQty,
+        // ✅ 不设置计划排程数量，由前端根据计划排程工时和标准工额计算
+        scheduleQuantity: 0,
         productUnit: materialPlanData.materialUnit || materialPlanData.material_unit || null,
         // ✅ 修复0阶需求数量 - 使用父件排程数量或需补货数量
         level0Demand: materialPlanData.parentScheduleQuantity || materialPlanData.parent_schedule_quantity || replenishmentQty,
@@ -705,10 +706,12 @@ class MaterialPreparationPlanService {
         scheduleCount: 1,
         standardWorkHours: 0,
         standardWorkQuota: 0,
-        cumulativeScheduleQty: replenishmentQty,
+        // ✅ 不设置累积排程数量，由前端统一计算
+        cumulativeScheduleQty: 0,
         unscheduledQty: 0,
         sourcePageName: '备料计划',
         sourceNo: materialPlanData.planNo, // 关键：关联备料计划编号
+        rowIndex: 1, // 初始序号设为1
         previousScheduleNo: null,
         customerName: materialPlanData.customerName || null,
         level0ProductName: null,

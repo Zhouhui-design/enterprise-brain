@@ -91,6 +91,7 @@ router.get('/list', async (req, res) => {
   }
 });
 
+
 // ✅ 查询计划结束日期：根据工序名称、计划完工日期、剩余工时条件查询
 router.post('/query-plan-end-date', async (req, res) => {
   console.log('📡 接收到计划结束日期POST请求');
@@ -1437,8 +1438,8 @@ router.post('/query-next-schedule-date', async (req, res) => {
     
     console.log(`🔍 查询条件: 工序名称=${processName}, 日期>${scheduleDate}, 剩余工时>${minHours}`);
     
-    // 构建SQL查询
-    const sql = "SELECT DATE_FORMAT(date, '%Y-%m-%d') as formatted_date, remaining_hours FROM process_capacity_load WHERE process_name = ? AND DATE_FORMAT(date, '%Y-%m-%d') > ? AND remaining_hours > ? ORDER BY date ASC LIMIT 1";
+    // 构建SQL查询 - 修正：使用>=而不是>来匹配需求
+    const sql = "SELECT DATE_FORMAT(date, '%Y-%m-%d') as formatted_date, remaining_hours FROM process_capacity_load WHERE process_name = ? AND DATE_FORMAT(date, '%Y-%m-%d') >= ? AND remaining_hours >= ? ORDER BY date ASC LIMIT 1";
     const params = [processName, scheduleDate, minHours];
     
     console.log('🔍 SQL:', sql);
