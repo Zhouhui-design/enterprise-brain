@@ -903,7 +903,7 @@ class TubeBendingProcessPlanService {
     try {
       // 1. 查询来源记录
       const [records] = await connection.execute(`
-        SELECT * FROM tube_bending_process_plans WHERE id = ?
+        SELECT *, next_schedule_date1 FROM tube_bending_process_plans WHERE id = ?
       `, [sourceRecordId]);
 
       if (records.length === 0) {
