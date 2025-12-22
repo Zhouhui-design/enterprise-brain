@@ -920,7 +920,7 @@ class SprayPaintingProcessPlanService {
       // 2. 检查自增触发条件
       const unscheduledQty = parseFloat(sourceRecord.unscheduled_qty || 0);
       const scheduleDate = sourceRecord.schedule_date;
-      const nextScheduleDate = sourceRecord.next_schedule_date;
+      const nextScheduleDate1 = sourceRecord.next_schedule_date1;
       const scheduleCount = parseInt(sourceRecord.schedule_count || 0);
       const remainingRequiredHours = parseFloat(sourceRecord.remaining_required_hours || 0);
       const replenishmentQty = parseFloat(sourceRecord.replenishment_qty || 0);
@@ -928,18 +928,11 @@ class SprayPaintingProcessPlanService {
       console.log(`\n📋 [自增检查 #${currentDepth + 1}] 来源记录 ID=${sourceRecordId}, 排程次数=${scheduleCount}`);
       console.log(`   未排数量: ${unscheduledQty}`);
       console.log(`   计划排程日期: ${scheduleDate}`);
-      console.log(`   下一个排程日期: ${nextScheduleDate}`);
+      console.log(`   下一个排程日期1: ${nextScheduleDate1}`);
       console.log(`   剩余需求工时: ${remainingRequiredHours}`);
 
-      // 自增触发条件：AND(未排数量>0，计划排程日期不为空，下一个排程日期不为空，排程次数不为空，剩余需求工时不为空，未排数量不为空，需补货数量不为空）
-      if (!(
-        unscheduledQty > 0 &&
-        scheduleDate &&
-        nextScheduleDate &&
-        scheduleCount > 0 &&
-        remainingRequiredHours !== null &&
-        replenishmentQty > 0
-      )) {
+      // 自增触发条件：AND(未排数量>0，计划排程日期不为空，下一个排程日期1不为空，排程次数不为空，剩余需求工时不为空，未排数量不为空，需补货数量不为空）
+      if (!(unscheduledQty > 0 && scheduleDate && nextScheduleDate1 && scheduleCount > 0 && remainingRequiredHours !== null && replenishmentQty > 0)) {
         console.log(`✅ 不满足自增条件，停止递归`);
         return;
       }
@@ -954,8 +947,8 @@ class SprayPaintingProcessPlanService {
       console.log(`   新排程次数: ${newScheduleCount}`);
       console.log(`   新计划编号: ${newPlanNo}`);
 
-      // 4. 计算自增行的计划排程日期 = 来源行的下一个排程日期
-      const newScheduleDate = nextScheduleDate;
+      // 4. 计算自增行的计划排程日期 = 来源行的下一个排程日期1
+      const newScheduleDate = nextScheduleDate1;
       console.log(`   新计划排程日期: ${newScheduleDate}`);
 
       // 5. 查询工序能力负荷表 - 获取当天总工时
@@ -1003,11 +996,11 @@ class SprayPaintingProcessPlanService {
       }
       console.log(`   计划排程工时: ${scheduledWorkHours}`);
 
-      // 10. 计划排程数量 = 排程工时 × 定时工额
+      // 10. 计划排程数量 = ceiling(排程工时 × 标准工时定额, 1)
       const standardWorkQuota = parseFloat(sourceRecord.standard_work_quota || 0);
       let scheduleQuantity = 0;
       if (scheduledWorkHours > 0 && standardWorkQuota > 0) {
-        scheduleQuantity = parseFloat((scheduledWorkHours * standardWorkQuota).toFixed(2));
+        scheduleQuantity = Math.ceil(scheduledWorkHours * standardWorkQuota);
       }
       console.log(`   计划排程数量: ${scheduleQuantity}`);
 

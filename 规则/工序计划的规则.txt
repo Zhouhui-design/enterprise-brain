@@ -1,0 +1,194 @@
+
+p://localhost:3003/mrp/capacity-load工序能力负荷表
+http://localhost:3003/production-planning/packing-process-plan打包工序计划
+需求1： 在所有工序计划的主表格 增加列字段“剩余工时小于”，值= 本页面的“页面设置”——业务变量——剩余工时小于 的设置值； 例如业务变量设置 值=0.5,则主表格中的“剩余工时小于”=0.5
+需求2：计划开始日期 ：这个以前代码中已经有了正确的规则（估计被删除了，现在重新不错补充），我们是倒拉式 排程，所以是先有“计划结束日期”，再有“计划开始日期”；
+计划开始日期的倒拉式 排程 计算方法：
+1/  计划开始日期= maxifs(工序能力负荷表的“工序名称”=当前工序数据行的“工序名称”，工序能力负荷表的“剩余工时”>当前工序数据行的“剩余工时小于”，工序能力负荷表的“日期”<=工序本行的“计划结束日期”）
+
+
+## 2. 关联代码文件
+
+### 核心文件
+- **主页面组件**：`/home/sardensy/enterprise-brain/enterpise-brain/07-frontend/src/pages/production-planning/PackingProcessPlanList.vue`
+  - 包含完整的表格配置、表单定义、业务逻辑和API调用
+  - 实现了字段计算、排程逻辑和合并规则
+
+- **API接口定义**：`/home/sardensy/enterprise-brain/enterpise-brain/07-frontend/src/api/packingProcessPlan.js`
+  - 定义了与后端交互的RESTful接口
+  - 包含getList、getById、create、update、deleteById等CRUD操作
+  - 提供了queryDailyScheduledHours和fixFieldCalculations等特殊功能接口
+
+### 辅助文件
+- **路由配置**：`/home/sardensy/enterprise-brain/enterpise-brain/07-frontend/src/router/modules/production-planning.js`
+  - 定义了打包工序计划的路由路径和权限
+
+- **排程引擎**：`/home/sardensy/enterprise-brain/enterpise-brain/07-frontend/src/utils/schedulingEngine.js`
+  - 提供了排程算法和逻辑支持
+  - 包含ProcessStep等核心排程类
+
+- **真工序计划组件**：`/home/sardensy/enterprise-brain/enterpise-brain/07-frontend/src/pages/production-planning/RealProcessPlanList.vue`
+  - 与打包工序计划共享部分逻辑和配置
+
+- **工序计划备份**：`/home/sardensy/enterprise-brain/enterpise-brain/07-frontend/src/pages/production-planning/ProcessPlanList.vue.backup`
+  - 包含历史版本的排程逻辑和字段计算
+
+## 3. 数据来源规则
+
+### 数据来源
+1. **销售订单系统**：销售订单编号、客户订单编号等订单信息
+2. **主生产计划**：主生产计划编号、产品信息等
+3. **备料计划**：备料计划编号、需补货数量等
+4. **产品物料库**：产品编号、产品名称、定时工额等产品信息
+5. **工序能力负荷表**：当天总工时、剩余工时等产能信息
+
+### 字段计算规则
+1. **需求工时计算**：
+   - 公式：`需求工时 = 需补货数量 / 定时工额`
+   - 触发条件：需补货数量或定时工额变化时
+
+2. **当天可用工时计算**：
+   - 公式：`工序当天可用工时 = 当天总工时 - 当天已排程工时`
+   - 触发条件：当天总工时或当天已排程工时变化时
+
+3. **计划排程工时计算**：
+   - 公式：`计划排程工时 = MIN(工序当天可用工时, 需求工时)`
+   - 触发条件：工序当天可用工时或需求工时变化时
+
+4. **计划排程数量计算**：
+   - 公式：`计划排程数量 = ceilng(计划排程工时 * 定时工额`,1)
+   - 触发条件：计划排程工时或定时工额变化时
+
+### 合并规则
+1. **按销售订单合并**：相同销售订单编号且相同计划物料编号合并排程
+2. **按来源主计划编号合并**：相同来源主计划编号且相同计划物料编号合并排程
+3. **按备料计划编号合并**：相同备料计划编号且相同计划物料编号合并排程
+4. **按需求日期合并**：相同需求日期且相同计划物料编号合并排程
+5. **按计划物料编号合并**：相同计划物料编号合并排程
+
+## 4. 触发规则
+
+### 自动计算触发
+1. **需求工时计算**：
+   ```javascript
+   watch(
+     () => [formData.value.replenishmentQty, formData.value.standardWorkQuota],
+     ([qty, quota]) => {
+       if (qty > 0 && quota > 0) {
+         formData.value.requiredWorkHours = parseFloat((qty / quota).toFixed(2))
+       } else {
+         formData.value.requiredWorkHours = 0
+       }
+     },
+     { deep: true }
+   )
+   ```
+
+2. **计划结束日期查询**：
+   - 前置条件：需求工时 > 0，且工序名称和计划完工日期已填写
+   - 调用capacityLoadApi.queryPlanEndDate获取计划结束日期
+   - 触发后自动调用计划开始日期查询
+
+3. **计划开始日期查询**：
+   - 前置条件：计划结束日期已确定
+   - 调用capacityLoadApi.queryPlanStartDate获取计划开始日期
+   - 同时计算真计划开始日期和计划排程日期
+
+4. **当天总工时查询**：
+   - 当计划排程日期变化时触发
+   - 查询工序能力负荷表获取当天总工时
+
+5. **当天已排程工时查询**：
+   - 当计划排程日期或工序名称变化时触发
+   - 调用packingProcessPlanApi.queryDailyScheduledHours获取已排程工时
+
+### 业务操作触发
+1. **修复字段计算**：
+   - 通过按钮手动触发
+   - 调用packingProcessPlanApi.fixFieldCalculations修复所有记录的自动计算字段
+
+2. **工序间隔设置**：
+   - 通过弹窗设置工序间的间隔时间
+   - 影响排程日期计算
+
+### 条件触发
+1. **计划开始/结束日期清空**：
+   - 当需求工时 <= 0时
+   - 当缺少工序名称或计划完工日期时
+
+2. **字段计算前置条件**：
+   - 需求工时计算：需补货数量 > 0 且 定时工额 > 0
+   - 计划排程工时计算：工序当天可用工时 > 0 且 需求工时 > 0
+   - 计划排程数量计算：计划排程工时 > 0 且 定时工额 > 0
+
+## 5. 技术实现细节
+
+### API接口
+```javascript
+// 获取打包工序计划列表
+export function getList(params)
+// 根据ID获取打包工序计划
+export function getById(id)
+// 创建打包工序计划
+export function create(data)
+// 更新打包工序计划
+export function update(id, data)
+// 删除打包工序计划
+export function deleteById(id)
+// 批量删除打包工序计划
+export function batchDelete(ids)
+// 查询当天已排程工时
+export function queryDailyScheduledHours(params)
+// 修复字段计算
+export function fixFieldCalculations()
+```
+
+### 核心业务变量
+- `minRemainingHours`：剩余工时门槛值（默认0.5小时）
+- `exportFilePrefix`：导出文件前缀
+- `defaultMergeRule`：默认合并规则（按来源主计划编号）
+
+### 关键函数
+- `calculateDailyAvailableHours()`：计算工序当天可用工时
+- `calculateScheduledWorkHours()`：计算计划排程工时
+- `calculateScheduleQuantity()`：计算计划排程数量
+- `queryPlanEndDate()`：查询计划结束日期
+- `queryPlanStartDate()`：查询计划开始日期
+
+## 6. 注意事项
+
+1. **数据一致性**：
+   - 打包工序计划与销售订单、主生产计划、备料计划保持数据同步
+   - 定时工额从产品物料库获取，确保准确性
+
+2. **排程逻辑**：
+   - 计划排程工时不超过工序当天可用工时
+   - 计划开始日期和结束日期基于工序能力负荷表计算
+
+3. **合并规则**：
+   - 合并规则影响排程的集中程度
+   - 可根据业务需求选择不同的合并维度
+
+4. **字段修复**：
+   - 当自动计算字段出现异常时，可使用修复功能重新计算
+   - 修复操作会影响所有记录，需谨慎使用
+
+5. **权限控制**：
+   - 不同用户角色可能有不同的操作权限
+   - 需遵循最小权限原则
+
+工序能力负荷表的数据库和后端代码
+数据库表：process_capacity_load（包含processName、date、totalHours、occupiedHours、remainingHours等字段）
+后端API：/backend/routes/capacityLoad.js（实现了完整的CRUD和各种查询接口）
+核心接口包括：
+GET /api/capacity-load/list（查询列表）
+POST /api/capacity-load/query-plan-start-date（查询计划开始日期）
+POST /api/capacity-load/query-plan-end-date（查询计划结束日期）
+POST /api/capacity-load/query-next-schedule-date（查询下一个排程日期）
+
+计算公式：下一个排程日期 = minifs(工序能力符合表的工序名称=当前工序的行的"工序名称"，工序能力符合表的剩余工时>=当前工序的行的"剩余工时小于"，工序能力符合表的日期>=当前工序的行的"计划排程日期")
+触发条件：当前行数据生成，且当前工序的行的"工序名称"发生变化，且"剩余工时小于"发生变化，且"计划排程日期"发生变化
+
+修正计算逻辑：在 calculateScheduleQuantity 函数中实现了正确的计算公式 计划排程数量 = ceiling(计划排程工时 * 定时工额, 1)，使用 Math.ceil() 进行向上取整
+添加自动触发机制：新增了 watch 监听器，监听 scheduledWorkHours（计划排程工时）和 standardWorkQuota（定时工额）的变化，确保这两个字段变化时能自动触发计划排程数量的计算
+

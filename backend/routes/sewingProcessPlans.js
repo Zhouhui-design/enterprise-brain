@@ -1,4 +1,5 @@
 const express = require('express');
+const customJsonStringify = require('../utils/custom-json-stringify');
 const router = express.Router();
 const sewingProcessPlanService = require('../services/sewingProcessPlanService');
 
@@ -25,17 +26,20 @@ router.get('/', async (req, res) => {
       scheduleDateEnd
     });
 
-    res.json({
+    res.setHeader('Content-Type', 'application/json');
+    res.send(customJsonStringify({
       code: 200,
       data: result,
       message: '查询成功'
-    });
+    }));
   } catch (error) {
     console.error('获取缝纫工序计划列表失败:', error);
-    res.status(500).json({
+    res.status(500);
+    res.setHeader('Content-Type', 'application/json');
+    res.send(customJsonStringify({
       code: 500,
       message: error.message
-    });
+    }));
   }
 });
 
@@ -45,23 +49,28 @@ router.get('/:id', async (req, res) => {
     const plan = await sewingProcessPlanService.getById(req.params.id);
     
     if (!plan) {
-      return res.status(404).json({
+      return res.status(404);
+    res.setHeader('Content-Type', 'application/json');
+    res.send(customJsonStringify({
         code: 404,
         message: '缝纫工序计划不存在'
-      });
+      }));
     }
 
-    res.json({
+    res.setHeader('Content-Type', 'application/json');
+    res.send(customJsonStringify({
       code: 200,
       data: plan,
       message: '查询成功'
-    });
+    }));
   } catch (error) {
     console.error('获取缝纫工序计划失败:', error);
-    res.status(500).json({
+    res.status(500);
+    res.setHeader('Content-Type', 'application/json');
+    res.send(customJsonStringify({
       code: 500,
       message: error.message
-    });
+    }));
   }
 });
 
@@ -70,17 +79,20 @@ router.post('/', async (req, res) => {
   try {
     const id = await sewingProcessPlanService.create(req.body);
     
-    res.json({
+    res.setHeader('Content-Type', 'application/json');
+    res.send(customJsonStringify({
       code: 200,
       data: { id },
       message: '创建成功'
-    });
+    }));
   } catch (error) {
     console.error('创建缝纫工序计划失败:', error);
-    res.status(500).json({
+    res.status(500);
+    res.setHeader('Content-Type', 'application/json');
+    res.send(customJsonStringify({
       code: 500,
       message: error.message
-    });
+    }));
   }
 });
 
@@ -89,16 +101,19 @@ router.put('/:id', async (req, res) => {
   try {
     await sewingProcessPlanService.update(req.params.id, req.body);
     
-    res.json({
+    res.setHeader('Content-Type', 'application/json');
+    res.send(customJsonStringify({
       code: 200,
       message: '更新成功'
-    });
+    }));
   } catch (error) {
     console.error('更新缝纫工序计划失败:', error);
-    res.status(500).json({
+    res.status(500);
+    res.setHeader('Content-Type', 'application/json');
+    res.send(customJsonStringify({
       code: 500,
       message: error.message
-    });
+    }));
   }
 });
 
@@ -107,16 +122,19 @@ router.delete('/:id', async (req, res) => {
   try {
     await sewingProcessPlanService.deleteById(req.params.id);
     
-    res.json({
+    res.setHeader('Content-Type', 'application/json');
+    res.send(customJsonStringify({
       code: 200,
       message: '删除成功'
-    });
+    }));
   } catch (error) {
     console.error('删除缝纫工序计划失败:', error);
-    res.status(500).json({
+    res.status(500);
+    res.setHeader('Content-Type', 'application/json');
+    res.send(customJsonStringify({
       code: 500,
       message: error.message
-    });
+    }));
   }
 });
 
@@ -126,24 +144,29 @@ router.post('/batch-delete', async (req, res) => {
     const { ids } = req.body;
     
     if (!ids || !Array.isArray(ids) || ids.length === 0) {
-      return res.status(400).json({
+      return res.status(400);
+    res.setHeader('Content-Type', 'application/json');
+    res.send(customJsonStringify({
         code: 400,
         message: '请提供要删除的ID数组'
-      });
+      }));
     }
 
     await sewingProcessPlanService.batchDelete(ids);
     
-    res.json({
+    res.setHeader('Content-Type', 'application/json');
+    res.send(customJsonStringify({
       code: 200,
       message: `成功删除${ids.length}条记录`
-    });
+    }));
   } catch (error) {
     console.error('批量删除缝纫工序计划失败:', error);
-    res.status(500).json({
+    res.status(500);
+    res.setHeader('Content-Type', 'application/json');
+    res.send(customJsonStringify({
       code: 500,
       message: error.message
-    });
+    }));
   }
 });
 

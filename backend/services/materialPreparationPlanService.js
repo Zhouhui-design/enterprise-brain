@@ -686,8 +686,15 @@ class MaterialPreparationPlanService {
         productImage: materialPlanData.productImage || materialPlanData.product_image || null,
         processManager: null, // 可从系统配置中获取
         processName: materialPlanData.sourceProcess || materialPlanData.source_process,
-        // ✅ 不设置计划排程数量，由前端根据计划排程工时和标准工额计算
-        scheduleQuantity: 0,
+        // 计划排程数量 = ceiling(排程工时 × 标准工时定额, 1)
+        scheduleQuantity: function() {
+          const scheduledWorkHours = this.scheduledWorkHours || 0;
+          const standardWorkQuota = this.standardWorkQuota || 0;
+          if (scheduledWorkHours > 0 && standardWorkQuota > 0) {
+            return Math.ceil(scheduledWorkHours * standardWorkQuota);
+          }
+          return 0;
+        }(),
         productUnit: materialPlanData.materialUnit || materialPlanData.material_unit || null,
         // ✅ 修复0阶需求数量 - 使用父件排程数量或需补货数量
         level0Demand: materialPlanData.parentScheduleQuantity || materialPlanData.parent_schedule_quantity || replenishmentQty,

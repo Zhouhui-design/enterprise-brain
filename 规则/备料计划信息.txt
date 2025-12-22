@@ -1,0 +1,185 @@
+## 2. 前端代码文件
+### 2.1 类型定义- **文件路径**: `/home/sardensy/enterprise-brain/enterpise-brain/07-frontend/src/features/material-preparation/types/index.ts`- **功能**: 定义备料计划的所有类型接口
+### 2.2 API服务层- **文件路径**: `/home/sardensy/enterprise-brain/enterpise-brain/07-frontend/src/features/material-preparation/services/materialPrepApi.ts`- **功能**: 封装与后端的HTTP通信
+### 2.3 业务逻辑层- **文件路径**: `/home/sardensy/enterprise-brain/enterpise-brain/07-frontend/src/features/material-preparation/composables/useMaterialPrepActions.ts`- **功能**: 提供备料计划的增删改查操作逻辑
+- **文件路径**: `/home/sardensy/enterprise-brain/enterpise-brain/07-frontend/src/features/material-preparation/composables/useMaterialPrepList.ts`- **功能**: 处理备料计划列表的数据加载和管理
+### 2.4 页面组件- **文件路径**: `/home/sardensy/enterprise-brain/enterpise-brain/07-frontend/src/pages/production-planning/MaterialPreparationPlan.vue`- **功能**: 备料计划列表页面
+- **文件路径**: `/home/sardensy/enterprise-brain/enterpise-brain/07-frontend/src/pages/production-planning/MaterialPreparationPlanNew.vue`- **功能**: 新增备料计划页面
+### 2.5 API接口定义- **文件路径**: `/home/sardensy/enterprise-brain/enterpise-brain/07-frontend/src/api/materialPreparationPlan.js`- **功能**: 定义所有备料计划相关的API接口
+### 2.6 路由配置- **文件路径**: `/home/sardensy/enterprise-brain/enterpise-brain/07-frontend/src/router/modules/production-planning.js`- **功能**: 配置备料计划相关的路由
+## 3. 后端API接口
+### 3.1 基础CRUD接口| 方法 | 路径 | 功能 ||------|------|------|| GET | `/material-preparation-plans` | 获取备料计划列表 || GET | `/material-preparation-plans/:id` | 获取单个备料计划详情 || POST | `/material-preparation-plans` | 创建备料计划 || PUT | `/material-preparation-plans/:id` | 更新备料计划 || DELETE | `/material-preparation-plans/:id` | 删除备料计划 |
+### 3.2 批量操作接口| 方法 | 路径 | 功能 ||------|------|------|| DELETE | `/material-preparation-plans/batch/delete` | 批量删除备料计划 |
+### 3.3 业务操作接口| 方法 | 路径 | 功能 ||------|------|------|| POST | `/material-preparation-plans/:id/push-to-process` | 推送到工序计划 |
+## 4. 后端代码（待实现）
+目前后端尚未实现备料计划的相关代码，需要在以下目录中创建：
+- `/home/sardensy/enterprise-brain/enterpise-brain/07-backend/routes/material-preparation-plans.js` - 路由定义- `/home/sardensy/enterprise-brain/enterpise-brain/07-backend/services/materialPreparationService.js` - 服务层- `/home/sardensy/enterprise-brain/enterpise-brain/07-backend/models/MaterialPreparationPlan.js` - 数据模型
+## 5. 数据流向
+1. **前端页面** → **业务逻辑层** (useMaterialPrepList/useMaterialPrepActions)2. **业务逻辑层** → **API服务层** (materialPrepApi.ts)3. **API服务层** → **后端API** (HTTP请求)4. **后端API** → **服务层** (MaterialPreparationService)5. **服务层** → **数据模型** (MaterialPreparationPlan)6. **数据模型** → **数据库**
+## 6. 技术栈
+- **前端框架**: Vue 3 + TypeScript- **状态管理**: Composition API- **UI组件**: Element Plus- **API通信**: Axios- **后端框架**: Express (待实现)- **数据库**: 待定 (待实现)
+## 7. 注意事项
+1. 备料计划与主生产计划、工序计划存在关联关系2. 推送到工序功能需要与工序计划模块协作3. 库存信息需要与库存管理模块实时同步4. 后端API需要支持分页、过滤和排序功能
+
+
+
+
+
+# 备料计划 数据来源规则与推送规则
+
+## 一、数据来源规则
+
+### 1. 数据来源类型
+备料计划的数据来源主要有两种：
+- **主生产计划** (`DataSourceType.MAIN_PLAN`)：由主生产计划生成的备料计划
+- **所有工序计划** (`DataSourceType.REAL_PROCESS_PLAN`)：由所有工序计划生成的备料计划
+
+### 2. 数据流向
+```
+销售订单 → 主生产计划 → 备料计划 → 所有工序计划 → 备料计划 （备料计划根据来源工序 推送到采购计划  和所有工序计划，直到不能再推送为止）
+```
+
+### 3. 字段映射规则
+
+#### 3.1 从主生产计划获取的字段
+| 备料计划字段 | 主生产计划对应字段 | 说明 |
+|-------------|------------------|------|
+| `sourcePlanNo` | 主生产计划编号 | 来源计划编号 |
+| `salesOrderNo` | 销售订单编号 | 关联的销售订单 |
+| `customerOrderNo` | 客户订单编号 | 关联的客户订单 |
+| `mainPlanProductCode` | 产品编号 | 主生产计划的产品编号 |
+| `mainPlanProductName` | 产品名称 | 主生产计划的产品名称 |
+| `mainPlanQuantity` | 计划数量 | 主生产计划的数量 |
+| `promiseDeliveryDate` | 承诺交货日期 | 主生产计划的交货日期 |
+
+#### 3.2 从所有工序计划获取的字段（前提确保所有工序计划的主表格字段一致）
+| 备料计划字段 | 真工序计划对应字段 | 说明 |
+|-------------|------------------|------|
+| `sourceProcessPlanNo` | 真工序计划编号 | 来源工序计划编号 |
+| `parentCode` | 父件编号 | 父件产品编号 |
+| `parentName` | 父件名称 | 父件产品名称 |
+| `parentScheduleQuantity` | 排程数量 | 父件排程数量 |
+| `sourceProcess` | 来源工序 | 来源工序名称 |
+| `workshopName` | 车间名称 | 来源车间名称 |
+| `parentProcessName` | 父工序名称 | 父工序名称 |
+| `processIntervalHours` | - | 工序间隔时间（小时） |
+| `processIntervalUnit` | - | 工序间隔单位（小时/天） |
+| `processScheduleDate` | 排程日期 | 工序排程日期 |
+
+### 4. 关键业务逻辑
+
+#### 4.1 需求日期计算规则
+```
+需求日期 (demandDate) = 工序计划日期 (processScheduleDate) - 工序间隔时间 (processIntervalHours)
+```
+
+- 间隔单位可配置为小时或天
+- 用于确定物料需要准备的最晚日期
+
+#### 4.2 库存计算规则
+- **实时库存** (`realtimeStock`)：当前实际库存数量
+- **预计结存** (`projectedBalance`)：考虑在途和待出库后的预计库存
+- **可用库存** (`availableStock`)：实际可用于生产的库存数量
+
+#### 4.3 MRP需求判断
+```
+needMrp = demandQuantity > availableStock
+```
+
+- 当需求数量大于可用库存时，需要进行MRP计算
+- 用于决定是否需要采购或生产更多物料
+
+## 二、推送规则
+
+### 1. 推送到工序计划
+
+#### 1.1 推送实现
+- **API路径**：`/material-preparation-plans/${id}/push-to-process`
+- **实现方法**：`useMaterialPrepActions.pushToProcess(row)`
+- **功能说明**：将备料计划推送到工序计划系统
+
+#### 1.2 推送合并规则
+备料计划推送到工序计划时，支持以下合并规则：
+
+| 合并规则 | 说明 | 默认值 |
+|---------|------|--------|
+| 按销售订单合并 | 相同"销售订单编号"且相同"计划物料编号"合并排程 | ❌ |
+| 按来源主计划编号合并 | 相同"来源主计划编号"且相同"计划物料编号"合并排程 | ✅ |
+| 按备料计划编号合并 | 相同"备料计划编号"且相同"计划物料编号"合并排程 | ❌ |
+| 按需求日期合并 | 相同"需求日期"且相同"计划物料编号"合并排程 | ❌ |
+| 按计划物料编号合并 | 相同"计划物料编号"合并排程 | ❌ |
+
+### 2. 从真工序计划推送
+
+#### 2.1 推送实现
+- **API路径**：`/real-process-plans/${id}/push-to-material`
+- **实现方法**：`pushToMaterialPreparation(id, processIntervalSettings)`
+- **功能说明**：将真工序计划的物料需求推送到备料计划系统
+
+#### 2.2 推送参数
+- `id`：真工序计划ID
+- `processIntervalSettings`：工序间隔设置，用于计算需求日期
+
+### 3. 推送到采购计划
+
+#### 3.1 功能概述
+- 备料计划包含 `pushToPurchase` 字段，用于标记是否需要推送到采购计划
+- 当前前端已标记该功能，但具体实现尚未完成
+
+### 4. 推送状态管理
+
+#### 4.1 状态字段
+- `pushToProcess`：标记是否已推送到工序计划
+- `pushToPurchase`：标记是否已推送到采购计划
+
+#### 4.2 状态更新
+- 推送成功后，对应状态字段会更新为 `true`
+- 可通过API查询当前推送状态
+
+## 三、技术实现
+
+### 1. 前端实现
+
+#### 1.1 核心文件
+- **类型定义**：`src/features/material-preparation/types/index.ts`
+- **API服务**：`src/features/material-preparation/services/materialPrepApi.ts`
+- **业务逻辑**：`src/features/material-preparation/composables/useMaterialPrepActions.ts`
+- **页面组件**：`src/pages/production-planning/MaterialPreparationPlanNew.vue`
+
+#### 1.2 关键API
+```typescript
+// 推送到工序计划
+async pushToProcess(id: number): Promise<any> {
+  const response = await request.post(`${this.basePath}/${id}/push-to-process`)
+  return response.data || response
+}
+```
+
+### 2. 后端实现
+
+#### 2.1 API路径
+- 备料计划管理：`/material-preparation-plans`
+- 推送工序计划：`/material-preparation-plans/:id/push-to-process`
+- 真工序计划推送：`/real-process-plans/:id/push-to-material`
+
+## 四、注意事项
+
+### 1. 数据一致性
+- 推送过程中需要确保数据一致性，避免重复推送或数据丢失
+- 建议实现幂等性检查
+
+### 2. 权限控制
+- 推送操作需要适当的权限控制，避免误操作
+
+### 3. 日志记录
+- 重要的推送操作需要记录日志，便于追踪和排查问题
+
+### 4. 异常处理
+- 推送失败时需要有合理的异常处理机制，提供清晰的错误信息
+
+---
+
+**文档创建时间**：2023-11-01
+**文档版本**：v1.0
+**最后更新**：2023-11-01
+

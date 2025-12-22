@@ -1,4 +1,5 @@
 const express = require('express');
+const customJsonStringify = require('../utils/custom-json-stringify');
 const router = express.Router();
 const realProcessPlanService = require('../services/realProcessPlanService');
 const realProcessPlanToMaterialService = require('../services/realProcessPlanToMaterialService');
@@ -26,17 +27,20 @@ router.get('/', async (req, res) => {
       scheduleDateEnd
     });
 
-    res.json({
+    res.setHeader('Content-Type', 'application/json');
+    res.send(customJsonStringify({
       code: 200,
       data: result,
       message: '查询成功'
-    });
+    }));
   } catch (error) {
     console.error('获取真工序计划列表失败:', error);
-    res.status(500).json({
+    res.status(500);
+    res.setHeader('Content-Type', 'application/json');
+    res.send(customJsonStringify({
       code: 500,
       message: error.message
-    });
+    }));
   }
 });
 
@@ -46,23 +50,28 @@ router.get('/:id', async (req, res) => {
     const plan = await realProcessPlanService.getById(req.params.id);
     
     if (!plan) {
-      return res.status(404).json({
+      return res.status(404);
+    res.setHeader('Content-Type', 'application/json');
+    res.send(customJsonStringify({
         code: 404,
         message: '真工序计划不存在'
-      });
+      }));
     }
 
-    res.json({
+    res.setHeader('Content-Type', 'application/json');
+    res.send(customJsonStringify({
       code: 200,
       data: plan,
       message: '查询成功'
-    });
+    }));
   } catch (error) {
     console.error('获取真工序计划失败:', error);
-    res.status(500).json({
+    res.status(500);
+    res.setHeader('Content-Type', 'application/json');
+    res.send(customJsonStringify({
       code: 500,
       message: error.message
-    });
+    }));
   }
 });
 
@@ -71,17 +80,20 @@ router.post('/', async (req, res) => {
   try {
     const id = await realProcessPlanService.create(req.body);
     
-    res.json({
+    res.setHeader('Content-Type', 'application/json');
+    res.send(customJsonStringify({
       code: 200,
       data: { id },
       message: '创建成功'
-    });
+    }));
   } catch (error) {
     console.error('创建真工序计划失败:', error);
-    res.status(500).json({
+    res.status(500);
+    res.setHeader('Content-Type', 'application/json');
+    res.send(customJsonStringify({
       code: 500,
       message: error.message
-    });
+    }));
   }
 });
 
@@ -90,16 +102,19 @@ router.put('/:id', async (req, res) => {
   try {
     await realProcessPlanService.update(req.params.id, req.body);
     
-    res.json({
+    res.setHeader('Content-Type', 'application/json');
+    res.send(customJsonStringify({
       code: 200,
       message: '更新成功'
-    });
+    }));
   } catch (error) {
     console.error('更新真工序计划失败:', error);
-    res.status(500).json({
+    res.status(500);
+    res.setHeader('Content-Type', 'application/json');
+    res.send(customJsonStringify({
       code: 500,
       message: error.message
-    });
+    }));
   }
 });
 
@@ -108,16 +123,19 @@ router.delete('/:id', async (req, res) => {
   try {
     await realProcessPlanService.deleteById(req.params.id);
     
-    res.json({
+    res.setHeader('Content-Type', 'application/json');
+    res.send(customJsonStringify({
       code: 200,
       message: '删除成功'
-    });
+    }));
   } catch (error) {
     console.error('删除真工序计划失败:', error);
-    res.status(500).json({
+    res.status(500);
+    res.setHeader('Content-Type', 'application/json');
+    res.send(customJsonStringify({
       code: 500,
       message: error.message
-    });
+    }));
   }
 });
 
@@ -127,24 +145,29 @@ router.post('/batch-delete', async (req, res) => {
     const { ids } = req.body;
     
     if (!ids || !Array.isArray(ids) || ids.length === 0) {
-      return res.status(400).json({
+      return res.status(400);
+    res.setHeader('Content-Type', 'application/json');
+    res.send(customJsonStringify({
         code: 400,
         message: '请提供要删除的ID数组'
-      });
+      }));
     }
 
     await realProcessPlanService.batchDelete(ids);
     
-    res.json({
+    res.setHeader('Content-Type', 'application/json');
+    res.send(customJsonStringify({
       code: 200,
       message: `成功删除${ids.length}条记录`
-    });
+    }));
   } catch (error) {
     console.error('批量删除真工序计划失败:', error);
-    res.status(500).json({
+    res.status(500);
+    res.setHeader('Content-Type', 'application/json');
+    res.send(customJsonStringify({
       code: 500,
       message: error.message
-    });
+    }));
   }
 });
 
@@ -154,17 +177,20 @@ router.post('/fix-field-calculations', async (req, res) => {
     const RealProcessPlanFieldFixService = require('../services/realProcessPlanFieldFixService');
     const results = await RealProcessPlanFieldFixService.fixAllFields();
     
-    res.json({
+    res.setHeader('Content-Type', 'application/json');
+    res.send(customJsonStringify({
       code: 200,
       data: results,
       message: '真工序计划字段修复完成'
-    });
+    }));
   } catch (error) {
     console.error('修复真工序计划字段失败:', error);
-    res.status(500).json({
+    res.status(500);
+    res.setHeader('Content-Type', 'application/json');
+    res.send(customJsonStringify({
       code: 500,
       message: error.message
-    });
+    }));
   }
 });
 
@@ -177,10 +203,12 @@ router.post('/:id/push-to-material', async (req, res) => {
     // 获取真工序计划详情
     const plan = await realProcessPlanService.getById(id);
     if (!plan) {
-      return res.status(404).json({
+      return res.status(404);
+    res.setHeader('Content-Type', 'application/json');
+    res.send(customJsonStringify({
         code: 404,
         message: '真工序计划不存在'
-      });
+      }));
     }
     
     // 执行推送
@@ -189,13 +217,16 @@ router.post('/:id/push-to-material', async (req, res) => {
       processIntervalSettings
     );
     
-    res.json(result);
+    res.setHeader('Content-Type', 'application/json');
+    res.send(customJsonStringify(result));
   } catch (error) {
     console.error('推送到备料计划失败:', error);
-    res.status(500).json({
+    res.status(500);
+    res.setHeader('Content-Type', 'application/json');
+    res.send(customJsonStringify({
       code: 500,
       message: error.message
-    });
+    }));
   }
 });
 

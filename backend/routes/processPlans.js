@@ -1,4 +1,5 @@
 const express = require('express');
+const customJsonStringify = require('../utils/custom-json-stringify');
 const router = express.Router();
 const ProcessPlanService = require('../services/processPlanService');
 
@@ -39,17 +40,20 @@ router.get('/', async (req, res) => {
       console.log('- processName值:', result.records[0].processName);
     }
     
-    res.json({
+    res.setHeader('Content-Type', 'application/json');
+    res.send(customJsonStringify({
       code: 200,
       data: result,
       message: '查询成功'
-    });
+    }));
   } catch (error) {
     console.error('❌ 查询工序计划列表失败:', error);
-    res.status(500).json({
+    res.status(500);
+    res.setHeader('Content-Type', 'application/json');
+    res.send(customJsonStringify({
       code: 500,
       message: '查询失败: ' + error.message
-    });
+    }));
   }
 });
 
@@ -65,23 +69,28 @@ router.get('/:id', async (req, res) => {
     const plan = await ProcessPlanService.getById(id);
     
     if (!plan) {
-      return res.status(404).json({
+      return res.status(404);
+    res.setHeader('Content-Type', 'application/json');
+    res.send(customJsonStringify({
         code: 404,
         message: '工序计划不存在'
-      });
+      }));
     }
     
-    res.json({
+    res.setHeader('Content-Type', 'application/json');
+    res.send(customJsonStringify({
       code: 200,
       data: plan,
       message: '查询成功'
-    });
+    }));
   } catch (error) {
     console.error('❌ 查询工序计划详情失败:', error);
-    res.status(500).json({
+    res.status(500);
+    res.setHeader('Content-Type', 'application/json');
+    res.send(customJsonStringify({
       code: 500,
       message: '查询失败: ' + error.message
-    });
+    }));
   }
 });
 
@@ -104,17 +113,21 @@ router.post('/', async (req, res) => {
     
     const result = await ProcessPlanService.create(planData);
     
-    res.status(201).json({
+    res.status(201);
+    res.setHeader('Content-Type', 'application/json');
+    res.send(customJsonStringify({
       code: 201,
       data: result,
       message: '创建成功'
-    });
+    }));
   } catch (error) {
     console.error('❌ 创建工序计划失败:', error);
-    res.status(500).json({
+    res.status(500);
+    res.setHeader('Content-Type', 'application/json');
+    res.send(customJsonStringify({
       code: 500,
       message: '创建失败: ' + error.message
-    });
+    }));
   }
 });
 
@@ -130,17 +143,20 @@ router.put('/:id', async (req, res) => {
     
     const result = await ProcessPlanService.update(id, planData);
     
-    res.json({
+    res.setHeader('Content-Type', 'application/json');
+    res.send(customJsonStringify({
       code: 200,
       data: result,
       message: '更新成功'
-    });
+    }));
   } catch (error) {
     console.error('❌ 更新工序计划失败:', error);
-    res.status(500).json({
+    res.status(500);
+    res.setHeader('Content-Type', 'application/json');
+    res.send(customJsonStringify({
       code: 500,
       message: '更新失败: ' + error.message
-    });
+    }));
   }
 });
 
@@ -155,16 +171,19 @@ router.delete('/:id', async (req, res) => {
     
     await ProcessPlanService.delete(id);
     
-    res.json({
+    res.setHeader('Content-Type', 'application/json');
+    res.send(customJsonStringify({
       code: 200,
       message: '删除成功'
-    });
+    }));
   } catch (error) {
     console.error('❌ 删除工序计划失败:', error);
-    res.status(500).json({
+    res.status(500);
+    res.setHeader('Content-Type', 'application/json');
+    res.send(customJsonStringify({
       code: 500,
       message: '删除失败: ' + error.message
-    });
+    }));
   }
 });
 
@@ -178,25 +197,30 @@ router.post('/batch-delete', async (req, res) => {
     console.log('🗑️ 批量删除工序计划, IDs:', ids);
     
     if (!ids || !Array.isArray(ids) || ids.length === 0) {
-      return res.status(400).json({
+      return res.status(400);
+    res.setHeader('Content-Type', 'application/json');
+    res.send(customJsonStringify({
         code: 400,
         message: '请提供要删除的ID列表'
-      });
+      }));
     }
     
     const result = await ProcessPlanService.batchDelete(ids);
     
-    res.json({
+    res.setHeader('Content-Type', 'application/json');
+    res.send(customJsonStringify({
       code: 200,
       data: result,
       message: `批量删除成功: ${result.successCount}/${result.totalCount}`
-    });
+    }));
   } catch (error) {
     console.error('❌ 批量删除工序计划失败:', error);
-    res.status(500).json({
+    res.status(500);
+    res.setHeader('Content-Type', 'application/json');
+    res.send(customJsonStringify({
       code: 500,
       message: '批量删除失败: ' + error.message
-    });
+    }));
   }
 });
 
@@ -208,17 +232,20 @@ router.post('/fix-standard-work-quota', async (req, res) => {
     console.log('🔧 收到修复定时工额请求...');
     const result = await fixProcessPlanStandardWorkQuota();
     
-    res.json({
+    res.setHeader('Content-Type', 'application/json');
+    res.send(customJsonStringify({
       code: 200,
       data: result,
       message: '定时工额修复完成'
-    });
+    }));
   } catch (error) {
     console.error('❌ 修复定时工额失败:', error);
-    res.status(500).json({
+    res.status(500);
+    res.setHeader('Content-Type', 'application/json');
+    res.send(customJsonStringify({
       code: 500,
       message: '修复定时工额失败: ' + error.message
-    });
+    }));
   }
 });
 

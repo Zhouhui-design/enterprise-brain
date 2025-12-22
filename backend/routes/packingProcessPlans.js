@@ -1,6 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const packingProcessPlanService = require('../services/packingProcessPlanService');
+const customJsonStringify = require('../utils/custom-json-stringify');
 
 // 获取打包工序计划列表(分页+搜索)
 router.get('/', async (req, res) => {
@@ -26,19 +27,23 @@ router.get('/', async (req, res) => {
     });
 
     const response = {
-      list: result.records,
-      total: result.total
+      code: 200,
+      data: {
+        records: result.records,
+        total: result.total
+      },
+      message: '查询成功'
     };
     res.setHeader('Content-Type', 'application/json');
-    res.send(JSON.stringify(response));
+    res.send(customJsonStringify(response));
   } catch (error) {
     console.error('获取打包工序计划列表失败:', error);
-    const errorResponse = {
+    res.status(500);
+    res.setHeader('Content-Type', 'application/json');
+    res.send(customJsonStringify({
       code: 500,
       message: error.message
-    };
-    res.setHeader('Content-Type', 'application/json');
-    res.status(500).send(JSON.stringify(errorResponse));
+    }));
   }
 });
 
@@ -48,23 +53,28 @@ router.get('/:id', async (req, res) => {
     const plan = await packingProcessPlanService.getById(req.params.id);
     
     if (!plan) {
-      return res.status(404).json({
+      res.status(404);
+      res.setHeader('Content-Type', 'application/json');
+      return res.send(customJsonStringify({
         code: 404,
         message: '打包工序计划不存在'
-      });
+      }));
     }
 
-    res.json({
+    res.setHeader('Content-Type', 'application/json');
+    res.send(customJsonStringify({
       code: 200,
       data: plan,
       message: '查询成功'
-    });
+    }));
   } catch (error) {
     console.error('获取打包工序计划失败:', error);
-    res.status(500).json({
+    res.status(500);
+    res.setHeader('Content-Type', 'application/json');
+    res.send(customJsonStringify({
       code: 500,
       message: error.message
-    });
+    }));
   }
 });
 
@@ -73,17 +83,20 @@ router.post('/', async (req, res) => {
   try {
     const id = await packingProcessPlanService.create(req.body);
     
-    res.json({
+    res.setHeader('Content-Type', 'application/json');
+    res.send(customJsonStringify({
       code: 200,
       data: { id },
       message: '创建成功'
-    });
+    }));
   } catch (error) {
     console.error('创建打包工序计划失败:', error);
-    res.status(500).json({
+    res.status(500);
+    res.setHeader('Content-Type', 'application/json');
+    res.send(customJsonStringify({
       code: 500,
       message: error.message
-    });
+    }));
   }
 });
 
@@ -92,16 +105,19 @@ router.put('/:id', async (req, res) => {
   try {
     await packingProcessPlanService.update(req.params.id, req.body);
     
-    res.json({
+    res.setHeader('Content-Type', 'application/json');
+    res.send(customJsonStringify({
       code: 200,
       message: '更新成功'
-    });
+    }));
   } catch (error) {
     console.error('更新打包工序计划失败:', error);
-    res.status(500).json({
+    res.status(500);
+    res.setHeader('Content-Type', 'application/json');
+    res.send(customJsonStringify({
       code: 500,
       message: error.message
-    });
+    }));
   }
 });
 
@@ -110,16 +126,19 @@ router.delete('/:id', async (req, res) => {
   try {
     await packingProcessPlanService.delete(req.params.id);
     
-    res.json({
+    res.setHeader('Content-Type', 'application/json');
+    res.send(customJsonStringify({
       code: 200,
       message: '删除成功'
-    });
+    }));
   } catch (error) {
     console.error('删除打包工序计划失败:', error);
-    res.status(500).json({
+    res.status(500);
+    res.setHeader('Content-Type', 'application/json');
+    res.send(customJsonStringify({
       code: 500,
       message: error.message
-    });
+    }));
   }
 });
 
@@ -136,17 +155,20 @@ router.post('/batch-delete', async (req, res) => {
     
     const result = await packingProcessPlanService.batchDelete(ids);
     
-    res.json({
+    res.setHeader('Content-Type', 'application/json');
+    res.send(customJsonStringify({
       code: 200,
       data: result,
-      message: '批量删除成功'
-    });
+      message: '查询成功'
+    }));
   } catch (error) {
     console.error('批量删除打包工序计划失败:', error);
-    res.status(500).json({
+    res.status(500);
+    res.setHeader('Content-Type', 'application/json');
+    res.send(customJsonStringify({
       code: 500,
       message: error.message
-    });
+    }));
   }
 });
 
@@ -169,11 +191,12 @@ router.get('/query-daily-scheduled-hours', async (req, res) => {
       excludeId 
     });
     
-    res.json({
+    res.setHeader('Content-Type', 'application/json');
+    res.send(customJsonStringify({
       code: 200,
       data: result,
       message: '查询成功'
-    });
+    }));
   } catch (error) {
     console.error('查询当天已排程工时失败:', error);
     res.status(500).json({

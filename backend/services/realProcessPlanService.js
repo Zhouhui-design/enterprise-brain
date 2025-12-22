@@ -901,16 +901,15 @@ class RealProcessPlanService {
   }
 
   /**
-   * ✅ 检查并创建自增行（递归排程）
+   * ✅ 检查并创建自增行（递归排程） - 已禁用
    * @param {number} sourceRecordId - 来源记录ID
    * @param {number} maxDepth - 最大递归深度（防止无限循环）
    * @param {number} currentDepth - 当前递归深度
    */
   static async checkAndCreateIncremental(sourceRecordId, maxDepth = 100, currentDepth = 0) {
-    if (currentDepth >= maxDepth) {
-      console.log(`⚠️ 达到最大递归深度${maxDepth}，停止自增`);
-      return;
-    }
+    // 真工序计划已禁用自增功能
+    console.log(`❌ [自增功能已禁用] 真工序计划(realProcessPlanService)不支持自增操作`);
+    return;
 
     const connection = await pool.getConnection();
     try {

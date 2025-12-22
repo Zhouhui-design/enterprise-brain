@@ -1,0 +1,20 @@
+核心功能：显示各工序在不同日期的能力负荷情况，支持搜索、编辑和自动计算
+计算逻辑：
+剩余工时 = (上班时段 × 可用工位数量) - 已占用工时
+剩余时段 = 剩余工时 ÷ 可用工位数量
+上班时段自动从企业日历同步（仅工作日）
+主要操作：
+重置上班时段、剩余工时、占用工时
+导出数据
+页面设置（显示天数）
+/home/sardensy/enterprise-brain/enterpise-brain/new-project/backend/models/CapacityLoad.js
+/home/sardensy/enterprise-brain/enterpise-brain/07-frontend/src/pages/mrp/CapacityLoad.vue
+核心字段
+processName: 工序名称
+date: 日期
+availableWorkstations: 可用工位数量
+workShift: 上班时段
+occupiedHours: 已占用工时
+remainingHours: 剩余工时
+remainingShift: 剩余时段
+overtimeShift: 加班时段

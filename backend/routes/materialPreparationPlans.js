@@ -7,7 +7,7 @@ router.get('/', async (req, res) => {
   try {
     const { page = 1, pageSize = 20, planNo, sourcePlanNo, materialCode, demandDateStart, demandDateEnd } = req.query;
     
-    const result = await MaterialPreparationPlanService.getAllMaterialPreparationPlans({
+    const result = await MaterialPreparationPlanService.getAll({
       page,
       pageSize,
       planNo,

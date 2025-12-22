@@ -64,9 +64,13 @@ service.interceptors.response.use(
         window.location.href = '/login'
       })
       return Promise.reject(new Error('登录状态已过期'))
-    } else {
+    } else if (data.code) {
+      // 有code但不是200
       ElMessage.error(data.message || '请求失败')
       return Promise.reject(new Error(data.message || '请求失败'))
+    } else {
+      // 无code字段，直接返回数据（兼容旧版API）
+      return data
     }
   },
   error => {

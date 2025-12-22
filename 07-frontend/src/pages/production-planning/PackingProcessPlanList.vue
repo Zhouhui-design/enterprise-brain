@@ -1399,6 +1399,109 @@ const handleDelete = (row) => {
   }).catch(() => {})
 }
 
+// ✅ 循环自增函数：只在创建成功后执行，不在刷新时执行
+const performAutoIncrement = async (initialRecord) => {
+  const maxIterations = 100
+  const processedRecords = new Set() // 防止重复处理
+  let iteration = 0
+  let totalNewRecords = 0
+  
+  // 将初始记录标记为已处理
+  processedRecords.add(initialRecord.planNo || initialRecord.plan_no)
+  
+  console.log('🔄 开始循环自增，初始记录:', initialRecord)
+  
+  // 获取当前所有记录（包括刚创建的）
+  const currentData = await api.getList({ page: 1, pageSize: 1000 })
+  let allRecords = currentData.records || []
+  
+  while (iteration < maxIterations) {
+    iteration++
+    console.log(`\n🔄 [自增循环 ${iteration}] 检查是否有未排数量>0的记录... (已生成${totalNewRecords}条)`)
+    
+    const newRecords = []
+    
+    // 检查所有记录，找出需要自增的记录
+    for (const row of allRecords) {
+      // 检查条件：
+      // 1. 未被处理过
+      // 2. 未排数量>0
+      // 3. 有下一个计划排程日期1
+      const planNo = row.planNo || row.plan_no
+      const unscheduledQty = parseFloat(row.unscheduledQty || row.unscheduled_qty || 0)
+      const nextScheduleDate1 = row.nextScheduleDate1 || row.next_schedule_date1
+      
+      if (!processedRecords.has(planNo) && unscheduledQty > 0 && nextScheduleDate1) {
+        console.log(`🎯 找到需要自增的记录: ${planNo}, 未排数量=${unscheduledQty}, 下一个计划排程日期1=${nextScheduleDate1}`)
+        
+        // 生成新记录
+        const newPlanNo = generatePlanNo()
+        const newRecord = {
+          planNo: newPlanNo,
+          scheduleDate: nextScheduleDate1, // 将来源行的下一个计划排程日期1作为新增行的计划排程日期
+          salesOrderNo: row.salesOrderNo || row.sales_order_no,
+          masterPlanNo: row.masterPlanNo || row.master_plan_no,
+          shippingPlanNo: row.shippingPlanNo || row.shipping_plan_no,
+          productCode: row.productCode || row.product_code,
+          productName: row.productName || row.product_name,
+          productImage: row.productImage || row.product_image,
+          processManager: row.processManager || row.process_manager,
+          processName: row.processName || row.process_name,
+          productUnit: row.productUnit || row.product_unit,
+          level0Demand: row.level0Demand || row.level0_demand,
+          completionDate: row.completionDate || row.completion_date,
+          planEndDate: row.planEndDate || row.plan_end_date,
+          workshopName: row.workshopName || row.workshop_name,
+          standardWorkQuota: row.standardWorkQuota || row.standard_work_quota,
+          standardWorkHours: row.standardWorkHours || row.standard_work_hours,
+          replenishmentQty: row.replenishmentQty || row.replenishment_qty,
+          sourceNo: row.sourceNo || row.source_no,
+          customerName: row.customerName || row.customer_name,
+          bomNo: row.bomNo || row.bom_no,
+          hierarchyAddress: row.hierarchyAddress || row.hierarchy_address,
+          submittedBy: row.submittedBy || row.submitted_by,
+          scheduleCount: (parseFloat(row.scheduleCount || row.schedule_count || 0) + 1),
+          requiredWorkHours: row.remainingRequiredHours || row.remaining_required_hours || 0,
+          planStartDate: null,
+          realPlanStartDate: null,
+          cumulativeScheduleQty: row.cumulativeScheduleQty || row.cumulative_schedule_qty || 0,
+          nextScheduleDate: null,
+          nextScheduleDate1: null
+        }
+        
+        newRecords.push(newRecord)
+        processedRecords.add(planNo)
+        console.log(`✅ 生成新记录: ${newPlanNo}, 计划排程日期: ${nextScheduleDate1}, 排程次数: ${newRecord.scheduleCount}`)
+      }
+    }
+    
+    // 如果没有新记录，退出循环
+    if (newRecords.length === 0) {
+      console.log(`✅ [自增循环结束] 所有记录的未排数量都=0，共循环${iteration}次，生成${totalNewRecords}条新记录`)
+      break
+    }
+    
+    // 保存新生成的记录
+    for (const newRecord of newRecords) {
+      try {
+        // 计算新记录的排程字段
+        // 这里可以根据需要添加计算逻辑
+        await api.create(newRecord)
+        totalNewRecords++
+      } catch (error) {
+        console.error(`❌ 创建新记录失败: ${newRecord.planNo}`, error)
+      }
+    }
+    
+    // 更新所有记录列表，包括新生成的记录
+    const updatedData = await api.getList({ page: 1, pageSize: 1000 })
+    allRecords = updatedData.records || []
+    
+  }
+  
+  console.log(`✅ 循环自增完成，共生成 ${totalNewRecords} 条新记录`)
+}
+
 const handleSave = () => {
   formRef.value.validate(async (valid) => {
     if (valid) {
@@ -1411,12 +1514,19 @@ const handleSave = () => {
         
         console.log(`📋 [保存] 移除不需要传递的字段后的数据:`, saveData)
         
+        let createdRecord
         if (isEdit.value) {
           await api.updateById(saveData.id, saveData)
           ElMessage.success('更新成功')
         } else {
-          await api.create(saveData)
+          createdRecord = await api.create(saveData)
           ElMessage.success('新增成功')
+          
+          // 步骤：检查是否需要循环自增（未排数量>0）
+          if (formData.value.unscheduledQty && parseFloat(formData.value.unscheduledQty) > 0) {
+            console.log('🔄 检测到未排数量>0，开始循环自增...')
+            await performAutoIncrement(createdRecord)
+          }
         }
         dialogVisible.value = false
         loadData()
