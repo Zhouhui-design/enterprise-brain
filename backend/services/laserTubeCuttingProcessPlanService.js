@@ -927,8 +927,8 @@ class LaserTubeCuttingProcessPlanService {
       console.log(`   下一个排程日期1: ${nextScheduleDate1}`);
       console.log(`   剩余需求工时: ${remainingRequiredHours}`);
 
-      // 自增触发条件：AND(未排数量>0，计划排程日期不为空，下一个排程日期1不为空，排程次数不为空，剩余需求工时不为空，未排数量不为空，需补货数量不为空）
-      if (!(unscheduledQty > 0 && scheduleDate && nextScheduleDate1 && scheduleCount > 0 && remainingRequiredHours !== null && replenishmentQty > 0)) {
+      // 自增触发条件：未排数量>0 且 下一个排程日期1不为空 且 剩余需求工时不为空
+      if (!(unscheduledQty > 0 && nextScheduleDate1 && remainingRequiredHours !== null)) {
         console.log(`✅ 不满足自增条件，停止递归`);
         return;
       }
