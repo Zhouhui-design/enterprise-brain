@@ -415,6 +415,8 @@ const updateStats = () => {
   stats.value.active = tableData.value.length
   const categories = new Set(tableData.value.map(m => m.majorCategory))
   stats.value.categories = categories.size
+  // 保存数据到本地存储
+  saveMaterialsToLocal(tableData.value)
 }
 
 // 表格选择变化
@@ -669,9 +671,7 @@ const handleImportConfirm = async () => {
     }
     
     // 准备批量导入的数据
-    const materialsToImport = []
-    let addedCount = 0
-    let updatedCount = 0
+    const importRequests = []
     let skipCount = 0
     
     // 遍历导入的数据，转换为后端格式
@@ -715,42 +715,101 @@ const handleImportConfirm = async () => {
           continue
         }
         
-        materialsToImport.push(materialData)
+        importRequests.push(materialData)
       } catch (error) {
         console.error(`处理数据失败:`, item, error)
         skipCount++
       }
     }
     
-    console.log(`准备导入 ${materialsToImport.length} 条数据，跳过 ${skipCount} 条`)
+    console.log(`准备导入 ${importRequests.length} 条数据，跳过 ${skipCount} 条`)
     
-    if (materialsToImport.length === 0) {
+    if (importRequests.length === 0) {
       ElMessage.warning('没有有效数据可导入')
       importDialogVisible.value = false
       return
     }
     
-    // 调用后端批量导入接口
-    const response = await fetch('http://192.168.2.229:3005/api/materials/batch-create', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(materialsToImport)
-    })
-    const result = await response.json()
-    
-    console.log('导入结果:', result)
-    
-    if (result.code === 200) {
-      // 重新加载所有数据
-      const reloadedMaterials = await databaseService.getAllMaterials()
-      tableData.value = reloadedMaterials
-      updateStats()
+    try {
+      // 调用后端API批量创建
+      const response = await materialApiService.batchCreateMaterials(importRequests)
+      const result = response.data
       
-      ElMessage.success(`导入成功！成功 ${result.data.successCount} 条，失败 ${result.data.errorCount} 条，跳过 ${skipCount} 条`)
+      if (result.code === 200) {
+        ElMessage.success(`导入成功！成功 ${result.data.successCount} 条，失败 ${result.data.errorCount} 条，跳过 ${skipCount} 条`)
+        importDialogVisible.value = false
+        await handleRefresh()
+      } else {
+        ElMessage.error(result.message || '导入失败')
+      }
+    } catch (apiError) {
+      console.error('API导入失败，使用本地存储:', apiError)
+      
+      // API失败，使用本地存储
+      let successCount = 0
+      const newMaterials = importedData.map(item => {
+        try {
+          const materialCode = item['物料编码'] || ''
+          if (!materialCode) {
+            return null
+          }
+          
+          const material = {
+            id: Date.now() + Math.random(), // 生成临时ID
+            materialCode: materialCode,
+            bomNumber: item['BOM编号'] || '',
+            materialName: item['物料名称'] || '',
+            sizeSpec: item['尺寸规格'] || '',
+            color: item['颜色'] || '',
+            material: item['材质'] || '',
+            majorCategory: item['大类'] || '',
+            middleCategory: item['中类'] || '',
+            minorCategory: item['小类'] || '',
+            model: item['型号'] || '',
+            series: item['系列'] || '',
+            source: Array.isArray(item['来源']) ? item['来源'] : (item['来源'] ? [item['来源']] : []),
+            description: item['物料详述'] || '',
+            materialImage: item['物料图片'] || '',
+            baseUnit: item['基础单位'] || '个',
+            saleUnit: item['销售单位'] || '',
+            saleConversionRate: parseFloat(item['销售转化率']) || 0,
+            purchaseUnit: item['采购单位'] || '',
+            purchaseConversionRate: parseFloat(item['采购转化率']) || 0,
+            kgPerPcs: parseFloat(item['kg/pcs']) || 0,
+            pcsPerKg: parseFloat(item['pcs/kg']) || 0,
+            processName: item['产出工序名称'] || '',
+            standardTime: parseFloat(item['定时工额']) || 0,
+            quotaTime: parseFloat(item['定额工时']) || 0,
+            processPrice: parseFloat(item['工序单价']) || 0,
+            purchaseCycle: item['采购周期'] || '',
+            purchasePrice: parseFloat(item['采购单价']) || 0,
+            basePrice: parseFloat(item['基础单价']) || 0,
+            status: '在用',
+            createTime: new Date().toLocaleString('zh-CN')
+          }
+          
+          // 检查是否已存在
+          const existingIndex = tableData.value.findIndex(m => m.materialCode === material.materialCode)
+          if (existingIndex !== -1) {
+            // 更新现有记录
+            tableData.value[existingIndex] = material
+          } else {
+            // 添加新记录
+            tableData.value.push(material)
+          }
+          successCount++
+          return material
+        } catch (error) {
+          console.error(`处理单个物料失败:`, item, error)
+          return null
+        }
+      }).filter(m => m !== null)
+      
+      updateStats()
+      // 保存到本地存储
+      localStorage.setItem('materialListData', JSON.stringify(tableData.value))
       importDialogVisible.value = false
-    } else {
-      ElMessage.error(result.message || '导入失败')
-      importDialogVisible.value = false
+      ElMessage.success(`本地导入成功！成功处理 ${successCount} 条记录，跳过 ${skipCount} 条`)
     }
   } catch (error) {
     console.error('导入失败:', error)
@@ -841,7 +900,18 @@ const handleRefresh = async () => {
     ElMessage.success('刷新成功')
   } catch (error) {
     console.error('刷新失败:', error)
-    ElMessage.error('刷新失败: ' + error.message)
+    // 尝试从本地存储加载
+    const cachedMaterials = loadMaterialsFromLocal()
+    if (cachedMaterials.length > 0) {
+      tableData.value = cachedMaterials
+      // 更新下一个ID
+      const maxId = cachedMaterials.length > 0 ? Math.max(...cachedMaterials.map(m => m.id)) : 0
+      nextMaterialId.value = maxId + 1
+      updateStats()
+      ElMessage.success('从本地存储刷新数据成功')
+    } else {
+      ElMessage.error('刷新失败: ' + error.message)
+    }
   }
 }
 
@@ -908,20 +978,51 @@ const handleSavePageSettings = (settings) => {
   }
 }
 
+// 本地存储键名
+const MATERIAL_LIST_KEY = 'materialListData'
+
+// 从本地存储加载物料数据
+const loadMaterialsFromLocal = () => {
+  try {
+    const cached = localStorage.getItem(MATERIAL_LIST_KEY)
+    if (cached) {
+      return JSON.parse(cached)
+    }
+  } catch (error) {
+    console.error('❌ 从本地存储加载数据失败:', error)
+  }
+  return []
+}
+
+// 保存物料数据到本地存储
+const saveMaterialsToLocal = (data) => {
+  try {
+    localStorage.setItem(MATERIAL_LIST_KEY, JSON.stringify(data))
+    console.log('✅ 物料数据已保存到本地存储')
+  } catch (error) {
+    console.error('❌ 保存数据到本地存储失败:', error)
+  }
+}
+
 // 生命周期
 onMounted(async () => {
   try {
-    // 从后端加载物料数据（不再需要初始化IndexedDB）
+    // 从后端加载物料数据
     const materials = await databaseService.getAllMaterials()
     if (Array.isArray(materials) && materials.length > 0) {
       tableData.value = materials
+      // 保存到本地存储作为备份
+      saveMaterialsToLocal(materials)
     }
-    
-    // 后端API不需要获取下一个ID，数据库会自动生成
-    // nextMaterialId.value = await databaseService.getNextMaterialId()
   } catch (error) {
     console.error('数据加载失败:', error)
     ElMessage.warning('无法连接到后端服务器，请确保后端服务正在运行（npm run backend）')
+    // 尝试从本地存储加载
+    const cachedMaterials = loadMaterialsFromLocal()
+    if (cachedMaterials.length > 0) {
+      tableData.value = cachedMaterials
+      ElMessage.success('从本地存储加载数据成功')
+    }
   }
   
   const updateTableHeight = () => {

@@ -327,7 +327,7 @@
         <el-dialog
           title="预览图片"
           :visible.sync="previewDialogVisible"
-          width="50%
+          width="50%"
         >
           <img :src="previewImageUrl" class="preview-img" alt="预览图片">
         </el-dialog>

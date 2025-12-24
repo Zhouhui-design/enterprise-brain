@@ -275,6 +275,7 @@ import { ElMessage, ElMessageBox } from 'element-plus'
 import { Setting } from '@element-plus/icons-vue'
 import EnhancedTable from '@/components/common/EnhancedTable.vue'
 import PageSettings from '@/components/common/PageSettings.vue'
+import request from '@/utils/request'
 
 const loading = ref(false)
 const tableData = ref([])
@@ -457,27 +458,20 @@ const loadData = async () => {
   try {
     loading.value = true
     
-    const params = new URLSearchParams({
+    const params = {
       page: currentPage.value,
       pageSize: pageSize.value
-    })
+    }
     
     if (searchForm.value.dateRange && searchForm.value.dateRange.length === 2) {
-      params.append('startDate', searchForm.value.dateRange[0])
-      params.append('endDate', searchForm.value.dateRange[1])
+      params.startDate = searchForm.value.dateRange[0]
+      params.endDate = searchForm.value.dateRange[1]
     }
     
-    const response = await fetch(
-      `http://192.168.2.229:3005/api/company-calendar/list?${params.toString()}`
-    )
-    const result = await response.json()
+    const result = await request.get('/company-calendar/list', params)
     
-    if (result.code === 200) {
-      tableData.value = result.data.records
-      total.value = result.data.total
-    } else {
-      ElMessage.error(result.message || '加载数据失败')
-    }
+    tableData.value = result.records
+    total.value = result.total
   } catch (error) {
     console.error('加载数据失败:', error)
     ElMessage.error('加载数据失败')
@@ -527,23 +521,10 @@ const handleInitData = async (skipConfirm = false) => {
     loading.value = true
     
     // 直接调用后端API初始化
-    const response = await fetch(
-      'http://192.168.2.229:3005/api/company-calendar/init',
-      {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' }
-      }
-    )
+    await request.post('/company-calendar/init')
     
-    const result = await response.json()
-    
-    if (result && result.code === 200) {
-      ElMessage.success('初始化成功')
-      loadData()
-    } else {
-      ElMessage.success('初始化成功')
-      loadData()
-    }
+    ElMessage.success('初始化成功')
+    loadData()
   } catch (error) {
     if (error !== 'cancel') {
       console.error('初始化失败:', error)
@@ -575,28 +556,15 @@ const handleEdit = (row) => {
 // 保存编辑
 const handleSaveEdit = async () => {
   try {
-    const response = await fetch(
-      `http://192.168.2.229:3005/api/company-calendar/update/${editForm.value.id}`,
-      {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          adjustedWorkHours: editForm.value.adjustedWorkHours,
-          isAdjusted: editForm.value.isAdjusted,
-          remark: editForm.value.remark
-        })
-      }
-    )
+    await request.put(`/company-calendar/update/${editForm.value.id}`, {
+      adjustedWorkHours: editForm.value.adjustedWorkHours,
+      isAdjusted: editForm.value.isAdjusted,
+      remark: editForm.value.remark
+    })
     
-    const result = await response.json()
-    
-    if (result.code === 200) {
-      ElMessage.success('保存成功')
-      editDialogVisible.value = false
-      loadData()
-    } else {
-      ElMessage.error(result.message || '保存失败')
-    }
+    ElMessage.success('保存成功')
+    editDialogVisible.value = false
+    loadData()
   } catch (error) {
     console.error('保存失败:', error)
     ElMessage.error('保存失败')
@@ -667,18 +635,9 @@ const handleDeleteHoliday = async (index) => {
 // 保存自定义节日到后端
 const saveCustomHolidays = async () => {
   try {
-    const response = await fetch(
-      'http://192.168.2.229:3005/api/company-calendar/custom-holidays',
-      {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ holidays: customHolidays.value })
-      }
-    )
-    const result = await response.json()
-    if (result.code !== 200) {
-      console.error('保存节日失败:', result.message)
-    }
+    await request.post('/company-calendar/custom-holidays', {
+      holidays: customHolidays.value
+    })
   } catch (error) {
     console.error('保存节日失败:', error)
   }
@@ -687,13 +646,8 @@ const saveCustomHolidays = async () => {
 // 加载自定义节日
 const loadCustomHolidays = async () => {
   try {
-    const response = await fetch(
-      'http://192.168.2.229:3005/api/company-calendar/custom-holidays'
-    )
-    const result = await response.json()
-    if (result.code === 200 && result.data) {
-      customHolidays.value = result.data.holidays || []
-    }
+    const result = await request.get('/company-calendar/custom-holidays')
+    customHolidays.value = result.data?.holidays || result.holidays || []
   } catch (error) {
     console.error('加载节日失败:', error)
   }
@@ -702,18 +656,12 @@ const loadCustomHolidays = async () => {
 // 加载业务变量
 const loadBusinessVars = async () => {
   try {
-    const response = await fetch(
-      'http://192.168.2.229:3005/api/company-calendar/settings/company-calendar'
-    )
-    const result = await response.json()
-    
-    if (result.code === 200 && result.data) {
-      businessVars.value = {
-        daysBeforeToday: parseInt(result.data.daysBeforeToday) || 90,
-        daysAfterToday: parseInt(result.data.daysAfterToday) || 365,
-        standardWorkHours: parseFloat(result.data.standardWorkHours) || 8,
-        weekendMode: result.data.weekendMode || 'double'
-      }
+    const result = await request.get('/company-calendar/settings/company-calendar')
+    businessVars.value = {
+      daysBeforeToday: parseInt(result.daysBeforeToday) || 90,
+      daysAfterToday: parseInt(result.daysAfterToday) || 365,
+      standardWorkHours: parseFloat(result.standardWorkHours) || 8,
+      weekendMode: result.weekendMode || 'double'
     }
   } catch (error) {
     console.error('加载业务设置失败:', error)
@@ -762,44 +710,31 @@ const handleSettingsSave = async (settings) => {
     }
     
     // ✅ 保存业务变量到后端
-    const response = await fetch(
-      'http://192.168.2.229:3005/api/company-calendar/settings/company-calendar',
-      {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(businessVars.value)
-      }
-    )
+    await request.post('/company-calendar/settings/company-calendar', businessVars.value)
     
-    const result = await response.json()
-    
-    if (result.code === 200) {
-      // ✅ 提示用户是否重新初始化日历数据
-      try {
-        await ElMessageBox.confirm(
-          '业务变量已保存成功！是否立即重新初始化日历数据以应用新设置？',
-          '提示',
-          {
-            confirmButtonText: '立即初始化',
-            cancelButtonText: '稍后手动初始化',
-            type: 'info',
-            distinguishCancelAndClose: true
-          }
-        )
-        
-        // 用户选择立即初始化，跳过二次确认
-        await handleInitData(true)
-        // ✅ 初始化后重新加载数据
-        setTimeout(() => {
-          loadData()
-        }, 500)  // 给后端一点处理时间
-      } catch (action) {
-        // 用户选择稍后手动初始化
-        ElMessage.success('设置保存成功，请点击"初始化日历数据"按钮应用新设置')
+    // ✅ 提示用户是否重新初始化日历数据
+    try {
+      await ElMessageBox.confirm(
+        '业务变量已保存成功！是否立即重新初始化日历数据以应用新设置？',
+        '提示',
+        {
+          confirmButtonText: '立即初始化',
+          cancelButtonText: '稍后手动初始化',
+          type: 'info',
+          distinguishCancelAndClose: true
+        }
+      )
+      
+      // 用户选择立即初始化，跳过二次确认
+      await handleInitData(true)
+      // ✅ 初始化后重新加载数据
+      setTimeout(() => {
         loadData()
-      }
-    } else {
-      ElMessage.error(result.message || '保存失败')
+      }, 500)  // 给后端一点处理时间
+    } catch (action) {
+      // 用户选择稍后手动初始化
+      ElMessage.success('设置保存成功，请点击"初始化日历数据"按钮应用新设置')
+      loadData()
     }
   } catch (error) {
     console.error('保存设置失败:', error)

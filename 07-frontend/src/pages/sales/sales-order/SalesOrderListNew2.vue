@@ -5,7 +5,6 @@
       page-title="销售订单管理"
       settings-key="sales-order-list"
       
-      <!-- 表格数据 -->
       :table-data="filteredTableData"
       :columns="tableColumns"
       :loading="loading"
@@ -13,7 +12,6 @@
       :current-page="pagination.page"
       :page-size="pagination.pageSize"
       
-      <!-- 功能开关 -->
       :show-search="true"
       :show-selection="true"
       :show-filter="true"
@@ -21,7 +19,6 @@
       :show-batch-delete="true"
       :show-export="false"
       
-      <!-- 事件监听 -->
       @page-change="handlePageChange"
       @size-change="handlePageSizeChange"
       @selection-change="handleSelectionChange"
@@ -188,6 +185,7 @@ import { ref, computed, onMounted } from 'vue'
 import { 
   Plus, Delete, Refresh, Setting, Search, CircleCheck, DataAnalysis 
 } from '@element-plus/icons-vue'
+import { ElMessageBox, ElMessage } from 'element-plus'
 import { 
   useSalesOrderList,
   useSalesOrderActions,
@@ -213,7 +211,8 @@ const {
   handleRefresh,
   handlePageChange,
   handlePageSizeChange,
-  handleSelectionChange
+  handleSelectionChange,
+  batchDelete
 } = useSalesOrderList()
 
 // ========== 操作逻辑 ==========
@@ -222,7 +221,6 @@ const {
   handleEdit,
   handleView,
   handleDeleteOne: deleteOne,
-  handleBatchDelete: batchDelete,
   handleConfirmOrder: confirmOrder,
   handleMRPCalculation: mrpCalculation,
   handleManualTerminate: manualTerminate
@@ -376,7 +374,28 @@ const handleDeleteOne = async (row) => {
 }
 
 const handleBatchDelete = async () => {
-  await batchDelete(selectedRows.value, loadData)
+  if (!selectedRows.value || selectedRows.value.length === 0) {
+    ElMessage.warning('请选择要删除的订单')
+    return
+  }
+  
+  try {
+    await ElMessageBox.confirm(`确定要删除选中的 ${selectedRows.value.length} 个订单吗？`, '删除确认', {
+      confirmButtonText: '确定',
+      cancelButtonText: '取消',
+      type: 'warning'
+    })
+    
+    // 调用直接操作tableData的batchDelete函数
+    await batchDelete(selectedRows.value)
+    
+    ElMessage.success('批量删除成功')
+  } catch (error) {
+    if (error !== 'cancel') {
+      console.error('批量删除失败:', error)
+      ElMessage.error('批量删除失败')
+    }
+  }
 }
 
 const handleConfirmOrder = async () => {

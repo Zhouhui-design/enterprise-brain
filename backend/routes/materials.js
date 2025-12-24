@@ -2,7 +2,26 @@ const express = require('express');
 const router = express.Router();
 const MaterialService = require('../services/materialService');
 
-// 获取所有物料
+/**
+ * @swagger
+ * /api/materials/list:
+ *   get:
+ *     summary: 获取所有物料
+ *     tags: [Materials]
+ *     responses:
+ *       200:
+ *         description: 成功获取物料列表
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 code: { type: 'integer', example: 200 }
+ *                 data: { type: 'array', items: { $ref: '#/components/schemas/Material' } }
+ *                 message: { type: 'string', example: '获取物料列表成功' }
+ *       500:
+ *         $ref: '#/components/responses/500'
+ */
 router.get('/list', async (req, res) => {
   try {
     const materials = await MaterialService.getAllMaterials();
@@ -19,7 +38,31 @@ router.get('/list', async (req, res) => {
   }
 });
 
-// 创建物料
+/**
+ * @swagger
+ * /api/materials/create:
+ *   post:
+ *     summary: 创建新物料
+ *     tags: [Materials]
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema: { $ref: '#/components/schemas/Material' }
+ *     responses:
+ *       200:
+ *         description: 成功创建物料
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 code: { type: 'integer', example: 200 }
+ *                 data: { type: 'object', properties: { id: { type: 'integer' } } }
+ *                 message: { type: 'string', example: '创建物料成功' }
+ *       500:
+ *         $ref: '#/components/responses/500'
+ */
 router.post('/create', async (req, res) => {
   try {
     const materialData = req.body;
@@ -37,7 +80,33 @@ router.post('/create', async (req, res) => {
   }
 });
 
-// 批量创建物料
+/**
+ * @swagger
+ * /api/materials/batch-create:
+ *   post:
+ *     summary: 批量创建物料
+ *     tags: [Materials]
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: array
+ *             items: { $ref: '#/components/schemas/Material' }
+ *     responses:
+ *       200:
+ *         description: 成功批量创建物料
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 code: { type: 'integer', example: 200 }
+ *                 data: { type: 'object', properties: { successCount: { type: 'integer' }, errorCount: { type: 'integer' }, errors: { type: 'array' } } }
+ *                 message: { type: 'string', example: '批量创建物料成功' }
+ *       500:
+ *         $ref: '#/components/responses/500'
+ */
 router.post('/batch-create', async (req, res) => {
   try {
     const materialsData = req.body;
@@ -61,7 +130,37 @@ router.post('/batch-create', async (req, res) => {
   }
 });
 
-// 更新物料
+/**
+ * @swagger
+ * /api/materials/update/{id}:
+ *   put:
+ *     summary: 更新物料信息
+ *     tags: [Materials]
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema: { type: 'integer' }
+ *         description: 物料ID
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema: { $ref: '#/components/schemas/Material' }
+ *     responses:
+ *       200:
+ *         description: 成功更新物料
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 code: { type: 'integer', example: 200 }
+ *                 data: { type: 'object', properties: { id: { type: 'integer' } } }
+ *                 message: { type: 'string', example: '更新物料成功' }
+ *       500:
+ *         $ref: '#/components/responses/500'
+ */
 router.put('/update/:id', async (req, res) => {
   try {
     const id = req.params.id;
@@ -80,7 +179,32 @@ router.put('/update/:id', async (req, res) => {
   }
 });
 
-// 删除物料
+/**
+ * @swagger
+ * /api/materials/delete/{id}:
+ *   delete:
+ *     summary: 删除物料
+ *     tags: [Materials]
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema: { type: 'integer' }
+ *         description: 物料ID
+ *     responses:
+ *       200:
+ *         description: 成功删除物料
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 code: { type: 'integer', example: 200 }
+ *                 data: { type: 'object', properties: { success: { type: 'boolean' } } }
+ *                 message: { type: 'string', example: '删除物料成功' }
+ *       500:
+ *         $ref: '#/components/responses/500'
+ */
 router.delete('/delete/:id', async (req, res) => {
   try {
     const id = req.params.id;
@@ -98,7 +222,34 @@ router.delete('/delete/:id', async (req, res) => {
   }
 });
 
-// 批量删除物料
+/**
+ * @swagger
+ * /api/materials/batch-delete:
+ *   delete:
+ *     summary: 批量删除物料
+ *     tags: [Materials]
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               ids: { type: 'array', items: { type: 'integer' } }
+ *     responses:
+ *       200:
+ *         description: 成功批量删除物料
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 code: { type: 'integer', example: 200 }
+ *                 data: { type: 'object', properties: { successCount: { type: 'integer' }, totalCount: { type: 'integer' } } }
+ *                 message: { type: 'string', example: '批量删除物料成功' }
+ *       500:
+ *         $ref: '#/components/responses/500'
+ */
 router.delete('/batch-delete', async (req, res) => {
   try {
     const ids = req.body.ids;
@@ -116,7 +267,31 @@ router.delete('/batch-delete', async (req, res) => {
   }
 });
 
-// 搜索物料
+/**
+ * @swagger
+ * /api/materials/search:
+ *   get:
+ *     summary: 搜索物料
+ *     tags: [Materials]
+ *     parameters:
+ *       - in: query
+ *         name: keyword
+ *         schema: { type: 'string' }
+ *         description: 搜索关键词
+ *     responses:
+ *       200:
+ *         description: 成功搜索物料
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 code: { type: 'integer', example: 200 }
+ *                 data: { type: 'array', items: { $ref: '#/components/schemas/Material' } }
+ *                 message: { type: 'string', example: '搜索物料成功' }
+ *       500:
+ *         $ref: '#/components/responses/500'
+ */
 router.get('/search', async (req, res) => {
   try {
     const keyword = req.query.keyword || '';
@@ -134,7 +309,41 @@ router.get('/search', async (req, res) => {
   }
 });
 
-// 根据物料编码获取物料
+/**
+ * @swagger
+ * /api/materials/by-code/{materialCode}:
+ *   get:
+ *     summary: 根据物料编码获取物料
+ *     tags: [Materials]
+ *     parameters:
+ *       - in: path
+ *         name: materialCode
+ *         required: true
+ *         schema: { type: 'string' }
+ *         description: 物料编码
+ *     responses:
+ *       200:
+ *         description: 成功获取物料
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 code: { type: 'integer', example: 200 }
+ *                 data: { $ref: '#/components/schemas/Material' }
+ *                 message: { type: 'string', example: '获取物料成功' }
+ *       404:
+ *         description: 未找到物料
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 code: { type: 'integer', example: 404 }
+ *                 message: { type: 'string' }
+ *       500:
+ *         $ref: '#/components/responses/500'
+ */
 router.get('/by-code/:materialCode', async (req, res) => {
   try {
     const materialCode = req.params.materialCode;
@@ -160,7 +369,24 @@ router.get('/by-code/:materialCode', async (req, res) => {
   }
 });
 
-// 测试根路由
+/**
+ * @swagger
+ * /api/materials:
+ *   get:
+ *     summary: 物料API根路由
+ *     tags: [Materials]
+ *     responses:
+ *       200:
+ *         description: Materials API 工作正常
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 code: { type: 'integer', example: 200 }
+ *                 message: { type: 'string', example: 'Materials API is working' }
+ *                 routes: { type: 'array', items: { type: 'string' } }
+ */
 router.get('/', (req, res) => {
   res.json({
     code: 200,

@@ -105,7 +105,7 @@ export default {
         {
           path: 'create',
           name: 'SalesOrderCreate',
-          component: () => import('@/pages/sales/orders/SalesOrderForm.vue'),
+          component: () => import('@/pages/sales/sales-order/SalesOrderCreateNew.vue'),
           meta: { 
             title: '创建订单',
             permission: ['sales:orders:create'],
@@ -115,7 +115,7 @@ export default {
         {
           path: 'edit/:id',
           name: 'SalesOrderEdit',
-          component: () => import('@/pages/sales/orders/SalesOrderForm.vue'),
+          component: () => import('@/pages/sales/sales-order/SalesOrderCreateNew.vue'),
           meta: { 
             title: '编辑订单',
             permission: ['sales:orders:edit'],

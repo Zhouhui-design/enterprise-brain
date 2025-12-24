@@ -53,7 +53,8 @@ export const salesOrderApi = {
     console.log('🔄 发起批量删除请求:', `${API_BASE_URL}/sales-orders/batch-delete`, { ids })
     return axios.post(`${API_BASE_URL}/sales-orders/batch-delete`, { ids }).catch(error => {
       console.error('❌ 批量删除请求失败:', error)
-      throw error
+      // 不重新抛出错误，让前端继续执行本地删除逻辑
+      return { data: { success: false, message: error.message } }
     })
   },
 

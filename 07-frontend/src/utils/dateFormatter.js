@@ -274,8 +274,12 @@ export function getLocalDateString(date) {
 /**
  * 导出所有函数作为默认对象
  */
+// 添加formatDateYMD作为formatDate的别名，保持向后兼容
+export const formatDateYMD = formatDate;
+
 export default {
   formatDate,
+  formatDateYMD,
   parseDate,
   compareDates,
   dateDiff,

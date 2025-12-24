@@ -165,7 +165,7 @@
                     <div class="spc-value">{{ spcIndicators.mean }}</div>
                   </div>
                 </div>
-                <div v-else id="spcIndicatorChart" class="chart"></div>
+                <div id="spcIndicatorChart" class="chart"></div>
               </div>
             </el-card>
           </el-col>

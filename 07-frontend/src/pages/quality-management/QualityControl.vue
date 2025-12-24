@@ -65,7 +65,7 @@
         <el-button size="small" @click="handleEditControlPoint(row)">编辑</el-button>
         <el-button type="danger" size="small" @click="handleDeleteControlPoint(row)">删除</el-button>
       </template>
-    </el-card>
+    </standard-table-page>
     
     <!-- 新建/编辑控制点对话框 -->
     <el-dialog
@@ -150,7 +150,7 @@
 import { ref, reactive, onMounted, computed } from 'vue';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import { Plus } from '@element-plus/icons-vue';
-import StandardTablePage from '@/components/StandardTablePage.vue';
+import StandardTablePage from '@/components/common/layout/StandardTablePage.vue';
 
 export default {
   name: 'QualityControl',

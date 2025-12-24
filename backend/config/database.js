@@ -77,6 +77,7 @@ async function initializeDatabase() {
         process_name VARCHAR(100) COMMENT '工序名称',
         standard_time DECIMAL(10,2) DEFAULT 0 COMMENT '标准工时',
         quota_time DECIMAL(10,2) DEFAULT 0 COMMENT '定额工时',
+        minimum_packaging_quantity DECIMAL(10,4) DEFAULT 1 COMMENT '最小包装量',
         process_price DECIMAL(10,2) DEFAULT 0 COMMENT '加工单价',
         purchase_cycle VARCHAR(50) COMMENT '采购周期',
         purchase_price DECIMAL(10,2) DEFAULT 0 COMMENT '采购单价',
@@ -88,6 +89,41 @@ async function initializeDatabase() {
         INDEX idx_material_name (material_name),
         INDEX idx_created_at (created_at)
       ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='物料表'
+    `);
+
+    // 检查并添加最小包装量列（如果不存在）
+    const [columns] = await connection.execute(`
+      SHOW COLUMNS FROM materials LIKE 'minimum_packaging_quantity'
+    `);
+    
+    if (columns.length === 0) {
+      await connection.execute(`
+        ALTER TABLE materials
+        ADD COLUMN minimum_packaging_quantity DECIMAL(10,4) DEFAULT 1 COMMENT '最小包装量'
+      `);
+      console.log('✅ 成功添加最小包装量列');
+    } else {
+      console.log('✅ 最小包装量列已存在');
+    }
+
+    // 创建物料供应商表
+    await connection.execute(`
+      CREATE TABLE IF NOT EXISTS material_suppliers (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        material_code VARCHAR(100) NOT NULL COMMENT '物料编码',
+        supplier_name VARCHAR(200) NOT NULL COMMENT '供应商名称',
+        minimum_order_quantity DECIMAL(10,4) DEFAULT 0 COMMENT '最小起订量',
+        tier_range VARCHAR(50) COMMENT '阶梯范围',
+        tier_unit_price DECIMAL(10,2) DEFAULT 0 COMMENT '阶梯单价',
+        tax_rate DECIMAL(10,2) DEFAULT 13 COMMENT '税率',
+        standard_packaging_quantity DECIMAL(10,4) DEFAULT 0 COMMENT '标准包装数量',
+        ordering_rule VARCHAR(20) DEFAULT '默认' COMMENT '下单规则',
+        sequence INT DEFAULT 0 COMMENT '排序',
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+        INDEX idx_material_code (material_code),
+        FOREIGN KEY (material_code) REFERENCES materials(material_code) ON DELETE CASCADE
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='物料供应商表'
     `);
 
     // 创建BOM表
@@ -453,6 +489,88 @@ async function initializeDatabase() {
         INDEX idx_category (category),
         INDEX idx_status (status)
       ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='产品手册表'
+    `);
+
+    // 创建供应商管理表 - 先删除旧表（如果存在），再重新创建
+    await connection.execute(`DROP TABLE IF EXISTS supplier_management`);
+    await connection.execute(`
+      CREATE TABLE IF NOT EXISTS supplier_management (
+        id INT AUTO_INCREMENT PRIMARY KEY COMMENT '主键ID',
+        supplier_code VARCHAR(100) NOT NULL UNIQUE COMMENT '供应商编码',
+        supplier_name VARCHAR(255) NOT NULL COMMENT '供应商名称',
+        supplier_type VARCHAR(50) COMMENT '供应商类型',
+        contact_person VARCHAR(100) COMMENT '联系人',
+        contact_phone VARCHAR(50) COMMENT '联系电话',
+        contact_email VARCHAR(100) COMMENT '联系邮箱',
+        company VARCHAR(200) COMMENT '公司名称',
+        industry VARCHAR(100) COMMENT '行业',
+        region VARCHAR(100) COMMENT '地区',
+        address VARCHAR(500) COMMENT '联系地址',
+        tax_no VARCHAR(100) COMMENT '税号',
+        bank_name VARCHAR(100) COMMENT '银行名称',
+        bank_account VARCHAR(100) COMMENT '银行账号',
+        credit_rating VARCHAR(50) COMMENT '信用等级',
+        evaluation_score DECIMAL(5,2) DEFAULT 0 COMMENT '评分',
+        status VARCHAR(50) DEFAULT 'active' COMMENT '状态',
+        supplier_category VARCHAR(50) COMMENT '供应商类别',
+        cooperation_start_date DATE COMMENT '合作开始日期',
+        payment_terms VARCHAR(100) COMMENT '付款条件',
+        business_license VARCHAR(500) COMMENT '营业执照',
+        qualification_cert VARCHAR(500) COMMENT '资质证书',
+        remarks TEXT COMMENT '备注',
+        creator VARCHAR(100) DEFAULT 'admin' COMMENT '创建人',
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+        INDEX idx_supplier_code (supplier_code),
+        INDEX idx_supplier_name (supplier_name),
+        INDEX idx_supplier_type (supplier_type),
+        INDEX idx_status (status),
+        INDEX idx_region (region),
+        INDEX idx_created_at (created_at)
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='供应商管理表'
+    `);
+
+    // 创建工序表
+    await connection.execute(`
+      CREATE TABLE IF NOT EXISTS processes (
+        id INT AUTO_INCREMENT PRIMARY KEY COMMENT '主键ID',
+        process_code VARCHAR(100) UNIQUE NOT NULL COMMENT '工序编号',
+        process_name VARCHAR(100) NOT NULL COMMENT '工序名称',
+        responsible_person VARCHAR(100) COMMENT '负责人',
+        dispatch_method VARCHAR(100) COMMENT '派工方式',
+        self_or_outsource VARCHAR(20) COMMENT '自制/外协',
+        available_workstations INT DEFAULT 0 COMMENT '可用工位数量',
+        is_warehousing TINYINT DEFAULT 0 COMMENT '是否入库',
+        completion_warehouse VARCHAR(100) COMMENT '完工仓库',
+        workshop_name VARCHAR(100) COMMENT '车间名称',
+        process_wage DECIMAL(10,2) DEFAULT 0 COMMENT '工序工资',
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+        INDEX idx_process_code (process_code),
+        INDEX idx_process_name (process_name),
+        INDEX idx_self_or_outsource (self_or_outsource)
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='工序表'
+    `);
+
+    // 创建工序能力负荷表
+    await connection.execute(`
+      CREATE TABLE IF NOT EXISTS process_capacity_load (
+        id INT AUTO_INCREMENT PRIMARY KEY COMMENT '主键ID',
+        process_name VARCHAR(100) NOT NULL COMMENT '工序名称',
+        date DATE NOT NULL COMMENT '日期',
+        available_workstations INT DEFAULT 0 COMMENT '可用工位数量',
+        work_shift DECIMAL(10,2) COMMENT '上班时段（小时）',
+        occupied_hours DECIMAL(10,2) DEFAULT 0 COMMENT '已占用工时',
+        remaining_shift DECIMAL(10,2) COMMENT '剩余时段（小时）',
+        remaining_hours DECIMAL(10,2) DEFAULT 0 COMMENT '剩余工时',
+        overtime_shift DECIMAL(10,2) COMMENT '加班时段（小时）',
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+        UNIQUE KEY uk_process_date (process_name, date),
+        INDEX idx_process_name (process_name),
+        INDEX idx_date (date),
+        INDEX idx_created_at (created_at)
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='工序能力负荷表'
     `);
 
     // 创建库存主表
@@ -929,8 +1047,56 @@ async function initializeDatabase() {
       END
     `);
     
+    // 创建页面设置表
+    await connection.execute(`
+      CREATE TABLE IF NOT EXISTS page_settings (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        page_key VARCHAR(100) NOT NULL,
+        setting_key VARCHAR(100) NOT NULL,
+        setting_value VARCHAR(255) NOT NULL,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+        UNIQUE KEY uk_page_setting (page_key, setting_key)
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='页面设置表'
+    `);
+    
+    // 创建自定义节日表
+    await connection.execute(`
+      CREATE TABLE IF NOT EXISTS custom_holidays (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        name VARCHAR(100) NOT NULL COMMENT '节日名称',
+        date_type VARCHAR(50) NOT NULL COMMENT '日期类型: solar(阳历) or lunar(阴历)',
+        month INT NOT NULL COMMENT '月份',
+        day INT NOT NULL COMMENT '日期',
+        remark VARCHAR(255) COMMENT '备注',
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+        UNIQUE KEY uk_holiday_date (date_type, month, day)
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='自定义节日表'
+    `);
+    
+    // 创建企业日历表
+    await connection.execute(`
+      CREATE TABLE IF NOT EXISTS company_calendar (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        calendar_date DATE NOT NULL COMMENT '日历日期',
+        actual_date DATE NOT NULL COMMENT '实际日期（与calendar_date相同，用于兼容）',
+        weekday VARCHAR(20) NOT NULL COMMENT '星期几',
+        is_workday TINYINT NOT NULL DEFAULT 0 COMMENT '是否工作日: 0=否, 1=是',
+        standard_work_hours DECIMAL(10,2) DEFAULT 0 COMMENT '标准工时',
+        adjusted_work_hours DECIMAL(10,2) COMMENT '调整后工时',
+        is_adjusted TINYINT DEFAULT 0 COMMENT '是否已调整: 0=否, 1=是',
+        holiday_name VARCHAR(100) COMMENT '节日名称',
+        remark VARCHAR(255) COMMENT '备注',
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+        UNIQUE KEY uk_calendar_date (calendar_date)
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='企业日历表'
+    `);
+    
     console.log('✅ 主生产计划触发器创建成功');
-
+    console.log('✅ 企业日历相关表创建成功');
+    
     console.log('✅ 数据库表结构初始化完成');
     
   } catch (error) {

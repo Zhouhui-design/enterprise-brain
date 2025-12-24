@@ -247,7 +247,7 @@
   </CommonFinanceTemplate>
 </template>
 
-<script>
+<script lang="jsx">
 import { ref, reactive, onMounted, onBeforeUnmount, watch, nextTick } from 'vue';
 import { ElMessageBox, ElMessage } from 'element-plus';
 import CommonFinanceTemplate from './template/CommonFinanceTemplate.vue';

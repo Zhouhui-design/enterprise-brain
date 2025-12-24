@@ -10,7 +10,7 @@ const mysql = require('mysql2/promise');
 // 配置
 const config = {
   sqlite: {
-    file: '/home/sardensy/enterprise-brain/enterpise-brain/data/backups/enterprise_brain_20251218_113837.db'
+    file: 'C:\\Users\\sardenesy\\Projects\\enterpise-brain\\data\\enterprise_brain.db'
   },
   mysql: {
     host: 'localhost',

@@ -145,6 +145,22 @@ class MaterialAPIService {
   }
 
   /**
+   * 批量创建物料（用于导入）
+   * @param {Array} materials - 物料数组
+   * @returns {Promise}
+   */
+  async batchCreateMaterials(materials) {
+    try {
+      const data = await materialAPI.batchCreateMaterials(materials)
+      console.log(`批量创建物料成功，共${data.successCount}条`)
+      return data
+    } catch (error) {
+      console.error('批量创建物料失败:', error)
+      throw error
+    }
+  }
+
+  /**
    * 根据ID删除物料
    * @param {number|string} id - 物料ID
    * @returns {Promise}

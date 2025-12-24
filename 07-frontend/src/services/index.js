@@ -1,13 +1,13 @@
 // API服务入口文件
 
 // 导出所有API服务
-export { default as systemApi } from './api/system-api.js'
-export { default as commonApi } from './api/common-api.js'
-export { default as financeApi } from './api/finance-api.js'
-export { default as salesApi } from './api/sales-api.js'
-export { default as aiApi } from './api/ai-api.js'
-export { default as dashboardApi } from './api/dashboard-api.js'
-export { default as themeApi } from './api/theme-api.js'
+export { systemApi } from './api/system-api.js'
+export { commonApi } from './api/common-api.js'
+export { financeApi } from './api/finance-api.js'
+export { salesApi } from './api/sales-api.js'
+export { aiApi } from './api/ai-api.js'
+export { dashboardApi } from './api/dashboard-api.js'
+export { themeApi } from './api/theme-api.js'
 
 // 导出其他API服务（如果存在）
 export { auditService } from './api/auditService'

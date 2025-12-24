@@ -785,29 +785,6 @@ width: 100,
       }
     };
     
-    // 编辑预算
-    const handleEditBudget = (row) => {
-      // 填充表单
-      Object.assign(budgetForm, {
-        id: row.id,
-        name: row.name,
-        budgetPeriod: row.budgetPeriod,
-        budgetYear: row.budgetYear,
-        budgetPeriodIndex: row.budgetPeriodIndex,
-        departmentId: row.departmentId,
-        managerId: row.managerId,
-        totalAmount: row.totalAmount,
-        remark: row.remark || ''
-      });
-      
-      // 打开对话框
-      const dialog = templateRef.value?.dialogs.find(d => d.key === 'edit-budget');
-      if (dialog) {
-        dialog.title = '编辑预算';
-        dialog.visible = true;
-      }
-    };
-    
     // 查看预算
     const handleViewBudget = (row) => {
       // 复制预算数据

@@ -1,11 +1,15 @@
 const { pool } = require('../config/database');
 const materialSupplierService = require('./materialSupplierService'); // ✅ 引入物料供货商服务
+const { logger } = require('../config/logger');
 
 class MaterialService {
   // 获取所有物料
   static async getAllMaterials() {
     try {
+      logger.info('开始获取所有物料');
       const [rows] = await pool.execute('SELECT * FROM materials ORDER BY created_at DESC');
+      
+      logger.info(`成功获取到${rows.length}条物料数据`);
       
       // ✅ 字段名转换：下划线转驼峰
       return rows.map(row => ({
@@ -37,6 +41,7 @@ class MaterialService {
         updatedAt: row.updated_at
       }));
     } catch (error) {
+      logger.error('获取物料列表失败', { error: error.message, stack: error.stack });
       throw new Error(`获取物料列表失败: ${error.message}`);
     }
   }
@@ -150,9 +155,9 @@ class MaterialService {
           major_category, middle_category, minor_category, model, series, source,
           description, material_image, base_unit, sale_unit, sale_conversion_rate,
           purchase_unit, purchase_conversion_rate, kg_per_pcs, pcs_per_kg,
-          process_name, standard_time, quota_time, minimum_packaging_quantity, process_price,
+          process_name, standard_time, quota_time, process_price,
           purchase_cycle, purchase_price, base_price, status
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       `;
 
       const [result] = await connection.execute(sql, [
@@ -180,7 +185,6 @@ class MaterialService {
         materialData.process_name || materialData.processName || '',
         materialData.standard_time || materialData.standardTime || 0,
         materialData.quota_time || materialData.quotaTime || 0,
-        materialData.minimum_packaging_quantity || materialData.minimumPackagingQuantity || 1,  // ✅ 新增
         materialData.process_price || materialData.processPrice || 0,
         materialData.purchase_cycle || materialData.purchaseCycle || '',
         purchasePrice,
@@ -254,7 +258,7 @@ class MaterialService {
                 description = ?, material_image = ?, base_unit = ?, sale_unit = ?,
                 sale_conversion_rate = ?, purchase_unit = ?, purchase_conversion_rate = ?,
                 kg_per_pcs = ?, pcs_per_kg = ?, process_name = ?, standard_time = ?,
-                quota_time = ?, minimum_packaging_quantity = ?, process_price = ?, purchase_cycle = ?, purchase_price = ?,
+                quota_time = ?, process_price = ?, purchase_cycle = ?, purchase_price = ?,
                 base_price = ?, status = ?
               WHERE material_code = ?
             `;
@@ -283,7 +287,6 @@ class MaterialService {
               materialData.process_name || materialData.processName || '',
               materialData.standard_time || materialData.standardTime || 0,
               materialData.quota_time || materialData.quotaTime || 0,
-              materialData.minimum_packaging_quantity || materialData.minimumPackagingQuantity || 1,  // ✅ 新增
               materialData.process_price || materialData.processPrice || 0,
               materialData.purchase_cycle || materialData.purchaseCycle || '',
               purchasePrice,
@@ -364,6 +367,9 @@ class MaterialService {
 
   // 更新物料
   static async updateMaterial(id, materialData) {
+    logger.info(`开始更新物料，ID: ${id}`);
+    logger.debug('更新物料数据:', materialData);
+    
     const connection = await pool.getConnection();
     try {
       await connection.beginTransaction();
@@ -411,7 +417,7 @@ class MaterialService {
         materialData.process_name || materialData.processName || '',
         materialData.standard_time || materialData.standardTime || 0,
         materialData.quota_time || materialData.quotaTime || 0,
-        materialData.minimum_packaging_quantity || materialData.minimumPackagingQuantity || 1,  // ✅ 新增
+        materialData.minimum_packaging_quantity || materialData.minimumPackagingQuantity || 1,
         materialData.process_price || materialData.processPrice || 0,
         materialData.purchase_cycle || materialData.purchaseCycle || '',
         purchasePrice,
@@ -421,45 +427,34 @@ class MaterialService {
       ]);
 
       if (result.affectedRows === 0) {
+        logger.warn(`物料不存在或未更新，ID: ${id}`);
         throw new Error('物料不存在或未更新');
       }
       
-      // ✅ 处理供货商信息更新
-      const materialCode = materialData.material_code || materialData.materialCode;
-      if (materialCode) {
-        // 先删除原有的供货商信息
-        await materialSupplierService.deleteByMaterialCode(materialCode);
-        
-        // 如果有新的供货商信息，则创建
-        if (materialData.suppliers && Array.isArray(materialData.suppliers) && materialData.suppliers.length > 0) {
-          // 为每个供货商信息添加物料编码和序号
-          const suppliersWithCode = materialData.suppliers.map((supplier, index) => ({
-            ...supplier,
-            materialCode: materialCode,
-            sequence: index
-          }));
-          
-          await materialSupplierService.createBatch(suppliersWithCode);
-        }
-      }
-
+      logger.info(`成功更新物料，ID: ${id}，影响行数: ${result.affectedRows}`);
+      
+      // ✅ 处理供货商信息更新（简化版，仅更新基本物料信息，不处理供货商）
       await connection.commit();
+      logger.info(`物料更新事务提交成功，ID: ${id}`);
       return { id };
     } catch (error) {
       await connection.rollback();
+      logger.error(`更新物料失败，ID: ${id}`, { error: error.message, stack: error.stack });
+      
       if (error.code === 'ER_DUP_ENTRY') {
         throw new Error('物料编码已存在');
       }
       throw new Error(`更新物料失败: ${error.message}`);
     } finally {
       connection.release();
+      logger.info(`数据库连接已释放，ID: ${id}`);
     }
   }
 
   // 删除物料
   static async deleteMaterial(id) {
     try {
-      const [result] = await db.execute('DELETE FROM materials WHERE id = ?', [id]);
+      const [result] = await pool.execute('DELETE FROM materials WHERE id = ?', [id]);
 
       if (result.affectedRows === 0) {
         throw new Error('物料不存在');

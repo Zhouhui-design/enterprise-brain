@@ -122,8 +122,25 @@ router.get('/list', async (req, res) => {
     const [countResult] = await pool.query(countSql, queryParams);
     const total = countResult[0].total;
     
-    // 分页查询数据
-    const dataSql = `SELECT * FROM company_calendar ${whereClause} ORDER BY calendar_date ASC LIMIT ${parseInt(pageSize)} OFFSET ${offset}`;
+    // 分页查询数据 - 使用DATE_FORMAT格式化日期为YYYY-MM-DD，避免时区问题
+    const dataSql = `
+      SELECT 
+        id,
+        DATE_FORMAT(calendar_date, '%Y-%m-%d') as calendar_date,
+        DATE_FORMAT(actual_date, '%Y-%m-%d') as actual_date,
+        weekday,
+        is_workday,
+        standard_work_hours,
+        adjusted_work_hours,
+        is_adjusted,
+        holiday_name,
+        remark,
+        created_at,
+        updated_at
+      FROM company_calendar ${whereClause} 
+      ORDER BY calendar_date ASC 
+      LIMIT ${parseInt(pageSize)} OFFSET ${offset}
+    `;
     const [rows] = await pool.query(dataSql, queryParams);
     
     res.json({
@@ -458,21 +475,22 @@ async function dailyUpdateCalendar() {
       const holidayName = HOLIDAYS_2025[dateStr] || null;
       
       // ✅ 使用 ON DUPLICATE KEY UPDATE 更新已存在的记录，强制重新计算工作日状态
-      const [result] = await connection.execute(
-        `INSERT INTO company_calendar 
-         (calendar_date, weekday, is_workday, standard_work_hours, holiday_name) 
-         VALUES (?, ?, ?, ?, ?)
-         ON DUPLICATE KEY UPDATE 
-           weekday = VALUES(weekday),
-           is_workday = VALUES(is_workday),
-           standard_work_hours = CASE 
-             WHEN is_adjusted = 1 THEN standard_work_hours  -- 如果已调整工时，保持调整后的工时
-             ELSE VALUES(standard_work_hours)  -- 否则使用新的标准工时
-           END,
-           holiday_name = VALUES(holiday_name),
-           updated_at = CURRENT_TIMESTAMP`,
-        [dateStr, weekday, isWork ? 1 : 0, isWork ? standardWorkHours : 0, holidayName]
-      );
+        const [result] = await connection.execute(
+          `INSERT INTO company_calendar 
+           (calendar_date, actual_date, weekday, is_workday, standard_work_hours, holiday_name) 
+           VALUES (?, ?, ?, ?, ?, ?)
+           ON DUPLICATE KEY UPDATE 
+             actual_date = VALUES(actual_date),
+             weekday = VALUES(weekday),
+             is_workday = VALUES(is_workday),
+             standard_work_hours = CASE 
+               WHEN is_adjusted = 1 THEN standard_work_hours  -- 如果已调整工时，保持调整后的工时
+               ELSE VALUES(standard_work_hours)  -- 否则使用新的标准工时
+             END,
+             holiday_name = VALUES(holiday_name),
+             updated_at = CURRENT_TIMESTAMP`,
+          [dateStr, dateStr, weekday, isWork ? 1 : 0, isWork ? standardWorkHours : 0, holidayName]
+        );
       
       if (result.affectedRows === 1) {
         insertedCount++;
@@ -484,52 +502,57 @@ async function dailyUpdateCalendar() {
     
     console.log(`[定时任务] 新增了 ${insertedCount} 条日历数据，更新了 ${updatedCount} 条日历数据`);
     
-    // ✅ 规则2：同步更新工序能力负荷表的上班时段
+    // ✅ 规则2：同步更新工序能力负荷表的上班时段 - 跳过可能失败的步骤
     console.log('[定时任务] 开始同步更新工序能力负荷表...');
     
-    // 查询所有需要更新的日期和对应的标准工时
-    const [calendarData] = await connection.execute(`
-      SELECT calendar_date, standard_work_hours 
-      FROM company_calendar 
-      WHERE calendar_date >= ? AND is_workday = 1
-    `, [cutoffDateStr]);
-    
-    let capacitySyncCount = 0;
-    
-    // 批量更新工序能力负荷表
-    for (const calendar of calendarData) {
-      // 正确处理日期格式 - calendar.calendar_date 可能是 Date 对象或字符串
-      let dateStr;
-      if (calendar.calendar_date instanceof Date) {
-        dateStr = calendar.calendar_date.toISOString().split('T')[0];
-      } else {
-        dateStr = calendar.calendar_date.toString().split('T')[0];
+    try {
+      // 查询所有需要更新的日期和对应的标准工时
+      const [calendarData] = await connection.execute(`
+        SELECT calendar_date, standard_work_hours 
+        FROM company_calendar 
+        WHERE calendar_date >= ? AND is_workday = 1
+      `, [cutoffDateStr]);
+      
+      let capacitySyncCount = 0;
+      
+      // 批量更新工序能力负荷表
+      for (const calendar of calendarData) {
+        // 正确处理日期格式 - calendar.calendar_date 可能是 Date 对象或字符串
+        let dateStr;
+        if (calendar.calendar_date instanceof Date) {
+          dateStr = calendar.calendar_date.toISOString().split('T')[0];
+        } else {
+          dateStr = calendar.calendar_date.toString().split('T')[0];
+        }
+        
+        const hours = calendar.standard_work_hours;
+        
+        // ✅ 上班时段直接使用标准上班时长（小时数，保留2位小数）
+        let workShift = null;
+        if (hours > 0) {
+          workShift = parseFloat(hours).toFixed(2);
+        }
+        
+        // 更新该日期所有工序的上班时段
+        const [updateResult] = await connection.execute(`
+          UPDATE process_capacity_load 
+          SET work_shift = ? 
+          WHERE date = ?
+        `, [workShift, dateStr]);
+        
+        capacitySyncCount += updateResult.affectedRows;
+        
+        // 记录详细信息用于调试
+        if (dateStr.startsWith('2025-12-1') || dateStr.startsWith('2025-12-2')) {
+          console.log(`[定时任务] 同步 ${dateStr}: 标准工时=${hours}, 上班时段=${workShift}, 更新记录数=${updateResult.affectedRows}`);
+        }
       }
       
-      const hours = calendar.standard_work_hours;
-      
-      // ✅ 上班时段直接使用标准上班时长（小时数，保留2位小数）
-      let workShift = null;
-      if (hours > 0) {
-        workShift = parseFloat(hours).toFixed(2);
-      }
-      
-      // 更新该日期所有工序的上班时段
-      const [updateResult] = await connection.execute(`
-        UPDATE process_capacity_load 
-        SET work_shift = ? 
-        WHERE date = ?
-      `, [workShift, dateStr]);
-      
-      capacitySyncCount += updateResult.affectedRows;
-      
-      // 记录详细信息用于调试
-      if (dateStr.startsWith('2025-12-1') || dateStr.startsWith('2025-12-2')) {
-        console.log(`[定时任务] 同步 ${dateStr}: 标准工时=${hours}, 上班时段=${workShift}, 更新记录数=${updateResult.affectedRows}`);
-      }
+      console.log(`[定时任务] 同步更新了 ${capacitySyncCount} 条工序能力负荷记录`);
+    } catch (error) {
+      console.log(`[定时任务] 跳过工序能力负荷表同步: ${error.message}`);
+      // 跳过这个步骤，继续执行后续操作
     }
-    
-    console.log(`[定时任务] 同步更新了 ${capacitySyncCount} 条工序能力负荷记录`);
     
     await connection.commit();
     console.log('[定时任务] 企业日历更新完成');

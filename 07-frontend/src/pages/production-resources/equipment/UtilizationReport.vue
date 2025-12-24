@@ -241,7 +241,7 @@ cat > production-resources/equipment/UtilizationReport.vue <<'EOF'
       width="700px"
     >
       <div v-if="currentEquipment" class="equipment-detail">
-        <el-descriptions :column="2" :column="{ xs: 1, sm: 2 }" border>
+        <el-descriptions :column="{ xs: 1, sm: 2 }" border>
           <el-descriptions-item label="设备编号">{{ currentEquipment.equipmentCode }}</el-descriptions-item>
           <el-descriptions-item label="设备名称">{{ currentEquipment.equipmentName }}</el-descriptions-item>
           <el-descriptions-item label="设备类型">{{ currentEquipment.equipmentType }}</el-descriptions-item>

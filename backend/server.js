@@ -2,6 +2,10 @@ const express = require('express');
 const cors = require('cors');
 const path = require('path');
 const fs = require('fs');
+const logger = require('./config/logger');
+
+// 设置全局日志记录器
+global.logger = logger;
 
 // 确保数据目录存在
 const dataDir = path.join(__dirname, '../data');
@@ -26,9 +30,20 @@ app.use(express.urlencoded({ extended: true, limit: '50mb' }));
 // 静态文件服务
 app.use('/uploads', express.static(path.join(__dirname, '../uploads')));
 
-// 测试中间件 - 记录所有请求
+// 日志中间件 - 记录所有HTTP请求
+const { accessLogger } = require('./config/logger');
 app.use((req, res, next) => {
-  console.log(`[Request] ${req.method} ${req.path}`);
+  accessLogger.info('HTTP Request', {
+    method: req.method,
+    url: req.path,
+    ip: req.ip,
+    headers: {
+      'user-agent': req.get('User-Agent'),
+      'content-type': req.get('Content-Type'),
+      'accept': req.get('Accept')
+    },
+    query: req.query
+  });
   next();
 });
 
@@ -148,6 +163,14 @@ console.log('🏭 仓库管理路由已注册: /api/warehouses');
 
 
 
+// Swagger API文档
+const swaggerUi = require('swagger-ui-express');
+const swaggerSpec = require('./config/swagger');
+
+// Swagger UI路由
+app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec));
+console.log('📚 Swagger API文档已注册: /api-docs');
+
 // 健康检查接口
 app.get('/health', (req, res) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString() });
@@ -183,7 +206,17 @@ app.get('/test-json', (req, res) => {
 
 // 错误处理中间件
 app.use((err, req, res, next) => {
-  console.error(err.stack);
+  logger.error('Internal Server Error', {
+    error: err,
+    request: {
+      method: req.method,
+      url: req.originalUrl,
+      ip: req.ip,
+      headers: req.headers,
+      body: req.body
+    },
+    stack: err.stack
+  });
   res.status(500).json({
     code: 500,
     message: 'Internal Server Error',

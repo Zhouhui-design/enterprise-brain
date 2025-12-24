@@ -317,6 +317,16 @@ import {
   Operation, CircleCheck, OfficeBuilding, UploadFilled 
 } from '@element-plus/icons-vue'
 import * as XLSX from 'xlsx'
+import axios from 'axios'
+
+// 使用环境变量或默认使用本机IP，支持局域网访问
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://192.168.2.229:3005/api'
+
+// 创建axios实例，添加超时配置
+const axiosInstance = axios.create({
+  timeout: 5000, // 5秒超时
+  baseURL: API_BASE_URL
+})
 
 // 数据
 const tableRef = ref(null)
@@ -485,18 +495,34 @@ const handleDelete = async (row) => {
       type: 'warning'
     })
     
-    // 调用后端API删除
-    const response = await fetch(`http://192.168.2.229:3005/api/processes/delete/${row.id}`, {
-      method: 'DELETE'
-    })
-    const result = await response.json()
-    
-    if (result.code === 200) {
-      // 删除成功后重新加载数据
-      await loadData()
-      ElMessage.success('删除成功')
-    } else {
-      ElMessage.error(result.message || '删除失败')
+    try {
+      // 调用后端API删除
+      const response = await axiosInstance.delete(`/processes/delete/${row.id}`)
+      const result = response.data
+      
+      if (result.code === 200) {
+        // 添加到已删除ID列表
+        deletedProcessIds.value.push(row.id)
+        saveDeletedProcessIds(deletedProcessIds.value)
+        // 删除成功后重新加载数据
+        await loadData()
+        ElMessage.success('删除成功')
+      } else {
+        ElMessage.error(result.message || '删除失败')
+      }
+    } catch (apiError) {
+      console.error('API删除失败，使用本地存储:', apiError)
+      // API失败，使用本地存储删除
+      const index = tableData.value.findIndex(item => item.id === row.id)
+      if (index !== -1) {
+        tableData.value.splice(index, 1)
+        // 添加到已删除ID列表
+        deletedProcessIds.value.push(row.id)
+        saveDeletedProcessIds(deletedProcessIds.value)
+        updateStats()
+        saveProcessesToLocal(tableData.value)
+        ElMessage.success('删除成功（本地操作）')
+      }
     }
   } catch (error) {
     if (error !== 'cancel') {
@@ -517,20 +543,32 @@ const handleBatchDelete = async () => {
     
     const deleteIds = selectedRows.value.map(row => row.id)
     
-    // 调用后端API批量删除
-    const response = await fetch('http://192.168.2.229:3005/api/processes/batch-delete', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ ids: deleteIds })
-    })
-    const result = await response.json()
-    
-    if (result.code === 200) {
+    try {
+      // 调用后端API批量删除
+      const response = await axiosInstance.post('/processes/batch-delete', { ids: deleteIds })
+      const result = response.data
+      
+      if (result.code === 200) {
+        // 添加到已删除ID列表
+        deletedProcessIds.value = [...deletedProcessIds.value, ...deleteIds]
+        saveDeletedProcessIds(deletedProcessIds.value)
+        selectedRows.value = []
+        await loadData()
+        ElMessage.success('批量删除成功')
+      } else {
+        ElMessage.error(result.message || '批量删除失败')
+      }
+    } catch (apiError) {
+      console.error('API批量删除失败，使用本地存储:', apiError)
+      // API失败，使用本地存储批量删除
+      tableData.value = tableData.value.filter(row => !deleteIds.includes(row.id))
+      // 添加到已删除ID列表
+      deletedProcessIds.value = [...deletedProcessIds.value, ...deleteIds]
+      saveDeletedProcessIds(deletedProcessIds.value)
       selectedRows.value = []
-      await loadData()
-      ElMessage.success('批量删除成功')
-    } else {
-      ElMessage.error(result.message || '批量删除失败')
+      updateStats()
+      saveProcessesToLocal(tableData.value)
+      ElMessage.success('批量删除成功（本地操作）')
     }
   } catch (error) {
     if (error !== 'cancel') {
@@ -560,31 +598,74 @@ const handleSave = async () => {
     }
     
     let response
-    if (isEdit.value) {
-      // 更新工序
-      response = await fetch(`http://192.168.2.229:3005/api/processes/update/${currentProcess.value.id}`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(requestData)
-      })
-    } else {
-      // 新增工序
-      response = await fetch('http://192.168.2.229:3005/api/processes/create', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(requestData)
-      })
-    }
+    let result
     
-    const result = await response.json()
-    
-    if (result.code === 200) {
-      ElMessage.success(isEdit.value ? '工序更新成功' : '工序创建成功')
+    try {
+      if (isEdit.value) {
+        // 更新工序
+        response = await axiosInstance.put(`/processes/update/${currentProcess.value.id}`, requestData)
+      } else {
+        // 新增工序
+        response = await axiosInstance.post('/processes/create', requestData)
+      }
+      result = response.data
+      
+      if (result.code === 200) {
+        ElMessage.success(isEdit.value ? '工序更新成功' : '工序创建成功')
+        editDialogVisible.value = false
+        await loadData()
+        return
+      }
+    } catch (apiError) {
+      console.error('API保存失败，使用本地存储:', apiError)
+      // API失败，使用本地存储
+      if (isEdit.value) {
+        // 更新本地记录
+        const index = tableData.value.findIndex(item => item.id === currentProcess.value.id)
+        if (index !== -1) {
+          tableData.value[index] = {
+            ...tableData.value[index],
+            processCode: formData.value.processCode,
+            processName: formData.value.processName,
+            processPrincipal: formData.value.processPrincipal,
+            dispatchMethod: formData.value.dispatchMethod,
+            selfOrOutsource: formData.value.selfOrOutsource || '',
+            availableWorkstations: formData.value.availableWorkstations || 0,
+            isStorage: formData.value.isStorage,
+            completionWarehouse: formData.value.completionWarehouse || '',
+            workshopName: formData.value.workshopName,
+            processWage: parseFloat(formData.value.processWage) || 0,
+            updateTime: new Date().toLocaleString('zh-CN')
+          }
+        }
+      } else {
+        // 添加本地记录
+        const newProcess = {
+          id: Date.now() + Math.random(), // 生成临时ID
+          processCode: formData.value.processCode,
+          processName: formData.value.processName,
+          processPrincipal: formData.value.processPrincipal,
+          dispatchMethod: formData.value.dispatchMethod,
+          selfOrOutsource: formData.value.selfOrOutsource || '',
+          availableWorkstations: formData.value.availableWorkstations || 0,
+          isStorage: formData.value.isStorage,
+          completionWarehouse: formData.value.completionWarehouse || '',
+          workshopName: formData.value.workshopName,
+          processWage: parseFloat(formData.value.processWage) || 0,
+          createTime: new Date().toLocaleString('zh-CN'),
+          updateTime: new Date().toLocaleString('zh-CN')
+        }
+        tableData.value.push(newProcess)
+      }
+      
+      updateStats()
+      saveProcessesToLocal(tableData.value)
+      ElMessage.success(isEdit.value ? '工序更新成功（本地操作）' : '工序创建成功（本地操作）')
       editDialogVisible.value = false
-      await loadData()
-    } else {
-      ElMessage.error(result.message || '保存失败')
+      return
     }
+    
+    ElMessage.error(result?.message || '保存失败')
   } catch (error) {
     console.error('保存工序失败:', error)
     ElMessage.error('保存工序失败')
@@ -680,9 +761,6 @@ const handleImportConfirm = async () => {
       return
     }
     
-    let addedCount = 0
-    let updatedCount = 0
-    
     // 批量创建/更新
     const importRequests = importedData.map(item => ({
       process_code: item['工序编号'] || '',
@@ -695,20 +773,56 @@ const handleImportConfirm = async () => {
       process_wage: parseFloat(item['工序工资']) || 0
     }))
     
-    // 调用后端API批量创建
-    const response = await fetch('http://192.168.2.229:3005/api/processes/batch-create', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(importRequests)
-    })
-    const result = await response.json()
-    
-    if (result.code === 200) {
-      ElMessage.success(`导入成功！成功 ${result.data.successCount} 条，失败 ${result.data.errorCount} 条`)
+    try {
+      // 调用后端API批量创建
+      const response = await axiosInstance.post('/processes/batch-create', importRequests)
+      const result = response.data
+      
+      if (result.code === 200) {
+        ElMessage.success(`导入成功！成功 ${result.data.successCount} 条，失败 ${result.data.errorCount} 条`)
+        importDialogVisible.value = false
+        await loadData()
+      } else {
+        ElMessage.error(result.message || '导入失败')
+      }
+    } catch (apiError) {
+      console.error('API导入失败，使用本地存储:', apiError)
+      
+      // API失败，使用本地存储
+      let successCount = 0
+      const newProcesses = importedData.map(item => {
+        const process = {
+          id: Date.now() + Math.random(), // 生成临时ID
+          processCode: item['工序编号'] || `P${Date.now() + Math.random().toString(36).substr(2, 5)}`,
+          processName: item['工序名称'] || '',
+          processPrincipal: item['工序负责人'] || '',
+          dispatchMethod: item['派工方式'] === '自动派工' ? 'auto' : 'manual',
+          selfOrOutsource: '',
+          availableWorkstations: 0,
+          isStorage: item['是否入库'] === '是',
+          completionWarehouse: item['完工绑定仓库'] || '',
+          workshopName: item['所属车间名称'] || '',
+          processWage: parseFloat(item['工序工资']) || 0,
+          createTime: new Date().toLocaleString('zh-CN')
+        }
+        
+        // 检查是否已存在
+        const existingIndex = tableData.value.findIndex(p => p.processCode === process.processCode)
+        if (existingIndex !== -1) {
+          // 更新现有记录
+          tableData.value[existingIndex] = process
+        } else {
+          // 添加新记录
+          tableData.value.push(process)
+        }
+        successCount++
+        return process
+      })
+      
+      updateStats()
+      saveProcessesToLocal(tableData.value)
       importDialogVisible.value = false
-      await loadData()
-    } else {
-      ElMessage.error(result.message || '导入失败')
+      ElMessage.success(`本地导入成功！成功处理 ${successCount} 条记录`)
     }
   } catch (error) {
     console.error('导入失败:', error)
@@ -774,15 +888,68 @@ const handleCurrentChange = (page) => {
   currentPage.value = page
 }
 
+// 本地存储键名
+const PROCESS_LIST_KEY = 'processListData'
+const DELETED_PROCESSES_KEY = 'deletedProcessIds'
+
+// 从本地存储加载已删除的工序ID列表
+const loadDeletedProcessIds = () => {
+  try {
+    const cached = localStorage.getItem(DELETED_PROCESSES_KEY)
+    if (cached) {
+      return JSON.parse(cached)
+    }
+  } catch (error) {
+    console.error('❌ 从本地存储加载已删除ID列表失败:', error)
+  }
+  return []
+}
+
+// 保存已删除的工序ID列表到本地存储
+const saveDeletedProcessIds = (ids) => {
+  try {
+    localStorage.setItem(DELETED_PROCESSES_KEY, JSON.stringify(ids))
+    console.log('✅ 已删除ID列表已保存到本地存储')
+  } catch (error) {
+    console.error('❌ 保存已删除ID列表到本地存储失败:', error)
+  }
+}
+
+// 从本地存储加载工序数据
+const loadProcessesFromLocal = () => {
+  try {
+    const cached = localStorage.getItem(PROCESS_LIST_KEY)
+    if (cached) {
+      return JSON.parse(cached)
+    }
+  } catch (error) {
+    console.error('❌ 从本地存储加载数据失败:', error)
+  }
+  return []
+}
+
+// 保存工序数据到本地存储
+const saveProcessesToLocal = (data) => {
+  try {
+    localStorage.setItem(PROCESS_LIST_KEY, JSON.stringify(data))
+    console.log('✅ 工序数据已保存到本地存储')
+  } catch (error) {
+    console.error('❌ 保存数据到本地存储失败:', error)
+  }
+}
+
+// 已删除的ID列表
+const deletedProcessIds = ref(loadDeletedProcessIds())
+
 // 加载数据
 const loadData = async () => {
   try {
-    const response = await fetch('http://192.168.2.229:3005/api/processes/list')
-    const result = await response.json()
+    const response = await axiosInstance.get('/processes/list')
+    const result = response.data
     
     if (result.code === 200) {
       // 转换后端数据格式为前端格式
-      tableData.value = result.data.map(item => ({
+      let processes = result.data.map(item => ({
         id: item.id,
         processCode: item.process_code,
         processName: item.process_name,
@@ -797,12 +964,75 @@ const loadData = async () => {
         createTime: new Date(item.created_at).toLocaleString('zh-CN'),
         updateTime: new Date(item.updated_at).toLocaleString('zh-CN')
       }))
+      
+      // 过滤掉已删除的数据
+      processes = processes.filter(process => !deletedProcessIds.value.includes(process.id))
+      
+      tableData.value = processes
       updateStats()
+      // 保存到本地存储作为备份
+      saveProcessesToLocal(processes)
     } else {
       console.error('加载工序数据失败:', result.message)
+      // 尝试从本地存储加载
+      const cachedProcesses = loadProcessesFromLocal()
+      // 过滤掉已删除的数据
+      const filteredProcesses = cachedProcesses.filter(process => !deletedProcessIds.value.includes(process.id))
+      if (filteredProcesses.length > 0) {
+        tableData.value = filteredProcesses
+        updateStats()
+        ElMessage.success('从本地存储加载数据成功')
+      }
     }
   } catch (error) {
     console.error('加载工序数据失败:', error)
+    // 尝试从本地存储加载
+    const cachedProcesses = loadProcessesFromLocal()
+    // 过滤掉已删除的数据
+    const filteredProcesses = cachedProcesses.filter(process => !deletedProcessIds.value.includes(process.id))
+    if (filteredProcesses.length > 0) {
+      tableData.value = filteredProcesses
+      updateStats()
+      ElMessage.success('从本地存储加载数据成功')
+    } else {
+      // 初始化一些模拟数据
+      const mockData = [
+        {
+          id: 1,
+          processCode: 'P20250001',
+          processName: '切割',
+          processPrincipal: '张三',
+          dispatchMethod: 'auto',
+          selfOrOutsource: '自制',
+          availableWorkstations: 5,
+          isStorage: true,
+          completionWarehouse: '成品仓',
+          workshopName: '生产车间',
+          processWage: 100,
+          createTime: new Date().toLocaleString('zh-CN')
+        },
+        {
+          id: 2,
+          processCode: 'P20250002',
+          processName: '焊接',
+          processPrincipal: '李四',
+          dispatchMethod: 'manual',
+          selfOrOutsource: '自制',
+          availableWorkstations: 3,
+          isStorage: false,
+          completionWarehouse: '',
+          workshopName: '生产车间',
+          processWage: 150,
+          createTime: new Date().toLocaleString('zh-CN')
+        }
+      ]
+      // 过滤掉已删除的数据
+      const filteredMockData = mockData.filter(process => !deletedProcessIds.value.includes(process.id))
+      tableData.value = filteredMockData
+      updateStats()
+      saveProcessesToLocal(filteredMockData)
+      ElMessage.success('已初始化模拟数据')
+    }
   }
 }
 

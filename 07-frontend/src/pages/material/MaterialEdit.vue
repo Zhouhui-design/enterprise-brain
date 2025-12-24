@@ -3,49 +3,49 @@
     <el-tabs v-model="activeTab" type="card">
       <!-- 基础属性 -->
       <el-tab-pane label="基础属性" name="basic">
-        <el-form :model="formData" label-width="120px">
+        <el-form :model="formData" :rules="rules" ref="materialFormRef" label-width="120px">
           <el-row :gutter="20">
             <el-col :span="12">
               <el-form-item label="物料编码">
                 <el-input v-model="formData.materialCode" placeholder="自动生成" disabled />
               </el-form-item>
-              <el-form-item label="BOM编号">
+              <el-form-item label="BOM编号" prop="bomNumber">
                 <el-input v-model="formData.bomNumber" placeholder="请输入BOM编号" />
               </el-form-item>
-              <el-form-item label="物料名称">
+              <el-form-item label="物料名称" prop="materialName">
                 <el-input v-model="formData.materialName" placeholder="请输入物料名称" />
               </el-form-item>
-              <el-form-item label="尺寸规格">
+              <el-form-item label="尺寸规格" prop="sizeSpec">
                 <el-input v-model="formData.sizeSpec" placeholder="请输入尺寸规格" />
               </el-form-item>
-              <el-form-item label="颜色">
+              <el-form-item label="颜色" prop="color">
                 <el-input v-model="formData.color" placeholder="请输入颜色" />
               </el-form-item>
-              <el-form-item label="材质">
+              <el-form-item label="材质" prop="material">
                 <el-input v-model="formData.material" placeholder="请输入材质" />
               </el-form-item>
             </el-col>
             <el-col :span="12">
-              <el-form-item label="大类">
+              <el-form-item label="大类" prop="majorCategory">
                 <el-input v-model="formData.majorCategory" placeholder="请输入大类" />
               </el-form-item>
-              <el-form-item label="中类">
+              <el-form-item label="中类" prop="middleCategory">
                 <el-input v-model="formData.middleCategory" placeholder="请输入中类" />
               </el-form-item>
-              <el-form-item label="小类">
+              <el-form-item label="小类" prop="minorCategory">
                 <el-input v-model="formData.minorCategory" placeholder="请输入小类" />
               </el-form-item>
-              <el-form-item label="型号">
+              <el-form-item label="型号" prop="model">
                 <el-input v-model="formData.model" placeholder="请输入型号" />
               </el-form-item>
-              <el-form-item label="系列">
+              <el-form-item label="系列" prop="series">
                 <el-input v-model="formData.series" placeholder="请输入系列" />
               </el-form-item>
             </el-col>
           </el-row>
           <el-row :gutter="20">
             <el-col :span="12">
-              <el-form-item label="来源">
+              <el-form-item label="来源" prop="source">
                 <el-select v-model="formData.source" multiple placeholder="请选择来源" style="width: 100%;">
                   <el-option label="自制" value="自制" />
                   <el-option label="客供" value="客供" />
@@ -55,7 +55,7 @@
               </el-form-item>
             </el-col>
             <el-col :span="12">
-              <el-form-item label="基础单位">
+              <el-form-item label="基础单位" prop="baseUnit">
                 <el-input v-model="formData.baseUnit" placeholder="如：个、台、套" />
               </el-form-item>
             </el-col>
@@ -93,15 +93,15 @@
 
       <!-- 销售属性 -->
       <el-tab-pane label="销售属性" name="sales">
-        <el-form :model="formData" label-width="120px">
+        <el-form :model="formData" :rules="rules" ref="materialFormRef" label-width="120px">
           <el-row :gutter="20">
             <el-col :span="12">
-              <el-form-item label="销售单位">
+              <el-form-item label="销售单位" prop="saleUnit">
                 <el-input v-model="formData.saleUnit" placeholder="请输入销售单位" />
               </el-form-item>
             </el-col>
             <el-col :span="12">
-              <el-form-item label="销售转化率">
+              <el-form-item label="销售转化率" prop="saleConversionRate">
                 <el-input-number v-model="formData.saleConversionRate" :precision="2" :min="0" placeholder="请输入销售转化率" style="width: 100%;" />
               </el-form-item>
             </el-col>
@@ -116,10 +116,10 @@
 
       <!-- 生产属性 -->
       <el-tab-pane label="生产属性" name="production">
-        <el-form :model="formData" label-width="120px">
+        <el-form :model="formData" :rules="rules" ref="materialFormRef" label-width="120px">
           <el-row :gutter="20">
             <el-col :span="12">
-              <el-form-item label="产出工序名称">
+              <el-form-item label="产出工序名称" prop="processName">
                 <SmartSelect
                   v-model="formData.processName"
                   :options="processList"
@@ -133,13 +133,13 @@
                   style="width: 100%;"
                 />
               </el-form-item>
-              <el-form-item label="定时工额">
+              <el-form-item label="定时工额" prop="standardTime">
                 <el-input-number v-model="formData.standardTime" :precision="2" :min="0" style="width: 100%;" />
               </el-form-item>
-              <el-form-item label="定额工时">
+              <el-form-item label="定额工时" prop="quotaTime">
                 <el-input-number v-model="formData.quotaTime" :precision="2" :min="0" style="width: 100%;" />
               </el-form-item>
-              <el-form-item label="最小包装量">
+              <el-form-item label="最小包装量" prop="minimumPackagingQuantity">
                 <el-input-number v-model="formData.minimumPackagingQuantity" :precision="6" :min="0" placeholder="默认值：1" style="width: 100%;" />
                 <div style="font-size: 12px; color: #909399; margin-top: 4px;">
                   用于计算排程数量的最小包装单位
@@ -147,13 +147,13 @@
               </el-form-item>
             </el-col>
             <el-col :span="12">
-              <el-form-item label="工序单价">
+              <el-form-item label="工序单价" prop="processPrice">
                 <el-input-number v-model="formData.processPrice" :precision="2" :min="0" style="width: 100%;" />
               </el-form-item>
-              <el-form-item label="kg/pcs">
+              <el-form-item label="kg/pcs" prop="kgPerPcs">
                 <el-input-number v-model="formData.kgPerPcs" :precision="4" :min="0" style="width: 100%;" />
               </el-form-item>
-              <el-form-item label="pcs/kg">
+              <el-form-item label="pcs/kg" prop="pcsPerKg">
                 <el-input-number v-model="formData.pcsPerKg" :precision="4" :min="0" style="width: 100%;" />
               </el-form-item>
             </el-col>
@@ -163,13 +163,13 @@
 
       <!-- 采购属性 -->
       <el-tab-pane label="采购属性" name="purchase">
-        <el-form :model="formData" label-width="120px">
+        <el-form :model="formData" :rules="rules" ref="materialFormRef" label-width="120px">
           <el-row :gutter="20">
             <el-col :span="12">
-              <el-form-item label="采购单位">
+              <el-form-item label="采购单位" prop="purchaseUnit">
                 <el-input v-model="formData.purchaseUnit" placeholder="请输入采购单位" />
               </el-form-item>
-              <el-form-item label="采购周期">
+              <el-form-item label="采购周期" prop="purchaseCycle">
                 <el-input v-model="formData.purchaseCycle" placeholder="如：7天、15天" />
               </el-form-item>
               <el-form-item label="基础单价">
@@ -186,7 +186,7 @@
               </el-form-item>
             </el-col>
             <el-col :span="12">
-              <el-form-item label="采购转化率">
+              <el-form-item label="采购转化率" prop="purchaseConversionRate">
                 <el-input-number 
                   v-model="formData.purchaseConversionRate" 
                   :precision="2" 
@@ -196,7 +196,7 @@
                   style="width: 100%;" 
                 />
               </el-form-item>
-              <el-form-item label="采购单价">
+              <el-form-item label="采购单价" prop="purchasePrice">
                 <el-input-number 
                   v-model="formData.purchasePrice" 
                   :precision="2" 
@@ -395,6 +395,90 @@ const emit = defineEmits(['success', 'save', 'cancel', 'navigate'])
 const activeTab = ref('basic')
 const processList = ref([]) // 工序列表
 const supplierList = ref([]) // ✅ 供应商列表
+const materialFormRef = ref(null) // 表单引用
+
+// 表单验证规则
+const rules = ref({
+  materialName: [
+    { required: true, message: '请输入物料名称', trigger: 'blur' },
+    { min: 2, max: 100, message: '物料名称长度在 2 到 100 个字符', trigger: 'blur' }
+  ],
+  majorCategory: [
+    { required: true, message: '请输入大类', trigger: 'blur' }
+  ],
+  baseUnit: [
+    { required: true, message: '请输入基础单位', trigger: 'blur' }
+  ],
+  bomNumber: [
+    { max: 50, message: 'BOM编号长度不能超过50个字符', trigger: 'blur' }
+  ],
+  sizeSpec: [
+    { max: 100, message: '尺寸规格长度不能超过100个字符', trigger: 'blur' }
+  ],
+  color: [
+    { max: 50, message: '颜色长度不能超过50个字符', trigger: 'blur' }
+  ],
+  material: [
+    { max: 50, message: '材质长度不能超过50个字符', trigger: 'blur' }
+  ],
+  middleCategory: [
+    { max: 50, message: '中类长度不能超过50个字符', trigger: 'blur' }
+  ],
+  minorCategory: [
+    { max: 50, message: '小类长度不能超过50个字符', trigger: 'blur' }
+  ],
+  model: [
+    { max: 50, message: '型号长度不能超过50个字符', trigger: 'blur' }
+  ],
+  series: [
+    { max: 50, message: '系列长度不能超过50个字符', trigger: 'blur' }
+  ],
+  source: [
+    { required: true, message: '请选择来源', trigger: 'change' }
+  ],
+  description: [
+    { max: 500, message: '物料详述长度不能超过500个字符', trigger: 'blur' }
+  ],
+  saleUnit: [
+    { max: 20, message: '销售单位长度不能超过20个字符', trigger: 'blur' }
+  ],
+  saleConversionRate: [
+    { type: 'number', minimum: 0, message: '销售转化率不能小于0', trigger: 'blur' }
+  ],
+  purchaseUnit: [
+    { max: 20, message: '采购单位长度不能超过20个字符', trigger: 'blur' }
+  ],
+  purchaseConversionRate: [
+    { type: 'number', minimum: 0, message: '采购转化率不能小于0', trigger: 'blur' }
+  ],
+  processName: [
+    { max: 100, message: '工序名称长度不能超过100个字符', trigger: 'blur' }
+  ],
+  standardTime: [
+    { type: 'number', minimum: 0, message: '标准工时不能小于0', trigger: 'blur' }
+  ],
+  quotaTime: [
+    { type: 'number', minimum: 0, message: '定额工时不能小于0', trigger: 'blur' }
+  ],
+  minimumPackagingQuantity: [
+    { type: 'number', minimum: 0, message: '最小包装量不能小于0', trigger: 'blur' }
+  ],
+  processPrice: [
+    { type: 'number', minimum: 0, message: '工序单价不能小于0', trigger: 'blur' }
+  ],
+  kgPerPcs: [
+    { type: 'number', minimum: 0, message: 'kg/pcs不能小于0', trigger: 'blur' }
+  ],
+  pcsPerKg: [
+    { type: 'number', minimum: 0, message: 'pcs/kg不能小于0', trigger: 'blur' }
+  ],
+  purchaseCycle: [
+    { max: 50, message: '采购周期长度不能超过50个字符', trigger: 'blur' }
+  ],
+  purchasePrice: [
+    { type: 'number', minimum: 0, message: '采购单价不能小于0', trigger: 'blur' }
+  ]
+})
 
 const formData = reactive({
   materialCode: '',
@@ -456,8 +540,42 @@ const handlePurchaseDataChange = () => {
 
 // 监听 props 变化
 watch(() => props.materialData, (newVal) => {
-  if (newVal && props.isEdit) {
-    Object.assign(formData, newVal)
+  if (newVal) {
+    // 深拷贝数据
+    const materialData = JSON.parse(JSON.stringify(newVal))
+    
+    // 将字符串类型的数字转换为Number类型
+    const numberFields = [
+      'saleConversionRate', 'standardTime', 'quotaTime', 'minimumPackagingQuantity',
+      'processPrice', 'kgPerPcs', 'pcsPerKg', 'purchaseConversionRate', 'purchasePrice',
+      'basePrice', 'evaluationScore', 'paymentTerms', 'cooperationStartDate',
+      'taxRate', 'minimumOrderQuantity', 'tierUnitPrice', 'standardPackagingQuantity'
+    ]
+    
+    // 转换主表单的数字字段
+    numberFields.forEach(field => {
+      if (materialData[field] !== undefined && materialData[field] !== null) {
+        materialData[field] = parseFloat(materialData[field])
+      }
+    })
+    
+    // 转换供货商信息列表中的数字字段
+    if (materialData.suppliers && Array.isArray(materialData.suppliers)) {
+      materialData.suppliers = materialData.suppliers.map(supplier => {
+        const supplierCopy = { ...supplier }
+        const supplierNumberFields = [
+          'minimumOrderQuantity', 'tierUnitPrice', 'taxRate', 'standardPackagingQuantity'
+        ]
+        supplierNumberFields.forEach(field => {
+          if (supplierCopy[field] !== undefined && supplierCopy[field] !== null) {
+            supplierCopy[field] = parseFloat(supplierCopy[field])
+          }
+        })
+        return supplierCopy
+      })
+    }
+    
+    Object.assign(formData, materialData)
   }
 }, { immediate: true })
 
@@ -490,28 +608,34 @@ const handleCancel = () => {
 }
 
 // 保存（不关闭页面）
-const handleSave = () => {
-  if (!formData.materialName) {
-    ElMessage.warning('请输入物料名称')
-    activeTab.value = 'basic'
-    return
-  }
+const handleSave = async () => {
+  if (!materialFormRef.value) return
   
-  // 发送数据到父组件
-  emit('save', { ...formData })
-  ElMessage.success('保存成功')
+  try {
+    await materialFormRef.value.validate()
+    
+    // 发送数据到父组件
+    emit('save', { ...formData })
+    ElMessage.success('保存成功')
+  } catch (error) {
+    console.error('表单验证失败:', error)
+    ElMessage.error('表单验证失败，请检查填写内容')
+  }
 }
 
 // 提交（关闭页面）
-const handleSubmit = () => {
-  if (!formData.materialName) {
-    ElMessage.warning('请输入物料名称')
-    activeTab.value = 'basic'
-    return
-  }
+const handleSubmit = async () => {
+  if (!materialFormRef.value) return
   
-  // 发送数据到父组件
-  emit('success', { ...formData })
+  try {
+    await materialFormRef.value.validate()
+    
+    // 发送数据到父组件
+    emit('success', { ...formData })
+  } catch (error) {
+    console.error('表单验证失败:', error)
+    ElMessage.error('表单验证失败，请检查填写内容')
+  }
 }
 
 // 上一项

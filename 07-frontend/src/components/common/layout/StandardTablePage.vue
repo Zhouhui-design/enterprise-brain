@@ -190,12 +190,14 @@ const props = defineProps({
   /** 表格数据 */
   tableData: {
     type: Array,
-    required: true
+    required: false,
+    default: () => []
   },
   /** 列配置 */
   columns: {
     type: Array,
-    required: true
+    required: false,
+    default: () => []
   },
   /** 加载状态 */
   loading: {
@@ -387,13 +389,13 @@ const settingsVisible = ref(false)
 // ✅ 响应式表格数据（确保响应性）
 const computedTableData = computed(() => {
   console.log('🔄 computedTableData 被重新计算, 数量:', props.tableData?.length)
-  return props.tableData
+  return props.tableData || []
 })
 
 // ✅ 可见列（根据设置过滤）
 // 注意：使用 computed 而不是 ref，以便响应 props.columns 的变化
 const visibleColumns = computed(() => {
-  return props.columns.filter(col => col.visible !== false)
+  return (props.columns || []).filter(col => col.visible !== false)
 })
 
 // ✅ 响应式表格高度

@@ -286,13 +286,13 @@
             <el-table-column prop="materialName" label="物料名称" width="150" />
             <el-table-column prop="shortageQuantity" label="短缺数量" width="100" align="right">
               <template #default="{ row }">
-                <el-input-number
-                  v-model="getPurchaseQuantity(row.id)"
-                  :min="1"
-                  :max="row.shortageQuantity"
-                  size="small"
-                />
-              </template>
+                  <el-input-number
+                    v-model="purchaseQuantities[row.id]"
+                    :min="1"
+                    :max="row.shortageQuantity"
+                    size="small"
+                  />
+                </template>
             </el-table-column>
             <el-table-column prop="unit" label="单位" width="60" />
             <el-table-column label="操作" width="80">

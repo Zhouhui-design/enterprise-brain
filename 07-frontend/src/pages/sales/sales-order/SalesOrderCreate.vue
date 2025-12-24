@@ -716,11 +716,28 @@ onMounted(async () => {
         salesPerson: c.sales_person
       }))
       console.log('✅ 从后端加载客户数据:', customerList.value.length, '条')
+      
+      // 保存到localStorage作为缓存
+      localStorage.setItem('customerData', JSON.stringify(customerList.value))
     }
   } catch (error) {
     console.error('❌ 加载客户数据失败:', error)
-    ElMessage.warning('加载客户数据失败，请检查网络连接')
-    customerList.value = []
+    ElMessage.warning('加载客户数据失败，正在使用缓存数据')
+    
+    // 失败时尝试从localStorage加载缓存
+    const customerData = localStorage.getItem('customerData')
+    if (customerData) {
+      try {
+        customerList.value = JSON.parse(customerData)
+        console.log('📦 从缓存加载客户数据:', customerList.value.length, '条')
+      } catch (e) {
+        console.error('解析客户数据缓存失败:', e)
+        customerList.value = []
+      }
+    } else {
+      // 如果没有缓存，使用空数组
+      customerList.value = []
+    }
   }
   
   // ✅ 从后端API加载产品手册数据
@@ -728,16 +745,29 @@ onMounted(async () => {
     console.log('🔄 开始加载产品手册数据...')
     const response = await productManualAPI.getAll()
     
+    // 处理不同的响应格式
+    let productData = []
     if (response.code === 200 && Array.isArray(response.data)) {
-      productManualList.value = response.data
-      console.log('✅ 产品手册数据加载成功，共', response.data.length, '条')
+      productData = response.data
+    } else if (response.data && response.data.success && Array.isArray(response.data.data)) {
+      productData = response.data.data
+    } else if (Array.isArray(response)) {
+      productData = response
+    } else if (response.data && Array.isArray(response.data)) {
+      productData = response.data
     } else {
       console.warn('⚠️ 产品手册返回数据格式异常:', response)
-      productManualList.value = []
+      productData = []
     }
+    
+    productManualList.value = productData
+    console.log('✅ 产品手册数据加载成功，共', productData.length, '条')
+    
+    // 保存到localStorage作为缓存
+    localStorage.setItem('productManualData', JSON.stringify(productManualList.value))
   } catch (error) {
     console.error('❌ 加载产品手册数据失败:', error)
-    ElMessage.warning('加载产品手册数据失败，请检查网络连接')
+    ElMessage.warning('加载产品手册数据失败，正在使用缓存数据')
     
     // 失败时尝试从localStorage加载缓存
     const productData = localStorage.getItem('productManualData')
@@ -749,6 +779,9 @@ onMounted(async () => {
         console.error('解析产品手册缓存数据失败:', e)
         productManualList.value = []
       }
+    } else {
+      // 如果没有缓存，使用空数组
+      productManualList.value = []
     }
   }
   
@@ -1001,51 +1034,30 @@ const lookupOutputProcess = async (row) => {
   try {
     console.log('🔍 开始lookup产出工序, 产品编码:', row.productCode)
     
-    // 从产品手册API获取数据
-    const response = await productManualAPI.getAll()
-    console.log('📦 产品手册API响应:', response)
+    // 直接使用已经加载好的productManualList，而不是重新请求API
+    const matchedProduct = productManualList.value.find(p => {
+      const code = p.product_code || p.productCode || p.code
+      return code === row.productCode
+    })
     
-    // 处理不同的响应格式
-    let productList = []
-    if (response.success && response.data) {
-      productList = response.data
-    } else if (Array.isArray(response)) {
-      productList = response
-    } else if (response.data && Array.isArray(response.data)) {
-      productList = response.data
-    }
+    console.log('🔎 查找产品编码:', row.productCode, '匹配结果:', matchedProduct)
     
-    console.log('📋 产品手册列表:', productList.length, '条')
-    
-    if (productList.length > 0) {
-      // 查找匹配的产品（支持多种字段名格式）
-      const matchedProduct = productList.find(p => {
-        const code = p.product_code || p.productCode || p.code
-        return code === row.productCode
+    if (matchedProduct) {
+      // 产出工序名称字段可能是output_process_name或outputProcessName
+      const outputProcessName = matchedProduct.output_process_name || 
+                                matchedProduct.outputProcessName || 
+                                matchedProduct.output_process || 
+                                matchedProduct.process_name || ''
+      row.outputProcess = outputProcessName
+      
+      console.log('✅ Lookup成功:', {
+        productCode: row.productCode,
+        outputProcess: outputProcessName,
+        matchedProduct: matchedProduct
       })
-      
-      console.log('🔎 查找产品编码:', row.productCode, '匹配结果:', matchedProduct)
-      
-      if (matchedProduct) {
-        // 产出工序名称字段可能是output_process_name或outputProcessName
-        const outputProcessName = matchedProduct.output_process_name || 
-                                  matchedProduct.outputProcessName || 
-                                  matchedProduct.output_process || 
-                                  matchedProduct.process_name || ''
-        row.outputProcess = outputProcessName
-        
-        console.log('✅ Lookup成功:', {
-          productCode: row.productCode,
-          outputProcess: outputProcessName,
-          matchedProduct: matchedProduct
-        })
-      } else {
-        console.log('⚠️ 未找到匹配的产品:', row.productCode)
-        console.log('可用的产品编码:', productList.map(p => p.product_code || p.productCode || p.code))
-        row.outputProcess = ''
-      }
     } else {
-      console.log('⚠️ 产品手册数据为空或格式不正确')
+      console.log('⚠️ 未找到匹配的产品:', row.productCode)
+      console.log('可用的产品编码:', productManualList.value.map(p => p.product_code || p.productCode || p.code))
       row.outputProcess = ''
     }
   } catch (error) {
@@ -1064,55 +1076,37 @@ const lookupProductSource = async (row) => {
   try {
     console.log('🔍 开始lookup产品来源, 产品编码:', row.productCode)
     
-    // 从产品手册API获取数据
-    const response = await productManualAPI.getAll()
+    // 直接使用已经加载好的productManualList，而不是重新请求API
+    const matchedProduct = productManualList.value.find(p => {
+      const code = p.product_code || p.productCode || p.code
+      return code === row.productCode
+    })
     
-    // 处理不同的响应格式
-    let productList = []
-    if (response.success && response.data) {
-      productList = response.data
-    } else if (Array.isArray(response)) {
-      productList = response
-    } else if (response.data && Array.isArray(response.data)) {
-      productList = response.data
-    }
-    
-    if (productList.length > 0) {
-      // 查找匹配的产品
-      const matchedProduct = productList.find(p => {
-        const code = p.product_code || p.productCode || p.code
-        return code === row.productCode
-      })
+    if (matchedProduct) {
+      // 产品来源字段：source (可能是JSON数组，如 ["自制"] 或 ["外购"])
+      let productSource = matchedProduct.source || ''
       
-      if (matchedProduct) {
-        // 产品来源字段：source (可能是JSON数组，如 ["自制"] 或 ["外购"])
-        let productSource = matchedProduct.source || ''
-        
-        // 如果是JSON字符串，解析并取第一个值
-        if (typeof productSource === 'string' && productSource.startsWith('[')) {
-          try {
-            const sourceArray = JSON.parse(productSource)
-            if (Array.isArray(sourceArray) && sourceArray.length > 0) {
-              productSource = sourceArray[0]
-            }
-          } catch (e) {
-            console.warn('⚠️ 解析产品来源JSON失败:', productSource)
+      // 如果是JSON字符串，解析并取第一个值
+      if (typeof productSource === 'string' && productSource.startsWith('[')) {
+        try {
+          const sourceArray = JSON.parse(productSource)
+          if (Array.isArray(sourceArray) && sourceArray.length > 0) {
+            productSource = sourceArray[0]
           }
+        } catch (e) {
+          console.warn('⚠️ 解析产品来源JSON失败:', productSource)
         }
-        
-        row.productSource = productSource
-        
-        console.log('✅ Lookup产品来源成功:', {
-          productCode: row.productCode,
-          productSource: productSource,
-          原始值: matchedProduct.source
-        })
-      } else {
-        console.log('⚠️ 未找到匹配的产品:', row.productCode)
-        row.productSource = ''
       }
+      
+      row.productSource = productSource
+      
+      console.log('✅ Lookup产品来源成功:', {
+        productCode: row.productCode,
+        productSource: productSource,
+        原始值: matchedProduct.source
+      })
     } else {
-      console.log('⚠️ 产品手册数据为空或格式不正确')
+      console.log('⚠️ 未找到匹配的产品:', row.productCode)
       row.productSource = ''
     }
   } catch (error) {
@@ -1367,6 +1361,7 @@ const saveOrderData = async (closeAfterSave = false) => {
 const handleSave = async () => {
   if (await saveOrderData(false)) {
     ElMessage.success('订单保存成功，可以继续编辑')
+    emit('success')
   }
 }
 
