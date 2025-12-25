@@ -14,7 +14,7 @@ router.get('/', async (req, res) => {
       masterPlanNo,
       processName,
       scheduleDateStart,
-      scheduleDateEnd
+      scheduleDateEnd,
     } = req.query;
 
     const result = await realProcessPlanService.getAll({
@@ -24,23 +24,27 @@ router.get('/', async (req, res) => {
       masterPlanNo,
       processName,
       scheduleDateStart,
-      scheduleDateEnd
+      scheduleDateEnd,
     });
 
     res.setHeader('Content-Type', 'application/json');
-    res.send(customJsonStringify({
-      code: 200,
-      data: result,
-      message: '查询成功'
-    }));
+    res.send(
+      customJsonStringify({
+        code: 200,
+        data: result,
+        message: '查询成功',
+      }),
+    );
   } catch (error) {
     console.error('获取真工序计划列表失败:', error);
     res.status(500);
     res.setHeader('Content-Type', 'application/json');
-    res.send(customJsonStringify({
-      code: 500,
-      message: error.message
-    }));
+    res.send(
+      customJsonStringify({
+        code: 500,
+        message: error.message,
+      }),
+    );
   }
 });
 
@@ -48,30 +52,36 @@ router.get('/', async (req, res) => {
 router.get('/:id', async (req, res) => {
   try {
     const plan = await realProcessPlanService.getById(req.params.id);
-    
+
     if (!plan) {
       return res.status(404);
-    res.setHeader('Content-Type', 'application/json');
-    res.send(customJsonStringify({
-        code: 404,
-        message: '真工序计划不存在'
-      }));
+      res.setHeader('Content-Type', 'application/json');
+      res.send(
+        customJsonStringify({
+          code: 404,
+          message: '真工序计划不存在',
+        }),
+      );
     }
 
     res.setHeader('Content-Type', 'application/json');
-    res.send(customJsonStringify({
-      code: 200,
-      data: plan,
-      message: '查询成功'
-    }));
+    res.send(
+      customJsonStringify({
+        code: 200,
+        data: plan,
+        message: '查询成功',
+      }),
+    );
   } catch (error) {
     console.error('获取真工序计划失败:', error);
     res.status(500);
     res.setHeader('Content-Type', 'application/json');
-    res.send(customJsonStringify({
-      code: 500,
-      message: error.message
-    }));
+    res.send(
+      customJsonStringify({
+        code: 500,
+        message: error.message,
+      }),
+    );
   }
 });
 
@@ -79,21 +89,25 @@ router.get('/:id', async (req, res) => {
 router.post('/', async (req, res) => {
   try {
     const id = await realProcessPlanService.create(req.body);
-    
+
     res.setHeader('Content-Type', 'application/json');
-    res.send(customJsonStringify({
-      code: 200,
-      data: { id },
-      message: '创建成功'
-    }));
+    res.send(
+      customJsonStringify({
+        code: 200,
+        data: { id },
+        message: '创建成功',
+      }),
+    );
   } catch (error) {
     console.error('创建真工序计划失败:', error);
     res.status(500);
     res.setHeader('Content-Type', 'application/json');
-    res.send(customJsonStringify({
-      code: 500,
-      message: error.message
-    }));
+    res.send(
+      customJsonStringify({
+        code: 500,
+        message: error.message,
+      }),
+    );
   }
 });
 
@@ -101,20 +115,24 @@ router.post('/', async (req, res) => {
 router.put('/:id', async (req, res) => {
   try {
     await realProcessPlanService.update(req.params.id, req.body);
-    
+
     res.setHeader('Content-Type', 'application/json');
-    res.send(customJsonStringify({
-      code: 200,
-      message: '更新成功'
-    }));
+    res.send(
+      customJsonStringify({
+        code: 200,
+        message: '更新成功',
+      }),
+    );
   } catch (error) {
     console.error('更新真工序计划失败:', error);
     res.status(500);
     res.setHeader('Content-Type', 'application/json');
-    res.send(customJsonStringify({
-      code: 500,
-      message: error.message
-    }));
+    res.send(
+      customJsonStringify({
+        code: 500,
+        message: error.message,
+      }),
+    );
   }
 });
 
@@ -122,20 +140,24 @@ router.put('/:id', async (req, res) => {
 router.delete('/:id', async (req, res) => {
   try {
     await realProcessPlanService.deleteById(req.params.id);
-    
+
     res.setHeader('Content-Type', 'application/json');
-    res.send(customJsonStringify({
-      code: 200,
-      message: '删除成功'
-    }));
+    res.send(
+      customJsonStringify({
+        code: 200,
+        message: '删除成功',
+      }),
+    );
   } catch (error) {
     console.error('删除真工序计划失败:', error);
     res.status(500);
     res.setHeader('Content-Type', 'application/json');
-    res.send(customJsonStringify({
-      code: 500,
-      message: error.message
-    }));
+    res.send(
+      customJsonStringify({
+        code: 500,
+        message: error.message,
+      }),
+    );
   }
 });
 
@@ -143,31 +165,37 @@ router.delete('/:id', async (req, res) => {
 router.post('/batch-delete', async (req, res) => {
   try {
     const { ids } = req.body;
-    
+
     if (!ids || !Array.isArray(ids) || ids.length === 0) {
       return res.status(400);
-    res.setHeader('Content-Type', 'application/json');
-    res.send(customJsonStringify({
-        code: 400,
-        message: '请提供要删除的ID数组'
-      }));
+      res.setHeader('Content-Type', 'application/json');
+      res.send(
+        customJsonStringify({
+          code: 400,
+          message: '请提供要删除的ID数组',
+        }),
+      );
     }
 
     await realProcessPlanService.batchDelete(ids);
-    
+
     res.setHeader('Content-Type', 'application/json');
-    res.send(customJsonStringify({
-      code: 200,
-      message: `成功删除${ids.length}条记录`
-    }));
+    res.send(
+      customJsonStringify({
+        code: 200,
+        message: `成功删除${ids.length}条记录`,
+      }),
+    );
   } catch (error) {
     console.error('批量删除真工序计划失败:', error);
     res.status(500);
     res.setHeader('Content-Type', 'application/json');
-    res.send(customJsonStringify({
-      code: 500,
-      message: error.message
-    }));
+    res.send(
+      customJsonStringify({
+        code: 500,
+        message: error.message,
+      }),
+    );
   }
 });
 
@@ -176,21 +204,25 @@ router.post('/fix-field-calculations', async (req, res) => {
   try {
     const RealProcessPlanFieldFixService = require('../services/realProcessPlanFieldFixService');
     const results = await RealProcessPlanFieldFixService.fixAllFields();
-    
+
     res.setHeader('Content-Type', 'application/json');
-    res.send(customJsonStringify({
-      code: 200,
-      data: results,
-      message: '真工序计划字段修复完成'
-    }));
+    res.send(
+      customJsonStringify({
+        code: 200,
+        data: results,
+        message: '真工序计划字段修复完成',
+      }),
+    );
   } catch (error) {
     console.error('修复真工序计划字段失败:', error);
     res.status(500);
     res.setHeader('Content-Type', 'application/json');
-    res.send(customJsonStringify({
-      code: 500,
-      message: error.message
-    }));
+    res.send(
+      customJsonStringify({
+        code: 500,
+        message: error.message,
+      }),
+    );
   }
 });
 
@@ -199,34 +231,35 @@ router.post('/:id/push-to-material', async (req, res) => {
   try {
     const { id } = req.params;
     const { processIntervalSettings } = req.body; // 从前端传递工序间隔设置
-    
+
     // 获取真工序计划详情
     const plan = await realProcessPlanService.getById(id);
     if (!plan) {
       return res.status(404);
-    res.setHeader('Content-Type', 'application/json');
-    res.send(customJsonStringify({
-        code: 404,
-        message: '真工序计划不存在'
-      }));
+      res.setHeader('Content-Type', 'application/json');
+      res.send(
+        customJsonStringify({
+          code: 404,
+          message: '真工序计划不存在',
+        }),
+      );
     }
-    
+
     // 执行推送
-    const result = await realProcessPlanToMaterialService.pushToMaterialPreparation(
-      plan,
-      processIntervalSettings
-    );
-    
+    const result = await realProcessPlanToMaterialService.pushToMaterialPreparation(plan, processIntervalSettings);
+
     res.setHeader('Content-Type', 'application/json');
     res.send(customJsonStringify(result));
   } catch (error) {
     console.error('推送到备料计划失败:', error);
     res.status(500);
     res.setHeader('Content-Type', 'application/json');
-    res.send(customJsonStringify({
-      code: 500,
-      message: error.message
-    }));
+    res.send(
+      customJsonStringify({
+        code: 500,
+        message: error.message,
+      }),
+    );
   }
 });
 

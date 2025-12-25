@@ -6,7 +6,7 @@ const MaterialPreparationPlanService = require('../services/materialPreparationP
 router.get('/', async (req, res) => {
   try {
     const { page = 1, pageSize = 20, planNo, sourcePlanNo, materialCode, demandDateStart, demandDateEnd } = req.query;
-    
+
     const result = await MaterialPreparationPlanService.getAll({
       page,
       pageSize,
@@ -14,16 +14,16 @@ router.get('/', async (req, res) => {
       sourcePlanNo,
       materialCode,
       demandDateStart,
-      demandDateEnd
+      demandDateEnd,
     });
-    
+
     res.json(result);
   } catch (error) {
     console.error('获取备料计划列表失败:', error);
     res.status(500).json({
       code: 500,
       message: '获取备料计划列表失败',
-      error: error.message
+      error: error.message,
     });
   }
 });
@@ -42,7 +42,7 @@ router.get('/:id', async (req, res) => {
     res.status(500).json({
       code: 500,
       message: '获取备料计划失败',
-      error: error.message
+      error: error.message,
     });
   }
 });
@@ -57,7 +57,7 @@ router.post('/', async (req, res) => {
     res.status(500).json({
       code: 500,
       message: '创建备料计划失败',
-      error: error.message
+      error: error.message,
     });
   }
 });
@@ -75,7 +75,7 @@ router.put('/:id', async (req, res) => {
       res.status(500).json({
         code: 500,
         message: '更新备料计划失败',
-        error: error.message
+        error: error.message,
       });
     }
   }
@@ -94,7 +94,7 @@ router.delete('/:id', async (req, res) => {
       res.status(500).json({
         code: 500,
         message: '删除备料计划失败',
-        error: error.message
+        error: error.message,
       });
     }
   }
@@ -114,7 +114,7 @@ router.delete('/batch/delete', async (req, res) => {
       res.status(500).json({
         code: 500,
         message: '批量删除备料计划失败',
-        error: error.message
+        error: error.message,
       });
     }
   }
@@ -133,7 +133,7 @@ router.post('/:id/push-to-process', async (req, res) => {
       res.status(500).json({
         code: 500,
         message: '推送到工序计划失败',
-        error: error.message
+        error: error.message,
       });
     }
   }
@@ -147,7 +147,7 @@ router.post('/auto-generate', async (req, res) => {
       materialCode,
       materialName,
       demandQuantity,
-      sourceProcess
+      sourceProcess,
     });
     res.status(201).json(result);
   } catch (error) {
@@ -155,7 +155,7 @@ router.post('/auto-generate', async (req, res) => {
     res.status(500).json({
       code: 500,
       message: '自动生成备料计划失败',
-      error: error.message
+      error: error.message,
     });
   }
 });

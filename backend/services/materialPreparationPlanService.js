@@ -11,49 +11,49 @@ class MaterialPreparationPlanService {
   static async getAll(params = {}) {
     try {
       const { page = 1, pageSize = 20, planNo, sourcePlanNo, materialCode, demandDateStart, demandDateEnd } = params;
-      
+
       // 确保页码和每页数量是有效数字
       const pageNum = Math.max(1, parseInt(page) || 1);
       const size = Math.max(1, Math.min(200, parseInt(pageSize) || 20));
-      
+
       let whereClause = [];
       const queryParams = [];
-      
+
       if (planNo) {
         whereClause.push('plan_no LIKE ?');
         queryParams.push(`%${planNo}%`);
       }
-      
+
       if (sourcePlanNo) {
         whereClause.push('source_plan_no LIKE ?');
         queryParams.push(`%${sourcePlanNo}%`);
       }
-      
+
       if (materialCode) {
         whereClause.push('material_code LIKE ?');
         queryParams.push(`%${materialCode}%`);
       }
-      
+
       if (demandDateStart) {
         whereClause.push('demand_date >= ?');
         queryParams.push(demandDateStart);
       }
-      
+
       if (demandDateEnd) {
         whereClause.push('demand_date <= ?');
         queryParams.push(demandDateEnd);
       }
-      
+
       const whereClauseStr = whereClause.length > 0 ? `WHERE ${whereClause.join(' AND ')}` : '';
-      
+
       // 使用参数化查询的正确方式
       const offset = (pageNum - 1) * size;
-      
+
       // 获取总数
       const countSql = `SELECT COUNT(*) as total FROM material_preparation_plans ${whereClauseStr}`;
       const [countResult] = await pool.query(countSql, queryParams);
       const total = countResult[0].total;
-      
+
       // 获取分页数据
       const dataSql = `
         SELECT 
@@ -84,15 +84,15 @@ class MaterialPreparationPlanService {
         ORDER BY created_at DESC
         LIMIT ? OFFSET ?
       `;
-      
+
       // 执行查询
       const [data] = await pool.query(dataSql, [...queryParams, size, offset]);
-      
+
       return {
         list: data,
         total,
         page: parseInt(page),
-        pageSize: parseInt(pageSize)
+        pageSize: parseInt(pageSize),
       };
     } catch (error) {
       console.error('获取备料计划列表失败:', error);
@@ -105,9 +105,12 @@ class MaterialPreparationPlanService {
    */
   static async getById(id) {
     try {
-      const [rows] = await pool.execute(`
+      const [rows] = await pool.execute(
+        `
         SELECT * FROM material_preparation_plans WHERE id = ?
-      `, [id]);
+      `,
+        [id],
+      );
       return rows[0];
     } catch (error) {
       console.error('获取备料计划详情失败:', error);
@@ -122,7 +125,7 @@ class MaterialPreparationPlanService {
     let connection = await pool.getConnection();
     try {
       await connection.beginTransaction();
-      
+
       // ✅ 严格按照数据库表结构的40个字段构造INSERT语句（不含自增id字段）
       const sql = `
         INSERT INTO material_preparation_plans (
@@ -137,73 +140,73 @@ class MaterialPreparationPlanService {
           remark, created_by, updated_by, created_at, updated_at
         ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       `;
-      
+
       // 计算需补货数量
       const demandQuantity = parseFloat(data.demandQuantity || 0);
       const availableStock = parseFloat(data.availableStock || 0);
       const replenishmentQuantity = demandQuantity - availableStock;
-      
+
       const values = [
-        data.planNo,                         // plan_no (1)
-        data.sourcePlanNo || null,           // source_plan_no (2)
-        data.sourceProcessPlanNo || null,    // source_process_plan_no (3)
-        data.parentCode || null,             // parent_code (4)
-        data.parentName || null,             // parent_name (5)
+        data.planNo, // plan_no (1)
+        data.sourcePlanNo || null, // source_plan_no (2)
+        data.sourceProcessPlanNo || null, // source_process_plan_no (3)
+        data.parentCode || null, // parent_code (4)
+        data.parentName || null, // parent_name (5)
         data.parentScheduleQuantity || null, // parent_schedule_quantity (6)
-        data.materialCode,                   // material_code (7)
-        data.materialName,                   // material_name (8)
-        data.materialSource || null,         // material_source (9)
-        data.materialUnit || null,           // material_unit (10)
-        demandQuantity,                      // demand_quantity (11)
-        data.needMrp ? 1 : 0,                // need_mrp (12)
-        data.realtimeStock || 0,             // realtime_stock (13)
-        data.projectedBalance || 0,          // projected_balance (14)
-        availableStock,                      // available_stock (15)
-        replenishmentQuantity,               // replenishment_quantity (16)
-        data.sourceProcess || null,          // source_process (17)
-        data.workshopName || null,           // workshop_name (18)
-        data.parentProcessName || null,      // parent_process_name (19)
-        data.processIntervalHours || null,   // process_interval_hours (20)
-        data.processIntervalUnit || null,    // process_interval_unit (21)
-        data.processScheduleDate || null,    // process_schedule_date (22)
-        data.demandDate || null,             // demand_date (23)
-        data.pushToPurchase ? 1 : 0,         // push_to_purchase (24)
-        data.pushToProcess ? 1 : 0,          // push_to_process (25)
-        data.salesOrderNo || null,           // sales_order_no (26)
-        data.customerOrderNo || null,        // customer_order_no (27)
-        data.mainPlanProductCode || null,    // main_plan_product_code (28)
-        data.mainPlanProductName || null,    // main_plan_product_name (29)
-        data.mainPlanQuantity || 0,          // main_plan_quantity (30)
-        data.promiseDeliveryDate || null,    // promise_delivery_date (31)
-        data.customerName || null,           // customer_name (32)
-        data.productImage || null,           // product_image (33)
-        data.submitter || null,              // submitter (34)
-        new Date(),                          // submit_time (35)
-        data.remark || null,                 // remark (36)
-        data.submitter || 'admin',           // created_by (37)
-        data.updatedBy || null,              // updated_by (38)
-        new Date(),                          // created_at (39)
-        new Date()                           // updated_at (40)
+        data.materialCode, // material_code (7)
+        data.materialName, // material_name (8)
+        data.materialSource || null, // material_source (9)
+        data.materialUnit || null, // material_unit (10)
+        demandQuantity, // demand_quantity (11)
+        data.needMrp ? 1 : 0, // need_mrp (12)
+        data.realtimeStock || 0, // realtime_stock (13)
+        data.projectedBalance || 0, // projected_balance (14)
+        availableStock, // available_stock (15)
+        replenishmentQuantity, // replenishment_quantity (16)
+        data.sourceProcess || null, // source_process (17)
+        data.workshopName || null, // workshop_name (18)
+        data.parentProcessName || null, // parent_process_name (19)
+        data.processIntervalHours || null, // process_interval_hours (20)
+        data.processIntervalUnit || null, // process_interval_unit (21)
+        data.processScheduleDate || null, // process_schedule_date (22)
+        data.demandDate || null, // demand_date (23)
+        data.pushToPurchase ? 1 : 0, // push_to_purchase (24)
+        data.pushToProcess ? 1 : 0, // push_to_process (25)
+        data.salesOrderNo || null, // sales_order_no (26)
+        data.customerOrderNo || null, // customer_order_no (27)
+        data.mainPlanProductCode || null, // main_plan_product_code (28)
+        data.mainPlanProductName || null, // main_plan_product_name (29)
+        data.mainPlanQuantity || 0, // main_plan_quantity (30)
+        data.promiseDeliveryDate || null, // promise_delivery_date (31)
+        data.customerName || null, // customer_name (32)
+        data.productImage || null, // product_image (33)
+        data.submitter || null, // submitter (34)
+        new Date(), // submit_time (35)
+        data.remark || null, // remark (36)
+        data.submitter || 'admin', // created_by (37)
+        data.updatedBy || null, // updated_by (38)
+        new Date(), // created_at (39)
+        new Date(), // updated_at (40)
       ];
-      
+
       const [result] = await connection.execute(sql, values);
-      
+
       const insertedId = result.insertId;
       console.log(`备料计划创建成功, ID: ${insertedId}, 编号: ${data.planNo}`);
-      
+
       await connection.commit();
-      
+
       const replenishmentQty = parseFloat(replenishmentQuantity || 0);
       let processPlanNo = null;
-      
+
       // ✅ 自动推送规则：需补货数量>0
       if (data.planNo && replenishmentQty > 0) {
         const fullData = {
           ...data,
           id: insertedId,
-          replenishmentQuantity: replenishmentQty
+          replenishmentQuantity: replenishmentQty,
         };
-        
+
         // 规则1：来源工序=采购 → 推送到采购计划
         if (data.sourceProcess === '采购') {
           console.log('🛒 来源工序=采购，需补货数量>0，推送到采购计划...');
@@ -211,10 +214,10 @@ class MaterialPreparationPlanService {
             const pushResult = await this.pushToProcurementPlan(fullData);
             if (pushResult && pushResult.success) {
               console.log(`✅ 推送采购计划成功: ${data.planNo} → ${pushResult.procurementPlanNo}`);
-              await pool.execute(
-                'UPDATE material_preparation_plans SET push_to_purchase = ? WHERE plan_no = ?',
-                [1, data.planNo]
-              );
+              await pool.execute('UPDATE material_preparation_plans SET push_to_purchase = ? WHERE plan_no = ?', [
+                1,
+                data.planNo,
+              ]);
             }
           } catch (pushError) {
             console.error(`❌ 推送采购计划失败:`, pushError.message);
@@ -228,21 +231,21 @@ class MaterialPreparationPlanService {
             if (pushResult && pushResult.success) {
               console.log(`✅ 推送工序计划成功: ${data.planNo} → ${pushResult.processPlanNo}`);
               processPlanNo = pushResult.processPlanNo;
-              await pool.execute(
-                'UPDATE material_preparation_plans SET push_to_process = ? WHERE plan_no = ?',
-                [1, data.planNo]
-              );
+              await pool.execute('UPDATE material_preparation_plans SET push_to_process = ? WHERE plan_no = ?', [
+                1,
+                data.planNo,
+              ]);
             }
           } catch (pushError) {
             console.error(`❌ 推送工序计划失败:`, pushError.message);
           }
         }
       }
-      
+
       // 返回创建结果
-      return { 
+      return {
         id: insertedId,
-        processPlanNo
+        processPlanNo,
       };
     } catch (error) {
       await connection.rollback();
@@ -260,20 +263,20 @@ class MaterialPreparationPlanService {
     let connection = await pool.getConnection();
     try {
       await connection.beginTransaction();
-      
+
       const results = [];
-      
+
       for (const planData of plansData) {
         const result = await this.create(planData);
         results.push(result);
       }
-      
+
       await connection.commit();
-      
+
       return {
         success: true,
         count: results.length,
-        data: results
+        data: results,
       };
     } catch (error) {
       await connection.rollback();
@@ -290,16 +293,19 @@ class MaterialPreparationPlanService {
   static async generateFromBOM(masterPlanId, bomData) {
     try {
       // 获取主生产计划信息
-      const [masterPlans] = await pool.execute(`
+      const [masterPlans] = await pool.execute(
+        `
         SELECT * FROM master_production_plans WHERE id = ?
-      `, [masterPlanId]);
-      
+      `,
+        [masterPlanId],
+      );
+
       if (masterPlans.length === 0) {
         throw new Error('主生产计划不存在');
       }
-      
+
       const masterPlan = masterPlans[0];
-      
+
       // 准备备料计划数据
       const materialPlans = bomData.map(item => ({
         planNo: `BL${new Date().toISOString().slice(2, 10).replace(/-/g, '')}${String(Math.floor(Math.random() * 10000)).padStart(4, '0')}`,
@@ -317,12 +323,12 @@ class MaterialPreparationPlanService {
         mainPlanProductCode: masterPlan.product_code,
         mainPlanProductName: masterPlan.product_name,
         promiseDeliveryDate: masterPlan.promise_delivery_date,
-        customerName: masterPlan.customer_name
+        customerName: masterPlan.customer_name,
       }));
-      
+
       // 批量创建备料计划
       const result = await this.batchCreate(materialPlans);
-      
+
       return result;
     } catch (error) {
       console.error('根据BOM生成备料计划失败:', error);
@@ -337,10 +343,10 @@ class MaterialPreparationPlanService {
     let connection = await pool.getConnection();
     try {
       await connection.beginTransaction();
-      
+
       const updateFields = [];
       const updateValues = [];
-      
+
       // 构建动态更新语句
       Object.keys(data).forEach(key => {
         if (data[key] !== undefined && key !== 'id') {
@@ -348,28 +354,28 @@ class MaterialPreparationPlanService {
           updateValues.push(data[key]);
         }
       });
-      
+
       if (updateFields.length === 0) {
         throw new Error('没有要更新的字段');
       }
-      
+
       updateFields.push('updated_at = ?');
       updateValues.push(new Date());
       updateValues.push(id);
-      
+
       const sql = `
         UPDATE material_preparation_plans 
         SET ${updateFields.join(', ')}
         WHERE id = ?
       `;
-      
+
       const [result] = await connection.execute(sql, updateValues);
-      
+
       await connection.commit();
-      
+
       return {
         affectedRows: result.affectedRows,
-        message: '备料计划更新成功'
+        message: '备料计划更新成功',
       };
     } catch (error) {
       await connection.rollback();
@@ -385,13 +391,16 @@ class MaterialPreparationPlanService {
    */
   static async delete(id) {
     try {
-      const [result] = await pool.execute(`
+      const [result] = await pool.execute(
+        `
         DELETE FROM material_preparation_plans WHERE id = ?
-      `, [id]);
-      
+      `,
+        [id],
+      );
+
       return {
         affectedRows: result.affectedRows,
-        message: '备料计划删除成功'
+        message: '备料计划删除成功',
       };
     } catch (error) {
       console.error('删除备料计划失败:', error);
@@ -404,12 +413,15 @@ class MaterialPreparationPlanService {
    */
   static async getBySourcePlanNo(sourcePlanNo) {
     try {
-      const [rows] = await pool.execute(`
+      const [rows] = await pool.execute(
+        `
         SELECT * FROM material_preparation_plans 
         WHERE source_plan_no = ?
         ORDER BY created_at DESC
-      `, [sourcePlanNo]);
-      
+      `,
+        [sourcePlanNo],
+      );
+
       return rows;
     } catch (error) {
       console.error('根据源计划编号获取备料计划失败:', error);
@@ -441,7 +453,7 @@ class MaterialPreparationPlanService {
         salesOrderNo: materialPlan.sales_order_no,
         mainPlanProductCode: materialPlan.main_plan_product_code,
         mainPlanProductName: materialPlan.main_plan_product_name,
-        promiseDeliveryDate: materialPlan.promise_delivery_date
+        promiseDeliveryDate: materialPlan.promise_delivery_date,
       };
 
       // 调用统一的推送方法
@@ -451,13 +463,13 @@ class MaterialPreparationPlanService {
         // 更新备料计划状态
         await this.update(materialPlanId, {
           push_to_process: 1,
-          status: 'pushed_to_process'
+          status: 'pushed_to_process',
         });
 
         return {
           success: true,
           message: '备料计划已推送到工序计划',
-          processPlanId: pushResult.insertId
+          processPlanId: pushResult.insertId,
         };
       } else {
         throw new Error(pushResult.reason || '推送失败');
@@ -493,7 +505,7 @@ class MaterialPreparationPlanService {
         sourceMaterialPlanNo: materialPlan.plan_no,
         requiredDate: materialPlan.demand_date,
         salesOrderNo: materialPlan.sales_order_no,
-        mainPlanProductCode: materialPlan.main_plan_product_code
+        mainPlanProductCode: materialPlan.main_plan_product_code,
       };
 
       // 调用采购计划服务创建采购计划
@@ -503,13 +515,13 @@ class MaterialPreparationPlanService {
       // 更新备料计划状态
       await this.update(materialPlanId, {
         pushToPurchase: 1,
-        status: 'pushed_to_procurement'
+        status: 'pushed_to_procurement',
       });
 
       return {
         success: true,
         message: '备料计划已推送到采购计划',
-        procurementPlanId: result.id
+        procurementPlanId: result.id,
       };
     } catch (error) {
       console.error('推送备料计划到采购计划失败:', error);
@@ -529,7 +541,7 @@ class MaterialPreparationPlanService {
       }
 
       let pushResult = null;
-      
+
       if (materialPlan.push_to_process && materialPlan.source_process) {
         // 推送到工序计划
         pushResult = await this.pushToProcessPlan(materialPlanId, materialPlan.source_process);
@@ -543,7 +555,7 @@ class MaterialPreparationPlanService {
       return {
         success: true,
         message: '备料计划自动推送完成',
-        pushResult
+        pushResult,
       };
     } catch (error) {
       console.error('自动推送备料计划失败:', error);
@@ -562,7 +574,7 @@ class MaterialPreparationPlanService {
         planNo: materialPlanData.planNo,
         materialSource: materialPlanData.materialSource,
         sourceProcess: materialPlanData.sourceProcess,
-        replenishmentQuantity: materialPlanData.replenishmentQuantity
+        replenishmentQuantity: materialPlanData.replenishmentQuantity,
       });
 
       // 检查推送条件
@@ -574,7 +586,11 @@ class MaterialPreparationPlanService {
         return { success: false, reason: '物料来源非自制' };
       }
 
-      const replenishmentQty = parseFloat(materialPlanData.replenishmentQuantity || materialPlanData.demandQuantity - materialPlanData.availableStock || 0);
+      const replenishmentQty = parseFloat(
+        materialPlanData.replenishmentQuantity ||
+          materialPlanData.demandQuantity - materialPlanData.availableStock ||
+          0,
+      );
       if (replenishmentQty <= 0) {
         return { success: false, reason: '需补货数量<=0' };
       }
@@ -585,81 +601,81 @@ class MaterialPreparationPlanService {
 
       // 根据sourceProcess路由到不同的工序计划服务
       const processMapping = {
-        '打包': {
+        打包: {
           service: require('./packingProcessPlanService'),
           serviceName: '打包工序计划服务',
-          tableName: 'packing_process_plans'
+          tableName: 'packing_process_plans',
         },
-        '组装': {
+        组装: {
           service: require('./assemblyProcessPlanService'),
           serviceName: '组装工序计划服务',
-          tableName: 'assembly_process_plans'
+          tableName: 'assembly_process_plans',
         },
-        '喷塑': {
+        喷塑: {
           service: require('./packingProcessPlanService'), // 注意：这里使用的是packingProcessPlanService，因为历史原因
           serviceName: '喷塑工序计划服务',
-          tableName: 'packing_process_plans' // 注意：这里也是packing_process_plans，因为历史原因
+          tableName: 'packing_process_plans', // 注意：这里也是packing_process_plans，因为历史原因
         },
-        '缝纫': {
+        缝纫: {
           service: require('./sewingProcessPlanService'),
           serviceName: '缝纫工序计划服务',
-          tableName: 'sewing_process_plans'
+          tableName: 'sewing_process_plans',
         },
-        '抛丸': {
+        抛丸: {
           service: require('./shotBlastingProcessPlanService'),
           serviceName: '抛丸工序计划服务',
-          tableName: 'shot_blasting_process_plans'
+          tableName: 'shot_blasting_process_plans',
         },
-        '人工焊接': {
+        人工焊接: {
           service: require('./manualWeldingProcessPlanService'),
           serviceName: '人工焊接工序计划服务',
-          tableName: 'manual_welding_process_plans'
+          tableName: 'manual_welding_process_plans',
         },
-        '弯管': {
+        弯管: {
           service: require('./tubeBendingProcessPlanService'),
           serviceName: '弯管工序计划服务',
-          tableName: 'tube_bending_process_plans'
+          tableName: 'tube_bending_process_plans',
         },
-        '激光切管': {
+        激光切管: {
           service: require('./laserTubeCuttingProcessPlanService'),
           serviceName: '激光切管工序计划服务',
-          tableName: 'laser_tube_cutting_process_plans'
+          tableName: 'laser_tube_cutting_process_plans',
         },
-        '激光下料': {
+        激光下料: {
           service: require('./laserCuttingProcessPlanService'),
           serviceName: '激光下料工序计划服务',
-          tableName: 'laser_cutting_process_plans'
+          tableName: 'laser_cutting_process_plans',
         },
-        '折弯': {
+        折弯: {
           service: require('./bendingProcessPlanService'),
           serviceName: '折弯工序计划服务',
-          tableName: 'bending_process_plans'
+          tableName: 'bending_process_plans',
         },
-        '打孔': {
+        打孔: {
           service: require('./drillingProcessPlanService'),
           serviceName: '打孔工序计划服务',
-          tableName: 'drilling_process_plans'
+          tableName: 'drilling_process_plans',
         },
-        '冲床': {
+        冲床: {
           service: require('./punchingProcessPlanService'),
           serviceName: '冲床工序计划服务',
-          tableName: 'punching_process_plans'
+          tableName: 'punching_process_plans',
         },
-        '人工下料': {
+        人工下料: {
           service: require('./manualCuttingProcessPlanService'),
           serviceName: '人工下料工序计划服务',
-          tableName: 'manual_cutting_process_plans'
+          tableName: 'manual_cutting_process_plans',
         },
-        '机器打磨': {
+        机器打磨: {
           service: require('./machineGrindingProcessPlanService'),
           serviceName: '机器打磨工序计划服务',
-          tableName: 'machine_grinding_process_plans'
+          tableName: 'machine_grinding_process_plans',
         },
-        '裁剪': {
+        裁剪: {
           service: require('./cuttingProcessPlanService'),
           serviceName: '裁剪工序计划服务',
-          tableName: 'cutting_process_plans'
-        }
+          tableName: 'cutting_process_plans',
+        },
       };
 
       const processInfo = processMapping[materialPlanData.sourceProcess];
@@ -690,11 +706,13 @@ class MaterialPreparationPlanService {
         scheduleQuantity: replenishmentQty,
         productUnit: materialPlanData.materialUnit || materialPlanData.material_unit || null,
         // ✅ 修复0阶需求数量 - 使用父件排程数量或需补货数量
-        level0Demand: materialPlanData.parentScheduleQuantity || materialPlanData.parent_schedule_quantity || replenishmentQty,
+        level0Demand:
+          materialPlanData.parentScheduleQuantity || materialPlanData.parent_schedule_quantity || replenishmentQty,
         completionDate: materialPlanData.demandDate || materialPlanData.demand_date || null,
         // ✅ 修复订单承诺交期 - 兼容两种命名格式
-        orderPromiseDeliveryDate: materialPlanData.promiseDeliveryDate || materialPlanData.promise_delivery_date || null,
-        
+        orderPromiseDeliveryDate:
+          materialPlanData.promiseDeliveryDate || materialPlanData.promise_delivery_date || null,
+
         // 工序相关信息
         // ✅ 修复计划开始日期 - 新增行使用需求日期
         planStartDate: materialPlanData.demandDate || materialPlanData.demand_date || null,
@@ -726,7 +744,7 @@ class MaterialPreparationPlanService {
         dailyTotalHours: 0,
         dailyScheduledHours: 0,
         scheduledWorkHours: 0,
-        nextScheduleDate: null
+        nextScheduleDate: null,
       };
 
       console.log('   工序计划数据准备完成:', processPlanData);
@@ -734,20 +752,20 @@ class MaterialPreparationPlanService {
       // 创建工序计划
       console.log('   调用工序计划服务创建方法...');
       const createResult = await processInfo.service.create(processPlanData);
-      
+
       if (!createResult || !createResult.insertId) {
         throw new Error('工序计划创建失败');
       }
 
       console.log(`   ✅ 工序计划创建成功，ID: ${createResult.insertId}`);
-      
+
       return {
         success: true,
         insertId: createResult.insertId,
         planNo: processPlanData.planNo,
         service: processInfo.service,
         serviceName: processInfo.serviceName,
-        tableName: processInfo.tableName
+        tableName: processInfo.tableName,
       };
     } catch (error) {
       console.error('❌ 推送备料计划到工序计划失败:', error);
@@ -770,20 +788,23 @@ class MaterialPreparationPlanService {
       const [totalResult] = await pool.execute(`
         SELECT COUNT(*) as total FROM material_preparation_plans
       `);
-      
+
       const [pushedToProcessResult] = await pool.execute(`
         SELECT COUNT(*) as pushedToProcess FROM material_preparation_plans WHERE push_to_process = 1
       `);
-      
+
       const [pushedToProcurementResult] = await pool.execute(`
         SELECT COUNT(*) as pushedToProcurement FROM material_preparation_plans WHERE push_to_purchase = 1
       `);
-      
+
       return {
         total: totalResult[0].total,
         pushedToProcess: pushedToProcessResult[0].pushedToProcess,
         pushedToProcurement: pushedToProcurementResult[0].pushedToProcurement,
-        pendingPush: totalResult[0].total - pushedToProcessResult[0].pushedToProcess - pushedToProcurementResult[0].pushedToProcurement
+        pendingPush:
+          totalResult[0].total -
+          pushedToProcessResult[0].pushedToProcess -
+          pushedToProcurementResult[0].pushedToProcurement,
       };
     } catch (error) {
       console.error('获取备料计划统计信息失败:', error);

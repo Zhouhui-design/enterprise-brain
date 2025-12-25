@@ -1,6 +1,6 @@
-const db = require('../config/database')
+const db = require('../config/database');
 
-console.log('开始创建production_plans表...')
+console.log('开始创建production_plans表...');
 
 try {
   // 创建生产计划主表
@@ -28,8 +28,8 @@ try {
       update_time DATETIME DEFAULT CURRENT_TIMESTAMP,
       remark TEXT
     )
-  `)
-  
+  `);
+
   // 创建生产计划工序表
   db.exec(`
     CREATE TABLE IF NOT EXISTS production_plan_processes (
@@ -43,18 +43,18 @@ try {
       status TEXT DEFAULT 'PENDING',
       FOREIGN KEY (plan_id) REFERENCES production_plans(id) ON DELETE CASCADE
     )
-  `)
-  
+  `);
+
   // 创建索引
   db.exec(`
     CREATE INDEX IF NOT EXISTS idx_production_plans_number ON production_plans(plan_number);
     CREATE INDEX IF NOT EXISTS idx_production_plans_product ON production_plans(product_code);
     CREATE INDEX IF NOT EXISTS idx_production_plans_status ON production_plans(status);
     CREATE INDEX IF NOT EXISTS idx_production_plan_processes_plan ON production_plan_processes(plan_id);
-  `)
-  
-  console.log('✅ production_plans表创建成功！')
+  `);
+
+  console.log('✅ production_plans表创建成功！');
 } catch (error) {
-  console.error('❌ 创建表失败:', error)
-  process.exit(1)
+  console.error('❌ 创建表失败:', error);
+  process.exit(1);
 }

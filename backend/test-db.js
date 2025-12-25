@@ -8,15 +8,15 @@ async function testConnection() {
       port: 3306,
       user: 'root',
       password: 'zH754277289hUi~197547',
-      database: 'enterprise_brain'
+      database: 'enterprise_brain',
     });
-    
+
     console.log('✅ 数据库连接成功');
-    
+
     // 测试查询
     const [rows] = await connection.execute('SELECT COUNT(*) as count FROM materials');
     console.log('物料表记录数:', rows[0].count);
-    
+
     await connection.end();
     console.log('连接已关闭');
   } catch (error) {

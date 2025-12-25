@@ -17,14 +17,15 @@ const dbConfig = {
   connectionLimit: 10,
   queueLimit: 0,
   enableKeepAlive: true,
-  keepAliveInitialDelay: 0
+  keepAliveInitialDelay: 0,
 };
 
 // 创建连接池
 const pool = mysql.createPool(dbConfig);
 
 // 测试连接
-pool.getConnection()
+pool
+  .getConnection()
   .then(connection => {
     console.log('✅ MySQL数据库连接成功');
     console.log(`📊 数据库: ${dbConfig.database}`);
@@ -39,10 +40,10 @@ pool.getConnection()
 // 初始化数据库表结构
 async function initializeDatabase() {
   const connection = await pool.getConnection();
-  
+
   try {
     console.log('🔧 开始初始化数据库表结构...');
-    
+
     // 创建物料表
     await connection.execute(`
       CREATE TABLE IF NOT EXISTS materials (
@@ -246,7 +247,6 @@ async function initializeDatabase() {
     `);
 
     console.log('✅ 数据库表结构初始化完成');
-    
   } catch (error) {
     console.error('❌ 数据库初始化失败:', error.message);
     throw error;

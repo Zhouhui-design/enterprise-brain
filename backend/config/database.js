@@ -17,7 +17,7 @@ const dbConfig = {
   connectionLimit: 10,
   queueLimit: 0,
   enableKeepAlive: true,
-  keepAliveInitialDelay: 0
+  keepAliveInitialDelay: 0,
 };
 
 // 创建连接池
@@ -30,7 +30,8 @@ const query = async (sql, params) => {
 };
 
 // 测试连接
-pool.getConnection()
+pool
+  .getConnection()
   .then(connection => {
     console.log('✅ MySQL数据库连接成功');
     console.log(`📊 数据库: ${dbConfig.database}`);
@@ -45,10 +46,10 @@ pool.getConnection()
 // 初始化数据库表结构
 async function initializeDatabase() {
   const connection = await pool.getConnection();
-  
+
   try {
     console.log('🔧 开始初始化数据库表结构...');
-    
+
     // 创建物料表
     await connection.execute(`
       CREATE TABLE IF NOT EXISTS materials (
@@ -95,7 +96,7 @@ async function initializeDatabase() {
     const [columns] = await connection.execute(`
       SHOW COLUMNS FROM materials LIKE 'minimum_packaging_quantity'
     `);
-    
+
     if (columns.length === 0) {
       await connection.execute(`
         ALTER TABLE materials
@@ -1007,7 +1008,7 @@ async function initializeDatabase() {
     await connection.execute(`
       ALTER TABLE cutting_process_plans COMMENT='裁剪工序计划表'
     `);
-    
+
     // ✅ 创建喷塑工序计划表
     await connection.execute(`
       CREATE TABLE IF NOT EXISTS spray_painting_process_plans LIKE real_process_plans
@@ -1018,7 +1019,7 @@ async function initializeDatabase() {
 
     // ✅ 创建主生产计划计划数量自动计算触发器
     console.log('🔧 创建主生产计划触发器...');
-    
+
     // 删除旧触发器（如果存在）
     try {
       await connection.query('DROP TRIGGER IF EXISTS before_insert_master_production_plans_calc_plan_quantity');
@@ -1026,7 +1027,7 @@ async function initializeDatabase() {
     } catch (e) {
       // 忽略错误
     }
-    
+
     // 创建INSERT触发器：自动计算 plan_quantity = order_quantity - available_stock
     try {
       await connection.query(`
@@ -1043,7 +1044,7 @@ async function initializeDatabase() {
           END IF;
         END
       `);
-      
+
       // 创建UPDATE触发器：订单数量或可用库存变化时自动重新计算
       await connection.query(`
         CREATE TRIGGER before_update_master_production_plans_calc_plan_quantity
@@ -1061,13 +1062,13 @@ async function initializeDatabase() {
           END IF;
         END
       `);
-      
+
       console.log('✅ 主生产计划触发器创建成功');
     } catch (e) {
       console.log('⚠️ 触发器已存在或创建失败，跳过触发器创建');
       // 忽略触发器创建错误，继续执行后续初始化
     }
-    
+
     // 创建页面设置表
     await connection.execute(`
       CREATE TABLE IF NOT EXISTS page_settings (
@@ -1080,7 +1081,7 @@ async function initializeDatabase() {
         UNIQUE KEY uk_page_setting (page_key, setting_key)
       ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='页面设置表'
     `);
-    
+
     // 创建自定义节日表
     await connection.execute(`
       CREATE TABLE IF NOT EXISTS custom_holidays (
@@ -1095,7 +1096,7 @@ async function initializeDatabase() {
         UNIQUE KEY uk_holiday_date (date_type, month, day)
       ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='自定义节日表'
     `);
-    
+
     // 创建采购计划表
     await connection.execute(`
       CREATE TABLE IF NOT EXISTS procurement_plans (
@@ -1179,12 +1180,11 @@ async function initializeDatabase() {
         UNIQUE KEY uk_calendar_date (calendar_date)
       ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='企业日历表'
     `);
-    
+
     console.log('✅ 主生产计划触发器创建成功');
     console.log('✅ 企业日历相关表创建成功');
-    
+
     console.log('✅ 数据库表结构初始化完成');
-    
   } catch (error) {
     console.error('❌ 数据库初始化失败:', error.message);
     throw error;
@@ -1192,7 +1192,5 @@ async function initializeDatabase() {
     connection.release();
   }
 }
-
-
 
 module.exports = { pool, query, initializeDatabase };

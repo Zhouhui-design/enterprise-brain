@@ -4,13 +4,13 @@ const { formatLocalDate } = require('../utils/dateFormatter');
 
 /**
  * 喷塑工序计划服务
- * 
+ *
  * ⚠️ 重要说明：独立表实现
  * - 数据库表名：spray_painting_process_plans
  * - 创建原因：从原packing_process_plans表中分离出来的独立工序
  * - 历史背景：原packing_process_plans表的注释是'喷塑工序计划表'，
  *   但现在该表实际存储打包工序数据。为避免混淆，喷塑工序使用此独立表。
- * 
+ *
  * 注意：不要与PackingProcessPlanService混淆，两者操作不同的数据表。
  */
 class SprayPaintingProcessPlanService {
@@ -19,52 +19,44 @@ class SprayPaintingProcessPlanService {
    */
   static async getAll(params = {}) {
     try {
-      const { 
-        page = 1, 
-        pageSize = 20, 
-        planNo, 
-        masterPlanNo, 
-        processName,
-        scheduleDateStart,
-        scheduleDateEnd 
-      } = params;
-      
+      const { page = 1, pageSize = 20, planNo, masterPlanNo, processName, scheduleDateStart, scheduleDateEnd } = params;
+
       let whereClause = [];
       const queryParams = [];
-      
+
       if (planNo) {
         whereClause.push('plan_no LIKE ?');
         queryParams.push(`%${planNo}%`);
       }
-      
+
       if (masterPlanNo) {
         whereClause.push('master_plan_no LIKE ?');
         queryParams.push(`%${masterPlanNo}%`);
       }
-      
+
       // 添加对processName参数的处理
       if (processName) {
         whereClause.push('process_name LIKE ?');
         queryParams.push(`%${processName}%`);
       }
-      
+
       if (scheduleDateStart) {
         whereClause.push('schedule_date >= ?');
         queryParams.push(scheduleDateStart);
       }
-      
+
       if (scheduleDateEnd) {
         whereClause.push('schedule_date <= ?');
         queryParams.push(scheduleDateEnd);
       }
-      
+
       const whereSQL = whereClause.length > 0 ? 'WHERE ' + whereClause.join(' AND ') : '';
-      
+
       // 查询总数
       const countSQL = `SELECT COUNT(*) as total FROM spray_painting_process_plans ${whereSQL}`;
       const [countResult] = await pool.execute(countSQL, queryParams);
       const total = countResult[0].total;
-      
+
       // 分页查询（✅ 格式化日期字段为中国时区）
       const offset = (parseInt(page) - 1) * parseInt(pageSize);
       const limit = parseInt(pageSize);
@@ -100,7 +92,7 @@ class SprayPaintingProcessPlanService {
         LIMIT ${limit} OFFSET ${offset}
       `;
       const [rows] = await pool.execute(dataSQL, queryParams);
-      
+
       // 转换字段名：snake_case -> camelCase
       const convertedRows = rows.map(row => {
         const convertedRow = {};
@@ -109,15 +101,15 @@ class SprayPaintingProcessPlanService {
           const camelKey = key.replace(/_([a-z])/g, (match, letter) => letter.toUpperCase());
           convertedRow[camelKey] = row[key];
         });
-        
+
         // ✅ 使用格式化后的日期字段
         if (row.schedule_date_formatted) {
           convertedRow.scheduleDate = row.schedule_date_formatted;
         }
-        
+
         return convertedRow;
       });
-      
+
       console.log(`✅ 查询成功，共 ${total} 条记录，当前页 ${convertedRows.length} 条`);
       if (convertedRows.length > 0) {
         console.log(`首条记录: ${convertedRows[0].planNo} - ${convertedRows[0].processName}`);
@@ -125,16 +117,16 @@ class SprayPaintingProcessPlanService {
           plan_no: convertedRows[0].planNo,
           process_name: convertedRows[0].processName,
           master_plan_no: convertedRows[0].masterPlanNo,
-          source_no: convertedRows[0].sourceNo,  // ✅ 添加来源编号转换日志
-          schedule_count: convertedRows[0].scheduleCount  // ✅ 添加排程次数转换日志
+          source_no: convertedRows[0].sourceNo, // ✅ 添加来源编号转换日志
+          schedule_count: convertedRows[0].scheduleCount, // ✅ 添加排程次数转换日志
         });
       }
-      
+
       return {
         records: convertedRows,
         total,
         page: parseInt(page),
-        pageSize: parseInt(pageSize)
+        pageSize: parseInt(pageSize),
       };
     } catch (error) {
       console.error('获取喷塑工序计划列表失败:', error);
@@ -148,7 +140,8 @@ class SprayPaintingProcessPlanService {
   static async getById(id) {
     try {
       // ✅ 格式化日期字段为中国时区
-      const [rows] = await pool.execute(`
+      const [rows] = await pool.execute(
+        `
         SELECT 
           id, plan_no, schedule_date, DATE_FORMAT(schedule_date, '%Y-%m-%d') as schedule_date_formatted,
           sales_order_no, customer_order_no, master_plan_no, main_plan_product_code,
@@ -175,12 +168,14 @@ class SprayPaintingProcessPlanService {
           ) as daily_plan_count,
           created_at, updated_at
         FROM spray_painting_process_plans WHERE id = ?
-      `, [id]);
-      
+      `,
+        [id],
+      );
+
       if (rows.length === 0) {
         return null;
       }
-      
+
       const row = rows[0];
       // 转换字段名：snake_case -> camelCase
       const convertedRow = {};
@@ -188,10 +183,10 @@ class SprayPaintingProcessPlanService {
         const camelKey = key.replace(/_([a-z])/g, (match, letter) => letter.toUpperCase());
         convertedRow[camelKey] = row[key];
       });
-      
+
       // ✅ 使用格式化后的日期
       convertedRow.scheduleDate = row.schedule_date_formatted;
-      
+
       return convertedRow;
     } catch (error) {
       console.error('获取喷塑工序计划详情失败:', error);
@@ -208,32 +203,33 @@ class SprayPaintingProcessPlanService {
       // 规则：lookup(产品物料库的"物料编号"=当前工序计划的"生产产品编号"，产品物料库的"定时工额")
       // 前置条件：当前工序计划"生产产品编号"不为空
       let standardWorkQuota = data.standardWorkQuota || 0;
-      
+
       if (data.productCode) {
         try {
           console.log(`🔍 [定时工额Lookup] 查询产品物料库: 物料编号=${data.productCode}`);
-          const [materialRows] = await pool.execute(
-            'SELECT standard_time FROM materials WHERE material_code = ?',
-            [data.productCode]
-          );
-          
+          const [materialRows] = await pool.execute('SELECT standard_time FROM materials WHERE material_code = ?', [
+            data.productCode,
+          ]);
+
           if (materialRows.length > 0 && materialRows[0].standard_time) {
             standardWorkQuota = parseFloat(materialRows[0].standard_time);
             console.log(`✅ [定时工额Lookup] 找到定时工额: ${standardWorkQuota}`);
           } else {
-            console.log(`⚠️ [定时工额Lookup] 未找到物料编号=${data.productCode}的定时工额，使用默认值: ${standardWorkQuota}`);
+            console.log(
+              `⚠️ [定时工额Lookup] 未找到物料编号=${data.productCode}的定时工额，使用默认值: ${standardWorkQuota}`,
+            );
           }
         } catch (lookupError) {
           console.error(`❌ [定时工额Lookup] 查询失败:`, lookupError);
           // 查询失败时使用传入的值或0
         }
       }
-      
+
       // ✅ 计算计划结束日期
       // 规则：基于需补货数量、定时工额、计划开始日期、工序能力负荷表计算
       // 前置条件：需补货数量 > 0 && 定时工额 > 0
       let planEndDate = data.planEndDate || null;
-      
+
       const replenishment = parseFloat(data.replenishmentQty || data.scheduleQuantity || 0);
       if (replenishment > 0 && standardWorkQuota > 0) {
         try {
@@ -243,9 +239,9 @@ class SprayPaintingProcessPlanService {
             standardWorkQuota: standardWorkQuota,
             planStartDate: data.planStartDate,
             scheduleDate: data.scheduleDate,
-            processName: data.processName
+            processName: data.processName,
           });
-          
+
           if (calculatedEndDate) {
             planEndDate = calculatedEndDate;
             console.log(`✅ [计划结束日期计算] 计算成功: ${planEndDate.toISOString().split('T')[0]}`);
@@ -257,9 +253,11 @@ class SprayPaintingProcessPlanService {
           // 计算失败时使用传入的值或null
         }
       } else {
-        console.log(`⚠️ [计划结束日期计算] 不满足计算条件 (需补货数量=${replenishment}, 定时工额=${standardWorkQuota})`);
+        console.log(
+          `⚠️ [计划结束日期计算] 不满足计算条件 (需补货数量=${replenishment}, 定时工额=${standardWorkQuota})`,
+        );
       }
-      
+
       // 正确的SQL，包含所有字段，数量匹配
       const sql = `
         INSERT INTO spray_painting_process_plans (
@@ -277,58 +275,58 @@ class SprayPaintingProcessPlanService {
           daily_total_hours, daily_scheduled_hours, scheduled_work_hours, next_schedule_date
         ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       `;
-      
+
       const [result] = await pool.execute(sql, [
-        data.planNo,                                 // 1. plan_no
-        data.scheduleDate || null,                    // 2. schedule_date
-        data.salesOrderNo || null,                    // 3. sales_order_no
-        data.customerOrderNo || null,                 // 4. customer_order_no (✅ 新增)
-        data.masterPlanNo || null,                    // 5. master_plan_no
-        data.mainPlanProductCode || null,             // 6. main_plan_product_code (✅ 新增)
-        data.mainPlanProductName || null,             // 7. main_plan_product_name (✅ 新增)
-        data.shippingPlanNo || null,                  // 8. shipping_plan_no
-        data.productCode || null,                     // 9. product_code
-        data.productName || null,                     // 10. product_name
-        data.productImage || null,                    // 11. product_image
-        data.processManager || null,                  // 12. process_manager
-        data.processName || null,                     // 13. process_name
-        data.scheduleQuantity || 0,                   // 14. schedule_quantity
-        data.productUnit || null,                     // 15. product_unit
-        data.level0Demand || 0,                       // 16. level0_demand
-        data.completionDate || null,                  // 17. completion_date
-        data.promiseDeliveryDate || null,             // 18. order_promise_delivery_date (✅ 新增)
-        data.planStartDate || null,                    // 19. plan_start_date
-        data.realPlanStartDate || null,                // 20. real_plan_start_date
-        planEndDate,                                  // 21. plan_end_date (✅ 使用计算的值)
-        data.workshopName || null,                    // 22. workshop_name
-        data.dailyAvailableHours || 0,                 // 23. daily_available_hours
-        data.remainingRequiredHours || 0,              // 24. remaining_required_hours
-        data.scheduleCount || 0,                       // 25. schedule_count
-        data.standardWorkHours || 0,                  // 26. standard_work_hours
-        standardWorkQuota,                            // 27. standard_work_quota (✅ 使用lookup的值)
-        data.cumulativeScheduleQty || 0,              // 28. cumulative_schedule_qty
-        data.unscheduledQty || 0,                     // 29. unscheduled_qty
-        data.sourcePageName || null,                  // 30. source_page_name
-        data.sourceNo || null,                         // 31. source_no
-        data.previousScheduleNo || null,              // 32. previous_schedule_no
-        data.customerName || null,                     // 33. customer_name
-        data.level0ProductName || null,                // 34. level0_product_name
-        data.level0ProductCode || null,                // 35. level0_product_code
-        data.level0ProductionQty || 0,                // 36. level0_production_qty
-        data.productSource || null,                    // 37. product_source
-        data.bomNo || null,                            // 38. bom_no
-        data.submittedBy || null,                      // 39. submitted_by
-        data.submittedAt || null,                      // 40. submitted_at
-        data.replenishmentQty || 0,                   // 41. replenishment_qty
-        data.requiredWorkHours || 0,                   // 42. required_work_hours
-        data.dailyTotalHours || 0,                    // 43. daily_total_hours
-        data.dailyScheduledHours || 0,                // 44. daily_scheduled_hours
-        data.scheduledWorkHours || 0,                 // 45. scheduled_work_hours
-        data.nextScheduleDate || null                 // 46. next_schedule_date
+        data.planNo, // 1. plan_no
+        data.scheduleDate || null, // 2. schedule_date
+        data.salesOrderNo || null, // 3. sales_order_no
+        data.customerOrderNo || null, // 4. customer_order_no (✅ 新增)
+        data.masterPlanNo || null, // 5. master_plan_no
+        data.mainPlanProductCode || null, // 6. main_plan_product_code (✅ 新增)
+        data.mainPlanProductName || null, // 7. main_plan_product_name (✅ 新增)
+        data.shippingPlanNo || null, // 8. shipping_plan_no
+        data.productCode || null, // 9. product_code
+        data.productName || null, // 10. product_name
+        data.productImage || null, // 11. product_image
+        data.processManager || null, // 12. process_manager
+        data.processName || null, // 13. process_name
+        data.scheduleQuantity || 0, // 14. schedule_quantity
+        data.productUnit || null, // 15. product_unit
+        data.level0Demand || 0, // 16. level0_demand
+        data.completionDate || null, // 17. completion_date
+        data.promiseDeliveryDate || null, // 18. order_promise_delivery_date (✅ 新增)
+        data.planStartDate || null, // 19. plan_start_date
+        data.realPlanStartDate || null, // 20. real_plan_start_date
+        planEndDate, // 21. plan_end_date (✅ 使用计算的值)
+        data.workshopName || null, // 22. workshop_name
+        data.dailyAvailableHours || 0, // 23. daily_available_hours
+        data.remainingRequiredHours || 0, // 24. remaining_required_hours
+        data.scheduleCount || 0, // 25. schedule_count
+        data.standardWorkHours || 0, // 26. standard_work_hours
+        standardWorkQuota, // 27. standard_work_quota (✅ 使用lookup的值)
+        data.cumulativeScheduleQty || 0, // 28. cumulative_schedule_qty
+        data.unscheduledQty || 0, // 29. unscheduled_qty
+        data.sourcePageName || null, // 30. source_page_name
+        data.sourceNo || null, // 31. source_no
+        data.previousScheduleNo || null, // 32. previous_schedule_no
+        data.customerName || null, // 33. customer_name
+        data.level0ProductName || null, // 34. level0_product_name
+        data.level0ProductCode || null, // 35. level0_product_code
+        data.level0ProductionQty || 0, // 36. level0_production_qty
+        data.productSource || null, // 37. product_source
+        data.bomNo || null, // 38. bom_no
+        data.submittedBy || null, // 39. submitted_by
+        data.submittedAt || null, // 40. submitted_at
+        data.replenishmentQty || 0, // 41. replenishment_qty
+        data.requiredWorkHours || 0, // 42. required_work_hours
+        data.dailyTotalHours || 0, // 43. daily_total_hours
+        data.dailyScheduledHours || 0, // 44. daily_scheduled_hours
+        data.scheduledWorkHours || 0, // 45. scheduled_work_hours
+        data.nextScheduleDate || null, // 46. next_schedule_date
       ]);
-      
+
       console.log(`喷塑工序计划创建成功, ID: ${result.insertId}, 编号: ${data.planNo}`);
-      
+
       // ✅ 修改：自动推送到备料计划
       // 触发时机：不管什么原因新增的喷塑工序计划行，都要检查推送条件
       // 推送条件：计划排程数量 > 0
@@ -340,12 +338,12 @@ class SprayPaintingProcessPlanService {
       console.log(`   计划排程数量 (scheduleQuantity): ${data.scheduleQuantity}`);
       console.log(`   推送条件：计划排程数量 > 0`);
       console.log(`   是否满足推送条件: ${data.scheduleQuantity && parseFloat(data.scheduleQuantity) > 0}`);
-      
+
       // ✅ 检查推送条件：计划排程数量 > 0
       if (data.scheduleQuantity && parseFloat(data.scheduleQuantity) > 0) {
         try {
           console.log(`\n📤 触发自动推送到备料计划: 编号=${data.planNo}, 排程数量=${data.scheduleQuantity}`);
-          
+
           // 获取刚创建的喷塑工序计划详情（含下划线字段）
           // ✅ 关键修复：查询时就格式化schedule_date为中国时区YYYY-MM-DD格式
           const [createdPlanRows] = await pool.execute(
@@ -365,23 +363,23 @@ class SprayPaintingProcessPlanService {
               daily_total_hours, daily_scheduled_hours, scheduled_work_hours,
               next_schedule_date, created_at, updated_at
             FROM spray_painting_process_plans WHERE id = ?`,
-            [result.insertId]
+            [result.insertId],
           );
-          
+
           console.log(`   查询到 ${createdPlanRows.length} 条喷塑工序计划记录`);
-          
+
           if (createdPlanRows.length > 0) {
             // ✅ 使用格式化后的日期替换原始日期
             const planData = {
               ...createdPlanRows[0],
-              schedule_date: createdPlanRows[0].schedule_date_formatted // 使用YYYY-MM-DD格式
+              schedule_date: createdPlanRows[0].schedule_date_formatted, // 使用YYYY-MM-DD格式
             };
             const realProcessPlanToMaterialService = require('./realProcessPlanToMaterialService');
-            
+
             // 加载工序间隔设置（从数据库）
             const processIntervalSettings = await this.loadProcessIntervalSettings();
             console.log(`   加载了 ${processIntervalSettings.length} 条工序间隔设置`);
-            
+
             // 执行推送
             console.log(`   开始执行 pushToMaterialPreparation...`);
             console.log(`   喷塑工序计划数据:`, {
@@ -391,14 +389,14 @@ class SprayPaintingProcessPlanService {
               product_name: planData.product_name,
               schedule_quantity: planData.schedule_quantity,
               process_name: planData.process_name,
-              schedule_date: planData.schedule_date // ✅ 已经是YYYY-MM-DD格式
+              schedule_date: planData.schedule_date, // ✅ 已经是YYYY-MM-DD格式
             });
-            
+
             const pushResult = await realProcessPlanToMaterialService.pushToMaterialPreparation(
               planData, // ✅ 使用格式化后的数据
-              processIntervalSettings
+              processIntervalSettings,
             );
-            
+
             console.log(`\n✅ 自动推送到备料计划成功:`, JSON.stringify(pushResult, null, 2));
             // ✅ 注：备料计划推送到喷塑工序计划的触发已移动到 realProcessPlanToMaterialService.pushToMaterialPreparation 的commit后
           } else {
@@ -414,27 +412,27 @@ class SprayPaintingProcessPlanService {
       } else {
         console.log(`   ⚠️ 不满足推送条件，跳过推送到备料计划`);
       }
-      
+
       // ✅ 自动推送已排程工时到工序能力负荷表
       if (data.scheduledWorkHours && data.scheduledWorkHours > 0 && data.processName && data.scheduleDate) {
         try {
           const processName = data.processName;
-          
+
           // ✅ 修复：使用数值化日期匹配（避免字符串格式不一致问题）
-          const scheduleDateObj = data.scheduleDate instanceof Date ? 
-            data.scheduleDate : new Date(data.scheduleDate);
-          
+          const scheduleDateObj = data.scheduleDate instanceof Date ? data.scheduleDate : new Date(data.scheduleDate);
+
           // ✅ 转换为数值 (YYYYMMDD)
-          const scheduleDateNum = scheduleDateObj.getFullYear() * 10000 + 
-                                 (scheduleDateObj.getMonth() + 1) * 100 + 
-                                 scheduleDateObj.getDate();
-          
+          const scheduleDateNum =
+            scheduleDateObj.getFullYear() * 10000 + (scheduleDateObj.getMonth() + 1) * 100 + scheduleDateObj.getDate();
+
           const scheduledHours = parseFloat(data.scheduledWorkHours);
-          
-          console.log(`🔄 推送已排程工时到工序能力负荷表: 工序=${processName}, 日期数值=${scheduleDateNum}, 排程工时=${scheduledHours}`);
+
+          console.log(
+            `🔄 推送已排程工时到工序能力负荷表: 工序=${processName}, 日期数值=${scheduleDateNum}, 排程工时=${scheduledHours}`,
+          );
           console.log(`   原始日期值: ${data.scheduleDate}, 类型: ${typeof data.scheduleDate}`);
           console.log(`   日期对象: ${scheduleDateObj.toISOString().split('T')[0]}, 数值: ${scheduleDateNum}`);
-          
+
           // ✅ 查询工序能力负荷表记录（使用数值化日期匹配）
           // 将工序能力负荷表的date也转换为数值进行比较
           const [capacityRows] = await pool.execute(
@@ -443,28 +441,24 @@ class SprayPaintingProcessPlanService {
              FROM process_capacity_load 
              WHERE process_name = ? 
                AND (YEAR(date) * 10000 + MONTH(date) * 100 + DAY(date)) = ?`,
-            [processName, scheduleDateNum]
+            [processName, scheduleDateNum],
           );
-          
+
           if (capacityRows.length > 0) {
             const record = capacityRows[0];
             const previousOccupiedHours = parseFloat(record.occupied_hours || 0);
             const newOccupiedHours = parseFloat((previousOccupiedHours + scheduledHours).toFixed(2));
             const workShift = parseFloat(record.work_shift || 0);
             const availableWorkstations = parseFloat(record.available_workstations || 0);
-            
+
             // 重新计算剩余工时和剩余时段
-            const newRemainingHours = parseFloat(
-              (workShift * availableWorkstations - newOccupiedHours).toFixed(2)
-            );
-            
+            const newRemainingHours = parseFloat((workShift * availableWorkstations - newOccupiedHours).toFixed(2));
+
             let newRemainingShift = 0;
             if (availableWorkstations > 0) {
-              newRemainingShift = parseFloat(
-                (newRemainingHours / availableWorkstations).toFixed(2)
-              );
+              newRemainingShift = parseFloat((newRemainingHours / availableWorkstations).toFixed(2));
             }
-            
+
             // 更新数据库
             await pool.execute(
               `UPDATE process_capacity_load 
@@ -473,10 +467,12 @@ class SprayPaintingProcessPlanService {
                    remaining_shift = ?,
                    updated_at = NOW()
                WHERE id = ?`,
-              [newOccupiedHours, newRemainingHours, newRemainingShift, record.id]
+              [newOccupiedHours, newRemainingHours, newRemainingShift, record.id],
             );
-            
-            console.log(`✅ 已占用工时更新成功: ${previousOccupiedHours} → ${newOccupiedHours} (增加${scheduledHours}小时)`);
+
+            console.log(
+              `✅ 已占用工时更新成功: ${previousOccupiedHours} → ${newOccupiedHours} (增加${scheduledHours}小时)`,
+            );
             console.log(`   目标记录: date=${record.date}, date_num=${record.date_num}`);
             console.log(`   剩余工时: ${newRemainingHours}, 剩余时段: ${newRemainingShift}`);
           } else {
@@ -487,7 +483,7 @@ class SprayPaintingProcessPlanService {
           // 不阻塞主流程,继续返回结果
         }
       }
-      
+
       return { id: result.insertId };
     } catch (error) {
       console.error('创建喷塑工序计划失败:', error);
@@ -502,17 +498,17 @@ class SprayPaintingProcessPlanService {
   static async loadProcessIntervalSettings() {
     try {
       const [rows] = await pool.execute(
-        'SELECT previous_process, next_process, interval_value, interval_unit FROM process_interval_settings'
+        'SELECT previous_process, next_process, interval_value, interval_unit FROM process_interval_settings',
       );
-      
+
       // 转换字段名为驼峰格式
       const settings = rows.map(row => ({
         previousProcess: row.previous_process,
         nextProcess: row.next_process,
         intervalValue: parseFloat(row.interval_value || 0),
-        intervalUnit: row.interval_unit || '小时'
+        intervalUnit: row.interval_unit || '小时',
       }));
-      
+
       console.log(`✅ 从数据库加载了 ${settings.length} 条工序间隔设置`);
       return settings;
     } catch (error) {
@@ -544,7 +540,7 @@ class SprayPaintingProcessPlanService {
           daily_total_hours = ?, daily_scheduled_hours = ?, scheduled_work_hours = ?, next_schedule_date = ?
         WHERE id = ?
       `;
-      
+
       const [result] = await pool.execute(sql, [
         data.scheduleDate || null,
         data.salesOrderNo || null,
@@ -591,9 +587,9 @@ class SprayPaintingProcessPlanService {
         data.dailyScheduledHours || null,
         data.scheduledWorkHours || null,
         data.nextScheduleDate || null,
-        id
+        id,
       ]);
-      
+
       return result;
     } catch (error) {
       console.error('更新喷塑工序计划失败:', error);
@@ -608,63 +604,62 @@ class SprayPaintingProcessPlanService {
     const connection = await pool.getConnection();
     try {
       await connection.beginTransaction();
-      
+
       // ✅ 步颊1: 先查询喷塑工序计划详情(用于后续释放已占用工时)
       const [planRows] = await connection.execute(
-        'SELECT plan_no, process_name, DATE_FORMAT(schedule_date, \'%Y-%m-%d\') as schedule_date FROM spray_painting_process_plans WHERE id = ?',
-        [id]
+        "SELECT plan_no, process_name, DATE_FORMAT(schedule_date, '%Y-%m-%d') as schedule_date FROM spray_painting_process_plans WHERE id = ?",
+        [id],
       );
-      
+
       if (planRows.length === 0) {
         await connection.rollback();
         throw new Error('喷塑工序计划不存在');
       }
-      
+
       const plan = planRows[0];
       console.log(`🗑️ 删除喷塑工序计划: ${plan.plan_no}`);
-      
+
       // ✅ 步颊2: 执行删除
       const [result] = await connection.execute('DELETE FROM spray_painting_process_plans WHERE id = ?', [id]);
-      
+
       if (result.affectedRows === 0) {
         await connection.rollback();
         throw new Error('喷塑工序计划不存在');
       }
-      
+
       console.log(`✅ 喷塑工序计划删除成功, ID: ${id}`);
-      
+
       // ✅ 步颊3: 删除后自动重置已占用工时(调用SUMIF逻辑)
       if (plan.process_name && plan.schedule_date) {
         try {
           const processName = plan.process_name;
-          
+
           // ✅ 使用数值化日期匹配
-          const scheduleDateObj = typeof plan.schedule_date === 'string' ? 
-            new Date(plan.schedule_date) : plan.schedule_date;
-          
-          const scheduleDateNum = scheduleDateObj.getFullYear() * 10000 + 
-                                 (scheduleDateObj.getMonth() + 1) * 100 + 
-                                 scheduleDateObj.getDate();
-          
+          const scheduleDateObj =
+            typeof plan.schedule_date === 'string' ? new Date(plan.schedule_date) : plan.schedule_date;
+
+          const scheduleDateNum =
+            scheduleDateObj.getFullYear() * 10000 + (scheduleDateObj.getMonth() + 1) * 100 + scheduleDateObj.getDate();
+
           console.log(`🔄 自动重置已占用工时: 工序=${processName}, 日期数值=${scheduleDateNum}`);
           console.log(`   原始日期值: ${plan.schedule_date}, 类型: ${typeof plan.schedule_date}`);
-          
+
           // ✅ SUMIF - 重新统计该工序+日期下所有喷塑工序计划的计划排程工时总和
           const [sumRows] = await connection.execute(
             `SELECT COALESCE(SUM(scheduled_work_hours), 0) as total_hours 
              FROM spray_painting_process_plans 
              WHERE process_name = ? 
                AND (YEAR(schedule_date) * 10000 + MONTH(schedule_date) * 100 + DAY(schedule_date)) = ?`,
-            [processName, scheduleDateNum]
+            [processName, scheduleDateNum],
           );
-          
+
           // ✅ 补充规则: if(sumifs的结果返回null, 0, sumifs的结果)
           const sumResult = sumRows[0].total_hours;
           const validResult = sumResult !== null && sumResult !== undefined ? parseFloat(sumResult) : 0;
           const newOccupiedHours = parseFloat(validResult.toFixed(2));
-          
+
           console.log(`  SUMIF查询结果: ${sumResult}, 新占用工时: ${newOccupiedHours}`);
-          
+
           // ✅ 查询工序能力负荷记录（使用数值化匹配）
           const [capacityRows] = await connection.execute(
             `SELECT id, work_shift, available_workstations, occupied_hours, date,
@@ -672,27 +667,23 @@ class SprayPaintingProcessPlanService {
              FROM process_capacity_load 
              WHERE process_name = ? 
                AND (YEAR(date) * 10000 + MONTH(date) * 100 + DAY(date)) = ?`,
-            [processName, scheduleDateNum]
+            [processName, scheduleDateNum],
           );
-          
+
           if (capacityRows.length > 0) {
             const record = capacityRows[0];
             const previousOccupiedHours = parseFloat(record.occupied_hours || 0);
             const workShift = parseFloat(record.work_shift || 0);
             const availableWorkstations = parseFloat(record.available_workstations || 0);
-            
+
             // ✅ 重新计算剩余工时和剩余时段
-            const newRemainingHours = parseFloat(
-              (workShift * availableWorkstations - newOccupiedHours).toFixed(2)
-            );
-            
+            const newRemainingHours = parseFloat((workShift * availableWorkstations - newOccupiedHours).toFixed(2));
+
             let newRemainingShift = null;
             if (availableWorkstations > 0) {
-              newRemainingShift = parseFloat(
-                (newRemainingHours / availableWorkstations).toFixed(2)
-              );
+              newRemainingShift = parseFloat((newRemainingHours / availableWorkstations).toFixed(2));
             }
-            
+
             // ✅ 更新数据库
             await connection.execute(
               `UPDATE process_capacity_load 
@@ -701,10 +692,12 @@ class SprayPaintingProcessPlanService {
                    remaining_shift = ?,
                    updated_at = NOW()
                WHERE id = ?`,
-              [newOccupiedHours, newRemainingHours, newRemainingShift, record.id]
+              [newOccupiedHours, newRemainingHours, newRemainingShift, record.id],
             );
-            
-            console.log(`✅ 已占用工时重置成功: ${previousOccupiedHours} → ${newOccupiedHours} (释放${(previousOccupiedHours - newOccupiedHours).toFixed(2)}小时)`);
+
+            console.log(
+              `✅ 已占用工时重置成功: ${previousOccupiedHours} → ${newOccupiedHours} (释放${(previousOccupiedHours - newOccupiedHours).toFixed(2)}小时)`,
+            );
             console.log(`   目标记录: date=${record.date}, date_num=${record.date_num}`);
           } else {
             console.warn(`⚠️ 未找到工序能力负荷记录: 工序=${processName}, 日期数值=${scheduleDateNum}`);
@@ -714,7 +707,7 @@ class SprayPaintingProcessPlanService {
           // 不阻塞删除流程,继续提交
         }
       }
-      
+
       await connection.commit();
       console.log(`✅ 喷塑工序计划删除成功, ID: ${id}`);
       return { success: true };
@@ -734,46 +727,47 @@ class SprayPaintingProcessPlanService {
     const connection = await pool.getConnection();
     try {
       await connection.beginTransaction();
-      
+
       let successCount = 0;
       const affectedProcessDates = new Set(); // 记录受影响的工序+日期
-      
+
       for (const id of ids) {
         // ✅ 步颊1: 先查询喷塑工序计划详情
         const [planRows] = await connection.execute(
-          'SELECT plan_no, process_name, DATE_FORMAT(schedule_date, \'%Y-%m-%d\') as schedule_date FROM spray_painting_process_plans WHERE id = ?',
-          [id]
+          "SELECT plan_no, process_name, DATE_FORMAT(schedule_date, '%Y-%m-%d') as schedule_date FROM spray_painting_process_plans WHERE id = ?",
+          [id],
         );
-        
+
         if (planRows.length > 0) {
           const plan = planRows[0];
-          
+
           // ✅ 记录受影响的工序+日期
           if (plan.process_name && plan.schedule_date) {
             // ✅ 转换为数值
-            const scheduleDateObj = typeof plan.schedule_date === 'string' ? 
-              new Date(plan.schedule_date) : plan.schedule_date;
-            
-            const scheduleDateNum = scheduleDateObj.getFullYear() * 10000 + 
-                                   (scheduleDateObj.getMonth() + 1) * 100 + 
-                                   scheduleDateObj.getDate();
-            
+            const scheduleDateObj =
+              typeof plan.schedule_date === 'string' ? new Date(plan.schedule_date) : plan.schedule_date;
+
+            const scheduleDateNum =
+              scheduleDateObj.getFullYear() * 10000 +
+              (scheduleDateObj.getMonth() + 1) * 100 +
+              scheduleDateObj.getDate();
+
             affectedProcessDates.add(`${plan.process_name}|${scheduleDateNum}`);
           }
-          
+
           // ✅ 步颊2: 执行删除
           const [result] = await connection.execute('DELETE FROM spray_painting_process_plans WHERE id = ?', [id]);
           successCount += result.affectedRows;
         }
       }
-      
+
       // ✅ 步颊3: 批量重置受影响的工序+日期的已占用工时
       console.log(`🔄 批量重置 ${affectedProcessDates.size} 个工序+日期的已占用工时`);
-      
+
       for (const key of affectedProcessDates) {
         const [processName, scheduleDateNumStr] = key.split('|');
         const scheduleDateNum = parseInt(scheduleDateNumStr);
-        
+
         try {
           // ✅ SUMIF - 重新统计该工序+日期下所有喷塑工序计划的计划排程工时总和
           const [sumRows] = await connection.execute(
@@ -781,13 +775,13 @@ class SprayPaintingProcessPlanService {
              FROM spray_painting_process_plans 
              WHERE process_name = ? 
                AND (YEAR(schedule_date) * 10000 + MONTH(schedule_date) * 100 + DAY(schedule_date)) = ?`,
-            [processName, scheduleDateNum]
+            [processName, scheduleDateNum],
           );
-          
+
           const sumResult = sumRows[0].total_hours;
           const validResult = sumResult !== null && sumResult !== undefined ? parseFloat(sumResult) : 0;
           const newOccupiedHours = parseFloat(validResult.toFixed(2));
-          
+
           // ✅ 查询工序能力负荷记录（使用数值化匹配）
           const [capacityRows] = await connection.execute(
             `SELECT id, work_shift, available_workstations, occupied_hours, date,
@@ -795,27 +789,23 @@ class SprayPaintingProcessPlanService {
              FROM process_capacity_load 
              WHERE process_name = ? 
                AND (YEAR(date) * 10000 + MONTH(date) * 100 + DAY(date)) = ?`,
-            [processName, scheduleDateNum]
+            [processName, scheduleDateNum],
           );
-          
+
           if (capacityRows.length > 0) {
             const record = capacityRows[0];
             const previousOccupiedHours = parseFloat(record.occupied_hours || 0);
             const workShift = parseFloat(record.work_shift || 0);
             const availableWorkstations = parseFloat(record.available_workstations || 0);
-            
+
             // ✅ 重新计算剩余工时和剩余时段
-            const newRemainingHours = parseFloat(
-              (workShift * availableWorkstations - newOccupiedHours).toFixed(2)
-            );
-            
+            const newRemainingHours = parseFloat((workShift * availableWorkstations - newOccupiedHours).toFixed(2));
+
             let newRemainingShift = null;
             if (availableWorkstations > 0) {
-              newRemainingShift = parseFloat(
-                (newRemainingHours / availableWorkstations).toFixed(2)
-              );
+              newRemainingShift = parseFloat((newRemainingHours / availableWorkstations).toFixed(2));
             }
-            
+
             // ✅ 更新数据库
             await connection.execute(
               `UPDATE process_capacity_load 
@@ -824,17 +814,19 @@ class SprayPaintingProcessPlanService {
                    remaining_shift = ?,
                    updated_at = NOW()
                WHERE id = ?`,
-              [newOccupiedHours, newRemainingHours, newRemainingShift, record.id]
+              [newOccupiedHours, newRemainingHours, newRemainingShift, record.id],
             );
-            
-            console.log(`✅ [工序=${processName}, 日期数值=${scheduleDateNum}, date=${record.date}] ${previousOccupiedHours} → ${newOccupiedHours}`);
+
+            console.log(
+              `✅ [工序=${processName}, 日期数值=${scheduleDateNum}, date=${record.date}] ${previousOccupiedHours} → ${newOccupiedHours}`,
+            );
           }
         } catch (error) {
           console.error(`⚠️ [工序=${processName}, 日期数值=${scheduleDateNum}] 重置失败:`, error.message);
           // 继续处理其他记录
         }
       }
-      
+
       await connection.commit();
       console.log(`批量删除喷塑工序计划完成: 成功${successCount}条/总共${ids.length}条`);
       return { successCount, totalCount: ids.length };
@@ -846,7 +838,7 @@ class SprayPaintingProcessPlanService {
       connection.release();
     }
   }
-  
+
   /**
    * ✅ 需求2: 计算当天已排程工时 (SUMIFS)
    * @param {string} processName - 工序名称
@@ -859,12 +851,12 @@ class SprayPaintingProcessPlanService {
       if (!processName || !scheduleDate) {
         return 0;
       }
-      
+
       // SUMIFS: 求和条件1 - 工序名称匹配
       // SUMIFS: 求和条件2 - 计划排程日期匹配
       // SUMIFS: 求和条件3 - 序号 < 当前行序号（不包含当前行）
       // 注意：序号是显示顺序，需要按照schedule_date ASC, created_at ASC排序后计算
-      
+
       const sql = `
         SELECT COALESCE(SUM(scheduled_work_hours), 0) as total
         FROM (
@@ -877,13 +869,13 @@ class SprayPaintingProcessPlanService {
         ) as ranked
         WHERE row_num < ?
       `;
-      
+
       // currentRowIndex是从0开始，序号 = currentRowIndex + 1
       // 求和条件是序号 < 当前序号，即 row_num < (currentRowIndex + 1)
       const currentRowNumber = currentRowIndex + 1;
       const [rows] = await pool.execute(sql, [processName, scheduleDate, currentRowNumber]);
       const total = parseFloat(rows[0]?.total || 0);
-      
+
       return parseFloat(total.toFixed(2));
     } catch (error) {
       console.error('计算当天已排程工时失败:', error);
@@ -906,9 +898,12 @@ class SprayPaintingProcessPlanService {
     const connection = await pool.getConnection();
     try {
       // 1. 查询来源记录
-      const [records] = await connection.execute(`
+      const [records] = await connection.execute(
+        `
         SELECT * FROM spray_painting_process_plans WHERE id = ?
-      `, [sourceRecordId]);
+      `,
+        [sourceRecordId],
+      );
 
       if (records.length === 0) {
         console.log(`⚠️ 来源记录不存在，ID: ${sourceRecordId}`);
@@ -916,7 +911,7 @@ class SprayPaintingProcessPlanService {
       }
 
       const sourceRecord = records[0];
-      
+
       // 2. 检查自增触发条件
       const unscheduledQty = parseFloat(sourceRecord.unscheduled_qty || 0);
       const scheduleDate = sourceRecord.schedule_date;
@@ -954,15 +949,18 @@ class SprayPaintingProcessPlanService {
       // 5. 查询工序能力负荷表 - 获取当天总工时
       let dailyTotalHours = 0;
       const processName = sourceRecord.process_name;
-      
+
       if (processName && newScheduleDate) {
-        const [capacityRows] = await connection.execute(`
+        const [capacityRows] = await connection.execute(
+          `
           SELECT work_shift, available_workstations
           FROM process_capacity_load
           WHERE process_name = ? AND date = ?
           LIMIT 1
-        `, [processName, newScheduleDate]);
-        
+        `,
+          [processName, newScheduleDate],
+        );
+
         if (capacityRows.length > 0) {
           const workShift = parseFloat(capacityRows[0].work_shift || 0);
           const availableWorkstations = parseFloat(capacityRows[0].available_workstations || 0);
@@ -972,12 +970,15 @@ class SprayPaintingProcessPlanService {
       }
 
       // 6. 计算当天已排程工时 (SUMIFS - 不包含即将创建的这一行)
-      const [sumRows] = await connection.execute(`
+      const [sumRows] = await connection.execute(
+        `
         SELECT COALESCE(SUM(scheduled_work_hours), 0) as total
         FROM spray_painting_process_plans
         WHERE process_name = ? AND schedule_date = ?
-      `, [processName, newScheduleDate]);
-      
+      `,
+        [processName, newScheduleDate],
+      );
+
       const dailyScheduledHours = parseFloat(sumRows[0].total || 0);
       console.log(`   当天已排程工时: ${dailyScheduledHours}`);
 
@@ -1043,10 +1044,10 @@ class SprayPaintingProcessPlanService {
         planNo: newPlanNo,
         scheduleDate: newScheduleDate,
         salesOrderNo: sourceRecord.sales_order_no,
-        customerOrderNo: sourceRecord.customer_order_no,  // ✅ 新增：客户订单编号
+        customerOrderNo: sourceRecord.customer_order_no, // ✅ 新增：客户订单编号
         masterPlanNo: sourceRecord.master_plan_no,
-        mainPlanProductCode: sourceRecord.main_plan_product_code,  // ✅ 新增：主计划产品编号
-        mainPlanProductName: sourceRecord.main_plan_product_name,  // ✅ 新增：主计划产品名称
+        mainPlanProductCode: sourceRecord.main_plan_product_code, // ✅ 新增：主计划产品编号
+        mainPlanProductName: sourceRecord.main_plan_product_name, // ✅ 新增：主计划产品名称
         shippingPlanNo: sourceRecord.shipping_plan_no,
         productCode: sourceRecord.product_code,
         productName: sourceRecord.product_name,
@@ -1057,9 +1058,9 @@ class SprayPaintingProcessPlanService {
         productUnit: sourceRecord.product_unit,
         level0Demand: sourceRecord.level0_demand,
         completionDate: sourceRecord.completion_date,
-        promiseDeliveryDate: sourceRecord.order_promise_delivery_date,  // ✅ 新增：订单承诺交期
-        planStartDate: null,  // ✅ 自增行必须清空计划开始日期
-        realPlanStartDate: null,  // ✅ 自增行也清空真计划开始日期
+        promiseDeliveryDate: sourceRecord.order_promise_delivery_date, // ✅ 新增：订单承诺交期
+        planStartDate: null, // ✅ 自增行必须清空计划开始日期
+        realPlanStartDate: null, // ✅ 自增行也清空真计划开始日期
         planEndDate: sourceRecord.plan_end_date,
         workshopName: sourceRecord.workshop_name,
         dailyAvailableHours: dailyAvailableHours,
@@ -1070,8 +1071,8 @@ class SprayPaintingProcessPlanService {
         cumulativeScheduleQty: cumulativeScheduleQty,
         unscheduledQty: newUnscheduledQty,
         sourcePageName: sourceRecord.source_page_name,
-        sourceNo: sourceRecord.source_no,  // ✅ 继承来源编号
-        previousScheduleNo: sourceRecord.plan_no,  // ✅ 上一个排程编号 = 来源行编号
+        sourceNo: sourceRecord.source_no, // ✅ 继承来源编号
+        previousScheduleNo: sourceRecord.plan_no, // ✅ 上一个排程编号 = 来源行编号
         customerName: sourceRecord.customer_name,
         level0ProductName: sourceRecord.level0_product_name,
         level0ProductCode: sourceRecord.level0_product_code,
@@ -1080,12 +1081,12 @@ class SprayPaintingProcessPlanService {
         bomNo: sourceRecord.bom_no,
         submittedBy: sourceRecord.submitted_by,
         submittedAt: sourceRecord.submitted_at,
-        replenishmentQty: newReplenishmentQty,  // ✅ 继承需补货数量
-        requiredWorkHours: newRequiredWorkHours,  // ✅ 新需求工时 = 来源行剩余需求工时
+        replenishmentQty: newReplenishmentQty, // ✅ 继承需补货数量
+        requiredWorkHours: newRequiredWorkHours, // ✅ 新需求工时 = 来源行剩余需求工时
         dailyTotalHours: dailyTotalHours,
         dailyScheduledHours: dailyScheduledHours,
         scheduledWorkHours: scheduledWorkHours,
-        nextScheduleDate: newNextScheduleDate
+        nextScheduleDate: newNextScheduleDate,
       };
 
       // 16. 创建自增行
@@ -1096,12 +1097,15 @@ class SprayPaintingProcessPlanService {
 
       // 17. 重新计算累积排程数量 (SUMIFS - 包含刚创建的这一行)
       if (sourceRecord.source_no) {
-        const [cumulativeRows] = await connection.execute(`
+        const [cumulativeRows] = await connection.execute(
+          `
           SELECT COALESCE(SUM(schedule_quantity), 0) as total
           FROM spray_painting_process_plans
           WHERE source_no = ?
-        `, [sourceRecord.source_no]);
-        
+        `,
+          [sourceRecord.source_no],
+        );
+
         cumulativeScheduleQty = parseFloat(cumulativeRows[0].total || 0);
         console.log(`   📊 重新计算累积排程数量: ${cumulativeScheduleQty}`);
 
@@ -1115,11 +1119,14 @@ class SprayPaintingProcessPlanService {
         console.log(`   📊 重新计算未排数量: ${newUnscheduledQty}`);
 
         // 19. 更新刚创建的记录
-        await connection.execute(`
+        await connection.execute(
+          `
           UPDATE spray_painting_process_plans 
           SET cumulative_schedule_qty = ?, unscheduled_qty = ?
           WHERE id = ?
-        `, [cumulativeScheduleQty, newUnscheduledQty, newRecordId]);
+        `,
+          [cumulativeScheduleQty, newUnscheduledQty, newRecordId],
+        );
         console.log(`   ✅ 累积数量和未排数量已更新`);
       }
 
@@ -1129,13 +1136,12 @@ class SprayPaintingProcessPlanService {
       // 20. 递归检查：如果未排数量 > 0，继续创建下一个自增行
       if (newUnscheduledQty > 0 && newNextScheduleDate) {
         console.log(`\n🔁 未排数量=${newUnscheduledQty} > 0，继续递归创建下一个自增行...`);
-        connection.release();  // 先释放当前连接
+        connection.release(); // 先释放当前连接
         await SprayPaintingProcessPlanService.checkAndCreateIncremental(newRecordId, maxDepth, currentDepth + 1);
       } else {
         console.log(`\n🎉 排程完毕！未排数量=${newUnscheduledQty}，停止递归`);
         connection.release();
       }
-      
     } catch (error) {
       console.error('❌ 创建自增行失败:', error);
       connection.release();

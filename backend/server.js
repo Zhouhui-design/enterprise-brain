@@ -17,18 +17,26 @@ if (!fs.existsSync(dataDir)) {
 const app = express();
 const PORT = process.env.PORT || 3005;
 
+// 导入分布式追踪中间件
+const { traceMiddleware } = require('./middleware/traceMiddleware');
+
 // 中间件 - 允许跨域访问
-app.use(cors({
-  origin: '*', // 开发环境允许所有来源，生产环境应该限制具体域名
-  credentials: true,
-  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization']
-}));
+app.use(
+  cors({
+    origin: '*', // 开发环境允许所有来源，生产环境应该限制具体域名
+    credentials: true,
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization', 'X-Trace-Id', 'X-Span-Id'],
+  }),
+);
 app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ extended: true, limit: '50mb' }));
 
 // 静态文件服务
 app.use('/uploads', express.static(path.join(__dirname, '../uploads')));
+
+// 分布式追踪中间件
+app.use(traceMiddleware);
 
 // 日志中间件 - 记录所有HTTP请求
 const { accessLogger } = require('./config/logger');
@@ -37,134 +45,24 @@ app.use((req, res, next) => {
     method: req.method,
     url: req.path,
     ip: req.ip,
+    traceId: req.traceId,
+    spanId: req.spanId,
     headers: {
       'user-agent': req.get('User-Agent'),
       'content-type': req.get('Content-Type'),
-      'accept': req.get('Accept')
+      accept: req.get('Accept'),
+      'x-trace-id': req.get('X-Trace-Id'),
+      'x-span-id': req.get('X-Span-Id'),
     },
-    query: req.query
+    query: req.query,
   });
   next();
 });
 
-// 路由
-const materialsRouter = require('./routes/materials');
-const productionBomsRouter = require('./routes/productionBoms');
-const productionBomDraftsRouter = require('./routes/productionBomDrafts');
-const customersRouter = require('./routes/customers');
-const mrpDemandsRouter = require('./routes/mrpDemands');
-const salesOrdersRouter = require('./routes/salesOrders');
-const shippingPlansRouter = require('./routes/shippingPlans');
-const productionPlansRouter = require('./routes/productionPlans');
-const projectedBalancesRouter = require('./routes/projectedBalances');
-const bomTreeStructuresRouter = require('./routes/bomTreeStructures');
-const processesRouter = require('./routes/processes');
-const mrpCalculationRouter = require('./routes/mrpCalculation');
-const productManualRouter = require('./routes/productManual');
-const inventoryRouter = require('./routes/inventory');
-const masterProductionPlansRouter = require('./routes/masterProductionPlans');
-const materialPreparationPlansRouter = require('./routes/materialPreparationPlans');
-const processPlansRouter = require('./routes/processPlans');
-const realProcessPlansRouter = require('./routes/realProcessPlans');
-const assemblyProcessPlansRouter = require('./routes/assemblyProcessPlans');
-const sewingProcessPlansRouter = require('./routes/sewingProcessPlans');
-const sprayPaintingProcessPlansRouter = require('./routes/sprayPaintingProcessPlans');
-// ✅ 新增11个工序计划路由
-const shotBlastingProcessPlansRouter = require('./routes/shotBlastingProcessPlans');
-const manualWeldingProcessPlansRouter = require('./routes/manualWeldingProcessPlans');
-const tubeBendingProcessPlansRouter = require('./routes/tubeBendingProcessPlans');
-const laserTubeCuttingProcessPlansRouter = require('./routes/laserTubeCuttingProcessPlans');
-const laserCuttingProcessPlansRouter = require('./routes/laserCuttingProcessPlans');
-const bendingProcessPlansRouter = require('./routes/bendingProcessPlans');
-const drillingProcessPlansRouter = require('./routes/drillingProcessPlans');
-const punchingProcessPlansRouter = require('./routes/punchingProcessPlans');
-const manualCuttingProcessPlansRouter = require('./routes/manualCuttingProcessPlans');
-const machineGrindingProcessPlansRouter = require('./routes/machineGrindingProcessPlans');
-const cuttingProcessPlansRouter = require('./routes/cuttingProcessPlans');
-// ✅ 添加打包工序计划路由
-const packingProcessPlansRouter = require('./routes/packingProcessPlans');
-const capacityLoadRouter = require('./routes/capacityLoad');
-const companyCalendarRouter = require('./routes/companyCalendar');
-const listStyleProductionBomsRouter = require('./routes/listStyleProductionBoms');
-const testDataFlowRouter = require('./routes/testDataFlow');
-const procurementPlansRouter = require('./routes/procurementPlans');
-const supplierEvaluationsRouter = require('./routes/supplierEvaluations');
-const supplierManagementRouter = require('./routes/supplierManagement');
-const warehousesRouter = require('./routes/warehouses-test-simple');
-const bomPushRouter = require('./routes/bomPushRoutes');
+// 路由自动加载
+const loadRoutes = require('./utils/routeLoader');
+loadRoutes(app);
 
-app.use('/api/materials', materialsRouter);
-app.use('/api/production-boms', productionBomsRouter);
-app.use('/api/production-bom-drafts', productionBomDraftsRouter);
-app.use('/api/customers', customersRouter);
-app.use('/api/mrp-demands', mrpDemandsRouter);
-app.use('/api/sales-orders', salesOrdersRouter);
-app.use('/api/shipping-plans', shippingPlansRouter);
-app.use('/api/production-plans', productionPlansRouter);
-app.use('/api/product-manual', productManualRouter);
-app.use('/api/projected-balances', projectedBalancesRouter);
-app.use('/api/bom-tree-structures', bomTreeStructuresRouter);
-app.use('/api/processes', processesRouter);
-app.use('/api/mrp', mrpCalculationRouter);
-// 为库存路由添加调试中间件
-app.use('/api/inventory', (req, res, next) => {
-  console.log(`[Inventory Route Debug] ${req.method} ${req.originalUrl}`);
-  next();
-}, inventoryRouter);
-app.use('/api/master-production-plans', masterProductionPlansRouter);
-app.use('/api/material-preparation-plans', materialPreparationPlansRouter);
-app.use('/api/process-plans', processPlansRouter);
-app.use('/api/real-process-plans', realProcessPlansRouter);
-app.use('/api/assembly-process-plans', assemblyProcessPlansRouter);
-console.log('🔧 组装工序计划路由已注册: /api/assembly-process-plans');
-app.use('/api/sewing-process-plans', sewingProcessPlansRouter);
-console.log('🔧 缝纫工序计划路由已注册: /api/sewing-process-plans');
-app.use('/api/spray-painting-process-plans', sprayPaintingProcessPlansRouter);
-console.log('🔧 喷塑工序计划路由已注册: /api/spray-painting-process-plans');
-// ✅ 注册11个新工序计划路由
-app.use('/api/shot-blasting-process-plans', shotBlastingProcessPlansRouter);
-console.log('🔧 抛丸工序计划路由已注册: /api/shot-blasting-process-plans');
-app.use('/api/manual-welding-process-plans', manualWeldingProcessPlansRouter);
-console.log('🔧 人工焊接工序计划路由已注册: /api/manual-welding-process-plans');
-app.use('/api/tube-bending-process-plans', tubeBendingProcessPlansRouter);
-console.log('🔧 弯管工序计划路由已注册: /api/tube-bending-process-plans');
-app.use('/api/laser-tube-cutting-process-plans', laserTubeCuttingProcessPlansRouter);
-console.log('🔧 激光切管工序计划路由已注册: /api/laser-tube-cutting-process-plans');
-app.use('/api/laser-cutting-process-plans', laserCuttingProcessPlansRouter);
-console.log('🔧 激光下料工序计划路由已注册: /api/laser-cutting-process-plans');
-app.use('/api/bending-process-plans', bendingProcessPlansRouter);
-console.log('🔧 折弯工序计划路由已注册: /api/bending-process-plans');
-app.use('/api/drilling-process-plans', drillingProcessPlansRouter);
-console.log('🔧 打孔工序计划路由已注册: /api/drilling-process-plans');
-app.use('/api/punching-process-plans', punchingProcessPlansRouter);
-console.log('🔧 冲床工序计划路由已注册: /api/punching-process-plans');
-app.use('/api/manual-cutting-process-plans', manualCuttingProcessPlansRouter);
-console.log('🔧 人工下料工序计划路由已注册: /api/manual-cutting-process-plans');
-app.use('/api/machine-grinding-process-plans', machineGrindingProcessPlansRouter);
-console.log('🔧 机器打磨工序计划路由已注册: /api/machine-grinding-process-plans');
-app.use('/api/cutting-process-plans', cuttingProcessPlansRouter);
-console.log('🔧 裁剪工序计划路由已注册: /api/cutting-process-plans');
-// ✅ 注册打包工序计划路由
-app.use('/api/packing-process-plans', packingProcessPlansRouter);
-console.log('🔧 打包工序计划路由已注册: /api/packing-process-plans');
-app.use('/api/capacity-load', capacityLoadRouter);
-console.log('📡 工序能力负荷表路由已注册: /api/capacity-load');
-app.use('/api/company-calendar', companyCalendarRouter);
-app.use('/api/list-style-production-boms', listStyleProductionBomsRouter);
-app.use('/api/test-data-flow', testDataFlowRouter);
-console.log('🧪 测试数据流路由已注册: /api/test-data-flow');
-app.use('/api/procurement-plans', procurementPlansRouter);
-console.log('🛒 采购计划路由已注册: /api/procurement-plans');
-app.use('/api/supplier-evaluations', supplierEvaluationsRouter);
-console.log('⭐ 供应商评价路由已注册: /api/supplier-evaluations');
-app.use('/api/supplier-management', supplierManagementRouter);
-console.log('🏢 供应商管理路由已注册: /api/supplier-management');
-app.use('/api/warehouses', warehousesRouter);
-console.log('🏭 仓库管理路由已注册: /api/warehouses');
-
-// BOM推送路由
-app.use('/api/bom-push', bomPushRouter);
-console.log('📤 BOM推送路由已注册: /api/bom-push');
 
 // Swagger API文档
 const swaggerUi = require('swagger-ui-express');
@@ -181,16 +79,10 @@ app.get('/health', (req, res) => {
 
 // 根路径
 app.get('/', (req, res) => {
-  res.json({ 
+  res.json({
     message: 'Enterprise Brain Backend API Server',
     version: '1.0.0',
-    endpoints: [
-      '/api/customers',
-      '/api/products',
-      '/api/sales-orders',
-      '/api/materials',
-      '/health'
-    ]
+    endpoints: ['/api/customers', '/api/products', '/api/sales-orders', '/api/materials', '/health'],
   });
 });
 
@@ -201,7 +93,7 @@ app.get('/test-json', (req, res) => {
     list: [],
     total: 0,
     status: 'success',
-    code: 200
+    code: 200,
   };
   res.setHeader('Content-Type', 'application/json');
   res.send(JSON.stringify(testData));
@@ -211,19 +103,22 @@ app.get('/test-json', (req, res) => {
 app.use((err, req, res, next) => {
   logger.error('Internal Server Error', {
     error: err,
+    traceId: req.traceId,
+    spanId: req.spanId,
     request: {
       method: req.method,
       url: req.originalUrl,
       ip: req.ip,
       headers: req.headers,
-      body: req.body
+      body: req.body,
     },
-    stack: err.stack
+    stack: err.stack,
   });
   res.status(500).json({
     code: 500,
     message: 'Internal Server Error',
-    error: process.env.NODE_ENV === 'development' ? err.message : 'Something went wrong!'
+    traceId: req.traceId,
+    error: process.env.NODE_ENV === 'development' ? err.message : 'Something went wrong!',
   });
 });
 
@@ -231,7 +126,7 @@ app.use((err, req, res, next) => {
 app.use((req, res) => {
   res.status(404).json({
     code: 404,
-    message: 'Endpoint not found'
+    message: 'Endpoint not found',
   });
 });
 
@@ -243,29 +138,77 @@ const server = app.listen(PORT, '0.0.0.0', () => {
   console.log(`Network access: http://192.168.2.229:${PORT}`);
   console.log('Server is accessible from other devices on the network');
   console.log('Press Ctrl+C to stop the server');
-  
+
   // 执行数据库初始化 - 只在服务器启动时执行一次
   console.log('\n🔧 执行数据库初始化...');
   const { initializeDatabase } = require('./config/database');
   initializeDatabase().catch(err => {
     console.error('数据库初始化错误:', err);
   });
-  
+
   // 启动自动备份任务
   console.log('\n💾 启动数据库自动备份系统...');
   require('./scripts/auto-backup');
-  
+
   // 启动工序能力负荷表定时任务
   console.log('\n⏰ 启动工序能力负荷表定时任务...');
   const { scheduleDailyTask } = require('./scheduledTasks');
   scheduleDailyTask();
+
+  // 启动WebSocket服务
+  console.log('\n🔌 启动WebSocket服务...');
+  const SalesWebSocket = require('./websocket/salesWebSocket');
+  global.salesWebSocket = new SalesWebSocket(server);
+  console.log('WebSocket服务已启动，路径: /ws/sales/realtime');
+
+  // 启动监控服务
+  console.log('\n📊 启动监控服务...');
+  const monitoringService = require('./services/monitoringService');
+  monitoringService.start();
+  global.monitoringService = monitoringService;
+  console.log('监控服务已启动');
 });
 
 // 优雅关闭
 process.on('SIGTERM', () => {
   console.log('SIGTERM signal received: closing HTTP server');
+  
+  // 关闭WebSocket服务
+  if (global.salesWebSocket) {
+    console.log('关闭WebSocket服务...');
+    global.salesWebSocket.close();
+  }
+  
+  // 关闭监控服务
+  if (global.monitoringService) {
+    console.log('关闭监控服务...');
+    global.monitoringService.stop();
+  }
+  
   server.close(() => {
     console.log('HTTP server closed');
+  });
+});
+
+// SIGINT信号处理 (Ctrl+C)
+process.on('SIGINT', () => {
+  console.log('SIGINT signal received: closing HTTP server');
+  
+  // 关闭WebSocket服务
+  if (global.salesWebSocket) {
+    console.log('关闭WebSocket服务...');
+    global.salesWebSocket.close();
+  }
+  
+  // 关闭监控服务
+  if (global.monitoringService) {
+    console.log('关闭监控服务...');
+    global.monitoringService.stop();
+  }
+  
+  server.close(() => {
+    console.log('HTTP server closed');
+    process.exit(0);
   });
 });
 

@@ -88,12 +88,13 @@ function performBackup() {
 // 清理旧备份
 function cleanOldBackups() {
   try {
-    const files = fs.readdirSync(CONFIG.backupDir)
+    const files = fs
+      .readdirSync(CONFIG.backupDir)
       .filter(file => file.endsWith('.db'))
       .map(file => ({
         name: file,
         path: path.join(CONFIG.backupDir, file),
-        time: fs.statSync(path.join(CONFIG.backupDir, file)).mtime.getTime()
+        time: fs.statSync(path.join(CONFIG.backupDir, file)).mtime.getTime(),
       }))
       .sort((a, b) => b.time - a.time); // 按时间倒序
 
@@ -114,7 +115,8 @@ function cleanOldBackups() {
 // 列出所有备份
 function listBackups() {
   ensureBackupDir();
-  const files = fs.readdirSync(CONFIG.backupDir)
+  const files = fs
+    .readdirSync(CONFIG.backupDir)
     .filter(file => file.endsWith('.db'))
     .map(file => {
       const filePath = path.join(CONFIG.backupDir, file);
@@ -122,7 +124,7 @@ function listBackups() {
       return {
         name: file,
         size: (stats.size / (1024 * 1024)).toFixed(2) + ' MB',
-        time: stats.mtime.toLocaleString('zh-CN')
+        time: stats.mtime.toLocaleString('zh-CN'),
       };
     })
     .sort((a, b) => new Date(b.time) - new Date(a.time));
@@ -141,7 +143,7 @@ function listBackups() {
 function restoreBackup(backupFileName) {
   try {
     const backupPath = path.join(CONFIG.backupDir, backupFileName);
-    
+
     if (!fs.existsSync(backupPath)) {
       throw new Error(`备份文件不存在: ${backupFileName}`);
     }
@@ -159,7 +161,6 @@ function restoreBackup(backupFileName) {
     fs.copyFileSync(backupPath, CONFIG.dbPath);
     console.log(`✅ 数据库恢复完成！`);
     console.log(`   请重启服务以加载恢复的数据`);
-
   } catch (error) {
     console.error('❌ 恢复失败:', error);
     throw error;
@@ -207,6 +208,5 @@ module.exports = {
   performBackup,
   listBackups,
   restoreBackup,
-  cleanOldBackups
+  cleanOldBackups,
 };
-

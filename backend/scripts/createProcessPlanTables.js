@@ -78,48 +78,44 @@ CREATE TABLE IF NOT EXISTS \`${tableName}\` (
  */
 async function createAllProcessPlanTables() {
   const connection = await pool.getConnection();
-  
+
   try {
     console.log('\n🚀 开始创建工序计划表...\n');
-    
+
     const enabledProcesses = getEnabledProcesses();
     let createdCount = 0;
     let skippedCount = 0;
-    
+
     for (const process of enabledProcesses) {
       const { tableName, displayName, processName } = process;
-      
+
       try {
         // 检查表是否已存在
-        const [tables] = await connection.execute(
-          `SHOW TABLES LIKE '${tableName}'`
-        );
-        
+        const [tables] = await connection.execute(`SHOW TABLES LIKE '${tableName}'`);
+
         if (tables.length > 0) {
           console.log(`⏭️  跳过：${displayName}表(${tableName})已存在`);
           skippedCount++;
           continue;
         }
-        
+
         // 创建表
         const sql = generateCreateTableSQL(tableName, displayName);
         await connection.execute(sql);
-        
+
         console.log(`✅ 创建成功：${displayName}表(${tableName})`);
         createdCount++;
-        
       } catch (error) {
         console.error(`❌ 创建失败：${displayName}表(${tableName})`);
         console.error(`   错误信息：${error.message}`);
       }
     }
-    
+
     console.log(`\n📊 统计结果：`);
     console.log(`   - 总计工序类型：${enabledProcesses.length} 个`);
     console.log(`   - 成功创建表：${createdCount} 个`);
     console.log(`   - 已存在跳过：${skippedCount} 个`);
     console.log(`\n✅ 工序计划表创建完成！\n`);
-    
   } catch (error) {
     console.error('\n❌ 创建工序计划表时发生错误：', error);
     throw error;
@@ -135,7 +131,7 @@ if (require.main === module) {
       console.log('✅ 脚本执行完成');
       process.exit(0);
     })
-    .catch((error) => {
+    .catch(error => {
       console.error('❌ 脚本执行失败：', error);
       process.exit(1);
     });
@@ -143,5 +139,5 @@ if (require.main === module) {
 
 module.exports = {
   createAllProcessPlanTables,
-  generateCreateTableSQL
+  generateCreateTableSQL,
 };

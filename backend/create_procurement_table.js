@@ -3,9 +3,9 @@ const { query } = require('./config/database');
 (async () => {
   try {
     console.log('Checking if procurement_plans table exists...');
-    const result = await query('SHOW TABLES LIKE \'procurement_plans\'');
+    const result = await query("SHOW TABLES LIKE 'procurement_plans'");
     console.log('Table exists:', result.length > 0);
-    
+
     if (result.length === 0) {
       console.log('Creating procurement_plans table...');
       await query(`
@@ -66,7 +66,7 @@ const { query } = require('./config/database');
     } else {
       console.log('✅ procurement_plans table already exists');
     }
-    
+
     process.exit(0);
   } catch (error) {
     console.error('❌ Error:', error);

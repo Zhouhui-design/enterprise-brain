@@ -1,6 +1,6 @@
-const db = require('../config/database')
+const db = require('../config/database');
 
-console.log('开始创建projected_balances表...')
+console.log('开始创建projected_balances表...');
 
 try {
   // 创建预计结存表
@@ -23,18 +23,18 @@ try {
       update_by TEXT,
       update_time DATETIME DEFAULT CURRENT_TIMESTAMP
     )
-  `)
-  
+  `);
+
   // 创建索引
   db.exec(`
     CREATE INDEX IF NOT EXISTS idx_projected_balances_date ON projected_balances(projected_date);
     CREATE INDEX IF NOT EXISTS idx_projected_balances_order ON projected_balances(sales_order_no);
     CREATE INDEX IF NOT EXISTS idx_projected_balances_product ON projected_balances(product_code);
     CREATE INDEX IF NOT EXISTS idx_projected_balances_transaction ON projected_balances(transaction_no);
-  `)
-  
-  console.log('✅ projected_balances表创建成功！')
+  `);
+
+  console.log('✅ projected_balances表创建成功！');
 } catch (error) {
-  console.error('❌ 创建表失败:', error)
-  process.exit(1)
+  console.error('❌ 创建表失败:', error);
+  process.exit(1);
 }

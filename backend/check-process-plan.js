@@ -13,10 +13,10 @@ async function checkProcessPlans() {
       ORDER BY created_at DESC
       LIMIT 5
     `);
-    
+
     console.log('=== 最新的工序计划 ===');
     console.log(`总数: ${rows.length} 条\n`);
-    
+
     if (rows.length > 0) {
       rows.forEach((row, index) => {
         console.log(`${index + 1}. 工序计划编号: ${row.plan_no}`);
@@ -31,7 +31,7 @@ async function checkProcessPlans() {
     } else {
       console.log('❌ 没有找到任何工序计划数据');
     }
-    
+
     // 查询最新生成的备料计划对应的工序计划
     const [latestMaterial] = await pool.execute(`
       SELECT plan_no, source_plan_no 
@@ -39,18 +39,21 @@ async function checkProcessPlans() {
       ORDER BY created_at DESC 
       LIMIT 1
     `);
-    
+
     if (latestMaterial.length > 0) {
       console.log('=== 最新备料计划对应的工序计划 ===');
       console.log(`备料计划: ${latestMaterial[0].plan_no}`);
       console.log(`主计划: ${latestMaterial[0].source_plan_no}\n`);
-      
-      const [relatedProcess] = await pool.execute(`
+
+      const [relatedProcess] = await pool.execute(
+        `
         SELECT plan_no, process_name, created_at
         FROM process_plans
         WHERE master_plan_no = ?
-      `, [latestMaterial[0].source_plan_no]);
-      
+      `,
+        [latestMaterial[0].source_plan_no],
+      );
+
       if (relatedProcess.length > 0) {
         console.log('✅ 找到对应的工序计划:');
         relatedProcess.forEach(p => {
@@ -60,7 +63,7 @@ async function checkProcessPlans() {
         console.log('❌ 没有找到对应的工序计划');
       }
     }
-    
+
     process.exit(0);
   } catch (error) {
     console.error('错误:', error);

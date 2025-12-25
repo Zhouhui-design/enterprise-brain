@@ -17,7 +17,7 @@ class SupplierEvaluationService {
       supplierName,
       evaluationDateStart,
       evaluationDateEnd,
-      evaluationLevel
+      evaluationLevel,
     } = params;
 
     // 构建查询条件
@@ -78,14 +78,14 @@ class SupplierEvaluationService {
       evaluationLevel: record.evaluation_level,
       remarks: record.remarks,
       createdAt: record.created_at,
-      updatedAt: record.updated_at
+      updatedAt: record.updated_at,
     }));
 
     return {
       records: formattedRecords,
       total,
       page: parseInt(page),
-      pageSize: parseInt(pageSize)
+      pageSize: parseInt(pageSize),
     };
   }
 
@@ -95,7 +95,7 @@ class SupplierEvaluationService {
   async getById(id) {
     const sql = 'SELECT * FROM supplier_evaluations WHERE id = ?';
     const [record] = await query(sql, [id]);
-    
+
     if (!record) {
       throw new Error('记录不存在');
     }
@@ -117,7 +117,7 @@ class SupplierEvaluationService {
       evaluationLevel: record.evaluation_level,
       remarks: record.remarks,
       createdAt: record.created_at,
-      updatedAt: record.updated_at
+      updatedAt: record.updated_at,
     };
   }
 
@@ -147,7 +147,7 @@ class SupplierEvaluationService {
       data.serviceScore,
       data.totalScore,
       data.evaluationLevel,
-      data.remarks || null
+      data.remarks || null,
     ];
 
     const result = await query(sql, params);
@@ -190,7 +190,7 @@ class SupplierEvaluationService {
       data.totalScore,
       data.evaluationLevel,
       data.remarks || null,
-      id
+      id,
     ];
 
     await query(sql, params);

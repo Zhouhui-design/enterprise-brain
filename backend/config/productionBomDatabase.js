@@ -17,7 +17,7 @@ const productionBomDbConfig = {
   connectionLimit: 10,
   queueLimit: 0,
   enableKeepAlive: true,
-  keepAliveInitialDelay: 0
+  keepAliveInitialDelay: 0,
 };
 
 // 创建连接池
@@ -37,23 +37,23 @@ const initializeProductionBomDatabase = async () => {
       host: productionBomDbConfig.host,
       port: productionBomDbConfig.port,
       user: productionBomDbConfig.user,
-      password: productionBomDbConfig.password
+      password: productionBomDbConfig.password,
     });
-    
+
     await createDbConnection.execute(
       `CREATE DATABASE IF NOT EXISTS ${productionBomDbConfig.database} 
        CHARACTER SET utf8mb4 
-       COLLATE utf8mb4_unicode_ci`
+       COLLATE utf8mb4_unicode_ci`,
     );
     await createDbConnection.end();
-    
+
     console.log('✅ 生产BOM专用数据库创建成功');
-    
+
     // 获取连接并创建表
     const connection = await pool.getConnection();
-    
+
     console.log('🔧 开始初始化生产BOM专用数据库表结构...');
-    
+
     // 创建生产BOM表
     await connection.execute(`
       CREATE TABLE IF NOT EXISTS production_boms (
@@ -79,7 +79,7 @@ const initializeProductionBomDatabase = async () => {
         INDEX idx_product_code (product_code)
       ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='生产BOM表'
     `);
-    
+
     await connection.execute(`
       CREATE TABLE IF NOT EXISTS bom_components (
         id INT AUTO_INCREMENT PRIMARY KEY,
@@ -102,7 +102,7 @@ const initializeProductionBomDatabase = async () => {
         FOREIGN KEY (bom_id) REFERENCES production_boms(id) ON DELETE CASCADE
       ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='BOM子件表'
     `);
-    
+
     await connection.execute(`
       CREATE TABLE IF NOT EXISTS list_style_production_boms (
         id INT AUTO_INCREMENT PRIMARY KEY,
@@ -129,7 +129,7 @@ const initializeProductionBomDatabase = async () => {
         INDEX idx_status (status)
       ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='列表式生产BOM主表'
     `);
-    
+
     await connection.execute(`
       CREATE TABLE IF NOT EXISTS list_style_bom_children (
         id INT AUTO_INCREMENT PRIMARY KEY,
@@ -147,7 +147,7 @@ const initializeProductionBomDatabase = async () => {
         FOREIGN KEY (parent_id) REFERENCES list_style_production_boms(id) ON DELETE CASCADE
       ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='列表式生产BOM子件表'
     `);
-    
+
     await connection.execute(`
       CREATE TABLE IF NOT EXISTS production_bom_drafts (
         id INT AUTO_INCREMENT PRIMARY KEY,
@@ -170,7 +170,7 @@ const initializeProductionBomDatabase = async () => {
         INDEX idx_bom_code (bom_code)
       ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='生产BOM草稿表'
     `);
-    
+
     await connection.execute(`
       CREATE TABLE IF NOT EXISTS bom_tree_structures (
         id VARCHAR(100) PRIMARY KEY COMMENT 'ID',
@@ -190,19 +190,17 @@ const initializeProductionBomDatabase = async () => {
         INDEX idx_product_code (product_code)
       ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='BOM树结构表'
     `);
-    
+
     console.log('✅ 生产BOM专用数据库表结构初始化完成');
     connection.release();
-    
+
     // 测试连接
-    await pool.getConnection()
-      .then(connection => {
-        console.log('✅ 生产BOM专用数据库连接成功');
-        console.log(`📊 数据库: ${productionBomDbConfig.database}`);
-        console.log(`🔗 主机: ${productionBomDbConfig.host}:${productionBomDbConfig.port}`);
-        connection.release();
-      });
-    
+    await pool.getConnection().then(connection => {
+      console.log('✅ 生产BOM专用数据库连接成功');
+      console.log(`📊 数据库: ${productionBomDbConfig.database}`);
+      console.log(`🔗 主机: ${productionBomDbConfig.host}:${productionBomDbConfig.port}`);
+      connection.release();
+    });
   } catch (error) {
     console.error('❌ 初始化生产BOM专用数据库失败:', error.message);
     throw error;
@@ -213,5 +211,5 @@ module.exports = {
   pool,
   query,
   initializeProductionBomDatabase,
-  dbConfig: productionBomDbConfig
+  dbConfig: productionBomDbConfig,
 };

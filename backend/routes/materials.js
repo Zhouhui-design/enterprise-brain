@@ -28,12 +28,12 @@ router.get('/list', async (req, res) => {
     res.json({
       code: 200,
       data: materials,
-      message: '获取物料列表成功'
+      message: '获取物料列表成功',
     });
   } catch (error) {
     res.status(500).json({
       code: 500,
-      message: error.message
+      message: error.message,
     });
   }
 });
@@ -70,12 +70,12 @@ router.post('/create', async (req, res) => {
     res.json({
       code: 200,
       data: result,
-      message: '创建物料成功'
+      message: '创建物料成功',
     });
   } catch (error) {
     res.status(500).json({
       code: 500,
-      message: error.message
+      message: error.message,
     });
   }
 });
@@ -112,20 +112,20 @@ router.post('/batch-create', async (req, res) => {
     const materialsData = req.body;
     console.log(`收到批量创建请求，数据条数: ${materialsData.length}`);
     console.log('第一条数据示例:', JSON.stringify(materialsData[0], null, 2));
-    
+
     const result = await MaterialService.createMaterials(materialsData);
     console.log('批量创建结果:', result);
-    
+
     res.json({
       code: 200,
       data: result,
-      message: '批量创建物料成功'
+      message: '批量创建物料成功',
     });
   } catch (error) {
     console.error('批量创建失败:', error);
     res.status(500).json({
       code: 500,
-      message: error.message
+      message: error.message,
     });
   }
 });
@@ -169,12 +169,12 @@ router.put('/update/:id', async (req, res) => {
     res.json({
       code: 200,
       data: result,
-      message: '更新物料成功'
+      message: '更新物料成功',
     });
   } catch (error) {
     res.status(500).json({
       code: 500,
-      message: error.message
+      message: error.message,
     });
   }
 });
@@ -212,12 +212,12 @@ router.delete('/delete/:id', async (req, res) => {
     res.json({
       code: 200,
       data: result,
-      message: '删除物料成功'
+      message: '删除物料成功',
     });
   } catch (error) {
     res.status(500).json({
       code: 500,
-      message: error.message
+      message: error.message,
     });
   }
 });
@@ -257,12 +257,12 @@ router.delete('/batch-delete', async (req, res) => {
     res.json({
       code: 200,
       data: result,
-      message: '批量删除物料成功'
+      message: '批量删除物料成功',
     });
   } catch (error) {
     res.status(500).json({
       code: 500,
-      message: error.message
+      message: error.message,
     });
   }
 });
@@ -299,12 +299,12 @@ router.get('/search', async (req, res) => {
     res.json({
       code: 200,
       data: materials,
-      message: '搜索物料成功'
+      message: '搜索物料成功',
     });
   } catch (error) {
     res.status(500).json({
       code: 500,
-      message: error.message
+      message: error.message,
     });
   }
 });
@@ -348,23 +348,23 @@ router.get('/by-code/:materialCode', async (req, res) => {
   try {
     const materialCode = req.params.materialCode;
     const material = await MaterialService.getMaterialByCode(materialCode);
-    
+
     if (!material) {
       return res.status(404).json({
         code: 404,
-        message: `未找到物料编码: ${materialCode}`
+        message: `未找到物料编码: ${materialCode}`,
       });
     }
-    
+
     res.json({
       code: 200,
       data: material,
-      message: '获取物料成功'
+      message: '获取物料成功',
     });
   } catch (error) {
     res.status(500).json({
       code: 500,
-      message: error.message
+      message: error.message,
     });
   }
 });
@@ -391,13 +391,7 @@ router.get('/', (req, res) => {
   res.json({
     code: 200,
     message: 'Materials API is working',
-    routes: [
-      '/list',
-      '/by-code/:materialCode',
-      '/create',
-      '/update/:id',
-      '/delete/:id'
-    ]
+    routes: ['/list', '/by-code/:materialCode', '/create', '/update/:id', '/delete/:id'],
   });
 });
 

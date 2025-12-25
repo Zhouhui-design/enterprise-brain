@@ -17,9 +17,9 @@ const bomTreeTable = tables.find(t => t.name === 'bom_tree_structures');
 
 if (bomTreeTable) {
   console.log('\n✅ bom_tree_structures 表已存在！');
-  
+
   // 查询表结构
-  const columns = db.prepare("PRAGMA table_info(bom_tree_structures)").all();
+  const columns = db.prepare('PRAGMA table_info(bom_tree_structures)').all();
   console.log('\n📊 表结构：');
   columns.forEach(col => {
     console.log(`  - ${col.name} (${col.type})`);

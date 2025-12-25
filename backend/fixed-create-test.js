@@ -5,16 +5,22 @@ const { pool } = require('./config/database');
  */
 async function fixedCreate(data) {
   console.log('=== 使用修复后的创建函数 ===');
-  
+
   try {
     // ✅ 计算需求工时：需补货数量 / 定时工额，保留2位小数
     let requiredWorkHours = 0;
-    if (data.replenishmentQty && data.standardWorkQuota && 
-        parseFloat(data.replenishmentQty) > 0 && parseFloat(data.standardWorkQuota) > 0) {
-      requiredWorkHours = parseFloat((parseFloat(data.replenishmentQty) / parseFloat(data.standardWorkQuota)).toFixed(2));
+    if (
+      data.replenishmentQty &&
+      data.standardWorkQuota &&
+      parseFloat(data.replenishmentQty) > 0 &&
+      parseFloat(data.standardWorkQuota) > 0
+    ) {
+      requiredWorkHours = parseFloat(
+        (parseFloat(data.replenishmentQty) / parseFloat(data.standardWorkQuota)).toFixed(2),
+      );
       console.log(`✅ 计算需求工时: ${data.replenishmentQty} / ${data.standardWorkQuota} = ${requiredWorkHours}`);
     }
-    
+
     // 直接指定字段列表，确保顺序正确
     const sql = `
       INSERT INTO process_plans (
@@ -30,52 +36,52 @@ async function fixedCreate(data) {
         required_work_hours
       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `;
-    
+
     const params = [
-      data.planNo,                                 // 1. plan_no
-      data.scheduleDate || null,                    // 2. schedule_date
-      data.salesOrderNo || null,                    // 3. sales_order_no
-      data.masterPlanNo || null,                    // 4. master_plan_no
-      data.shippingPlanNo || null,                  // 5. shipping_plan_no
-      data.productCode || null,                     // 6. product_code
-      data.productName || null,                     // 7. product_name
-      data.productImage || null,                    // 8. product_image
-      data.processManager || null,                  // 9. process_manager
-      data.processName || null,                     // 10. process_name
-      data.scheduleQuantity || 0,                   // 11. schedule_quantity
-      data.usedWorkHours || 0,                      // 12. used_work_hours
-      data.productUnit || null,                     // 13. product_unit
-      data.level0Demand || 0,                       // 14. level0_demand
-      data.completionDate || null,                  // 15. completion_date
-      data.planStartDate || null,                    // 16. plan_start_date
-      data.planEndDate || null,                      // 17. plan_end_date
-      data.workshopName || null,                    // 18. workshop_name
-      data.dailyAvailableHours || 0,                 // 19. daily_available_hours
-      data.remainingScheduleHours || 0,              // 20. remaining_schedule_hours
-      data.scheduleCount || 0,                       // 21. schedule_count
-      data.standardWorkHours || 0,                  // 22. standard_work_hours
-      data.standardWorkQuota || 0,                  // 23. standard_work_quota
-      data.scheduledHours || 0,                     // 24. scheduled_hours
-      data.unscheduledHours || 0,                   // 25. unscheduled_hours
-      data.sourcePageName || null,                  // 26. source_page_name
-      data.sourceNo || null,                         // 27. source_no
-      data.previousScheduleNo || null,              // 28. previous_schedule_no
-      data.customerName || null,                     // 29. customer_name
-      data.level0ProductName || null,                // 30. level0_product_name
-      data.level0ProductCode || null,                // 31. level0_product_code
-      data.level0ProductionQty || 0,                // 32. level0_production_qty
-      data.productSource || null,                    // 33. product_source
-      data.bomNo || null,                            // 34. bom_no
-      data.submittedBy || null,                      // 35. submitted_by
-      data.submittedAt || null,                      // 36. submitted_at
-      data.replenishmentQty || 0,                   // 37. replenishment_qty
-      requiredWorkHours                              // 38. required_work_hours
+      data.planNo, // 1. plan_no
+      data.scheduleDate || null, // 2. schedule_date
+      data.salesOrderNo || null, // 3. sales_order_no
+      data.masterPlanNo || null, // 4. master_plan_no
+      data.shippingPlanNo || null, // 5. shipping_plan_no
+      data.productCode || null, // 6. product_code
+      data.productName || null, // 7. product_name
+      data.productImage || null, // 8. product_image
+      data.processManager || null, // 9. process_manager
+      data.processName || null, // 10. process_name
+      data.scheduleQuantity || 0, // 11. schedule_quantity
+      data.usedWorkHours || 0, // 12. used_work_hours
+      data.productUnit || null, // 13. product_unit
+      data.level0Demand || 0, // 14. level0_demand
+      data.completionDate || null, // 15. completion_date
+      data.planStartDate || null, // 16. plan_start_date
+      data.planEndDate || null, // 17. plan_end_date
+      data.workshopName || null, // 18. workshop_name
+      data.dailyAvailableHours || 0, // 19. daily_available_hours
+      data.remainingScheduleHours || 0, // 20. remaining_schedule_hours
+      data.scheduleCount || 0, // 21. schedule_count
+      data.standardWorkHours || 0, // 22. standard_work_hours
+      data.standardWorkQuota || 0, // 23. standard_work_quota
+      data.scheduledHours || 0, // 24. scheduled_hours
+      data.unscheduledHours || 0, // 25. unscheduled_hours
+      data.sourcePageName || null, // 26. source_page_name
+      data.sourceNo || null, // 27. source_no
+      data.previousScheduleNo || null, // 28. previous_schedule_no
+      data.customerName || null, // 29. customer_name
+      data.level0ProductName || null, // 30. level0_product_name
+      data.level0ProductCode || null, // 31. level0_product_code
+      data.level0ProductionQty || 0, // 32. level0_production_qty
+      data.productSource || null, // 33. product_source
+      data.bomNo || null, // 34. bom_no
+      data.submittedBy || null, // 35. submitted_by
+      data.submittedAt || null, // 36. submitted_at
+      data.replenishmentQty || 0, // 37. replenishment_qty
+      requiredWorkHours, // 38. required_work_hours
     ];
-    
+
     console.log(`字段数量: ${params.length}`);
-    
+
     const [result] = await pool.execute(sql, params);
-    
+
     console.log(`✅ 修复后创建成功, ID: ${result.insertId}, 编号: ${data.planNo}, 需求工时: ${requiredWorkHours}`);
     return { id: result.insertId };
   } catch (error) {
@@ -89,24 +95,24 @@ async function fixedCreate(data) {
  */
 async function testFixedCreate() {
   console.log('=== 测试修复后的创建函数 ===');
-  
+
   try {
     const testData = {
       planNo: 'TEST-FIXED-CREATE-500-6',
       processName: '修复后测试工序',
-      replenishmentQty: 500,  // 需补货数量
-      standardWorkQuota: 6,   // 定时工额
-      expectedRequiredHours: 83.33 // 预期结果：500/6 ≈ 83.33
+      replenishmentQty: 500, // 需补货数量
+      standardWorkQuota: 6, // 定时工额
+      expectedRequiredHours: 83.33, // 预期结果：500/6 ≈ 83.33
     };
-    
+
     console.log('测试数据:');
     console.log(`- 需补货数量: ${testData.replenishmentQty}`);
     console.log(`- 定时工额: ${testData.standardWorkQuota}`);
     console.log(`- 预期需求工时: ${testData.expectedRequiredHours}`);
-    
+
     // 使用修复后的创建函数
     const result = await fixedCreate(testData);
-    
+
     // 查询验证
     const [rows] = await pool.execute('SELECT * FROM process_plans WHERE id = ?', [result.id]);
     if (rows.length > 0) {
@@ -117,20 +123,20 @@ async function testFixedCreate() {
       console.log(`- replenishment_qty: ${plan.replenishment_qty}`);
       console.log(`- standard_work_quota: ${plan.standard_work_quota}`);
       console.log(`- required_work_hours: ${plan.required_work_hours}`);
-      
+
       const dbRequiredHours = parseFloat(plan.required_work_hours);
       console.log(`\n结果验证:`);
       console.log(`- 预期需求工时: ${testData.expectedRequiredHours}`);
       console.log(`- 数据库需求工时: ${dbRequiredHours}`);
       console.log(`- 结果匹配: ${dbRequiredHours == testData.expectedRequiredHours ? '✅ 通过' : '❌ 失败'}`);
-      
+
       // 清理测试数据
       await pool.execute('DELETE FROM process_plans WHERE id = ?', [result.id]);
       console.log('\n✅ 清理测试数据完成');
-      
+
       return dbRequiredHours == testData.expectedRequiredHours;
     }
-    
+
     return false;
   } catch (error) {
     console.error('❌ 测试修复后创建函数失败:', error);
@@ -140,21 +146,21 @@ async function testFixedCreate() {
 
 // 执行测试
 testFixedCreate()
-  .then((success) => {
+  .then(success => {
     console.log('\n=== 修复后创建函数测试完成 ===');
     console.log(success ? '✅ 需求工时计算和保存验证成功！' : '❌ 需求工时计算和保存验证失败！');
-    
+
     if (success) {
       // 更新原始的 ProcessPlanService
       console.log('\n现在更新原始的 ProcessPlanService...');
-      
+
       const fs = require('fs');
       const path = require('path');
-      
+
       // 读取原始文件
       const originalFile = path.join(__dirname, 'services/processPlanService.js');
       let content = fs.readFileSync(originalFile, 'utf8');
-      
+
       // 替换创建函数
       const fixedCreateFunction = `
   /**
@@ -233,18 +239,18 @@ testFixedCreate()
       throw error;
     }
   }`;
-      
+
       // 更新文件内容
-      content = content.replace(/  static async create\(data\) \{[\s\S]*?\n  \}/, fixedCreateFunction);
-      
+      content = content.replace(/ {2}static async create\(data\) \{[\s\S]*?\n {2}\}/, fixedCreateFunction);
+
       // 写回文件
       fs.writeFileSync(originalFile, content, 'utf8');
       console.log('✅ ProcessPlanService.js 已更新');
     }
-    
+
     process.exit(success ? 0 : 1);
   })
-  .catch((error) => {
+  .catch(error => {
     console.error('测试执行失败:', error);
     process.exit(1);
   });

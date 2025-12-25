@@ -7,9 +7,7 @@ router.get('/', (req, res) => {
   res.json({
     success: true,
     message: '仓库列表',
-    data: [
-      { id: 1, name: '测试仓库', code: 'TEST001' }
-    ]
+    data: [{ id: 1, name: '测试仓库', code: 'TEST001' }],
   });
 });
 

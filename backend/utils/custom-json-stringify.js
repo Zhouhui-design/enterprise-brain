@@ -11,26 +11,30 @@ function customJsonStringify(value) {
 
   if (typeof value === 'string') {
     // 转义字符串中的特殊字符
-    return '"' + value.replace(/[\\"\b\f\n\r\t]/g, function (c) {
-      switch (c) {
-        case '\\':
-          return '\\\\';
-        case '"':
-          return '\\"';
-        case '\b':
-          return '\\b';
-        case '\f':
-          return '\\f';
-        case '\n':
-          return '\\n';
-        case '\r':
-          return '\\r';
-        case '\t':
-          return '\\t';
-        default:
-          return c;
-      }
-    }) + '"';
+    return (
+      '"' +
+      value.replace(/[\\"\b\f\n\r\t]/g, function (c) {
+        switch (c) {
+          case '\\':
+            return '\\\\';
+          case '"':
+            return '\\"';
+          case '\b':
+            return '\\b';
+          case '\f':
+            return '\\f';
+          case '\n':
+            return '\\n';
+          case '\r':
+            return '\\r';
+          case '\t':
+            return '\\t';
+          default:
+            return c;
+        }
+      }) +
+      '"'
+    );
   }
 
   if (typeof value === 'number') {

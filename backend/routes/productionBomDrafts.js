@@ -9,13 +9,13 @@ router.get('/list', async (req, res) => {
     res.json({
       code: 200,
       data: drafts,
-      message: '获取草稿列表成功'
+      message: '获取草稿列表成功',
     });
   } catch (error) {
     console.error('获取草稿列表失败:', error);
     res.status(500).json({
       code: 500,
-      message: error.message
+      message: error.message,
     });
   }
 });
@@ -25,24 +25,24 @@ router.get('/detail/:id', async (req, res) => {
   try {
     const { id } = req.params;
     const draft = await BOMDraftService.getDraftById(id);
-    
+
     if (!draft) {
       return res.status(404).json({
         code: 404,
-        message: '草稿不存在'
+        message: '草稿不存在',
       });
     }
-    
+
     res.json({
       code: 200,
       data: draft,
-      message: '获取草稿详情成功'
+      message: '获取草稿详情成功',
     });
   } catch (error) {
     console.error('获取草稿详情失败:', error);
     res.status(500).json({
       code: 500,
-      message: error.message
+      message: error.message,
     });
   }
 });
@@ -56,13 +56,13 @@ router.post('/create', async (req, res) => {
     res.json({
       code: 200,
       data: result,
-      message: '创建草稿成功'
+      message: '创建草稿成功',
     });
   } catch (error) {
     console.error('创建草稿失败:', error);
     res.status(500).json({
       code: 500,
-      message: error.message
+      message: error.message,
     });
   }
 });
@@ -77,13 +77,13 @@ router.put('/update/:id', async (req, res) => {
     res.json({
       code: 200,
       data: result,
-      message: '更新草稿成功'
+      message: '更新草稿成功',
     });
   } catch (error) {
     console.error('更新草稿失败:', error);
     res.status(500).json({
       code: 500,
-      message: error.message
+      message: error.message,
     });
   }
 });
@@ -94,23 +94,23 @@ router.delete('/delete/:id', async (req, res) => {
     const { id } = req.params;
     console.log('收到删除草稿请求, ID:', id);
     const success = await BOMDraftService.deleteDraft(id);
-    
+
     if (success) {
       res.json({
         code: 200,
-        message: '删除草稿成功'
+        message: '删除草稿成功',
       });
     } else {
       res.status(404).json({
         code: 404,
-        message: '草稿不存在'
+        message: '草稿不存在',
       });
     }
   } catch (error) {
     console.error('删除草稿失败:', error);
     res.status(500).json({
       code: 500,
-      message: error.message
+      message: error.message,
     });
   }
 });
@@ -124,13 +124,13 @@ router.delete('/batch-delete', async (req, res) => {
     res.json({
       code: 200,
       data: result,
-      message: '批量删除草稿成功'
+      message: '批量删除草稿成功',
     });
   } catch (error) {
     console.error('批量删除草稿失败:', error);
     res.status(500).json({
       code: 500,
-      message: error.message
+      message: error.message,
     });
   }
 });

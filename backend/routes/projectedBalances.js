@@ -9,15 +9,7 @@ const { pool } = require('../config/database');
 router.get('/', async (req, res) => {
   let connection;
   try {
-    const {
-      page = 1,
-      pageSize = 20,
-      salesOrderNo,
-      productCode,
-      productName,
-      startDate,
-      endDate
-    } = req.query;
+    const { page = 1, pageSize = 20, salesOrderNo, productCode, productName, startDate, endDate } = req.query;
 
     console.log('=== 获取预计结存列表 ===', { page, pageSize });
 
@@ -52,7 +44,7 @@ router.get('/', async (req, res) => {
     // 查询总数
     const [countResult] = await connection.execute(
       `SELECT COUNT(*) as total FROM projected_balances ${whereClause}`,
-      params
+      params,
     );
     const total = countResult[0].total;
 
@@ -60,12 +52,12 @@ router.get('/', async (req, res) => {
     const pageNum = parseInt(page) || 1;
     const pageSizeNum = parseInt(pageSize) || 20;
     const offset = (pageNum - 1) * pageSizeNum;
-    
+
     const [rows] = await connection.execute(
       `SELECT * FROM projected_balances ${whereClause} 
        ORDER BY created_at DESC 
        LIMIT ? OFFSET ?`,
-      [...params, pageSizeNum, offset]
+      [...params, pageSizeNum, offset],
     );
 
     console.log(`✅ 查询成功，共 ${total} 条记录，当前页 ${rows.length} 条`);
@@ -76,15 +68,15 @@ router.get('/', async (req, res) => {
         list: rows,
         total,
         page: pageNum,
-        pageSize: pageSizeNum
-      }
+        pageSize: pageSizeNum,
+      },
     });
   } catch (error) {
     console.error('❌ 获取预计结存列表失败:', error);
     res.status(500).json({
       success: false,
       message: '获取列表失败',
-      error: error.message
+      error: error.message,
     });
   } finally {
     if (connection) connection.release();
@@ -103,28 +95,25 @@ router.get('/:id', async (req, res) => {
 
     connection = await pool.getConnection();
 
-    const [rows] = await connection.execute(
-      'SELECT * FROM projected_balances WHERE id = ?',
-      [id]
-    );
+    const [rows] = await connection.execute('SELECT * FROM projected_balances WHERE id = ?', [id]);
 
     if (!rows || rows.length === 0) {
       return res.status(404).json({
         success: false,
-        message: '预计结存不存在'
+        message: '预计结存不存在',
       });
     }
 
     res.json({
       success: true,
-      data: rows[0]
+      data: rows[0],
     });
   } catch (error) {
     console.error('❌ 获取预计结存详情失败:', error);
     res.status(500).json({
       success: false,
       message: '获取详情失败',
-      error: error.message
+      error: error.message,
     });
   } finally {
     if (connection) connection.release();
@@ -138,15 +127,7 @@ router.get('/:id', async (req, res) => {
 router.post('/', async (req, res) => {
   let connection;
   try {
-    const {
-      projectedDate,
-      salesOrderNo,
-      productCode,
-      productName,
-      quantity,
-      baseUnit,
-      currentInventory
-    } = req.body;
+    const { projectedDate, salesOrderNo, productCode, productName, quantity, baseUnit, currentInventory } = req.body;
 
     console.log('=== 创建预计结存 ===', req.body);
 
@@ -154,7 +135,7 @@ router.post('/', async (req, res) => {
     if (!projectedDate || !salesOrderNo || !productCode || !productName || quantity === undefined) {
       return res.status(400).json({
         success: false,
-        message: '缺少必填字段'
+        message: '缺少必填字段',
       });
     }
 
@@ -174,10 +155,17 @@ router.post('/', async (req, res) => {
         projected_balance, available_inventory, submit_time, created_at, updated_at
       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW(), NOW())`,
       [
-        projectedDate, salesOrderNo, productCode, productName,
-        transactionNo, quantity, baseUnit || '个', currentInventory || 0,
-        projectedBalance, availableInventory
-      ]
+        projectedDate,
+        salesOrderNo,
+        productCode,
+        productName,
+        transactionNo,
+        quantity,
+        baseUnit || '个',
+        currentInventory || 0,
+        projectedBalance,
+        availableInventory,
+      ],
     );
 
     console.log('✅ 预计结存创建成功，ID:', result.insertId);
@@ -187,15 +175,15 @@ router.post('/', async (req, res) => {
       message: '创建成功',
       data: {
         id: result.insertId,
-        transactionNo
-      }
+        transactionNo,
+      },
     });
   } catch (error) {
     console.error('❌ 创建预计结存失败:', error);
     res.status(500).json({
       success: false,
       message: '创建失败',
-      error: error.message
+      error: error.message,
     });
   } finally {
     if (connection) connection.release();
@@ -210,15 +198,7 @@ router.put('/:id', async (req, res) => {
   let connection;
   try {
     const { id } = req.params;
-    const {
-      projectedDate,
-      salesOrderNo,
-      productCode,
-      productName,
-      quantity,
-      baseUnit,
-      currentInventory
-    } = req.body;
+    const { projectedDate, salesOrderNo, productCode, productName, quantity, baseUnit, currentInventory } = req.body;
 
     console.log('=== 更新预计结存 ===', id, req.body);
 
@@ -236,16 +216,23 @@ router.put('/:id', async (req, res) => {
         available_inventory = ?, updated_at = NOW()
       WHERE id = ?`,
       [
-        projectedDate, salesOrderNo, productCode, productName,
-        quantity, baseUnit, currentInventory, projectedBalance,
-        availableInventory, id
-      ]
+        projectedDate,
+        salesOrderNo,
+        productCode,
+        productName,
+        quantity,
+        baseUnit,
+        currentInventory,
+        projectedBalance,
+        availableInventory,
+        id,
+      ],
     );
 
     if (result.affectedRows === 0) {
       return res.status(404).json({
         success: false,
-        message: '预计结存不存在'
+        message: '预计结存不存在',
       });
     }
 
@@ -253,14 +240,14 @@ router.put('/:id', async (req, res) => {
 
     res.json({
       success: true,
-      message: '更新成功'
+      message: '更新成功',
     });
   } catch (error) {
     console.error('❌ 更新预计结存失败:', error);
     res.status(500).json({
       success: false,
       message: '更新失败',
-      error: error.message
+      error: error.message,
     });
   } finally {
     if (connection) connection.release();
@@ -279,15 +266,12 @@ router.delete('/:id', async (req, res) => {
 
     connection = await pool.getConnection();
 
-    const [result] = await connection.execute(
-      'DELETE FROM projected_balances WHERE id = ?',
-      [id]
-    );
+    const [result] = await connection.execute('DELETE FROM projected_balances WHERE id = ?', [id]);
 
     if (result.affectedRows === 0) {
       return res.status(404).json({
         success: false,
-        message: '预计结存不存在'
+        message: '预计结存不存在',
       });
     }
 
@@ -295,14 +279,14 @@ router.delete('/:id', async (req, res) => {
 
     res.json({
       success: true,
-      message: '删除成功'
+      message: '删除成功',
     });
   } catch (error) {
     console.error('❌ 删除预计结存失败:', error);
     res.status(500).json({
       success: false,
       message: '删除失败',
-      error: error.message
+      error: error.message,
     });
   } finally {
     if (connection) connection.release();
@@ -322,30 +306,27 @@ router.post('/batch-delete', async (req, res) => {
     if (!ids || !Array.isArray(ids) || ids.length === 0) {
       return res.status(400).json({
         success: false,
-        message: '请至少选择一条记录'
+        message: '请至少选择一条记录',
       });
     }
 
     connection = await pool.getConnection();
 
     const placeholders = ids.map(() => '?').join(',');
-    const [result] = await connection.execute(
-      `DELETE FROM projected_balances WHERE id IN (${placeholders})`,
-      ids
-    );
+    const [result] = await connection.execute(`DELETE FROM projected_balances WHERE id IN (${placeholders})`, ids);
 
     console.log(`✅ 批量删除成功，删除 ${result.affectedRows} 条记录`);
 
     res.json({
       success: true,
-      message: `删除成功，共删除 ${result.affectedRows} 条记录`
+      message: `删除成功，共删除 ${result.affectedRows} 条记录`,
     });
   } catch (error) {
     console.error('❌ 批量删除预计结存失败:', error);
     res.status(500).json({
       success: false,
       message: '批量删除失败',
-      error: error.message
+      error: error.message,
     });
   } finally {
     if (connection) connection.release();

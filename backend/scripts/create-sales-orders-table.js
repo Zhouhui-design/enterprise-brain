@@ -1,6 +1,6 @@
-const db = require('../config/database')
+const db = require('../config/database');
 
-console.log('开始创建sales_orders表...')
+console.log('开始创建sales_orders表...');
 
 try {
   // 创建销售订单主表
@@ -71,8 +71,8 @@ try {
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
       updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
     )
-  `)
-  
+  `);
+
   // 创建销售订单产品明细表
   db.exec(`
     CREATE TABLE IF NOT EXISTS sales_order_products (
@@ -93,8 +93,8 @@ try {
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
       FOREIGN KEY (order_id) REFERENCES sales_orders(id) ON DELETE CASCADE
     )
-  `)
-  
+  `);
+
   // 创建回款计划表
   db.exec(`
     CREATE TABLE IF NOT EXISTS sales_order_payment_schedule (
@@ -107,8 +107,8 @@ try {
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
       FOREIGN KEY (order_id) REFERENCES sales_orders(id) ON DELETE CASCADE
     )
-  `)
-  
+  `);
+
   // 创建索引
   db.exec(`
     CREATE INDEX IF NOT EXISTS idx_sales_orders_internal_no ON sales_orders(internal_order_no);
@@ -118,13 +118,13 @@ try {
     CREATE INDEX IF NOT EXISTS idx_sales_orders_created_at ON sales_orders(created_at);
     CREATE INDEX IF NOT EXISTS idx_sales_order_products_order_id ON sales_order_products(order_id);
     CREATE INDEX IF NOT EXISTS idx_sales_order_payment_schedule_order_id ON sales_order_payment_schedule(order_id);
-  `)
-  
-  console.log('✅ sales_orders表创建成功！')
-  console.log('✅ sales_order_products表创建成功！')
-  console.log('✅ sales_order_payment_schedule表创建成功！')
-  console.log('✅ 索引创建成功！')
+  `);
+
+  console.log('✅ sales_orders表创建成功！');
+  console.log('✅ sales_order_products表创建成功！');
+  console.log('✅ sales_order_payment_schedule表创建成功！');
+  console.log('✅ 索引创建成功！');
 } catch (error) {
-  console.error('❌ 创建表失败:', error)
-  process.exit(1)
+  console.error('❌ 创建表失败:', error);
+  process.exit(1);
 }

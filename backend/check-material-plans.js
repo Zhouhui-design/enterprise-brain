@@ -21,10 +21,10 @@ async function checkMaterialPlans() {
       ORDER BY created_at DESC
       LIMIT 10
     `);
-    
+
     console.log('\n=== 最新生成的备料计划（来自真工序计划） ===\n');
     console.table(rows);
-    
+
     await pool.end();
   } catch (error) {
     console.error('查询失败:', error);

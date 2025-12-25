@@ -3,7 +3,7 @@
  * 用于统一管理系统中的错误代码和错误类型
  */
 
-import { eventBus } from '../services/event-bus'
+import { eventBus } from '../../services/event-bus'
 
 class ErrorCodes {
   constructor() {

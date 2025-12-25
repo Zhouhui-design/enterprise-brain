@@ -4,7 +4,7 @@ const sqlite3 = require('sqlite3').verbose();
 const dbPath = 'C:/Users/sardenesy/Projects/enterpise-brain/data/enterprise_brain.db';
 
 // 打开SQLite数据库
-const db = new sqlite3.Database(dbPath, (err) => {
+const db = new sqlite3.Database(dbPath, err => {
   if (err) {
     console.error('❌ 打开SQLite数据库失败:', err.message);
     process.exit(1);
@@ -21,11 +21,11 @@ db.all("SELECT name FROM sqlite_master WHERE type='table' ORDER BY name", (err, 
     db.close();
     process.exit(1);
   }
-  
+
   console.log(`\n📋 共找到 ${rows.length} 个表:`);
   rows.forEach((row, index) => {
     console.log(`${index + 1}. ${row.name}`);
   });
-  
+
   db.close();
 });

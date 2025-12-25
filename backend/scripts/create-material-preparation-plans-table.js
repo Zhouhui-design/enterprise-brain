@@ -5,10 +5,10 @@ const { pool } = require('../config/database');
  */
 async function createMaterialPreparationPlansTable() {
   const connection = await pool.getConnection();
-  
+
   try {
     console.log('开始创建备料计划表...');
-    
+
     // 创建备料计划表
     await connection.execute(`
       CREATE TABLE IF NOT EXISTS material_preparation_plans (
@@ -48,9 +48,8 @@ async function createMaterialPreparationPlansTable() {
         INDEX idx_created_at (created_at)
       ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='备料计划表';
     `);
-    
+
     console.log('✅ 备料计划表创建成功');
-    
   } catch (error) {
     console.error('❌ 创建备料计划表失败:', error);
     throw error;
@@ -65,7 +64,7 @@ createMaterialPreparationPlansTable()
     console.log('数据库表创建完成');
     process.exit(0);
   })
-  .catch((error) => {
+  .catch(error => {
     console.error('创建失败:', error);
     process.exit(1);
   });

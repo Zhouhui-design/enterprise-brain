@@ -9,10 +9,10 @@ const { pool } = require('../config/database');
 
 async function addProcurementLeadTimeFields() {
   const connection = await pool.getConnection();
-  
+
   try {
     console.log('🔧 开始添加采购提前期相关字段...\n');
-    
+
     // 1. 给materials表增加 default_procurement_lead_time 字段
     console.log('📝 步骤1: 给materials表添加"默认采购提前期"字段');
     try {
@@ -29,7 +29,7 @@ async function addProcurementLeadTimeFields() {
         throw err;
       }
     }
-    
+
     // 2. 给procurement_plans表增加 procurement_lead_time 字段
     console.log('\n📝 步骤2: 给procurement_plans表添加"采购提前期"字段');
     try {
@@ -46,7 +46,7 @@ async function addProcurementLeadTimeFields() {
         throw err;
       }
     }
-    
+
     // 3. 批量更新所有采购来源物料的默认采购提前期为3天
     console.log('\n📝 步骤3: 批量更新采购来源物料的默认采购提前期');
     const [result] = await connection.execute(`
@@ -55,7 +55,7 @@ async function addProcurementLeadTimeFields() {
       WHERE source = '采购' OR source LIKE '%采购%'
     `);
     console.log(`✅ 已更新 ${result.affectedRows} 条采购来源物料的默认采购提前期为3天`);
-    
+
     // 4. 验证更新结果
     console.log('\n📝 步骤4: 验证更新结果');
     const [materials] = await connection.execute(`
@@ -70,13 +70,12 @@ async function addProcurementLeadTimeFields() {
     `);
     console.log('✅ 前10条采购物料记录:');
     console.table(materials);
-    
+
     console.log('\n🎉 所有字段添加完成！');
     console.log('\n📋 修改汇总:');
     console.log('  - materials表: 新增 default_procurement_lead_time 字段(INT, 默认3天)');
     console.log('  - procurement_plans表: 新增 procurement_lead_time 字段(INT)');
     console.log(`  - 已更新 ${result.affectedRows} 条采购物料的默认提前期`);
-    
   } catch (error) {
     console.error('❌ 添加字段失败:', error.message);
     throw error;

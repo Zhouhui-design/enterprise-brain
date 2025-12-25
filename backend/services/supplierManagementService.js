@@ -2,7 +2,7 @@
  * 供应商管理 Service 层
  * 处理业务逻辑和数据库操作
  */
-const { pool } = require('../config/database')
+const { pool } = require('../config/database');
 
 class SupplierManagementService {
   /**
@@ -18,59 +18,59 @@ class SupplierManagementService {
       status,
       creditRating,
       sortBy = 'created_at',
-      sortOrder = 'desc'
-    } = params
+      sortOrder = 'desc',
+    } = params;
 
-    const connection = await pool.getConnection()
+    const connection = await pool.getConnection();
     try {
       // 构建 WHERE 条件
-      const conditions = []
-      const queryParams = []
+      const conditions = [];
+      const queryParams = [];
 
       if (supplierCode) {
-        conditions.push('supplier_code LIKE ?')
-        queryParams.push(`%${supplierCode}%`)
+        conditions.push('supplier_code LIKE ?');
+        queryParams.push(`%${supplierCode}%`);
       }
 
       if (supplierName) {
-        conditions.push('supplier_name LIKE ?')
-        queryParams.push(`%${supplierName}%`)
+        conditions.push('supplier_name LIKE ?');
+        queryParams.push(`%${supplierName}%`);
       }
 
       if (supplierType) {
-        conditions.push('supplier_type = ?')
-        queryParams.push(supplierType)
+        conditions.push('supplier_type = ?');
+        queryParams.push(supplierType);
       }
 
       if (status) {
-        conditions.push('status = ?')
-        queryParams.push(status)
+        conditions.push('status = ?');
+        queryParams.push(status);
       }
 
       if (creditRating) {
-        conditions.push('credit_rating = ?')
-        queryParams.push(creditRating)
+        conditions.push('credit_rating = ?');
+        queryParams.push(creditRating);
       }
 
-      const whereClause = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : ''
+      const whereClause = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
 
       // 查询总数
       const [countResult] = await connection.execute(
         `SELECT COUNT(*) as total FROM supplier_management ${whereClause}`,
-        queryParams
-      )
-      const total = countResult[0].total
+        queryParams,
+      );
+      const total = countResult[0].total;
 
       // 查询数据
-      const offset = (page - 1) * pageSize
-      const orderClause = `ORDER BY ${sortBy} ${sortOrder.toUpperCase()}`
-      const limit = parseInt(pageSize)
-      const offsetValue = parseInt(offset)
-      
+      const offset = (page - 1) * pageSize;
+      const orderClause = `ORDER BY ${sortBy} ${sortOrder.toUpperCase()}`;
+      const limit = parseInt(pageSize);
+      const offsetValue = parseInt(offset);
+
       const [records] = await connection.execute(
         `SELECT * FROM supplier_management ${whereClause} ${orderClause} LIMIT ${limit} OFFSET ${offsetValue}`,
-        queryParams
-      )
+        queryParams,
+      );
 
       // ✅ 字段映射：数据库下划线格式 → 前端驼峰格式
       const formattedRecords = records.map(record => ({
@@ -96,17 +96,17 @@ class SupplierManagementService {
         remarks: record.remarks,
         creator: record.creator,
         createdAt: record.created_at,
-        updatedAt: record.updated_at
-      }))
+        updatedAt: record.updated_at,
+      }));
 
       return {
         records: formattedRecords,
         total,
         page: parseInt(page),
-        pageSize: parseInt(pageSize)
-      }
+        pageSize: parseInt(pageSize),
+      };
     } finally {
-      connection.release()
+      connection.release();
     }
   }
 
@@ -114,18 +114,15 @@ class SupplierManagementService {
    * 根据ID获取供应商详情
    */
   async getById(id) {
-    const connection = await pool.getConnection()
+    const connection = await pool.getConnection();
     try {
-      const [records] = await connection.execute(
-        'SELECT * FROM supplier_management WHERE id = ?',
-        [id]
-      )
+      const [records] = await connection.execute('SELECT * FROM supplier_management WHERE id = ?', [id]);
 
       if (records.length === 0) {
-        throw new Error('供应商不存在')
+        throw new Error('供应商不存在');
       }
 
-      const record = records[0]
+      const record = records[0];
       return {
         id: record.id,
         supplierCode: record.supplier_code,
@@ -149,10 +146,10 @@ class SupplierManagementService {
         remarks: record.remarks,
         creator: record.creator,
         createdAt: record.created_at,
-        updatedAt: record.updated_at
-      }
+        updatedAt: record.updated_at,
+      };
     } finally {
-      connection.release()
+      connection.release();
     }
   }
 
@@ -160,7 +157,7 @@ class SupplierManagementService {
    * 创建供应商
    */
   async create(data) {
-    const connection = await pool.getConnection()
+    const connection = await pool.getConnection();
     try {
       const sql = `
         INSERT INTO supplier_management (
@@ -171,7 +168,7 @@ class SupplierManagementService {
           status, supplier_category, cooperation_start_date,
           business_license, qualification_cert, remarks, creator
         ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-      `
+      `;
 
       const [result] = await connection.execute(sql, [
         data.supplierCode,
@@ -193,12 +190,12 @@ class SupplierManagementService {
         data.businessLicense || null,
         data.qualificationCert || null,
         data.remarks || null,
-        data.creator || 'system'
-      ])
+        data.creator || 'system',
+      ]);
 
-      return { id: result.insertId, ...data }
+      return { id: result.insertId, ...data };
     } finally {
-      connection.release()
+      connection.release();
     }
   }
 
@@ -206,7 +203,7 @@ class SupplierManagementService {
    * 更新供应商
    */
   async update(id, data) {
-    const connection = await pool.getConnection()
+    const connection = await pool.getConnection();
     try {
       const sql = `
         UPDATE supplier_management SET
@@ -218,7 +215,7 @@ class SupplierManagementService {
           business_license = ?, qualification_cert = ?, remarks = ?,
           updated_at = NOW()
         WHERE id = ?
-      `
+      `;
 
       await connection.execute(sql, [
         data.supplierName,
@@ -239,12 +236,12 @@ class SupplierManagementService {
         data.businessLicense || null,
         data.qualificationCert || null,
         data.remarks || null,
-        id
-      ])
+        id,
+      ]);
 
-      return { id, ...data }
+      return { id, ...data };
     } finally {
-      connection.release()
+      connection.release();
     }
   }
 
@@ -252,15 +249,12 @@ class SupplierManagementService {
    * 删除供应商
    */
   async deleteById(id) {
-    const connection = await pool.getConnection()
+    const connection = await pool.getConnection();
     try {
-      await connection.execute(
-        'DELETE FROM supplier_management WHERE id = ?',
-        [id]
-      )
-      return { success: true }
+      await connection.execute('DELETE FROM supplier_management WHERE id = ?', [id]);
+      return { success: true };
     } finally {
-      connection.release()
+      connection.release();
     }
   }
 
@@ -268,16 +262,13 @@ class SupplierManagementService {
    * 批量删除供应商
    */
   async batchDelete(ids) {
-    const connection = await pool.getConnection()
+    const connection = await pool.getConnection();
     try {
-      const placeholders = ids.map(() => '?').join(',')
-      await connection.execute(
-        `DELETE FROM supplier_management WHERE id IN (${placeholders})`,
-        ids
-      )
-      return { success: true, count: ids.length }
+      const placeholders = ids.map(() => '?').join(',');
+      await connection.execute(`DELETE FROM supplier_management WHERE id IN (${placeholders})`, ids);
+      return { success: true, count: ids.length };
     } finally {
-      connection.release()
+      connection.release();
     }
   }
 
@@ -285,7 +276,7 @@ class SupplierManagementService {
    * 获取统计数据
    */
   async getStatistics() {
-    const connection = await pool.getConnection()
+    const connection = await pool.getConnection();
     try {
       const [stats] = await connection.execute(`
         SELECT 
@@ -294,18 +285,18 @@ class SupplierManagementService {
           SUM(CASE WHEN credit_rating IN ('A', 'B') THEN 1 ELSE 0 END) as highRatingCount,
           SUM(CASE WHEN DATE(created_at) >= DATE_SUB(NOW(), INTERVAL 30 DAY) THEN 1 ELSE 0 END) as newCount
         FROM supplier_management
-      `)
+      `);
 
       return {
         total: stats[0].total || 0,
         activeCount: stats[0].activeCount || 0,
         highRatingCount: stats[0].highRatingCount || 0,
-        newCount: stats[0].newCount || 0
-      }
+        newCount: stats[0].newCount || 0,
+      };
     } finally {
-      connection.release()
+      connection.release();
     }
   }
 }
 
-module.exports = new SupplierManagementService()
+module.exports = new SupplierManagementService();

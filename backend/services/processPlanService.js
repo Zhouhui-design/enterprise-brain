@@ -1,4 +1,4 @@
-const { pool } = require('../config/database');
+const DBUtil = require('../utils/dbUtil');
 
 /**
  * 工序计划服务
@@ -9,73 +9,64 @@ class ProcessPlanService {
    */
   static async getAll(params = {}) {
     try {
-      const { 
-        page = 1, 
-        pageSize = 20, 
-        planNo, 
-        masterPlanNo, 
-        processName,
-        scheduleDateStart,
-        scheduleDateEnd 
-      } = params;
-      
+      const { page = 1, pageSize = 20, planNo, masterPlanNo, processName, scheduleDateStart, scheduleDateEnd } = params;
+
+      // 构建查询条件
+      const conditions = {};
+      if (planNo) conditions.plan_no = `%${planNo}%`;
+      if (masterPlanNo) conditions.master_plan_no = `%${masterPlanNo}%`;
+      if (processName) conditions.process_name = `%${processName}%`;
+      if (scheduleDateStart) conditions['schedule_date >='] = scheduleDateStart;
+      if (scheduleDateEnd) conditions['schedule_date <='] = scheduleDateEnd;
+
+      // 手动构建where子句，因为我们有范围条件
       let whereClause = [];
       const queryParams = [];
-      
+
       if (planNo) {
         whereClause.push('plan_no LIKE ?');
         queryParams.push(`%${planNo}%`);
       }
-      
+
       if (masterPlanNo) {
         whereClause.push('master_plan_no LIKE ?');
         queryParams.push(`%${masterPlanNo}%`);
       }
-      
+
       if (processName) {
         whereClause.push('process_name LIKE ?');
         queryParams.push(`%${processName}%`);
       }
-      
+
       if (scheduleDateStart) {
         whereClause.push('schedule_date >= ?');
         queryParams.push(scheduleDateStart);
       }
-      
+
       if (scheduleDateEnd) {
         whereClause.push('schedule_date <= ?');
         queryParams.push(scheduleDateEnd);
       }
-      
+
       const whereSQL = whereClause.length > 0 ? 'WHERE ' + whereClause.join(' AND ') : '';
-      
+
       // 查询总数
       const countSQL = `SELECT COUNT(*) as total FROM process_plans ${whereSQL}`;
-      const [countResult] = await pool.execute(countSQL, queryParams);
-      const total = countResult[0].total;
-      
+      const countResult = await DBUtil.queryOne(countSQL, queryParams);
+      const total = countResult.total;
+
       // 分页查询
-      const offset = (parseInt(page) - 1) * parseInt(pageSize);
-      const limit = parseInt(pageSize);
-      const dataSQL = `
+      const baseSQL = `
         SELECT * FROM process_plans 
         ${whereSQL}
         ORDER BY schedule_date ASC, created_at ASC
-        LIMIT ${limit} OFFSET ${offset}
       `;
-      const [rows] = await pool.execute(dataSQL, queryParams);
-      
+      const dataSQL = DBUtil.buildPaginationSql(baseSQL, page, pageSize);
+      const rows = await DBUtil.query(dataSQL, queryParams);
+
       // 转换字段名：snake_case -> camelCase
-      const convertedRows = rows.map(row => {
-        const convertedRow = {};
-        Object.keys(row).forEach(key => {
-          // 将下划线命名转换为驼峰命名
-          const camelKey = key.replace(/_([a-z])/g, (match, letter) => letter.toUpperCase());
-          convertedRow[camelKey] = row[key];
-        });
-        return convertedRow;
-      });
-      
+      const convertedRows = DBUtil.toCamelCase(rows);
+
       console.log(`✅ 查询成功，共 ${total} 条记录，当前页 ${convertedRows.length} 条`);
       if (convertedRows.length > 0) {
         console.log(`首条记录: ${convertedRows[0].planNo} - ${convertedRows[0].processName}`);
@@ -83,16 +74,16 @@ class ProcessPlanService {
           plan_no: convertedRows[0].planNo,
           process_name: convertedRows[0].processName,
           master_plan_no: convertedRows[0].masterPlanNo,
-          source_no: convertedRows[0].sourceNo,  // ✅ 添加来源编号转换日志
-          schedule_count: convertedRows[0].scheduleCount  // ✅ 添加排程次数转换日志
+          source_no: convertedRows[0].sourceNo, // ✅ 添加来源编号转换日志
+          schedule_count: convertedRows[0].scheduleCount, // ✅ 添加排程次数转换日志
         });
       }
-      
+
       return {
         records: convertedRows,
         total,
         page: parseInt(page),
-        pageSize: parseInt(pageSize)
+        pageSize: parseInt(pageSize),
       };
     } catch (error) {
       console.error('获取工序计划列表失败:', error);
@@ -105,20 +96,15 @@ class ProcessPlanService {
    */
   static async getById(id) {
     try {
-      const [rows] = await pool.execute('SELECT * FROM process_plans WHERE id = ?', [id]);
-      if (rows.length === 0) {
+      const sql = 'SELECT * FROM process_plans WHERE id = ?';
+      const row = await DBUtil.queryOne(sql, [id]);
+      
+      if (!row) {
         return null;
       }
-      
-      const row = rows[0];
+
       // 转换字段名：snake_case -> camelCase
-      const convertedRow = {};
-      Object.keys(row).forEach(key => {
-        const camelKey = key.replace(/_([a-z])/g, (match, letter) => letter.toUpperCase());
-        convertedRow[camelKey] = row[key];
-      });
-      
-      return convertedRow;
+      return DBUtil.toCamelCase(row);
     } catch (error) {
       console.error('获取工序计划详情失败:', error);
       throw error;
@@ -145,48 +131,48 @@ class ProcessPlanService {
           required_work_hours
         ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       `;
-      
-      const [result] = await pool.execute(sql, [
-        data.planNo,                                 // 1. plan_no
-        data.scheduleDate || null,                    // 2. schedule_date
-        data.salesOrderNo || null,                    // 3. sales_order_no
-        data.masterPlanNo || null,                    // 4. master_plan_no
-        data.shippingPlanNo || null,                  // 5. shipping_plan_no
-        data.productCode || null,                     // 6. product_code
-        data.productName || null,                     // 7. product_name
-        data.productImage || null,                    // 8. product_image
-        data.processManager || null,                  // 9. process_manager
-        data.processName || null,                     // 10. process_name
-        data.scheduleQuantity || 0,                   // 11. schedule_quantity
-        data.usedWorkHours || 0,                      // 12. used_work_hours
-        data.productUnit || null,                     // 13. product_unit
-        data.level0Demand || 0,                       // 14. level0_demand
-        data.completionDate || null,                  // 15. completion_date
-        data.planStartDate || null,                    // 16. plan_start_date
-        data.planEndDate || null,                      // 17. plan_end_date
-        data.workshopName || null,                    // 18. workshop_name
-        data.dailyAvailableHours || 0,                 // 19. daily_available_hours
-        data.remainingScheduleHours || 0,              // 20. remaining_schedule_hours
-        data.scheduleCount || 0,                       // 21. schedule_count
-        data.standardWorkHours || 0,                  // 22. standard_work_hours
-        data.standardWorkQuota || 0,                  // 23. standard_work_quota
-        data.scheduledHours || 0,                     // 24. scheduled_hours
-        data.unscheduledHours || 0,                   // 25. unscheduled_hours
-        data.sourcePageName || null,                  // 26. source_page_name
-        data.sourceNo || null,                         // 27. source_no
-        data.previousScheduleNo || null,              // 28. previous_schedule_no
-        data.customerName || null,                     // 29. customer_name
-        data.level0ProductName || null,                // 30. level0_product_name
-        data.level0ProductCode || null,                // 31. level0_product_code
-        data.level0ProductionQty || 0,                // 32. level0_production_qty
-        data.productSource || null,                    // 33. product_source
-        data.bomNo || null,                            // 34. bom_no
-        data.submittedBy || null,                      // 35. submitted_by
-        data.submittedAt || null,                      // 36. submitted_at
-        data.replenishmentQty || 0,                   // 37. replenishment_qty
-        data.requiredWorkHours || 0                    // 38. required_work_hours
+
+      const result = await DBUtil.queryOne(sql, [
+        data.planNo, // 1. plan_no
+        data.scheduleDate || null, // 2. schedule_date
+        data.salesOrderNo || null, // 3. sales_order_no
+        data.masterPlanNo || null, // 4. master_plan_no
+        data.shippingPlanNo || null, // 5. shipping_plan_no
+        data.productCode || null, // 6. product_code
+        data.productName || null, // 7. product_name
+        data.productImage || null, // 8. product_image
+        data.processManager || null, // 9. process_manager
+        data.processName || null, // 10. process_name
+        data.scheduleQuantity || 0, // 11. schedule_quantity
+        data.usedWorkHours || 0, // 12. used_work_hours
+        data.productUnit || null, // 13. product_unit
+        data.level0Demand || 0, // 14. level0_demand
+        data.completionDate || null, // 15. completion_date
+        data.planStartDate || null, // 16. plan_start_date
+        data.planEndDate || null, // 17. plan_end_date
+        data.workshopName || null, // 18. workshop_name
+        data.dailyAvailableHours || 0, // 19. daily_available_hours
+        data.remainingScheduleHours || 0, // 20. remaining_schedule_hours
+        data.scheduleCount || 0, // 21. schedule_count
+        data.standardWorkHours || 0, // 22. standard_work_hours
+        data.standardWorkQuota || 0, // 23. standard_work_quota
+        data.scheduledHours || 0, // 24. scheduled_hours
+        data.unscheduledHours || 0, // 25. unscheduled_hours
+        data.sourcePageName || null, // 26. source_page_name
+        data.sourceNo || null, // 27. source_no
+        data.previousScheduleNo || null, // 28. previous_schedule_no
+        data.customerName || null, // 29. customer_name
+        data.level0ProductName || null, // 30. level0_product_name
+        data.level0ProductCode || null, // 31. level0_product_code
+        data.level0ProductionQty || 0, // 32. level0_production_qty
+        data.productSource || null, // 33. product_source
+        data.bomNo || null, // 34. bom_no
+        data.submittedBy || null, // 35. submitted_by
+        data.submittedAt || null, // 36. submitted_at
+        data.replenishmentQty || 0, // 37. replenishment_qty
+        data.requiredWorkHours || 0, // 38. required_work_hours
       ]);
-      
+
       console.log(`工序计划创建成功, ID: ${result.insertId}, 编号: ${data.planNo}`);
       return { id: result.insertId };
     } catch (error) {
@@ -215,8 +201,8 @@ class ProcessPlanService {
           required_work_hours = ?
         WHERE id = ?
       `;
-      
-      const [result] = await pool.execute(sql, [
+
+      const result = await DBUtil.queryOne(sql, [
         data.scheduleDate || null,
         data.salesOrderNo || null,
         data.masterPlanNo || null,
@@ -254,13 +240,13 @@ class ProcessPlanService {
         data.submittedAt || null,
         data.replenishmentQty || 0,
         data.requiredWorkHours || 0,
-        id
+        id,
       ]);
-      
+
       if (result.affectedRows === 0) {
         throw new Error('工序计划不存在或未更新');
       }
-      
+
       console.log(`工序计划更新成功, ID: ${id}`);
       return { id };
     } catch (error) {
@@ -273,96 +259,90 @@ class ProcessPlanService {
    * 删除工序计划
    */
   static async delete(id) {
-    const connection = await pool.getConnection();
-    try {
-      await connection.beginTransaction();
-      
+    return await DBUtil.transaction(async (connection) => {
       // ✅ 步颂1: 先查询工序计划详情(用于后续释放已占用工时)
-      const [planRows] = await connection.execute(
+      const planRows = await connection.execute(
         'SELECT plan_no, process_name, schedule_date, used_work_hours FROM process_plans WHERE id = ?',
-        [id]
+        [id],
       );
-      
-      if (planRows.length === 0) {
-        await connection.rollback();
+
+      if (planRows[0].length === 0) {
         throw new Error('工序计划不存在');
       }
-      
-      const plan = planRows[0];
+
+      const plan = planRows[0][0];
       console.log(`🗑️ 删除工序计划: ${plan.plan_no}`);
-      
+
       // ✅ 步颂2: 执行删除
-      const [result] = await connection.execute('DELETE FROM process_plans WHERE id = ?', [id]);
-      
-      if (result.affectedRows === 0) {
-        await connection.rollback();
+      const result = await connection.execute('DELETE FROM process_plans WHERE id = ?', [id]);
+
+      if (result[0].affectedRows === 0) {
         throw new Error('工序计划不存在');
       }
-      
+
       console.log(`✅ 工序计划删除成功, ID: ${id}`);
-      
+
       // ✅ 步颂3: 删除后自动重置已占用工时(调用SUMIF逻辑)
       if (plan.process_name && plan.schedule_date) {
         try {
           const processName = plan.process_name;
-          const scheduleDate = plan.schedule_date instanceof Date
-            ? plan.schedule_date.toISOString().split('T')[0]
-            : String(plan.schedule_date).split('T')[0];
-          
+          const scheduleDate =
+            plan.schedule_date instanceof Date
+              ? plan.schedule_date.toISOString().split('T')[0]
+              : String(plan.schedule_date).split('T')[0];
+
           console.log(`🔄 自动重置已占用工时: 工序=${processName}, 日期=${scheduleDate}`);
-          
+
           // ✅ SUMIF - 重新统计该工序+日期下所有工序计划的计划排程工时总和
-          const [sumRows] = await connection.execute(
+          const sumRows = await connection.execute(
             `SELECT COALESCE(SUM(used_work_hours), 0) as total_hours 
              FROM process_plans 
              WHERE process_name = ? 
                AND schedule_date = ?`,
-            [processName, scheduleDate]
+            [processName, scheduleDate],
           );
-          
+
           // ✅ 补充规则: if(sumifs的结果返回null, 0, sumifs的结果)
-          const sumResult = sumRows[0].total_hours;
+          const sumResult = sumRows[0][0].total_hours;
           const validResult = sumResult !== null && sumResult !== undefined ? parseFloat(sumResult) : 0;
           const newOccupiedHours = parseFloat(validResult.toFixed(2));
-          
+
           console.log(`  SUMIF查询结果: ${sumResult}, 新占用工时: ${newOccupiedHours}`);
-          
+
           // ✅ 查询工序能力负荷记录
-          const [capacityRows] = await connection.execute(
+          const capacityRows = await connection.execute(
             'SELECT id, work_shift, available_workstations, occupied_hours FROM process_capacity_load WHERE process_name = ? AND date = ?',
-            [processName, scheduleDate]
+            [processName, scheduleDate],
           );
-          
-          if (capacityRows.length > 0) {
-            const record = capacityRows[0];
+
+          if (capacityRows[0].length > 0) {
+            const record = capacityRows[0][0];
             const previousOccupiedHours = parseFloat(record.occupied_hours || 0);
             const workShift = parseFloat(record.work_shift || 0);
             const availableWorkstations = parseFloat(record.available_workstations || 0);
-            
+
             // ✅ 重新计算剩余工时和剩余时段
-            const newRemainingHours = parseFloat(
-              (workShift * availableWorkstations - newOccupiedHours).toFixed(2)
-            );
-            
+            const newRemainingHours = parseFloat((workShift * availableWorkstations - newOccupiedHours).toFixed(2));
+
             let newRemainingShift = null;
             if (availableWorkstations > 0) {
-              newRemainingShift = parseFloat(
-                (newRemainingHours / availableWorkstations).toFixed(2)
-              );
+              newRemainingShift = parseFloat((newRemainingHours / availableWorkstations).toFixed(2));
             }
-            
+
             // ✅ 更新数据库
             await connection.execute(
               `UPDATE process_capacity_load 
                SET occupied_hours = ?, 
                    remaining_hours = ?, 
-                   remaining_shift = ?,
+                   remaining_shift = ?, 
                    updated_at = NOW()
                WHERE id = ?`,
-              [newOccupiedHours, newRemainingHours, newRemainingShift, record.id]
+              [newOccupiedHours, newRemainingHours, newRemainingShift, record.id],
             );
-            
-            console.log(`✅ 已占用工时重置成功: ${previousOccupiedHours} → ${newOccupiedHours} (释放${(previousOccupiedHours - newOccupiedHours).toFixed(2)}小时)`);
+
+            console.log(
+              `✅ 已占用工时重置成功: ${previousOccupiedHours} → ${newOccupiedHours} (释放${(previousOccupiedHours - newOccupiedHours).toFixed(2)}小时)`,
+            );
           } else {
             console.warn(`⚠️ 未找到工序能力负荷记录: 工序=${processName}, 日期=${scheduleDate}`);
           }
@@ -371,127 +351,109 @@ class ProcessPlanService {
           // 不阻塞删除流程,继续提交
         }
       }
-      
-      await connection.commit();
+
       console.log(`✅ 工序计划删除成功, ID: ${id}`);
       return { success: true };
-    } catch (error) {
-      await connection.rollback();
-      console.error('删除工序计划失败:', error);
-      throw error;
-    } finally {
-      connection.release();
-    }
+    });
   }
 
   /**
    * 批量删除工序计划
    */
   static async batchDelete(ids) {
-    const connection = await pool.getConnection();
-    try {
-      await connection.beginTransaction();
-      
+    return await DBUtil.transaction(async (connection) => {
       let successCount = 0;
       const affectedProcessDates = new Set(); // 记录受影响的工序+日期
-      
+
       for (const id of ids) {
         // ✅ 步颂1: 先查询工序计划详情
-        const [planRows] = await connection.execute(
+        const planRows = await connection.execute(
           'SELECT plan_no, process_name, schedule_date FROM process_plans WHERE id = ?',
-          [id]
+          [id],
         );
-        
-        if (planRows.length > 0) {
-          const plan = planRows[0];
-          
+
+        if (planRows[0].length > 0) {
+          const plan = planRows[0][0];
+
           // ✅ 记录受影响的工序+日期
           if (plan.process_name && plan.schedule_date) {
-            const scheduleDate = plan.schedule_date instanceof Date
-              ? plan.schedule_date.toISOString().split('T')[0]
-              : String(plan.schedule_date).split('T')[0];
+            const scheduleDate =
+              plan.schedule_date instanceof Date
+                ? plan.schedule_date.toISOString().split('T')[0]
+                : String(plan.schedule_date).split('T')[0];
             affectedProcessDates.add(`${plan.process_name}|${scheduleDate}`);
           }
-          
+
           // ✅ 步颂2: 执行删除
-          const [result] = await connection.execute('DELETE FROM process_plans WHERE id = ?', [id]);
-          successCount += result.affectedRows;
+          const result = await connection.execute('DELETE FROM process_plans WHERE id = ?', [id]);
+          successCount += result[0].affectedRows;
         }
       }
-      
+
       // ✅ 步颂3: 批量重置受影响的工序+日期的已占用工时
       console.log(`🔄 批量重置 ${affectedProcessDates.size} 个工序+日期的已占用工时`);
-      
+
       for (const key of affectedProcessDates) {
         const [processName, scheduleDate] = key.split('|');
-        
+
         try {
           // ✅ SUMIF - 重新统计该工序+日期下所有工序计划的计划排程工时总和
-          const [sumRows] = await connection.execute(
+          const sumRows = await connection.execute(
             `SELECT COALESCE(SUM(used_work_hours), 0) as total_hours 
              FROM process_plans 
              WHERE process_name = ? 
                AND schedule_date = ?`,
-            [processName, scheduleDate]
+            [processName, scheduleDate],
           );
-          
-          const sumResult = sumRows[0].total_hours;
+
+          const sumResult = sumRows[0][0].total_hours;
           const validResult = sumResult !== null && sumResult !== undefined ? parseFloat(sumResult) : 0;
           const newOccupiedHours = parseFloat(validResult.toFixed(2));
-          
+
           // ✅ 查询工序能力负荷记录
-          const [capacityRows] = await connection.execute(
+          const capacityRows = await connection.execute(
             'SELECT id, work_shift, available_workstations, occupied_hours FROM process_capacity_load WHERE process_name = ? AND date = ?',
-            [processName, scheduleDate]
+            [processName, scheduleDate],
           );
-          
-          if (capacityRows.length > 0) {
-            const record = capacityRows[0];
+
+          if (capacityRows[0].length > 0) {
+            const record = capacityRows[0][0];
             const previousOccupiedHours = parseFloat(record.occupied_hours || 0);
             const workShift = parseFloat(record.work_shift || 0);
             const availableWorkstations = parseFloat(record.available_workstations || 0);
-            
-            // ✅ 重新计算剩余工时和妉余时段
-            const newRemainingHours = parseFloat(
-              (workShift * availableWorkstations - newOccupiedHours).toFixed(2)
-            );
-            
+
+            // ✅ 重新计算剩余工时和剩余时段
+            const newRemainingHours = parseFloat((workShift * availableWorkstations - newOccupiedHours).toFixed(2));
+
             let newRemainingShift = null;
             if (availableWorkstations > 0) {
-              newRemainingShift = parseFloat(
-                (newRemainingHours / availableWorkstations).toFixed(2)
-              );
+              newRemainingShift = parseFloat((newRemainingHours / availableWorkstations).toFixed(2));
             }
-            
+
             // ✅ 更新数据库
             await connection.execute(
               `UPDATE process_capacity_load 
                SET occupied_hours = ?, 
                    remaining_hours = ?, 
-                   remaining_shift = ?,
+                   remaining_shift = ?, 
                    updated_at = NOW()
                WHERE id = ?`,
-              [newOccupiedHours, newRemainingHours, newRemainingShift, record.id]
+              [newOccupiedHours, newRemainingHours, newRemainingShift, record.id],
             );
-            
-            console.log(`✅ [工序=${processName}, 日期=${scheduleDate}] ${previousOccupiedHours} → ${newOccupiedHours}`);
+
+            console.log(
+              `✅ [工序=${processName}, 日期=${scheduleDate}] ${previousOccupiedHours} → ${newOccupiedHours}`,
+            );
           }
         } catch (error) {
           console.error(`⚠️ [工序=${processName}, 日期=${scheduleDate}] 重置失败:`, error.message);
           // 继续处理其他记录
         }
       }
-      
-      await connection.commit();
+
       console.log(`批量删除工序计划完成: 成功${successCount}条/总共${ids.length}条`);
       return { successCount, totalCount: ids.length };
-    } catch (error) {
-      await connection.rollback();
-      console.error('批量删除工序计划失败:', error);
-      throw error;
-    } finally {
-      connection.release();
-    }
+    });
   }
 }
 

@@ -3,11 +3,11 @@ const { pool } = require('./config/database');
 async function recreateProcessCapacityLoadTable() {
   try {
     console.log('🔧 开始重新创建process_capacity_load表...');
-    
+
     // 先删除现有表
     await pool.execute('DROP TABLE IF EXISTS process_capacity_load');
     console.log('✅ 已删除现有process_capacity_load表');
-    
+
     // 重新创建表，使用database.js中定义的结构
     await pool.execute(`
       CREATE TABLE IF NOT EXISTS process_capacity_load (
@@ -28,9 +28,9 @@ async function recreateProcessCapacityLoadTable() {
         INDEX idx_created_at (created_at)
       ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='工序能力负荷表'
     `);
-    
+
     console.log('✅ process_capacity_load表重新创建成功！');
-    
+
     // 关闭数据库连接
     await pool.end();
   } catch (error) {

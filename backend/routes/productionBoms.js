@@ -9,12 +9,12 @@ router.get('/list', async (req, res) => {
     res.json({
       code: 200,
       data: boms,
-      message: '获取生产BOM列表成功'
+      message: '获取生产BOM列表成功',
     });
   } catch (error) {
     res.status(500).json({
       code: 500,
-      message: error.message
+      message: error.message,
     });
   }
 });
@@ -24,23 +24,23 @@ router.get('/detail/:id', async (req, res) => {
   try {
     const { id } = req.params;
     const bom = await BOMService.getBOMById(id);
-    
+
     if (!bom) {
       return res.status(404).json({
         code: 404,
-        message: 'BOM不存在'
+        message: 'BOM不存在',
       });
     }
-    
+
     res.json({
       code: 200,
       data: bom,
-      message: '获取BOM详情成功'
+      message: '获取BOM详情成功',
     });
   } catch (error) {
     res.status(500).json({
       code: 500,
-      message: error.message
+      message: error.message,
     });
   }
 });
@@ -50,29 +50,29 @@ router.get('/by-product/:productCode', async (req, res) => {
   try {
     const { productCode } = req.params;
     console.log(`🔍 查找产品BOM, 产品编码: ${productCode}`);
-    
+
     const bom = await BOMService.getBOMByProductCode(productCode);
-    
+
     if (!bom) {
       console.log(`⚠️ 未找到产品BOM: ${productCode}`);
       return res.json({
         code: 404,
         data: null,
-        message: `产品 ${productCode} 没有对应的生产BOM`
+        message: `产品 ${productCode} 没有对应的生产BOM`,
       });
     }
-    
+
     console.log(`✅ 找到BOM: ${bom.bomCode}, 子件数: ${bom.childItems?.length || 0}`);
     res.json({
       code: 200,
       data: bom,
-      message: '获取BOM成功'
+      message: '获取BOM成功',
     });
   } catch (error) {
     console.error('获取BOM失败:', error);
     res.status(500).json({
       code: 500,
-      message: error.message
+      message: error.message,
     });
   }
 });
@@ -87,13 +87,13 @@ router.post('/create', async (req, res) => {
     res.json({
       code: 200,
       data: result,
-      message: '创建生产BOM成功'
+      message: '创建生产BOM成功',
     });
   } catch (error) {
     console.error('创建BOM失败:', error);
     res.status(500).json({
       code: 500,
-      message: error.message
+      message: error.message,
     });
   }
 });
@@ -109,13 +109,13 @@ router.put('/update/:id', async (req, res) => {
     res.json({
       code: 200,
       data: result,
-      message: '更新生产BOM成功'
+      message: '更新生产BOM成功',
     });
   } catch (error) {
     console.error('更新BOM失败:', error);
     res.status(500).json({
       code: 500,
-      message: error.message
+      message: error.message,
     });
   }
 });
@@ -126,25 +126,25 @@ router.delete('/delete/:id', async (req, res) => {
     const { id } = req.params;
     console.log('收到删除BOM请求, ID:', id);
     const success = await BOMService.deleteProductionBOM(id);
-    
+
     if (success) {
       console.log('BOM删除成功, ID:', id);
       res.json({
         code: 200,
-        message: '删除生产BOM成功'
+        message: '删除生产BOM成功',
       });
     } else {
       console.log('BOM不存在, ID:', id);
       res.status(404).json({
         code: 404,
-        message: 'BOM不存在'
+        message: 'BOM不存在',
       });
     }
   } catch (error) {
     console.error('删除BOM失败:', error);
     res.status(500).json({
       code: 500,
-      message: error.message
+      message: error.message,
     });
   }
 });
@@ -157,12 +157,12 @@ router.delete('/batch-delete', async (req, res) => {
     res.json({
       code: 200,
       data: result,
-      message: '批量删除生产BOM成功'
+      message: '批量删除生产BOM成功',
     });
   } catch (error) {
     res.status(500).json({
       code: 500,
-      message: error.message
+      message: error.message,
     });
   }
 });

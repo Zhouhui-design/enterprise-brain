@@ -21,13 +21,13 @@ class BOMService {
     try {
       const stmt = db.prepare('SELECT * FROM production_boms WHERE id = ?');
       const bom = stmt.get(id);
-      
+
       if (bom) {
         // 获取子件列表
         const componentsStmt = db.prepare('SELECT * FROM bom_components WHERE bom_id = ? ORDER BY sequence');
         bom.childItems = componentsStmt.all(id);
       }
-      
+
       return bom;
     } catch (error) {
       console.error('获取BOM详情失败:', error);
@@ -41,7 +41,7 @@ class BOMService {
   static createProductionBOM(bomData) {
     try {
       const { childItems, ...bomInfo } = bomData;
-      
+
       // 使用事务保证数据一致性
       const createTransaction = db.transaction(() => {
         // 插入BOM主表
@@ -52,7 +52,7 @@ class BOMService {
             total_labor, total_material, product_image
           ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         `);
-        
+
         const info = stmt.run(
           bomInfo.bomCode,
           bomInfo.bomName || '',
@@ -67,11 +67,11 @@ class BOMService {
           bomInfo.effectiveDate || null,
           parseFloat(bomInfo.totalLabor) || 0,
           parseFloat(bomInfo.totalMaterial) || 0,
-          bomInfo.productImage || null
+          bomInfo.productImage || null,
         );
-        
+
         const bomId = info.lastInsertRowid;
-        
+
         // 插入子件
         if (childItems && childItems.length > 0) {
           const componentStmt = db.prepare(`
@@ -81,7 +81,7 @@ class BOMService {
               process_wage, material_loss, material_price, material_cost
             ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
           `);
-          
+
           for (let i = 0; i < childItems.length; i++) {
             const item = childItems[i];
             componentStmt.run(
@@ -96,17 +96,17 @@ class BOMService {
               parseFloat(item.processWage) || 0,
               parseFloat(item.materialLoss) || 0,
               parseFloat(item.materialPrice) || 0,
-              parseFloat(item.materialCost) || 0
+              parseFloat(item.materialCost) || 0,
             );
           }
         }
-        
+
         return bomId;
       });
-      
+
       const bomId = createTransaction();
       console.log(`BOM创建成功, ID: ${bomId}, BOM编号: ${bomInfo.bomCode}`);
-      
+
       return { id: bomId, ...bomInfo };
     } catch (error) {
       console.error('创建生产BOM失败:', error);
@@ -121,7 +121,7 @@ class BOMService {
     try {
       const { childItems, ...bomInfo } = bomData;
       const bomId = parseInt(id); // 确保ID是整数
-      
+
       // 使用事务保证数据一致性
       const updateTransaction = db.transaction(() => {
         // 更新BOM主表
@@ -134,7 +134,7 @@ class BOMService {
             updated_at = CURRENT_TIMESTAMP
           WHERE id = ?
         `);
-        
+
         stmt.run(
           bomInfo.bomCode,
           bomInfo.bomName || '',
@@ -150,13 +150,13 @@ class BOMService {
           parseFloat(bomInfo.totalLabor) || 0,
           parseFloat(bomInfo.totalMaterial) || 0,
           bomInfo.productImage || null,
-          bomId
+          bomId,
         );
-        
+
         // 删除旧子件
         const deleteStmt = db.prepare('DELETE FROM bom_components WHERE bom_id = ?');
         deleteStmt.run(bomId);
-        
+
         // 插入新子件
         if (childItems && childItems.length > 0) {
           const componentStmt = db.prepare(`
@@ -166,7 +166,7 @@ class BOMService {
               process_wage, material_loss, material_price, material_cost
             ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
           `);
-          
+
           for (let i = 0; i < childItems.length; i++) {
             const item = childItems[i];
             componentStmt.run(
@@ -181,15 +181,15 @@ class BOMService {
               parseFloat(item.processWage) || 0,
               parseFloat(item.materialLoss) || 0,
               parseFloat(item.materialPrice) || 0,
-              parseFloat(item.materialCost) || 0
+              parseFloat(item.materialCost) || 0,
             );
           }
         }
       });
-      
+
       updateTransaction();
       console.log(`BOM更新成功, ID: ${bomId}, BOM编号: ${bomInfo.bomCode}`);
-      
+
       return { id: bomId, ...bomInfo };
     } catch (error) {
       console.error('更新生产BOM失败:', error);
@@ -203,15 +203,15 @@ class BOMService {
   static deleteProductionBOM(id) {
     try {
       const bomId = parseInt(id); // 确保ID是整数
-      
+
       // 删除子件（级联删除）
       const deleteComponentsStmt = db.prepare('DELETE FROM bom_components WHERE bom_id = ?');
       deleteComponentsStmt.run(bomId);
-      
+
       // 删除BOM
       const stmt = db.prepare('DELETE FROM production_boms WHERE id = ?');
       const info = stmt.run(bomId);
-      
+
       return info.changes > 0;
     } catch (error) {
       console.error('删除生产BOM失败:', error);
@@ -224,23 +224,23 @@ class BOMService {
    */
   static batchDeleteProductionBOMs(ids) {
     try {
-      const deleteTransaction = db.transaction((idList) => {
+      const deleteTransaction = db.transaction(idList => {
         let successCount = 0;
         for (const id of idList) {
           // 直接调用SQL，避免this指向问题
           const deleteComponentsStmt = db.prepare('DELETE FROM bom_components WHERE bom_id = ?');
           deleteComponentsStmt.run(id);
-          
+
           const deleteBomStmt = db.prepare('DELETE FROM production_boms WHERE id = ?');
           const info = deleteBomStmt.run(id);
-          
+
           if (info.changes > 0) {
             successCount++;
           }
         }
         return successCount;
       });
-      
+
       const successCount = deleteTransaction(ids);
       console.log(`批量删除完成: 成功${successCount}条/总共${ids.length}条`);
       return { successCount, totalCount: ids.length };

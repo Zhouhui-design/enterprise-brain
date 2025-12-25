@@ -52,7 +52,7 @@ try {
       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `);
 
-    const insertMany = db.transaction((items) => {
+    const insertMany = db.transaction(items => {
       for (const item of items) {
         insertStmt.run(
           item.id,
@@ -69,7 +69,7 @@ try {
           item.material_price,
           item.material_cost,
           item.created_at,
-          item.updated_at
+          item.updated_at,
         );
       }
     });
@@ -86,7 +86,6 @@ try {
   console.log('\n5. 验证新表结构：');
   const tableInfo = db.prepare("SELECT sql FROM sqlite_master WHERE name='bom_components'").get();
   console.log(tableInfo.sql);
-
 } catch (error) {
   console.error('❌ 修复失败:', error);
   process.exit(1);

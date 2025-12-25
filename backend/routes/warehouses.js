@@ -10,16 +10,7 @@ const { query } = require('../config/database');
 // 获取仓库列表
 router.get('/', async (req, res) => {
   try {
-    const {
-      page = 1,
-      pageSize = 20,
-      name,
-      code,
-      status,
-      type,
-      manager,
-      region
-    } = req.query;
+    const { page = 1, pageSize = 20, name, code, status, type, manager, region } = req.query;
 
     let whereClause = 'WHERE 1=1';
     const params = [];
@@ -76,14 +67,14 @@ router.get('/', async (req, res) => {
       data: data,
       total: total,
       page: parseInt(page),
-      pageSize: parseInt(pageSize)
+      pageSize: parseInt(pageSize),
     });
   } catch (error) {
     console.error('❌ 获取仓库列表失败:', error);
     res.status(500).json({
       success: false,
       message: '获取仓库列表失败',
-      error: error.message
+      error: error.message,
     });
   }
 });
@@ -102,24 +93,24 @@ router.get('/:id', async (req, res) => {
       WHERE id = ?
     `;
     const result = await query(sql, [id]);
-    
+
     if (result.length === 0) {
       return res.status(404).json({
         success: false,
-        message: '仓库不存在'
+        message: '仓库不存在',
       });
     }
 
     res.json({
       success: true,
-      data: result[0]
+      data: result[0],
     });
   } catch (error) {
     console.error('❌ 获取仓库详情失败:', error);
     res.status(500).json({
       success: false,
       message: '获取仓库详情失败',
-      error: error.message
+      error: error.message,
     });
   }
 });
@@ -128,18 +119,27 @@ router.get('/:id', async (req, res) => {
 router.post('/', async (req, res) => {
   try {
     const {
-      code, name, type, status = 'enabled', capacity, locations, region,
-      manager, contact_phone, address, description
+      code,
+      name,
+      type,
+      status = 'enabled',
+      capacity,
+      locations,
+      region,
+      manager,
+      contact_phone,
+      address,
+      description,
     } = req.body;
 
     // 检查仓库编码是否已存在
     const checkSql = 'SELECT id FROM warehouses WHERE code = ?';
     const existing = await query(checkSql, [code]);
-    
+
     if (existing.length > 0) {
       return res.status(400).json({
         success: false,
-        message: '仓库编码已存在'
+        message: '仓库编码已存在',
       });
     }
 
@@ -151,12 +151,21 @@ router.post('/', async (req, res) => {
     `;
 
     const params = [
-      code, name, type, status, capacity, locations, region,
-      manager, contact_phone, address, description
+      code,
+      name,
+      type,
+      status,
+      capacity,
+      locations,
+      region,
+      manager,
+      contact_phone,
+      address,
+      description,
     ];
 
     const result = await query(sql, params);
-    
+
     res.json({
       success: true,
       data: {
@@ -171,15 +180,15 @@ router.post('/', async (req, res) => {
         manager,
         contact_phone,
         address,
-        description
-      }
+        description,
+      },
     });
   } catch (error) {
     console.error('❌ 创建仓库失败:', error);
     res.status(500).json({
       success: false,
       message: '创建仓库失败',
-      error: error.message
+      error: error.message,
     });
   }
 });
@@ -188,30 +197,28 @@ router.post('/', async (req, res) => {
 router.put('/:id', async (req, res) => {
   try {
     const { id } = req.params;
-    const {
-      code, name, type, status, capacity, locations, region,
-      manager, contact_phone, address, description
-    } = req.body;
+    const { code, name, type, status, capacity, locations, region, manager, contact_phone, address, description } =
+      req.body;
 
     // 检查仓库是否存在
     const checkSql = 'SELECT id FROM warehouses WHERE id = ?';
     const existing = await query(checkSql, [id]);
-    
+
     if (existing.length === 0) {
       return res.status(404).json({
         success: false,
-        message: '仓库不存在'
+        message: '仓库不存在',
       });
     }
 
     // 检查仓库编码是否被其他仓库使用
     const codeCheckSql = 'SELECT id FROM warehouses WHERE code = ? AND id != ?';
     const codeExisting = await query(codeCheckSql, [code, id]);
-    
+
     if (codeExisting.length > 0) {
       return res.status(400).json({
         success: false,
-        message: '仓库编码已被其他仓库使用'
+        message: '仓库编码已被其他仓库使用',
       });
     }
 
@@ -223,22 +230,32 @@ router.put('/:id', async (req, res) => {
     `;
 
     const params = [
-      code, name, type, status, capacity, locations, region,
-      manager, contact_phone, address, description, id
+      code,
+      name,
+      type,
+      status,
+      capacity,
+      locations,
+      region,
+      manager,
+      contact_phone,
+      address,
+      description,
+      id,
     ];
 
     await query(sql, params);
-    
+
     res.json({
       success: true,
-      message: '仓库更新成功'
+      message: '仓库更新成功',
     });
   } catch (error) {
     console.error('❌ 更新仓库失败:', error);
     res.status(500).json({
       success: false,
       message: '更新仓库失败',
-      error: error.message
+      error: error.message,
     });
   }
 });
@@ -251,27 +268,27 @@ router.delete('/:id', async (req, res) => {
     // 检查仓库是否存在
     const checkSql = 'SELECT id, name FROM warehouses WHERE id = ?';
     const existing = await query(checkSql, [id]);
-    
+
     if (existing.length === 0) {
       return res.status(404).json({
         success: false,
-        message: '仓库不存在'
+        message: '仓库不存在',
       });
     }
 
     const sql = 'DELETE FROM warehouses WHERE id = ?';
     await query(sql, [id]);
-    
+
     res.json({
       success: true,
-      message: `仓库「${existing[0].name}」删除成功`
+      message: `仓库「${existing[0].name}」删除成功`,
     });
   } catch (error) {
     console.error('❌ 删除仓库失败:', error);
     res.status(500).json({
       success: false,
       message: '删除仓库失败',
-      error: error.message
+      error: error.message,
     });
   }
 });
@@ -280,42 +297,45 @@ router.delete('/:id', async (req, res) => {
 router.delete('/batch/:ids', async (req, res) => {
   try {
     const { ids } = req.params;
-    const idArray = ids.split(',').map(id => parseInt(id)).filter(id => !isNaN(id));
-    
+    const idArray = ids
+      .split(',')
+      .map(id => parseInt(id))
+      .filter(id => !isNaN(id));
+
     if (idArray.length === 0) {
       return res.status(400).json({
         success: false,
-        message: '无效的ID列表'
+        message: '无效的ID列表',
       });
     }
 
     // 获取要删除的仓库名称
     const namesSql = `SELECT name FROM warehouses WHERE id IN (${idArray.map(() => '?').join(',')})`;
     const warehouses = await query(namesSql, idArray);
-    
+
     if (warehouses.length === 0) {
       return res.status(404).json({
         success: false,
-        message: '没有找到要删除的仓库'
+        message: '没有找到要删除的仓库',
       });
     }
 
     // 执行删除
     const deleteSql = `DELETE FROM warehouses WHERE id IN (${idArray.map(() => '?').join(',')})`;
     const result = await query(deleteSql, idArray);
-    
+
     res.json({
       success: true,
       message: `成功删除 ${result.affectedRows} 个仓库`,
       deleted: result.affectedRows,
-      names: warehouses.map(w => w.name)
+      names: warehouses.map(w => w.name),
     });
   } catch (error) {
     console.error('❌ 批量删除仓库失败:', error);
     res.status(500).json({
       success: false,
       message: '批量删除仓库失败',
-      error: error.message
+      error: error.message,
     });
   }
 });

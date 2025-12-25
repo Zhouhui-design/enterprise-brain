@@ -5,7 +5,7 @@ const procurementPlanService = require('./services/procurementPlanService');
     console.log('Testing service directly...');
     const result = await procurementPlanService.getList({
       page: 1,
-      pageSize: 20
+      pageSize: 20,
     });
     console.log('Service result:', result);
     process.exit(0);

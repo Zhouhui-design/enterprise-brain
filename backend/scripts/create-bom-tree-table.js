@@ -27,7 +27,7 @@ const createTable = () => {
       CREATE INDEX IF NOT EXISTS idx_bom_tree_bom_code ON bom_tree_structures(bom_code);
       CREATE INDEX IF NOT EXISTS idx_bom_tree_product_code ON bom_tree_structures(product_code);
     `);
-    
+
     console.log('✅ BOM树结构表创建成功');
     return true;
   } catch (error) {

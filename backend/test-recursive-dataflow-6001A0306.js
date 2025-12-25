@@ -1,6 +1,6 @@
 /**
  * 测试6001A0306递归数据流完整性验证脚本
- * 
+ *
  * 测试场景：
  * 1. 主生产计划执行排程 → 生成备料计划（6001A0306）
  * 2. 备料计划推送到打包工序计划（来源工序=打包）
@@ -26,7 +26,7 @@ async function testRecursiveDataflow() {
        FROM material_preparation_plans
        WHERE material_code = '6001A0306'
        ORDER BY created_at DESC
-       LIMIT 1`
+       LIMIT 1`,
     );
 
     if (materialPlans.length === 0) {
@@ -46,13 +46,12 @@ async function testRecursiveDataflow() {
 
     // ✅ 步骤2: 触发推送到工序计划
     console.log('📤 步骤2: 触发备料计划推送到工序计划...\n');
-    
+
     // 检查推送条件
-    const shouldPush = (
+    const shouldPush =
       materialPlan.material_source === '自制' &&
       parseFloat(materialPlan.replenishment_quantity || 0) > 0 &&
-      materialPlan.source_process
-    );
+      materialPlan.source_process;
 
     if (!shouldPush) {
       console.log('⚠️ 不满足推送条件:');
@@ -66,21 +65,21 @@ async function testRecursiveDataflow() {
 
     // 调用推送逻辑
     const result = await MaterialPreparationPlanService.autoTriggerPush();
-    
+
     console.log('\n✅ 推送执行完成:');
     console.log(`   满足条件的备料计划总数: ${result.total}`);
     console.log(`   成功推送数量: ${result.success}\n`);
 
     // ✅ 步骤3: 检查打包工序计划是否生成
     console.log('🔍 步骤3: 检查打包工序计划是否生成...\n');
-    
+
     const [packingPlans] = await pool.execute(
       `SELECT id, plan_no, product_code, product_name, process_name, schedule_quantity,
               source_no, master_plan_product_code, DATE_FORMAT(schedule_date, '%Y-%m-%d') as schedule_date
        FROM packing_process_plans
        WHERE source_no = ?
        ORDER BY created_at DESC`,
-      [materialPlan.plan_no]
+      [materialPlan.plan_no],
     );
 
     if (packingPlans.length > 0) {
@@ -102,13 +101,13 @@ async function testRecursiveDataflow() {
 
     // ✅ 步骤4: 检查第2轮备料计划（BOM子件）
     console.log('\n\n🔍 步骤4: 检查第2轮备料计划（BOM子件）...\n');
-    
+
     const [childMaterialPlans] = await pool.execute(
       `SELECT id, plan_no, material_code, material_name, source_process, material_source,
               replenishment_quantity, parent_code, parent_name
        FROM material_preparation_plans
        WHERE parent_code = '6001A0306'
-       ORDER BY created_at DESC`
+       ORDER BY created_at DESC`,
     );
 
     if (childMaterialPlans.length > 0) {
@@ -129,7 +128,7 @@ async function testRecursiveDataflow() {
 
     // ✅ 步骤5: 检查组装工序计划（第2轮推送）
     console.log('\n\n🔍 步骤5: 检查组装工序计划（第2轮推送）...\n');
-    
+
     const childPlanNos = childMaterialPlans.map(p => p.plan_no);
     if (childPlanNos.length > 0) {
       const placeholders = childPlanNos.map(() => '?').join(',');
@@ -139,7 +138,7 @@ async function testRecursiveDataflow() {
          FROM assembly_process_plans
          WHERE source_no IN (${placeholders})
          ORDER BY created_at DESC`,
-        childPlanNos
+        childPlanNos,
       );
 
       if (assemblyPlans.length > 0) {
@@ -169,24 +168,23 @@ async function testRecursiveDataflow() {
     console.log('\n第3轮: 打包工序计划 → 备料计划 (BOM子件)');
     console.log(`   备料计划数量: ${childMaterialPlans.length} 条 ${childMaterialPlans.length > 0 ? '✅' : '❌'}`);
     console.log(`   预期子件: 470001A, 470002A, 511442B`);
-    
+
     const expectedCodes = ['470001A', '470002A', '511442B'];
     const actualCodes = childMaterialPlans.map(p => p.material_code);
     const foundCodes = expectedCodes.filter(code => actualCodes.includes(code));
     console.log(`   实际找到: ${foundCodes.join(', ')} (${foundCodes.length}/3)`);
-    
+
     console.log('\n第4轮: 备料计划 → 组装工序计划');
     const assemblyCount = await pool.execute(
       `SELECT COUNT(*) as count FROM assembly_process_plans WHERE source_no IN (${childPlanNos.map(() => '?').join(',')})`,
-      childPlanNos
+      childPlanNos,
     );
     const actualAssemblyCount = assemblyCount[0][0].count;
     console.log(`   组装工序计划数量: ${actualAssemblyCount} 条 ${actualAssemblyCount > 0 ? '✅' : '⚠️'}`);
-    
+
     console.log('\n========================================');
     console.log('✅ 递归数据流测试完成！');
     console.log('========================================\n');
-
   } catch (error) {
     console.error('\n❌ 测试失败:', error);
     console.error('错误堆栈:', error.stack);

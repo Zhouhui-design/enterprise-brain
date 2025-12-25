@@ -1,6 +1,6 @@
-const db = require('../config/database')
+const db = require('../config/database');
 
-console.log('开始创建shipping_plans表...')
+console.log('开始创建shipping_plans表...');
 
 try {
   // 创建发货计划主表
@@ -23,8 +23,8 @@ try {
       update_time DATETIME DEFAULT CURRENT_TIMESTAMP,
       remark TEXT
     )
-  `)
-  
+  `);
+
   // 创建发货计划明细表
   db.exec(`
     CREATE TABLE IF NOT EXISTS shipping_plan_items (
@@ -38,8 +38,8 @@ try {
       total_price REAL DEFAULT 0,
       FOREIGN KEY (plan_id) REFERENCES shipping_plans(id) ON DELETE CASCADE
     )
-  `)
-  
+  `);
+
   // 创建索引
   db.exec(`
     CREATE INDEX IF NOT EXISTS idx_shipping_plans_number ON shipping_plans(plan_number);
@@ -47,10 +47,10 @@ try {
     CREATE INDEX IF NOT EXISTS idx_shipping_plans_customer ON shipping_plans(customer_name);
     CREATE INDEX IF NOT EXISTS idx_shipping_plans_status ON shipping_plans(status);
     CREATE INDEX IF NOT EXISTS idx_shipping_plan_items_plan ON shipping_plan_items(plan_id);
-  `)
-  
-  console.log('✅ shipping_plans表创建成功！')
+  `);
+
+  console.log('✅ shipping_plans表创建成功！');
 } catch (error) {
-  console.error('❌ 创建表失败:', error)
-  process.exit(1)
+  console.error('❌ 创建表失败:', error);
+  process.exit(1);
 }

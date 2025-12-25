@@ -26,22 +26,56 @@ const accessLogsDir = path.join(logsDir, 'access');
 const commonRotateConfig = {
   datePattern: 'YYYY-MM-DD',
   zippedArchive: true,
-  maxSize: '20m',
-  maxFiles: '30d', // 统一保留30天的日志
+  maxSize: '10m', // 调整为10MB每个文件
+  maxFiles: '15d', // 调整为保留15天的日志
   utc: false,
-  auditFile: path.join(logsDir, 'log-rotate-audit.json')
+  auditFile: path.join(logsDir, 'log-rotate-audit.json'),
 };
+
+// 业务日志配置 - 保留更长时间
+const businessLogConfig = {
+  datePattern: 'YYYY-MM-DD',
+  zippedArchive: true,
+  maxSize: '50m', // 业务日志每个文件50MB
+  maxFiles: '90d', // 业务日志保留90天
+  utc: false,
+  auditFile: path.join(logsDir, 'business-log-rotate-audit.json'),
+};
+
+// 自定义格式：添加分布式追踪字段
+const traceFormat = winston.format((info, opts) => {
+  // 从请求上下文中获取traceId和spanId（默认值为空字符串）
+  info.traceId = info.traceId || '';
+  info.spanId = info.spanId || '';
+  info.serviceName = info.serviceName || 'enterprise-brain-backend';
+  info.environment = process.env.NODE_ENV || 'development';
+  return info;
+});
+
+// 控制台输出格式 - 增强可读性
+const consoleFormat = winston.format.combine(
+  winston.format.colorize(),
+  winston.format.timestamp({
+    format: 'YYYY-MM-DD HH:mm:ss.SSS',
+  }),
+  winston.format.printf((info) => {
+    const { timestamp, level, message, traceId, spanId, serviceName, ...meta } = info;
+    const metaStr = Object.keys(meta).length ? JSON.stringify(meta, null, 2) : '';
+    return `${timestamp} [${serviceName}] [${traceId || 'N/A'}] [${spanId || 'N/A'}] ${level}: ${message} ${metaStr}`;
+  })
+);
 
 // 配置Winston日志记录器
 const logger = winston.createLogger({
   level: 'info',
   format: winston.format.combine(
     winston.format.timestamp({
-      format: 'YYYY-MM-DD HH:mm:ss.SSS'
+      format: 'YYYY-MM-DD HH:mm:ss.SSS',
     }),
     winston.format.errors({ stack: true }),
     winston.format.splat(),
-    winston.format.json()
+    traceFormat(),
+    winston.format.json(),
   ),
   defaultMeta: { service: 'enterprise-brain-backend' },
   transports: [
@@ -49,21 +83,18 @@ const logger = winston.createLogger({
     new DailyRotateFile({
       ...commonRotateConfig,
       filename: path.join(errorLogsDir, 'enterprise-brain-error-%DATE%.log'),
-      level: 'error'
+      level: 'error',
     }),
     // 所有日志 - 每天轮换
     new DailyRotateFile({
       ...commonRotateConfig,
-      filename: path.join(combinedLogsDir, 'enterprise-brain-combined-%DATE%.log')
+      filename: path.join(combinedLogsDir, 'enterprise-brain-combined-%DATE%.log'),
     }),
     // 控制台输出
     new winston.transports.Console({
-      format: winston.format.combine(
-        winston.format.colorize(),
-        winston.format.simple()
-      )
-    })
-  ]
+      format: consoleFormat,
+    }),
+  ],
 });
 
 // 创建访问日志记录器
@@ -71,29 +102,27 @@ const accessLogger = winston.createLogger({
   level: 'info',
   format: winston.format.combine(
     winston.format.timestamp({
-      format: 'YYYY-MM-DD HH:mm:ss.SSS'
+      format: 'YYYY-MM-DD HH:mm:ss.SSS',
     }),
-    winston.format.json()
+    traceFormat(),
+    winston.format.json(),
   ),
   defaultMeta: { service: 'enterprise-brain-access' },
   transports: [
     // 访问日志 - 每天轮换
     new DailyRotateFile({
       ...commonRotateConfig,
-      filename: path.join(accessLogsDir, 'enterprise-brain-access-%DATE%.log')
+      filename: path.join(accessLogsDir, 'enterprise-brain-access-%DATE%.log'),
     }),
     // 控制台输出
     new winston.transports.Console({
-      format: winston.format.combine(
-        winston.format.colorize(),
-        winston.format.simple()
-      )
-    })
-  ]
+      format: consoleFormat,
+    }),
+  ],
 });
 
 // 导出日志记录器
 module.exports = {
   logger,
-  accessLogger
+  accessLogger,
 };

@@ -11,9 +11,7 @@ router.get('/', (req, res) => {
   res.json({
     success: true,
     message: '仓库API测试成功',
-    data: [
-      { id: 1, code: 'WH001', name: '测试仓库' }
-    ]
+    data: [{ id: 1, code: 'WH001', name: '测试仓库' }],
   });
 });
 

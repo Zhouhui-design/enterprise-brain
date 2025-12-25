@@ -4,7 +4,7 @@ const { pool } = require('../config/database');
 
 /**
  * MRP运算：根据销售订单和生产BOM计算物料需求
- * 
+ *
  * 运算逻辑：
  * 1. 获取选中的销售订单及其产品明细
  * 2. 根据产品编号查找对应的生产BOM
@@ -15,11 +15,11 @@ const { pool } = require('../config/database');
 router.post('/calculate', async (req, res) => {
   try {
     const { orderIds } = req.body;
-    
+
     if (!orderIds || orderIds.length === 0) {
       return res.status(400).json({
         code: 400,
-        message: '请选择要计算的订单'
+        message: '请选择要计算的订单',
       });
     }
 
@@ -37,13 +37,11 @@ router.post('/calculate', async (req, res) => {
 
     // 2. 解析订单中的产品明细
     let productDemands = {}; // { productCode: totalQuantity }
-    
+
     for (const order of orders) {
       let productList = [];
       try {
-        productList = typeof order.productList === 'string' 
-          ? JSON.parse(order.productList) 
-          : order.productList || [];
+        productList = typeof order.productList === 'string' ? JSON.parse(order.productList) : order.productList || [];
       } catch (e) {
         console.warn(`订单${order.internalOrderNo}的产品列表解析失败:`, e.message);
         continue;
@@ -52,7 +50,7 @@ router.post('/calculate', async (req, res) => {
       for (const product of productList) {
         const productCode = product.productCode || product.materialCode;
         const quantity = parseFloat(product.quantity || product.productQuantity || 0);
-        
+
         if (productCode && quantity > 0) {
           productDemands[productCode] = (productDemands[productCode] || 0) + quantity;
         }
@@ -63,10 +61,10 @@ router.post('/calculate', async (req, res) => {
 
     // 3. 根据产品查找BOM并展开计算
     const materialRequirements = {}; // { materialCode: { quantity, source, ... } }
-    
+
     for (const [productCode, quantity] of Object.entries(productDemands)) {
       console.log(`处理产品: ${productCode}, 数量: ${quantity}`);
-      
+
       // 查找该产品的BOM
       const bomQuery = `
         SELECT * FROM production_boms 
@@ -75,7 +73,7 @@ router.post('/calculate', async (req, res) => {
         LIMIT 1
       `;
       const boms = await pool.query(bomQuery, [productCode]);
-      
+
       if (boms.length === 0) {
         console.warn(`产品${productCode}没有对应的BOM`);
         // 没有BOM，直接作为成品需求
@@ -86,7 +84,7 @@ router.post('/calculate', async (req, res) => {
             demandQty: 0,
             source: '未知',
             level: 0,
-            sourceOrders: []
+            sourceOrders: [],
           };
         }
         materialRequirements[productCode].demandQty += quantity;
@@ -94,13 +92,11 @@ router.post('/calculate', async (req, res) => {
       }
 
       const bom = boms[0];
-      
+
       // 解析BOM的子件列表
       let childItems = [];
       try {
-        childItems = typeof bom.childItems === 'string'
-          ? JSON.parse(bom.childItems)
-          : bom.childItems || [];
+        childItems = typeof bom.childItems === 'string' ? JSON.parse(bom.childItems) : bom.childItems || [];
       } catch (e) {
         console.warn(`BOM ${bom.bomCode} 的子件列表解析失败:`, e.message);
         continue;
@@ -114,7 +110,7 @@ router.post('/calculate', async (req, res) => {
         const standardQty = parseFloat(child.standardQty || 0);
         const source = child.source || '未知';
         const level = parseInt(child.level || 0);
-        
+
         if (!materialCode || standardQty <= 0) continue;
 
         // 计算该子件的总需求量 = 产品数量 * 标准用量
@@ -128,12 +124,12 @@ router.post('/calculate', async (req, res) => {
             source: source,
             level: level,
             sourceOrders: [],
-            standardQty: standardQty
+            standardQty: standardQty,
           };
         }
 
         materialRequirements[materialCode].demandQty += childDemandQty;
-        
+
         // 记录来源订单
         if (!materialRequirements[materialCode].sourceOrders.includes(bom.bomCode)) {
           materialRequirements[materialCode].sourceOrders.push(bom.bomCode);
@@ -153,7 +149,7 @@ router.post('/calculate', async (req, res) => {
         WHERE materialCode IN (${materialPlaceholders})
       `;
       const materials = await pool.query(materialsQuery, materialCodes);
-      
+
       // 更新物料信息和计算净需求
       for (const material of materials) {
         const code = material.materialCode;
@@ -161,7 +157,7 @@ router.post('/calculate', async (req, res) => {
           materialRequirements[code].materialName = material.materialName || code;
           materialRequirements[code].currentStock = parseFloat(material.currentStock || 0);
           materialRequirements[code].source = material.source || materialRequirements[code].source;
-          
+
           // 净需求 = 需求量 - 当前库存
           const netDemand = materialRequirements[code].demandQty - materialRequirements[code].currentStock;
           materialRequirements[code].netDemandQty = Math.max(0, netDemand);
@@ -171,14 +167,14 @@ router.post('/calculate', async (req, res) => {
 
     // 5. 分类汇总：生产需求和采购需求
     const productionRequirements = []; // 需要生产的（自制）
-    const purchaseRequirements = [];   // 需要采购的（外购）
-    
+    const purchaseRequirements = []; // 需要采购的（外购）
+
     for (const [code, req] of Object.entries(materialRequirements)) {
       const item = {
         ...req,
-        netDemandQty: req.netDemandQty || Math.max(0, req.demandQty - (req.currentStock || 0))
+        netDemandQty: req.netDemandQty || Math.max(0, req.demandQty - (req.currentStock || 0)),
       };
-      
+
       // 根据来源分类
       if (req.source && req.source.includes('自制')) {
         productionRequirements.push(item);
@@ -196,7 +192,7 @@ router.post('/calculate', async (req, res) => {
       productionCount: productionRequirements.length,
       purchaseCount: purchaseRequirements.length,
       totalDemandValue: 0, // 可以后续增加金额计算
-      ordersProcessed: orders.length
+      ordersProcessed: orders.length,
     };
 
     const result = {
@@ -207,8 +203,8 @@ router.post('/calculate', async (req, res) => {
       processedOrders: orders.map(o => ({
         orderNo: o.internalOrderNo,
         customerName: o.customerName,
-        orderStatus: o.orderStatus
-      }))
+        orderStatus: o.orderStatus,
+      })),
     };
 
     console.log('MRP运算完成');
@@ -217,14 +213,13 @@ router.post('/calculate', async (req, res) => {
     res.json({
       code: 200,
       data: result,
-      message: 'MRP运算完成'
+      message: 'MRP运算完成',
     });
-
   } catch (error) {
     console.error('MRP运算失败:', error);
     res.status(500).json({
       code: 500,
-      message: `MRP运算失败: ${error.message}`
+      message: `MRP运算失败: ${error.message}`,
     });
   }
 });
@@ -235,11 +230,11 @@ router.post('/calculate', async (req, res) => {
 router.post('/material-demands/save', async (req, res) => {
   try {
     const { demands } = req.body;
-    
+
     if (!demands || !Array.isArray(demands) || demands.length === 0) {
       return res.status(400).json({
         code: 400,
-        message: '请提供需求数据'
+        message: '请提供需求数据',
       });
     }
 
@@ -279,7 +274,7 @@ router.post('/material-demands/save', async (req, res) => {
       const columns = await pool.query(`
         SHOW COLUMNS FROM material_demand_details LIKE 'mrp_code'
       `);
-      
+
       if (columns.length === 0) {
         // 字段不存在，添加它
         await pool.query(`
@@ -297,7 +292,7 @@ router.post('/material-demands/save', async (req, res) => {
       const indexes = await pool.query(`
         SHOW INDEX FROM material_demand_details WHERE Key_name = 'idx_mrp_code'
       `);
-      
+
       if (indexes.length === 0) {
         await pool.query(`
           ALTER TABLE material_demand_details 
@@ -341,7 +336,7 @@ router.post('/material-demands/save', async (req, res) => {
       d.toBeShippedStock || 0,
       d.suggestedQty || 0,
       d.adjustedQty || 0,
-      d.executeQty || 0
+      d.executeQty || 0,
     ]);
 
     await pool.query(insertQuery, [values]);
@@ -351,14 +346,13 @@ router.post('/material-demands/save', async (req, res) => {
     res.json({
       code: 200,
       data: { savedCount: demands.length },
-      message: `成功保存${demands.length}条记录`
+      message: `成功保存${demands.length}条记录`,
     });
-
   } catch (error) {
     console.error('保存物料需求明细失败:', error);
     res.status(500).json({
       code: 500,
-      message: `保存失败: ${error.message}`
+      message: `保存失败: ${error.message}`,
     });
   }
 });
@@ -417,23 +411,22 @@ router.get('/material-demands', async (req, res) => {
       adjustedQty: parseFloat(d.adjusted_qty || 0),
       executeQty: parseFloat(d.execute_qty || 0),
       createdAt: d.created_at,
-      updatedAt: d.updated_at
+      updatedAt: d.updated_at,
     }));
 
     res.json({
       code: 200,
       data: {
         list: result,
-        total: result.length
+        total: result.length,
       },
-      message: '查询成功'
+      message: '查询成功',
     });
-
   } catch (error) {
     console.error('查询物料需求明细失败:', error);
     res.status(500).json({
       code: 500,
-      message: `查询失败: ${error.message}`
+      message: `查询失败: ${error.message}`,
     });
   }
 });

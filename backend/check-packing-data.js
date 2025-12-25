@@ -10,7 +10,7 @@ async function checkData() {
       ORDER BY id DESC 
       LIMIT 3
     `);
-    
+
     console.log('\n打包工序计划数据:');
     rows.forEach(row => {
       console.log('\n---------------------------');
@@ -25,7 +25,7 @@ async function checkData() {
       console.log(`定时工额: ${row.standard_work_quota}`);
       console.log(`需求工时: ${row.required_work_hours}`);
     });
-    
+
     process.exit(0);
   } catch (error) {
     console.error('Error:', error);

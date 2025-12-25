@@ -29,11 +29,12 @@ async function syncExistingPlansToCapacity() {
 
     plans.forEach(plan => {
       const processName = plan.process_name;
-      const scheduleDate = plan.schedule_date instanceof Date
-        ? plan.schedule_date.toISOString().split('T')[0]
-        : String(plan.schedule_date).split('T')[0];
+      const scheduleDate =
+        plan.schedule_date instanceof Date
+          ? plan.schedule_date.toISOString().split('T')[0]
+          : String(plan.schedule_date).split('T')[0];
       const key = `${processName}__${scheduleDate}`;
-      
+
       if (groupedMap.has(key)) {
         groupedMap.get(key).totalHours += parseFloat(plan.scheduled_work_hours);
         groupedMap.get(key).count++;
@@ -42,7 +43,7 @@ async function syncExistingPlansToCapacity() {
           processName,
           scheduleDate,
           totalHours: parseFloat(plan.scheduled_work_hours),
-          count: 1
+          count: 1,
         });
       }
     });
@@ -55,35 +56,33 @@ async function syncExistingPlansToCapacity() {
 
     for (const [key, group] of groupedMap) {
       const { processName, scheduleDate, totalHours, count } = group;
-      
+
       try {
-        console.log(`🔍 处理: 工序=${processName}, 日期=${scheduleDate}, 累计排程工时=${totalHours.toFixed(2)} (${count}条记录)`);
-        
+        console.log(
+          `🔍 处理: 工序=${processName}, 日期=${scheduleDate}, 累计排程工时=${totalHours.toFixed(2)} (${count}条记录)`,
+        );
+
         // 查询工序能力负荷表记录
         const [capacityRows] = await connection.execute(
           'SELECT id, work_shift, available_workstations, occupied_hours FROM process_capacity_load WHERE process_name = ? AND date = ?',
-          [processName, scheduleDate]
+          [processName, scheduleDate],
         );
-        
+
         if (capacityRows.length > 0) {
           const record = capacityRows[0];
           const previousOccupiedHours = parseFloat(record.occupied_hours || 0);
           const newOccupiedHours = parseFloat((previousOccupiedHours + totalHours).toFixed(2));
           const workShift = parseFloat(record.work_shift || 0);
           const availableWorkstations = parseFloat(record.available_workstations || 0);
-          
+
           // 重新计算剩余工时和剩余时段
-          const newRemainingHours = parseFloat(
-            (workShift * availableWorkstations - newOccupiedHours).toFixed(2)
-          );
-          
+          const newRemainingHours = parseFloat((workShift * availableWorkstations - newOccupiedHours).toFixed(2));
+
           let newRemainingShift = 0;
           if (availableWorkstations > 0) {
-            newRemainingShift = parseFloat(
-              (newRemainingHours / availableWorkstations).toFixed(2)
-            );
+            newRemainingShift = parseFloat((newRemainingHours / availableWorkstations).toFixed(2));
           }
-          
+
           // 更新数据库
           await connection.execute(
             `UPDATE process_capacity_load 
@@ -92,10 +91,12 @@ async function syncExistingPlansToCapacity() {
                  remaining_shift = ?,
                  updated_at = NOW()
              WHERE id = ?`,
-            [newOccupiedHours, newRemainingHours, newRemainingShift, record.id]
+            [newOccupiedHours, newRemainingHours, newRemainingShift, record.id],
           );
-          
-          console.log(`   ✅ 已占用工时: ${previousOccupiedHours} → ${newOccupiedHours} (增加${totalHours.toFixed(2)}小时)`);
+
+          console.log(
+            `   ✅ 已占用工时: ${previousOccupiedHours} → ${newOccupiedHours} (增加${totalHours.toFixed(2)}小时)`,
+          );
           console.log(`   剩余工时: ${newRemainingHours}, 剩余时段: ${newRemainingShift}\n`);
           successCount++;
         } else {
@@ -113,7 +114,6 @@ async function syncExistingPlansToCapacity() {
     console.log(`   成功: ${successCount} 个`);
     console.log(`   失败: ${errorCount} 个`);
     console.log(`${'='.repeat(60)}\n`);
-
   } catch (error) {
     console.error('❌ 同步失败:', error);
     throw error;

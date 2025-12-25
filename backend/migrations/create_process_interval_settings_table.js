@@ -7,10 +7,10 @@ const { pool } = require('../config/database');
 
 async function createProcessIntervalSettingsTable() {
   const connection = await pool.getConnection();
-  
+
   try {
     console.log('🔧 开始创建工序间隔设置表...');
-    
+
     // 创建工序间隔设置表
     await connection.execute(`
       CREATE TABLE IF NOT EXISTS process_interval_settings (
@@ -27,9 +27,9 @@ async function createProcessIntervalSettingsTable() {
         INDEX idx_next_process (next_process)
       ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='工序间隔设置表'
     `);
-    
+
     console.log('✅ 工序间隔设置表创建成功');
-    
+
     // 插入初始数据（常见工序间隔）
     const initialData = [
       { previous: '组装', next: '打包', value: 1, unit: '天', remark: '组装完成后到打包的间隔时间' },
@@ -37,12 +37,13 @@ async function createProcessIntervalSettingsTable() {
       { previous: '冲床', next: '折弯', value: 1, unit: '小时', remark: '冲压后折弯间隔' },
       { previous: '折弯', next: '焊接', value: 3, unit: '小时', remark: '折弯后焊接间隔' },
       { previous: '人工焊接', next: '机器打磨', value: 4, unit: '小时', remark: '焊接后打磨间隔' },
-      { previous: '机器打磨', next: '喷塑', value: 2, unit: '小时', remark: '打磨后喷塑间隔' }
+      { previous: '机器打磨', next: '喷塑', value: 2, unit: '小时', remark: '打磨后喷塑间隔' },
     ];
-    
+
     for (const data of initialData) {
       try {
-        await connection.execute(`
+        await connection.execute(
+          `
           INSERT INTO process_interval_settings 
           (previous_process, next_process, interval_value, interval_unit, remark)
           VALUES (?, ?, ?, ?, ?)
@@ -50,16 +51,17 @@ async function createProcessIntervalSettingsTable() {
             interval_value = VALUES(interval_value),
             interval_unit = VALUES(interval_unit),
             remark = VALUES(remark)
-        `, [data.previous, data.next, data.value, data.unit, data.remark]);
-        
+        `,
+          [data.previous, data.next, data.value, data.unit, data.remark],
+        );
+
         console.log(`✅ 初始化工序间隔: ${data.previous} → ${data.next} (${data.value}${data.unit})`);
       } catch (err) {
         console.log(`⚠️  跳过已存在的工序间隔: ${data.previous} → ${data.next}`);
       }
     }
-    
+
     console.log('✅ 初始数据插入完成');
-    
   } catch (error) {
     console.error('❌ 创建工序间隔设置表失败:', error);
     throw error;

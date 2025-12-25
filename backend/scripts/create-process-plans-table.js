@@ -5,10 +5,10 @@ const { pool } = require('../config/database');
  */
 async function createProcessPlansTable() {
   const connection = await pool.getConnection();
-  
+
   try {
     console.log('开始创建工序计划表...');
-    
+
     await connection.execute(`
       CREATE TABLE IF NOT EXISTS process_plans (
         id INT PRIMARY KEY AUTO_INCREMENT COMMENT '主键ID',
@@ -56,9 +56,8 @@ async function createProcessPlansTable() {
         INDEX idx_created_at (created_at)
       ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='工序计划表';
     `);
-    
+
     console.log('✅ 工序计划表创建成功');
-    
   } catch (error) {
     console.error('❌ 创建工序计划表失败:', error);
     throw error;
@@ -73,7 +72,7 @@ createProcessPlansTable()
     console.log('数据库表创建完成');
     process.exit(0);
   })
-  .catch((error) => {
+  .catch(error => {
     console.error('创建失败:', error);
     process.exit(1);
   });

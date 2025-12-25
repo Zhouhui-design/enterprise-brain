@@ -98,13 +98,20 @@ class ProductManualService {
       WHERE pm.productCode = ?
     `;
     const results = await query(sql, [productCode]);
-    
-    console.log('🔍 查询产品编号:', productCode, '结果:', results.length > 0 ? {
-      id: results[0]?.id,
-      productCode: results[0]?.productCode,
-      productName: results[0]?.productName
-    } : '未找到');
-    
+
+    console.log(
+      '🔍 查询产品编号:',
+      productCode,
+      '结果:',
+      results.length > 0
+        ? {
+            id: results[0]?.id,
+            productCode: results[0]?.productCode,
+            productName: results[0]?.productName,
+          }
+        : '未找到',
+    );
+
     return results[0];
   }
 
@@ -127,7 +134,7 @@ class ProductManualService {
       isEnabled,
       designer,
       bomMaintainer,
-      remark
+      remark,
     } = data;
 
     const sql = `
@@ -155,7 +162,7 @@ class ProductManualService {
       isEnabled !== false ? 1 : 0,
       designer || '',
       bomMaintainer || '',
-      remark || ''
+      remark || '',
     ]);
 
     return result.insertId;
@@ -180,7 +187,7 @@ class ProductManualService {
       isEnabled,
       designer,
       bomMaintainer,
-      remark
+      remark,
     } = data;
 
     const sql = `
@@ -222,7 +229,7 @@ class ProductManualService {
       designer || '',
       bomMaintainer || '',
       remark || '',
-      id
+      id,
     ]);
 
     return result.affectedRows > 0;

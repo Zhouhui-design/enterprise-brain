@@ -2,30 +2,19 @@
  * 采购计划Service
  */
 
-const { query } = require('../config/database');
+const DBUtil = require('../utils/dbUtil');
 
 class ProcurementPlanService {
   /**
    * 获取采购计划列表（分页+搜索）
    */
   async getList(params) {
-    const {
-      page = 1,
-      pageSize = 20,
-      procurementPlanNo,
-      purchaseOrderNo,
-      procurementStatus,
-      supplierName
-    } = params;
+    const { page = 1, pageSize = 20, procurementPlanNo, purchaseOrderNo, procurementStatus, supplierName } = params;
 
-    // 确保page和pageSize是整数
-    const pageNum = parseInt(page, 10);
-    const pageSizeNum = parseInt(pageSize, 10);
-    const offset = (pageNum - 1) * pageSizeNum;
+    // 构建搜索条件
     let conditions = [];
     let queryParams = [];
 
-    // 构建搜索条件
     if (procurementPlanNo) {
       conditions.push('procurement_plan_no LIKE ?');
       queryParams.push(`%${procurementPlanNo}%`);
@@ -48,85 +37,32 @@ class ProcurementPlanService {
     // 查询总数
     let countSql = `SELECT COUNT(*) as total FROM procurement_plans`;
     let countParams = [];
-    
+
     if (conditions.length > 0) {
       countSql += ' WHERE ' + conditions.join(' AND ');
       countParams = [...queryParams];
     }
-    
-    const countResult = await query(countSql, countParams);
-    const total = countResult[0].total;
+
+    const countResult = await DBUtil.queryOne(countSql, countParams);
+    const total = countResult.total;
 
     // 查询数据
-    const dataSql = `
+    const baseSql = `
       SELECT * FROM procurement_plans 
       ${whereClause}
       ORDER BY created_at DESC
-      LIMIT ${parseInt(pageSize)} OFFSET ${parseInt(offset)}
     `;
-    const records = await query(dataSql, queryParams);
+    const dataSql = DBUtil.buildPaginationSql(baseSql, page, pageSize);
+    const records = await DBUtil.query(dataSql, queryParams);
 
-    // ✅ 字段映射：数据库下划线格式 → 前端驼峰格式
-    const formattedRecords = records.map(record => ({
-      id: record.id,
-      procurementPlanNo: record.procurement_plan_no,
-      purchaseOrderNo: record.purchase_order_no,
-      sourceFormName: record.source_form_name,
-      sourceNo: record.source_no,
-      materialCode: record.material_code,
-      materialName: record.material_name,
-      materialImage: record.material_image,
-      requiredQuantity: record.required_quantity,
-      baseUnit: record.base_unit,
-      salesOrderNo: record.sales_order_no,
-      customerOrderNo: record.customer_order_no,
-      masterPlanNo: record.master_plan_no,
-      processPlanNo: record.process_plan_no,
-      materialPlanNo: record.material_plan_no,
-      procurementLeadTime: record.procurement_lead_time, // ✅ 新增：采购提前期
-      demandDate: record.demand_date, // ✅ 新增：需求日期
-      planArrivalDate: record.plan_arrival_date,
-      procurementStatus: record.procurement_status,
-      supplierName: record.supplier_name,
-      purchaser: record.purchaser,
-      inquiryDate: record.inquiry_date,
-      orderDate: record.order_date,
-      promisedArrivalDate: record.promised_arrival_date,
-      planPurchaseQuantity: record.plan_purchase_quantity,
-      conversionRate: record.conversion_rate,
-      purchaseUnit: record.purchase_unit,
-      planUnitPrice: record.plan_unit_price,
-      planTotalAmount: record.plan_total_amount,
-      actualPurchaseQuantity: record.actual_purchase_quantity,
-      actualUnitPrice: record.actual_unit_price,
-      actualTotalAmount: record.actual_total_amount,
-      actualArrivalDate: record.actual_arrival_date,
-      actualWarehouseQuantity: record.actual_warehouse_quantity,
-      warehouseReceiptNo: record.warehouse_receipt_no,
-      warehousePerson: record.warehouse_person,
-      qualityInspector: record.quality_inspector,
-      returnOrderNo: record.return_order_no,
-      returnHandler: record.return_handler,
-      actualWarehouseUnitPrice: record.actual_warehouse_unit_price,
-      supplierDeliveryNoteNo: record.supplier_delivery_note_no,
-      deliveryNoteImage: record.delivery_note_image,
-      paymentMethod: record.payment_method,
-      isPaid: record.is_paid,
-      paymentNo: record.payment_no,
-      paymentPerson: record.payment_person,
-      reimbursementNo: record.reimbursement_no,
-      reimbursementPerson: record.reimbursement_person,
-      monthlyReconciliationDate: record.monthly_reconciliation_date,
-      monthlyPaymentDate: record.monthly_payment_date,
-      createdAt: record.created_at,
-      updatedAt: record.updated_at
-    }));
+    // ✅ 使用DBUtil转换字段名：数据库下划线格式 → 前端驼峰格式
+    const formattedRecords = DBUtil.toCamelCase(records);
 
     return {
       records: formattedRecords,
       total,
-      page: pageNum,
-      pageSize: pageSizeNum
+      page: parseInt(page),
+      pageSize: parseInt(pageSize),
     };
   }
 
@@ -135,8 +71,8 @@ class ProcurementPlanService {
    */
   async getById(id) {
     const sql = 'SELECT * FROM procurement_plans WHERE id = ?';
-    const result = await query(sql, [id]);
-    return result[0] || null;
+    const result = await DBUtil.queryOne(sql, [id]);
+    return result;
   }
 
   /**
@@ -163,23 +99,58 @@ class ProcurementPlanService {
     `;
 
     const params = [
-      data.procurementPlanNo || null, data.purchaseOrderNo || null, data.sourceFormName || null, data.sourceNo || null,
-      data.materialCode || null, data.materialName || null, data.materialImage || null, data.requiredQuantity || 0, data.baseUnit || null,
-      data.salesOrderNo || null, data.customerOrderNo || null, data.masterPlanNo || null, data.processPlanNo || null, data.materialPlanNo || null,
-      data.procurementLeadTime || 3, data.demandDate || null, // ✅ 新增字段
-      data.planArrivalDate || null, data.procurementStatus || 'PENDING_ORDER', data.supplierName || null, data.purchaser || null, // ✅ 默认状态：待下单
-      data.inquiryDate || null, data.orderDate || null, data.promisedArrivalDate || null,
-      data.planPurchaseQuantity || 0, data.conversionRate || 1, data.purchaseUnit || null, data.planUnitPrice || 0, data.planTotalAmount || 0,
-      data.actualPurchaseQuantity || 0, data.actualUnitPrice || 0, data.actualTotalAmount || 0, data.actualArrivalDate || null,
-      data.actualWarehouseQuantity || 0, data.warehouseReceiptNo || null, data.warehousePerson || null, data.qualityInspector || null,
-      data.returnOrderNo || null, data.returnHandler || null, data.actualWarehouseUnitPrice || 0,
-      data.supplierDeliveryNoteNo || null, data.deliveryNoteImage || null,
-      data.paymentMethod || null, data.isPaid || 0, data.paymentNo || null, data.paymentPerson || null,
-      data.reimbursementNo || null, data.reimbursementPerson || null,
-      data.monthlyReconciliationDate || null, data.monthlyPaymentDate || null
+      data.procurementPlanNo || null,
+      data.purchaseOrderNo || null,
+      data.sourceFormName || null,
+      data.sourceNo || null,
+      data.materialCode || null,
+      data.materialName || null,
+      data.materialImage || null,
+      data.requiredQuantity || 0,
+      data.baseUnit || null,
+      data.salesOrderNo || null,
+      data.customerOrderNo || null,
+      data.masterPlanNo || null,
+      data.processPlanNo || null,
+      data.materialPlanNo || null,
+      data.procurementLeadTime || 3,
+      data.demandDate || null, // ✅ 新增字段
+      data.planArrivalDate || null,
+      data.procurementStatus || 'PENDING_ORDER',
+      data.supplierName || null,
+      data.purchaser || null, // ✅ 默认状态：待下单
+      data.inquiryDate || null,
+      data.orderDate || null,
+      data.promisedArrivalDate || null,
+      data.planPurchaseQuantity || 0,
+      data.conversionRate || 1,
+      data.purchaseUnit || null,
+      data.planUnitPrice || 0,
+      data.planTotalAmount || 0,
+      data.actualPurchaseQuantity || 0,
+      data.actualUnitPrice || 0,
+      data.actualTotalAmount || 0,
+      data.actualArrivalDate || null,
+      data.actualWarehouseQuantity || 0,
+      data.warehouseReceiptNo || null,
+      data.warehousePerson || null,
+      data.qualityInspector || null,
+      data.returnOrderNo || null,
+      data.returnHandler || null,
+      data.actualWarehouseUnitPrice || 0,
+      data.supplierDeliveryNoteNo || null,
+      data.deliveryNoteImage || null,
+      data.paymentMethod || null,
+      data.isPaid || 0,
+      data.paymentNo || null,
+      data.paymentPerson || null,
+      data.reimbursementNo || null,
+      data.reimbursementPerson || null,
+      data.monthlyReconciliationDate || null,
+      data.monthlyPaymentDate || null,
     ];
 
-    const result = await query(sql, params);
+    const result = await DBUtil.queryOne(sql, params);
     return result.insertId;
   }
 
@@ -197,13 +168,7 @@ class ProcurementPlanService {
       WHERE id = ?
     `;
 
-    await query(sql, [
-      data.procurementStatus,
-      data.supplierName,
-      data.purchaser,
-      data.planArrivalDate,
-      id
-    ]);
+    await DBUtil.queryOne(sql, [data.procurementStatus, data.supplierName, data.purchaser, data.planArrivalDate, id]);
 
     return true;
   }
@@ -213,7 +178,7 @@ class ProcurementPlanService {
    */
   async delete(id) {
     const sql = 'DELETE FROM procurement_plans WHERE id = ?';
-    await query(sql, [id]);
+    await DBUtil.queryOne(sql, [id]);
     return true;
   }
 
@@ -227,7 +192,7 @@ class ProcurementPlanService {
 
     const placeholders = ids.map(() => '?').join(',');
     const sql = `DELETE FROM procurement_plans WHERE id IN (${placeholders})`;
-    await query(sql, ids);
+    await DBUtil.queryOne(sql, ids);
     return true;
   }
 
@@ -241,7 +206,7 @@ class ProcurementPlanService {
 
     const placeholders = ids.map(() => '?').join(',');
     const sql = `UPDATE procurement_plans SET procurement_status = 'TERMINATED' WHERE id IN (${placeholders})`;
-    await query(sql, ids);
+    await DBUtil.queryOne(sql, ids);
     return true;
   }
 
@@ -255,7 +220,7 @@ class ProcurementPlanService {
 
     const placeholders = ids.map(() => '?').join(',');
     const sql = `UPDATE procurement_plans SET procurement_status = 'PENDING_INQUIRY' WHERE id IN (${placeholders})`;
-    await query(sql, ids);
+    await DBUtil.queryOne(sql, ids);
     return true;
   }
 
@@ -272,7 +237,7 @@ class ProcurementPlanService {
     // 查询所有选中的采购计划
     const placeholders = planIds.map(() => '?').join(',');
     const selectSql = `SELECT * FROM procurement_plans WHERE id IN (${placeholders})`;
-    const plans = await query(selectSql, planIds);
+    const plans = await DBUtil.query(selectSql, planIds);
 
     if (plans.length === 0) {
       throw new Error('未找到有效的采购计划');
@@ -282,14 +247,14 @@ class ProcurementPlanService {
 
     // 根据合并规则分组
     const groups = {};
-    
+
     if (mergeRule === 'sameSupplierSameDate') {
       // 相同供应商 + 相同承诺回厂日期合并
       plans.forEach(plan => {
         const supplierName = plan.supplier_name || 'NO_SUPPLIER';
         const promisedDate = plan.promised_arrival_date || 'NO_DATE';
         const groupKey = `${supplierName}||${promisedDate}`;
-        
+
         if (!groups[groupKey]) {
           groups[groupKey] = [];
         }
@@ -306,7 +271,9 @@ class ProcurementPlanService {
     const generateOrderNo = () => {
       const year = new Date().getFullYear();
       const timestamp = Date.now().toString().slice(-6);
-      const random = Math.floor(Math.random() * 1000).toString().padStart(3, '0');
+      const random = Math.floor(Math.random() * 1000)
+        .toString()
+        .padStart(3, '0');
       return `CGDD${year}${timestamp}${random}`;
     };
 
@@ -315,9 +282,9 @@ class ProcurementPlanService {
     for (const groupKey in groups) {
       const groupPlans = groups[groupKey];
       const purchaseOrderNo = generateOrderNo();
-      
+
       console.log(`📝 生成采购订单: ${purchaseOrderNo}, 包含 ${groupPlans.length} 条采购计划`);
-      
+
       // 更新所有属于该组的采购计划
       const planIdsInGroup = groupPlans.map(p => p.id);
       const updatePlaceholders = planIdsInGroup.map(() => '?').join(',');
@@ -328,15 +295,15 @@ class ProcurementPlanService {
             updated_at = CURRENT_TIMESTAMP 
         WHERE id IN (${updatePlaceholders})
       `;
-      
-      await query(updateSql, [purchaseOrderNo, ...planIdsInGroup]);
-      
+
+      await DBUtil.queryOne(updateSql, [purchaseOrderNo, ...planIdsInGroup]);
+
       orders.push({
         purchaseOrderNo,
         planCount: groupPlans.length,
         supplierName: groupPlans[0].supplier_name,
         promisedArrivalDate: groupPlans[0].promised_arrival_date,
-        planIds: planIdsInGroup
+        planIds: planIdsInGroup,
       });
     }
 
@@ -345,7 +312,7 @@ class ProcurementPlanService {
     return {
       success: true,
       orderCount: orders.length,
-      orders: orders
+      orders: orders,
     };
   }
 
@@ -365,9 +332,9 @@ class ProcurementPlanService {
           updated_at = CURRENT_TIMESTAMP 
       WHERE id IN (${placeholders})
     `;
-    
-    await query(sql, ids);
-    
+
+    await DBUtil.queryOne(sql, ids);
+
     console.log(`💬 成功将 ${ids.length} 条采购计划更新为询问中状态`);
     return true;
   }
@@ -388,9 +355,9 @@ class ProcurementPlanService {
       FROM procurement_plans 
       WHERE id IN (${placeholders})
     `;
-    
-    const plans = await query(checkSql, ids);
-    
+
+    const plans = await DBUtil.query(checkSql, ids);
+
     const invalidPlans = plans.filter(plan => {
       if (!plan.purchase_order_no) return true;
       if (plan.procurement_status !== 'PENDING_ORDER' && plan.procurement_status !== 'INQUIRING') {
@@ -398,7 +365,7 @@ class ProcurementPlanService {
       }
       return false;
     });
-    
+
     if (invalidPlans.length > 0) {
       throw new Error('只能选择采购订单编号不为空，且采购状态为“待下单”或“询问中，待回复”的计划');
     }
@@ -409,9 +376,9 @@ class ProcurementPlanService {
           updated_at = CURRENT_TIMESTAMP 
       WHERE id IN (${placeholders})
     `;
-    
-    await query(updateSql, ids);
-    
+
+    await DBUtil.queryOne(updateSql, ids);
+
     console.log(`🛍️ 成功下单 ${ids.length} 条采购计划`);
     return true;
   }
@@ -432,11 +399,11 @@ class ProcurementPlanService {
       FROM procurement_plans 
       WHERE id IN (${placeholders})
     `;
-    
-    const plans = await query(checkSql, ids);
-    
+
+    const plans = await DBUtil.query(checkSql, ids);
+
     const invalidPlans = plans.filter(plan => plan.procurement_status !== 'ORDERED');
-    
+
     if (invalidPlans.length > 0) {
       throw new Error('只能选择采购状态为“已下单”的计划');
     }
@@ -449,9 +416,9 @@ class ProcurementPlanService {
           updated_at = CURRENT_TIMESTAMP 
       WHERE id IN (${placeholders})
     `;
-    
-    await query(updateSql, ids);
-    
+
+    await DBUtil.queryOne(updateSql, ids);
+
     console.log(`🔙 成功撤回 ${ids.length} 条采购计划`);
     return true;
   }

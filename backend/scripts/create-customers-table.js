@@ -1,6 +1,6 @@
-const db = require('../config/database')
+const db = require('../config/database');
 
-console.log('开始创建customers表...')
+console.log('开始创建customers表...');
 
 try {
   // 创建customers表
@@ -47,10 +47,10 @@ try {
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
       updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
     )
-  `)
-  
-  console.log('✅ customers表创建成功！')
-  
+  `);
+
+  console.log('✅ customers表创建成功！');
+
   // 创建索引
   db.exec(`
     CREATE INDEX IF NOT EXISTS idx_customers_code ON customers(customer_code);
@@ -58,16 +58,15 @@ try {
     CREATE INDEX IF NOT EXISTS idx_customers_type ON customers(customer_type);
     CREATE INDEX IF NOT EXISTS idx_customers_status ON customers(status);
     CREATE INDEX IF NOT EXISTS idx_customers_region ON customers(region);
-  `)
-  
-  console.log('✅ 索引创建成功！')
-  
+  `);
+
+  console.log('✅ 索引创建成功！');
+
   // 检查表结构
-  const tableInfo = db.prepare('PRAGMA table_info(customers)').all()
-  console.log('\n表结构：')
-  console.table(tableInfo)
-  
+  const tableInfo = db.prepare('PRAGMA table_info(customers)').all();
+  console.log('\n表结构：');
+  console.table(tableInfo);
 } catch (error) {
-  console.error('❌ 创建表失败:', error)
-  process.exit(1)
+  console.error('❌ 创建表失败:', error);
+  process.exit(1);
 }

@@ -5,7 +5,7 @@ const MaterialService = require('../services/materialService');
 describe('Materials API', () => {
   let testMaterialId = null;
   const testMaterialCode = 'TEST-MAT-001';
-  
+
   // 测试数据
   const testMaterial = {
     materialCode: testMaterialCode,
@@ -15,16 +15,13 @@ describe('Materials API', () => {
     source: ['测试来源'],
     purchasePrice: 100,
     purchaseConversionRate: 1,
-    basePrice: 100
+    basePrice: 100,
   };
 
   describe('GET /api/materials/list', () => {
     it('should return all materials', async () => {
-      const res = await request(app)
-        .get('/api/materials/list')
-        .expect('Content-Type', /json/)
-        .expect(200);
-      
+      const res = await request(app).get('/api/materials/list').expect('Content-Type', /json/).expect(200);
+
       expect(res.body).toHaveProperty('code', 200);
       expect(res.body).toHaveProperty('data');
       expect(Array.isArray(res.body.data)).toBeTruthy();
@@ -38,11 +35,11 @@ describe('Materials API', () => {
         .send(testMaterial)
         .expect('Content-Type', /json/)
         .expect(200);
-      
+
       expect(res.body).toHaveProperty('code', 200);
       expect(res.body).toHaveProperty('data');
       expect(res.body.data).toHaveProperty('id');
-      
+
       testMaterialId = res.body.data.id;
     });
 
@@ -52,7 +49,7 @@ describe('Materials API', () => {
         .send(testMaterial)
         .expect('Content-Type', /json/)
         .expect(500);
-      
+
       expect(res.body).toHaveProperty('code', 500);
     });
   });
@@ -63,7 +60,7 @@ describe('Materials API', () => {
         .get(`/api/materials/by-code/${testMaterialCode}`)
         .expect('Content-Type', /json/)
         .expect(200);
-      
+
       expect(res.body).toHaveProperty('code', 200);
       expect(res.body).toHaveProperty('data');
       expect(res.body.data).toHaveProperty('material_code', testMaterialCode);
@@ -74,7 +71,7 @@ describe('Materials API', () => {
         .get('/api/materials/by-code/NON-EXISTENT')
         .expect('Content-Type', /json/)
         .expect(404);
-      
+
       expect(res.body).toHaveProperty('code', 404);
     });
   });
@@ -84,24 +81,22 @@ describe('Materials API', () => {
       const updatedMaterial = {
         ...testMaterial,
         materialName: '更新后的测试物料',
-        purchasePrice: 150
+        purchasePrice: 150,
       };
-      
+
       const res = await request(app)
         .put(`/api/materials/update/${testMaterialId}`)
         .send(updatedMaterial)
         .expect('Content-Type', /json/)
         .expect(200);
-      
+
       expect(res.body).toHaveProperty('code', 200);
       expect(res.body).toHaveProperty('data');
       expect(res.body.data).toHaveProperty('id', testMaterialId);
-      
+
       // 验证更新是否成功
-      const getRes = await request(app)
-        .get(`/api/materials/by-code/${testMaterialCode}`)
-        .expect(200);
-      
+      const getRes = await request(app).get(`/api/materials/by-code/${testMaterialCode}`).expect(200);
+
       expect(getRes.body.data).toHaveProperty('material_name', '更新后的测试物料');
     });
 
@@ -111,7 +106,7 @@ describe('Materials API', () => {
         .send(testMaterial)
         .expect('Content-Type', /json/)
         .expect(500);
-      
+
       expect(res.body).toHaveProperty('code', 500);
     });
   });
@@ -122,18 +117,15 @@ describe('Materials API', () => {
         .get('/api/materials/search?keyword=测试')
         .expect('Content-Type', /json/)
         .expect(200);
-      
+
       expect(res.body).toHaveProperty('code', 200);
       expect(res.body).toHaveProperty('data');
       expect(Array.isArray(res.body.data)).toBeTruthy();
     });
 
     it('should return all materials when keyword is empty', async () => {
-      const res = await request(app)
-        .get('/api/materials/search?keyword=')
-        .expect('Content-Type', /json/)
-        .expect(200);
-      
+      const res = await request(app).get('/api/materials/search?keyword=').expect('Content-Type', /json/).expect(200);
+
       expect(res.body).toHaveProperty('code', 200);
       expect(res.body).toHaveProperty('data');
       expect(Array.isArray(res.body.data)).toBeTruthy();
@@ -146,23 +138,18 @@ describe('Materials API', () => {
         .delete(`/api/materials/delete/${testMaterialId}`)
         .expect('Content-Type', /json/)
         .expect(200);
-      
+
       expect(res.body).toHaveProperty('code', 200);
-      
+
       // 验证删除是否成功
-      const getRes = await request(app)
-        .get(`/api/materials/by-code/${testMaterialCode}`)
-        .expect(404);
-      
+      const getRes = await request(app).get(`/api/materials/by-code/${testMaterialCode}`).expect(404);
+
       expect(getRes.body).toHaveProperty('code', 404);
     });
 
     it('should fail to delete non-existent material', async () => {
-      const res = await request(app)
-        .delete('/api/materials/delete/999999')
-        .expect('Content-Type', /json/)
-        .expect(500);
-      
+      const res = await request(app).delete('/api/materials/delete/999999').expect('Content-Type', /json/).expect(500);
+
       expect(res.body).toHaveProperty('code', 500);
     });
   });

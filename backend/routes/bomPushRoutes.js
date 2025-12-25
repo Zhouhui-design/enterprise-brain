@@ -11,13 +11,13 @@ router.post('/sync-all', async (req, res) => {
     res.json({
       code: 200,
       data: result,
-      message: '同步所有生产BOM成功'
+      message: '同步所有生产BOM成功',
     });
   } catch (error) {
     console.error('同步所有生产BOM失败:', error);
     res.status(500).json({
       code: 500,
-      message: error.message
+      message: error.message,
     });
   }
 });
@@ -32,13 +32,13 @@ router.post('/sync/:bomId', async (req, res) => {
     res.json({
       code: 200,
       data: result,
-      message: '同步单个生产BOM成功'
+      message: '同步单个生产BOM成功',
     });
   } catch (error) {
     console.error('同步单个生产BOM失败:', error);
     res.status(500).json({
       code: 500,
-      message: error.message
+      message: error.message,
     });
   }
 });
@@ -53,13 +53,13 @@ router.post('/push-to-style/:bomId', async (req, res) => {
     res.json({
       code: 200,
       data: result,
-      message: '推送到列表式生产BOM成功'
+      message: '推送到列表式生产BOM成功',
     });
   } catch (error) {
     console.error('推送到列表式生产BOM失败:', error);
     res.status(500).json({
       code: 500,
-      message: error.message
+      message: error.message,
     });
   }
 });
@@ -74,13 +74,13 @@ router.post('/push-to-manual/:bomId', async (req, res) => {
     res.json({
       code: 200,
       data: result,
-      message: '推送到产品手册成功'
+      message: '推送到产品手册成功',
     });
   } catch (error) {
     console.error('推送到产品手册失败:', error);
     res.status(500).json({
       code: 500,
-      message: error.message
+      message: error.message,
     });
   }
 });
@@ -94,13 +94,13 @@ router.post('/push-all-pending', async (req, res) => {
     res.json({
       code: 200,
       data: result,
-      message: '推送所有未推送BOM成功'
+      message: '推送所有未推送BOM成功',
     });
   } catch (error) {
     console.error('推送所有未推送BOM失败:', error);
     res.status(500).json({
       code: 500,
-      message: error.message
+      message: error.message,
     });
   }
 });
@@ -115,13 +115,13 @@ router.post('/execute-push/:bomId', async (req, res) => {
     res.json({
       code: 200,
       data: result,
-      message: '执行BOM完整推送流程成功'
+      message: '执行BOM完整推送流程成功',
     });
   } catch (error) {
     console.error('执行BOM完整推送流程失败:', error);
     res.status(500).json({
       code: 500,
-      message: error.message
+      message: error.message,
     });
   }
 });

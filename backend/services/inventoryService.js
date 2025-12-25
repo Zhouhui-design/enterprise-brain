@@ -16,7 +16,7 @@ class InventoryService {
       warehouse_code,
       status,
       sortBy = 'updated_at',
-      sortOrder = 'DESC'
+      sortOrder = 'DESC',
     } = params;
 
     let whereClause = [];
@@ -63,7 +63,7 @@ class InventoryService {
       list: rows,
       total,
       page: parseInt(page),
-      pageSize: parseInt(pageSize)
+      pageSize: parseInt(pageSize),
     };
   }
 
@@ -102,9 +102,20 @@ class InventoryService {
    */
   async createInventory(data) {
     const {
-      material_code, material_name, warehouse_code = 'WH001', warehouse_name = '默认仓库',
-      location, batch_no, quantity = 0, unit = '个', unit_price = 0,
-      safety_stock = 0, max_stock = 0, min_stock = 0, supplier, remark
+      material_code,
+      material_name,
+      warehouse_code = 'WH001',
+      warehouse_name = '默认仓库',
+      location,
+      batch_no,
+      quantity = 0,
+      unit = '个',
+      unit_price = 0,
+      safety_stock = 0,
+      max_stock = 0,
+      min_stock = 0,
+      supplier,
+      remark,
     } = data;
 
     const total_amount = quantity * unit_price;
@@ -124,12 +135,26 @@ class InventoryService {
       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())
     `;
 
-    const status = quantity <= min_stock ? 'shortage' : (quantity <= safety_stock ? 'warning' : 'normal');
+    const status = quantity <= min_stock ? 'shortage' : quantity <= safety_stock ? 'warning' : 'normal';
 
     const [result] = await pool.query(query, [
-      material_code, material_name, warehouse_code, warehouse_name, location, batch_no || null,
-      quantity, available_quantity, unit, unit_price, total_amount,
-      safety_stock, max_stock, min_stock, supplier, status, remark
+      material_code,
+      material_name,
+      warehouse_code,
+      warehouse_name,
+      location,
+      batch_no || null,
+      quantity,
+      available_quantity,
+      unit,
+      unit_price,
+      total_amount,
+      safety_stock,
+      max_stock,
+      min_stock,
+      supplier,
+      status,
+      remark,
     ]);
 
     return result.insertId;
@@ -139,12 +164,10 @@ class InventoryService {
    * 更新库存
    */
   async updateInventory(id, data) {
-    const {
-      location, quantity, unit_price, safety_stock, max_stock, min_stock, supplier, remark
-    } = data;
+    const { location, quantity, unit_price, safety_stock, max_stock, min_stock, supplier, remark } = data;
 
     const total_amount = quantity * unit_price;
-    const status = quantity <= min_stock ? 'shortage' : (quantity <= safety_stock ? 'warning' : 'normal');
+    const status = quantity <= min_stock ? 'shortage' : quantity <= safety_stock ? 'warning' : 'normal';
 
     const query = `
       UPDATE inventory SET
@@ -154,8 +177,18 @@ class InventoryService {
     `;
 
     await pool.query(query, [
-      location, quantity, quantity, unit_price, total_amount,
-      safety_stock, max_stock, min_stock, supplier, status, remark, id
+      location,
+      quantity,
+      quantity,
+      unit_price,
+      total_amount,
+      safety_stock,
+      max_stock,
+      min_stock,
+      supplier,
+      status,
+      remark,
+      id,
     ]);
 
     return true;
@@ -183,15 +216,7 @@ class InventoryService {
    * 获取库存明细（流水记录）
    */
   async getInventoryDetails(params = {}) {
-    const {
-      page = 1,
-      pageSize = 20,
-      material_code,
-      warehouse_code,
-      transaction_type,
-      startDate,
-      endDate
-    } = params;
+    const { page = 1, pageSize = 20, material_code, warehouse_code, transaction_type, startDate, endDate } = params;
 
     let whereClause = [];
     let queryParams = [];
@@ -242,7 +267,7 @@ class InventoryService {
       list: rows,
       total,
       page: parseInt(page),
-      pageSize: parseInt(pageSize)
+      pageSize: parseInt(pageSize),
     };
   }
 
@@ -251,9 +276,22 @@ class InventoryService {
    */
   async createInventoryDetail(data) {
     const {
-      transaction_no, material_code, material_name, warehouse_code, warehouse_name,
-      location, batch_no, transaction_type, quantity, unit, unit_price,
-      before_quantity, after_quantity, related_order_no, operator, remark
+      transaction_no,
+      material_code,
+      material_name,
+      warehouse_code,
+      warehouse_name,
+      location,
+      batch_no,
+      transaction_type,
+      quantity,
+      unit,
+      unit_price,
+      before_quantity,
+      after_quantity,
+      related_order_no,
+      operator,
+      remark,
     } = data;
 
     const total_amount = quantity * unit_price;
@@ -267,9 +305,23 @@ class InventoryService {
     `;
 
     const [result] = await pool.query(query, [
-      transaction_no, material_code, material_name, warehouse_code, warehouse_name,
-      location, batch_no, transaction_type, quantity, unit, unit_price, total_amount,
-      before_quantity, after_quantity, related_order_no, operator, remark
+      transaction_no,
+      material_code,
+      material_name,
+      warehouse_code,
+      warehouse_name,
+      location,
+      batch_no,
+      transaction_type,
+      quantity,
+      unit,
+      unit_price,
+      total_amount,
+      before_quantity,
+      after_quantity,
+      related_order_no,
+      operator,
+      remark,
     ]);
 
     return result.insertId;
@@ -337,7 +389,7 @@ class InventoryService {
     return {
       summary: summary[0],
       warehouses,
-      alerts
+      alerts,
     };
   }
 
@@ -346,8 +398,18 @@ class InventoryService {
    */
   async inventoryIn(data) {
     const {
-      material_code, material_name, warehouse_code, warehouse_name,
-      location, batch_no, quantity, unit, unit_price, related_order_no, operator, remark
+      material_code,
+      material_name,
+      warehouse_code,
+      warehouse_name,
+      location,
+      batch_no,
+      quantity,
+      unit,
+      unit_price,
+      related_order_no,
+      operator,
+      remark,
     } = data;
 
     // 生成事务单号
@@ -355,7 +417,7 @@ class InventoryService {
 
     // 查找现有库存
     const existing = await this.getInventoryByMaterialCode(material_code, warehouse_code, batch_no);
-    
+
     let before_quantity = 0;
     let after_quantity = quantity;
 
@@ -365,23 +427,45 @@ class InventoryService {
       before_quantity = inv.quantity;
       after_quantity = parseFloat(before_quantity) + parseFloat(quantity);
 
-      await pool.query(
-        'UPDATE inventory SET quantity = ?, available_quantity = ?, last_in_date = NOW() WHERE id = ?',
-        [after_quantity, after_quantity, inv.id]
-      );
+      await pool.query('UPDATE inventory SET quantity = ?, available_quantity = ?, last_in_date = NOW() WHERE id = ?', [
+        after_quantity,
+        after_quantity,
+        inv.id,
+      ]);
     } else {
       // 创建新库存
       await this.createInventory({
-        material_code, material_name, warehouse_code, warehouse_name,
-        location, batch_no, quantity, unit, unit_price, remark
+        material_code,
+        material_name,
+        warehouse_code,
+        warehouse_name,
+        location,
+        batch_no,
+        quantity,
+        unit,
+        unit_price,
+        remark,
       });
     }
 
     // 记录明细
     await this.createInventoryDetail({
-      transaction_no, material_code, material_name, warehouse_code, warehouse_name,
-      location, batch_no, transaction_type: 'in', quantity, unit, unit_price,
-      before_quantity, after_quantity, related_order_no, operator, remark
+      transaction_no,
+      material_code,
+      material_name,
+      warehouse_code,
+      warehouse_name,
+      location,
+      batch_no,
+      transaction_type: 'in',
+      quantity,
+      unit,
+      unit_price,
+      before_quantity,
+      after_quantity,
+      related_order_no,
+      operator,
+      remark,
     });
 
     return { transaction_no, before_quantity, after_quantity };
@@ -391,16 +475,14 @@ class InventoryService {
    * 库存出库
    */
   async inventoryOut(data) {
-    const {
-      material_code, warehouse_code, batch_no, quantity, unit, related_order_no, operator, remark
-    } = data;
+    const { material_code, warehouse_code, batch_no, quantity, unit, related_order_no, operator, remark } = data;
 
     // 生成事务单号
     const transaction_no = `OUT-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
 
     // 查找现有库存
     const existing = await this.getInventoryByMaterialCode(material_code, warehouse_code, batch_no);
-    
+
     if (!existing || existing.length === 0) {
       throw new Error('库存不足，无法出库');
     }
@@ -415,10 +497,11 @@ class InventoryService {
     const after_quantity = parseFloat(before_quantity) - parseFloat(quantity);
 
     // 更新库存
-    await pool.query(
-      'UPDATE inventory SET quantity = ?, available_quantity = ?, last_out_date = NOW() WHERE id = ?',
-      [after_quantity, after_quantity, inv.id]
-    );
+    await pool.query('UPDATE inventory SET quantity = ?, available_quantity = ?, last_out_date = NOW() WHERE id = ?', [
+      after_quantity,
+      after_quantity,
+      inv.id,
+    ]);
 
     // 记录明细
     await this.createInventoryDetail({
@@ -437,7 +520,7 @@ class InventoryService {
       after_quantity,
       related_order_no,
       operator,
-      remark
+      remark,
     });
 
     return { transaction_no, before_quantity, after_quantity };
@@ -494,7 +577,7 @@ class InventoryService {
   async importInventory(data) {
     // 开始事务
     await pool.query('START TRANSACTION');
-    
+
     try {
       let successCount = 0;
       let errorCount = 0;
@@ -509,9 +592,9 @@ class InventoryService {
 
           // 检查是否已存在
           const existing = await this.getInventoryByMaterialCode(
-            item.material_code, 
-            item.warehouse_code || 'WH001', 
-            item.batch_no
+            item.material_code,
+            item.warehouse_code || 'WH001',
+            item.batch_no,
           );
 
           if (existing && existing.length > 0) {
@@ -524,7 +607,7 @@ class InventoryService {
               max_stock: item.max_stock || existing[0].max_stock,
               min_stock: item.min_stock || existing[0].min_stock,
               supplier: item.supplier || existing[0].supplier,
-              remark: item.remark || existing[0].remark
+              remark: item.remark || existing[0].remark,
             });
           } else {
             // 创建新库存
@@ -542,7 +625,7 @@ class InventoryService {
               max_stock: item.max_stock || 0,
               min_stock: item.min_stock || 0,
               supplier: item.supplier,
-              remark: item.remark
+              remark: item.remark,
             });
           }
 
@@ -551,7 +634,7 @@ class InventoryService {
           errorCount++;
           errors.push({
             index: data.indexOf(item) + 1,
-            error: error.message
+            error: error.message,
           });
         }
       }
@@ -562,7 +645,7 @@ class InventoryService {
       return {
         successCount,
         errorCount,
-        errors
+        errors,
       };
     } catch (error) {
       // 回滚事务
