@@ -663,42 +663,10 @@ onMounted(async () => {
     totalCount.value = cachedData.length
     console.log('✅ 从本地存储加载', cachedData.length, '条数据')
   } else {
-    // 初始化一些模拟数据
-    tableData.value = [
-      {
-        id: 1,
-        customerCode: 'CUS20251224001',
-        customerName: '测试客户1',
-        customerType: 'regular',
-        status: 'active',
-        contactPerson: '张三',
-        contactPhone: '13800138001',
-        contactEmail: 'zhangsan@example.com',
-        company: '测试公司1',
-        industry: '电子制造',
-        region: '华东区',
-        address: '上海市浦东新区张江高科技园区',
-        createTime: '2025-12-24 10:00:00'
-      },
-      {
-        id: 2,
-        customerCode: 'CUS20251224002',
-        customerName: '测试客户2',
-        customerType: 'vip',
-        status: 'active',
-        contactPerson: '李四',
-        contactPhone: '13800138002',
-        contactEmail: 'lisi@example.com',
-        company: '测试公司2',
-        industry: '机械加工',
-        region: '华南区',
-        address: '广东省深圳市南山区科技园',
-        createTime: '2025-12-24 11:00:00'
-      }
-    ]
-    totalCount.value = tableData.value.length
-    saveCustomerData(tableData.value)
-    console.log('✅ 初始化模拟数据成功')
+    // 初始化空数据，等待API返回
+    tableData.value = []
+    totalCount.value = 0
+    console.log('ℹ️ 初始化空数据，等待API返回')
   }
   
   // 2. 在后台尝试从API获取最新数据，不阻塞页面显示
@@ -727,14 +695,13 @@ onMounted(async () => {
           createTime: new Date(c.created_at).toLocaleString('zh-CN')
         }))
         
-        if (apiData.length > 0) {
-          tableData.value = apiData
-          totalCount.value = response.data.data.total
-          console.log('✅ 从后端加载', apiData.length, '条数据')
-          // 保存到本地存储作为备份
-          saveCustomerData(apiData)
-          ElMessage.success('数据已从服务器更新')
-        }
+        // 无论API返回多少数据，都更新本地存储和页面数据
+        tableData.value = apiData
+        totalCount.value = response.data.data.total
+        console.log('✅ 从后端加载', apiData.length, '条数据')
+        // 保存到本地存储作为备份
+        saveCustomerData(apiData)
+        ElMessage.success('数据已从服务器更新')
       }
       
       const statsRes = await customerApi.getCustomerStats()

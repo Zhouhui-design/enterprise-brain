@@ -91,6 +91,7 @@ const procurementPlansRouter = require('./routes/procurementPlans');
 const supplierEvaluationsRouter = require('./routes/supplierEvaluations');
 const supplierManagementRouter = require('./routes/supplierManagement');
 const warehousesRouter = require('./routes/warehouses-test-simple');
+const bomPushRouter = require('./routes/bomPushRoutes');
 
 app.use('/api/materials', materialsRouter);
 app.use('/api/production-boms', productionBomsRouter);
@@ -161,7 +162,9 @@ console.log('🏢 供应商管理路由已注册: /api/supplier-management');
 app.use('/api/warehouses', warehousesRouter);
 console.log('🏭 仓库管理路由已注册: /api/warehouses');
 
-
+// BOM推送路由
+app.use('/api/bom-push', bomPushRouter);
+console.log('📤 BOM推送路由已注册: /api/bom-push');
 
 // Swagger API文档
 const swaggerUi = require('swagger-ui-express');
@@ -240,6 +243,13 @@ const server = app.listen(PORT, '0.0.0.0', () => {
   console.log(`Network access: http://192.168.2.229:${PORT}`);
   console.log('Server is accessible from other devices on the network');
   console.log('Press Ctrl+C to stop the server');
+  
+  // 执行数据库初始化 - 只在服务器启动时执行一次
+  console.log('\n🔧 执行数据库初始化...');
+  const { initializeDatabase } = require('./config/database');
+  initializeDatabase().catch(err => {
+    console.error('数据库初始化错误:', err);
+  });
   
   // 启动自动备份任务
   console.log('\n💾 启动数据库自动备份系统...');

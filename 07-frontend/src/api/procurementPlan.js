@@ -15,7 +15,7 @@ export const procurementPlanApi = {
    * @param {String} params.supplierName - 供应商名称
    */
   getList(params) {
-    return request.get('/procurement-plans', { params })
+    return request.get('/procurement-plans', params)
   },
 
   /**

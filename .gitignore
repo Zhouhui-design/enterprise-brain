@@ -7,8 +7,10 @@ yarn-error.log*
 pnpm-debug.log*
 lerna-debug.log*
 
+# Dependencies
 node_modules
-.DS_Store
+
+# Build outputs
 dist
 *.local
 
@@ -19,13 +21,17 @@ dist
 *.njsproj
 *.sln
 *.sw?
+.vscode/
+
 # Environment variables
 .env.local
+.env
 
 # Database files
 *.db
-!backend/database/.gitkeep
-data/backups/*.db
+*.sql
+!*.sql.example
+!migrations/
 
 # Backup files
 *.tar.gz
@@ -36,10 +42,36 @@ backup_*/
 
 # Test and debug files
 test_*.js
+test-*.js
 !test/
 diagnose-*.js
 manual-*.js
+check-*.js
 
-# IDE and system files
-.vscode/
-.idea/
+# Temporary files
+*.tmp
+*.temp
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Codebuddy files
+.codebuddy/
+
+# MCP configuration
+.mcp.json
+
+# API test files
+test-api.js
+
+# Batch files
+*.bat
+
+# Documentation files with Chinese names
+*.md
+!README.md
+!README-*.md
+
+# Migration scripts
+!migrations/

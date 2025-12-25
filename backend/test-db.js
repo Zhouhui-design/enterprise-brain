@@ -1,36 +1,29 @@
-const { pool } = require('./config/database');
+const mysql = require('mysql2/promise');
 
-// 测试简单查询
-async function testSimpleQuery() {
+async function testConnection() {
   try {
-    console.log('测试基本查询...');
+    console.log('尝试连接MySQL数据库...');
+    const connection = await mysql.createConnection({
+      host: 'localhost',
+      port: 3306,
+      user: 'root',
+      password: 'zH754277289hUi~197547',
+      database: 'enterprise_brain'
+    });
     
-    // 测试1: 不带参数的查询
-    const sql1 = 'SELECT COUNT(*) as total FROM material_preparation_plans';
-    const [result1] = await pool.execute(sql1);
-    console.log('测试1结果:', result1[0].total);
+    console.log('✅ 数据库连接成功');
     
-    // 测试2: 使用字符串拼接的方式（不安全，但用于测试）
-    const limit = 10;
-    const offset = 0;
-    const sql2 = `SELECT * FROM material_preparation_plans LIMIT ${limit} OFFSET ${offset}`;
-    const [result2] = await pool.execute(sql2);
-    console.log('测试2结果数量:', result2.length);
+    // 测试查询
+    const [rows] = await connection.execute('SELECT COUNT(*) as count FROM materials');
+    console.log('物料表记录数:', rows[0].count);
     
-    // 测试3: 使用named parameters（如果支持）
-    try {
-      const sql3 = 'SELECT * FROM material_preparation_plans WHERE id = :id';
-      const [result3] = await pool.execute(sql3, { id: 1 });
-      console.log('测试3结果数量:', result3.length);
-    } catch (e) {
-      console.log('测试3失败（named parameters可能不支持）:', e.message);
-    }
-    
-    console.log('✅ 部分测试通过！');
+    await connection.end();
+    console.log('连接已关闭');
   } catch (error) {
-    console.error('❌ 测试失败:', error.message);
-    console.error('错误堆栈:', error.stack);
+    console.error('❌ 数据库连接失败:', error.message);
+    console.error('错误代码:', error.code);
+    console.error('错误详情:', error);
   }
 }
 
-testSimpleQuery();
+testConnection();

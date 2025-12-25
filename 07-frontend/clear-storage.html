@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>清除本地存储</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 600px;
+            margin: 0 auto;
+            padding: 20px;
+            text-align: center;
+        }
+        .button {
+            padding: 10px 20px;
+            background-color: #409eff;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 16px;
+        }
+        .button:hover {
+            background-color: #66b1ff;
+        }
+        .log {
+            margin-top: 20px;
+            padding: 10px;
+            background-color: #f0f0f0;
+            border-radius: 4px;
+            text-align: left;
+            font-family: monospace;
+            font-size: 14px;
+        }
+    </style>
+</head>
+<body>
+    <h1>清除本地存储数据</h1>
+    <p>点击下方按钮清除本地存储中的客户数据，解决销售订单创建页面显示测试客户的问题。</p>
+    <button class="button" onclick="clearStorage()">清除本地存储</button>
+    <div class="log" id="log"></div>
+
+    <script>
+        function log(message) {
+            const logElement = document.getElementById('log');
+            logElement.innerHTML += new Date().toLocaleString() + ' - ' + message + '<br>';
+            logElement.scrollTop = logElement.scrollHeight;
+        }
+
+        function clearStorage() {
+            log('开始清除本地存储...');
+            
+            // 清除所有与客户相关的本地存储
+            const keysToClear = ['customerData', 'customerListData', 'employeeData', 'departmentData', 'materialListData', 'productManualData'];
+            
+            keysToClear.forEach(key => {
+                if (localStorage.getItem(key)) {
+                    localStorage.removeItem(key);
+                    log(`已清除: ${key}`);
+                } else {
+                    log(`未找到: ${key}`);
+                }
+            });
+            
+            log('清除完成！请关闭此页面并刷新销售订单相关页面。');
+        }
+        
+        // 页面加载时显示当前本地存储状态
+        window.onload = function() {
+            log('当前本地存储状态:');
+            const keys = ['customerData', 'customerListData', 'employeeData', 'departmentData', 'materialListData', 'productManualData'];
+            
+            keys.forEach(key => {
+                if (localStorage.getItem(key)) {
+                    log(`存在: ${key} - 大小: ${localStorage.getItem(key).length} 字符`);
+                } else {
+                    log(`不存在: ${key}`);
+                }
+            });
+        };
+    </script>
+</body>
+</html>

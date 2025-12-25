@@ -82,7 +82,7 @@ class BOMDraftService {
           await connection.execute(`
             INSERT INTO bom_draft_components (
               draft_id, sequence, level, component_code, component_name,
-              standard_quantity, output_process, component_source,
+              quantity, output_process, component_source,
               process_wage, material_loss, material_price, material_cost
             ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
           `, [
@@ -158,7 +158,7 @@ class BOMDraftService {
           await connection.execute(`
             INSERT INTO bom_draft_components (
               draft_id, sequence, level, component_code, component_name,
-              standard_quantity, output_process, component_source,
+              quantity, output_process, component_source,
               process_wage, material_loss, material_price, material_cost
             ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
           `, [

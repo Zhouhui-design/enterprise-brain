@@ -33,7 +33,8 @@ class ProductManualService {
       LEFT JOIN materials m ON pm.productCode = m.material_code
       ORDER BY pm.createTime DESC
     `;
-    return await query(sql);
+    const result = await query(sql);
+    return result;
   }
 
   /**

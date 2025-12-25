@@ -4,6 +4,7 @@
     :filterable="filterable"
     :remote="remote"
     :remote-method="handleRemoteSearch"
+    :filter-method="handleFilterMethod"
     :loading="loading"
     :placeholder="placeholder"
     :clearable="clearable"
@@ -21,20 +22,22 @@
     :style="style"
   >
     <el-option
-      v-for="item in filteredOptions"
+      v-for="item in displayOptions"
       :key="getOptionKey(item)"
       :label="getOptionLabel(item)"
       :value="getOptionValue(item)"
       :disabled="item.disabled || false"
     >
       <slot name="option" :item="item">
-        <span>{{ getOptionLabel(item) }}</span>
-        <span 
-          v-if="showDescription && item.description" 
-          style="color: #909399; margin-left: 10px;"
-        >
-          {{ item.description }}
-        </span>
+        <div style="display: flex; justify-content: space-between; align-items: center;">
+          <span>{{ getOptionLabel(item) }}</span>
+          <span 
+            v-if="showDescription && getDescription(item)" 
+            style="color: #909399; font-size: 12px; margin-left: 10px;"
+          >
+            {{ getDescription(item) }}
+          </span>
+        </div>
       </slot>
     </el-option>
   </el-select>
@@ -163,8 +166,8 @@ const localValue = ref(props.modelValue)
 const loading = ref(false)
 const searchQuery = ref('')
 
-// 计算属性 - 过滤后的选项
-const filteredOptions = computed(() => {
+// 计算属性 - 显示的选项（用于本地过滤）
+const displayOptions = computed(() => {
   // 如果是远程搜索，直接返回原始选项
   if (props.remote) {
     return props.options
@@ -180,10 +183,15 @@ const filteredOptions = computed(() => {
     return props.options
   }
   
-  // 默认过滤逻辑 - 根据标签字段过滤
+  // 默认过滤逻辑 - 根据标签字段和描述字段过滤
   return props.options.filter(item => {
     const label = getOptionLabel(item)
-    return label.toLowerCase().includes(searchQuery.value.toLowerCase())
+    const description = getDescription(item)
+    const query = searchQuery.value.toLowerCase()
+    
+    // 在标签或描述中搜索
+    return label.toLowerCase().includes(query) || 
+           (description && description.toLowerCase().includes(query))
   })
 })
 
@@ -206,6 +214,22 @@ const getOptionValue = (item) => {
     return item[props.valueField] !== undefined ? item[props.valueField] : item
   }
   return item
+}
+
+// 方法 - 获取选项的描述
+const getDescription = (item) => {
+  if (typeof item === 'object' && props.descriptionField) {
+    return item[props.descriptionField] || ''
+  }
+  return ''
+}
+
+// 方法 - 处理本地过滤（用于filterable但非remote模式）
+const handleFilterMethod = (query) => {
+  if (!props.remote) {
+    searchQuery.value = query
+    emits('search', query)
+  }
 }
 
 // 方法 - 处理远程搜索

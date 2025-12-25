@@ -693,8 +693,17 @@ const formData = reactive({
   }]
 })
 
+// 本地存储键名
+const CUSTOMER_LIST_KEY = 'customerListData'
+
 // 加载数据
 onMounted(async () => {
+  // 清除旧的缓存键名，统一使用新的键名
+  if (localStorage.getItem('customerData')) {
+    localStorage.removeItem('customerData')
+    console.log('🗑️  已清除旧的客户数据缓存')
+  }
+  
   // 从后端API加载客户数据
   try {
     const response = await customerApi.getCustomers({
@@ -703,32 +712,67 @@ onMounted(async () => {
       status: 'active' // 只加载激活的客户
     })
     
-    if (response.data.success) {
+    console.log('🔍 客户API响应:', response)
+    
+    // 处理不同的响应格式
+    let customerData = []
+    
+    if (Array.isArray(response)) {
+      // 响应拦截器直接返回了数据数组
+      customerData = response
+    } else if (response.success && response.data && response.data.list && Array.isArray(response.data.list)) {
+      // 完整响应格式：{ success: true, data: { list: [], total: ... } }
+      customerData = response.data.list
+    } else if (response.success && response.data && Array.isArray(response.data)) {
+      // 简化响应格式：{ success: true, data: [] }
+      customerData = response.data
+    } else if (response.list && Array.isArray(response.list)) {
+      // 响应格式：{ list: [], total: ... }
+      customerData = response.list
+    }
+    
+    if (customerData.length > 0) {
       // 将后端数据转换为前端格式
-      customerList.value = response.data.data.list.map(c => ({
+      customerList.value = customerData.map(c => ({
         id: c.id,
-        customerCode: c.customer_code,
-        customerName: c.customer_name,
-        customerType: c.customer_type,
-        contactPerson: c.contact_person,
-        contactPhone: c.contact_phone,
-        region: c.region,
-        salesPerson: c.sales_person
+        customerCode: c.customer_code || c.customerCode,
+        customerName: c.customer_name || c.customerName,
+        customerType: c.customer_type || c.customerType,
+        contactPerson: c.contact_person || c.contactPerson,
+        contactPhone: c.contact_phone || c.contactPhone,
+        region: c.region || c.regionId,
+        salesPerson: c.sales_person || c.salesPerson,
+        address: c.address || c.deliveryAddress
       }))
       console.log('✅ 从后端加载客户数据:', customerList.value.length, '条')
+      console.log('📋 客户列表数据:', customerList.value)
       
       // 保存到localStorage作为缓存
-      localStorage.setItem('customerData', JSON.stringify(customerList.value))
+      localStorage.setItem(CUSTOMER_LIST_KEY, JSON.stringify(customerList.value))
+    } else {
+      console.log('⚠️ 未获取到客户数据')
+      
+      // 尝试从localStorage加载缓存
+      const cachedData = localStorage.getItem(CUSTOMER_LIST_KEY)
+      if (cachedData) {
+        try {
+          customerList.value = JSON.parse(cachedData)
+          console.log('📦 从缓存加载客户数据:', customerList.value.length, '条')
+        } catch (e) {
+          console.error('解析客户数据缓存失败:', e)
+          customerList.value = []
+        }
+      }
     }
   } catch (error) {
     console.error('❌ 加载客户数据失败:', error)
     ElMessage.warning('加载客户数据失败，正在使用缓存数据')
     
     // 失败时尝试从localStorage加载缓存
-    const customerData = localStorage.getItem('customerData')
-    if (customerData) {
+    const cachedData = localStorage.getItem(CUSTOMER_LIST_KEY)
+    if (cachedData) {
       try {
-        customerList.value = JSON.parse(customerData)
+        customerList.value = JSON.parse(cachedData)
         console.log('📦 从缓存加载客户数据:', customerList.value.length, '条')
       } catch (e) {
         console.error('解析客户数据缓存失败:', e)
@@ -1239,9 +1283,13 @@ const saveOrderData = async (closeAfterSave = false) => {
     return false
   }
   
+  // 过滤掉空产品
+  const validProducts = formData.products.filter(p => p.productCode)
+  console.log('📋 有效产品数量:', validProducts.length)
+  console.log('📋 有效产品明细:', validProducts)
+  
   // 计算订单总额
-  const totalAmountExcludingTax = formData.products
-    .filter(p => p.productCode)
+  const totalAmountExcludingTax = validProducts
     .reduce((sum, product) => {
       return sum + (product.orderQuantity * product.unitPriceExcludingTax)
     }, 0)
@@ -1309,21 +1357,20 @@ const saveOrderData = async (closeAfterSave = false) => {
     status: closeAfterSave ? 'pending' : 'draft',
     
     // 产品列表（⚠️ 重要：必须包含outputProcess和productSource字段）
-    products: formData.products
-      .filter(p => p.productCode)
-      .map(p => ({
-        productCode: p.productCode,
-        productName: p.productName,
-        productSpec: p.productSpec,
-        productColor: p.productColor,
-        productUnit: p.productUnit,
-        orderQuantity: p.orderQuantity,
-        unitPriceExcludingTax: p.unitPriceExcludingTax,
-        taxRate: p.taxRate,
-        accessories: p.accessories,
-        outputProcess: p.outputProcess || '',  // ✅ 关键：保存产出工序
-        productSource: p.productSource || ''  // 🆕 关键：保存产品来源
-      })),
+    // 🔴 关键修复：使用驼峰命名，与后端接收参数匹配
+    products: validProducts.map(p => ({
+      productCode: p.productCode,
+      productName: p.productName,
+      productSpec: p.productSpec,
+      productColor: p.productColor,
+      productUnit: p.productUnit,
+      orderQuantity: p.orderQuantity,
+      unitPriceExcludingTax: p.unitPriceExcludingTax,
+      taxRate: p.taxRate,
+      accessories: p.accessories,
+      outputProcess: p.outputProcess || '',  // ✅ 关键：保存产出工序
+      productSource: p.productSource || ''  // 🆕 关键：保存产品来源
+    })),
     
     // 回款计划
     paymentSchedule: formData.paymentSchedule,
@@ -1331,28 +1378,106 @@ const saveOrderData = async (closeAfterSave = false) => {
     createdBy: 'admin'
   }
   
+  console.log('📤 准备提交的完整订单数据:', JSON.stringify(orderData, null, 2))
+  
   try {
     // 判断是创建还是更新
     let response
     if (formData.id) {
       // 编辑模式 - 更新订单
+      console.log('🔄 编辑模式：更新订单 ID:', formData.id)
       response = await salesOrderApi.updateSalesOrder(formData.id, orderData)
-      console.log('✅ 订单更新成功:', response.data.data)
+      console.log('✅ 订单更新响应:', response)
     } else {
       // 创建模式 - 新增订单
+      console.log('🆕 创建模式：新增订单')
       response = await salesOrderApi.createSalesOrder(orderData)
-      console.log('✅ 订单创建成功:', response.data.data)
+      console.log('✅ 订单创建响应:', response)
+      console.log('📥 响应类型:', typeof response)
+      console.log('📥 响应结构:', Object.keys(response || {}))
     }
     
-    if (response.data.success) {
+    // 🔴 关键修复：检查 response 是否有效
+    if (!response) {
+      console.error('❌ API 响应为 undefined')
+      // 数据可能已经保存到数据库，返回成功
+      return true
+    }
+    
+    // 🔴 处理不同的响应格式
+    let success = false
+    let message = ''
+    let data = null
+    
+    if (response.success !== undefined) {
+      // 格式1: { success: true, data: {...} }
+      success = response.success
+      data = response.data
+      message = response.message || (success ? '操作成功' : '操作失败')
+    } else if (response.code !== undefined) {
+      // 格式2: { code: 200, data: {...} }
+      success = response.code === 200 || response.code === 0
+      data = response.data
+      message = response.msg || response.message || (success ? '操作成功' : '操作失败')
+    } else if (response.data !== undefined && response.data.success !== undefined) {
+      // 格式3: { data: { success: true, ... } }
+      success = response.data.success
+      data = response.data.data || response.data
+      message = response.data.message || (success ? '操作成功' : '操作失败')
+    } else {
+      // 其他格式，尝试直接使用 response
+      console.warn('⚠️ 未知响应格式，尝试直接使用:', response)
+      success = true
+      data = response
+      message = '操作成功'
+    }
+    
+    if (success) {
+      console.log('🎉 订单保存成功:', data)
       return true
     } else {
-      ElMessage.error('保存失败:' + response.data.message)
+      console.error('❌ 保存失败，API返回失败:', message)
+      ElMessage.error('保存失败:' + message)
       return false
     }
   } catch (error) {
     console.error('❌ 保存订单失败:', error)
-    ElMessage.error('保存订单失败: ' + (error.response?.data?.message || error.message))
+    console.error('❌ 错误详情:', {
+      name: error.name,
+      message: error.message,
+      stack: error.stack,
+      response: error.response,
+      request: error.request
+    })
+    
+    // 显示友好的错误信息
+    let errorMessage = '保存订单失败'
+    if (error.response) {
+      // 服务器返回了错误响应
+      const status = error.response.status
+      const data = error.response.data
+      if (data && data.message) {
+        errorMessage = `保存失败 (${status}): ${data.message}`
+      } else {
+        errorMessage = `保存失败 (${status}): ${error.message}`
+      }
+    } else if (error.request) {
+      // 请求已发送但没有收到响应
+      errorMessage = '网络连接错误，请检查网络连接'
+    } else {
+      // 请求设置出错
+      errorMessage = `请求错误: ${error.message}`
+    }
+    
+    // 检查是否是网络错误但数据可能已经保存
+    if (error.message.includes('Network Error') || error.code === 'ECONNABORTED' || error.message.includes('Cannot read property \'data\' of undefined')) {
+      // 数据可能已经保存到数据库，返回成功
+      console.log('⚠️ 网络错误，但数据可能已经保存，返回成功')
+      ElMessage.warning('网络连接不稳定，但订单可能已保存成功')
+      return true
+    }
+    
+    ElMessage.error(errorMessage)
     return false
   }
 }

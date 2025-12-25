@@ -362,24 +362,33 @@ const filteredTableData = computed(() => {
 })
 
 // 加载数据
-const loadData = async () => {
-  loading.value = true
-  try {
-    const response = await procurementPlanApi.getList({
-      page: pagination.value.page,
-      pageSize: pagination.value.pageSize
-    })
-    
-    // response已经是data（经过request.js响应拦截器处理）
-    tableData.value = response.records || []
-    pagination.value.total = response.total || 0
-  } catch (error) {
-    console.error('加载数据失败:', error)
-    ElMessage.error('加载数据失败: ' + (error.message || '未知错误'))
-  } finally {
-    loading.value = false
+  const loadData = async () => {
+    loading.value = true
+    try {
+      console.log('🔄 开始加载采购计划数据，页码:', pagination.value.page, '每页数量:', pagination.value.pageSize)
+      const response = await procurementPlanApi.getList({
+        page: pagination.value.page,
+        pageSize: pagination.value.pageSize
+      })
+      
+      console.log('📥 采购计划API响应:', response)
+      
+      // response已经是data（经过request.js响应拦截器处理）
+      tableData.value = response.records || response.list || []
+      pagination.value.total = response.total || 0
+      
+      console.log('✅ 采购计划数据加载成功，数量:', tableData.value.length, '总条数:', pagination.value.total)
+    } catch (error) {
+      console.error('❌ 加载数据失败:', error)
+      console.error('❌ 错误详情:', error.response)
+      ElMessage.error('加载数据失败: ' + (error.response?.data?.message || error.message || '服务器内部错误'))
+      // 提供模拟数据，避免页面空白
+      tableData.value = []
+      pagination.value.total = 0
+    } finally {
+      loading.value = false
+    }
   }
-}
 
 // ✅ 新增：加载供应商列表
 const loadSuppliers = async () => {

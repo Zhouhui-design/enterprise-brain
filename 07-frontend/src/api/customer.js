@@ -1,13 +1,6 @@
-import axios from 'axios'
+import request from '@/utils/request'
 
-// 使用环境变量或默认使用本机IP，支持局域网访问
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://192.168.2.229:3005/api'
-
-// 创建axios实例，添加超时配置
-const axiosInstance = axios.create({
-  timeout: 5000, // 5秒超时
-  baseURL: API_BASE_URL
-})
+// 统一使用全局request工具，确保响应拦截器一致
 
 /**
  * 客户管理API服务
@@ -19,7 +12,7 @@ export const customerApi = {
    * @returns {Promise}
    */
   getCustomers(params = {}) {
-    return axiosInstance.get('/customers', { params })
+    return request.get('/customers', params)
   },
 
   /**
@@ -28,7 +21,7 @@ export const customerApi = {
    * @returns {Promise}
    */
   getCustomerById(id) {
-    return axiosInstance.get(`/customers/${id}`)
+    return request.get(`/customers/${id}`)
   },
 
   /**
@@ -37,7 +30,7 @@ export const customerApi = {
    * @returns {Promise}
    */
   createCustomer(data) {
-    return axiosInstance.post('/customers', data)
+    return request.post('/customers', data)
   },
 
   /**
@@ -47,7 +40,7 @@ export const customerApi = {
    * @returns {Promise}
    */
   updateCustomer(id, data) {
-    return axiosInstance.put(`/customers/${id}`, data)
+    return request.put(`/customers/${id}`, data)
   },
 
   /**
@@ -56,7 +49,7 @@ export const customerApi = {
    * @returns {Promise}
    */
   deleteCustomer(id) {
-    return axiosInstance.delete(`/customers/${id}`)
+    return request.delete(`/customers/${id}`)
   },
 
   /**
@@ -65,7 +58,7 @@ export const customerApi = {
    * @returns {Promise}
    */
   batchDeleteCustomers(ids) {
-    return axiosInstance.post('/customers/batch-delete', { ids })
+    return request.post('/customers/batch-delete', { ids })
   },
 
   /**
@@ -73,7 +66,7 @@ export const customerApi = {
    * @returns {Promise}
    */
   getCustomerStats() {
-    return axiosInstance.get('/customers/statistics/overview')
+    return request.get('/customers/statistics/overview')
   }
 }
 

@@ -598,37 +598,33 @@ const handleEditSuccess = async (productData) => {
   try {
     if (isEdit.value) {
       // 更新产品 - 调用后端API
-      const response = await productManualAPI.update(productData.id, productData)
+      await productManualAPI.update(productData.id, productData)
       
-      if (response.code === 200) {
-        // 后端更新成功，更新前端数据
-        const index = tableData.value.findIndex(p => p.id === productData.id)
-        if (index !== -1) {
-          tableData.value[index] = {
-            ...productData,
-            updateTime: new Date().toLocaleString('zh-CN')
-          }
+      // 后端更新成功，更新前端数据
+      const index = tableData.value.findIndex(p => p.id === productData.id)
+      if (index !== -1) {
+        tableData.value[index] = {
+          ...productData,
+          updateTime: new Date().toLocaleString('zh-CN')
         }
-        
-        // 同步到localStorage
-        localStorage.setItem('productManualData', JSON.stringify(tableData.value))
-        
-        ElMessage.success('产品更新成功')
-        editDialogVisible.value = false
-        updateStats()
-      } else {
-        throw new Error(response.message || '更新失败')
       }
+      
+      // 同步到localStorage
+      localStorage.setItem('productManualData', JSON.stringify(tableData.value))
+      
+      ElMessage.success('产品更新成功')
+      editDialogVisible.value = false
+      updateStats()
     } else {
       // 新增产品 - 调用后端API
       console.log('📤 准备发送创建产品请求:', productData)
-      const response = await productManualAPI.create(productData)
-      console.log('📥 收到后端响应:', response)
+      const createdProduct = await productManualAPI.create(productData)
+      console.log('📥 收到后端响应:', createdProduct)
       
-      if (response.code === 200 && response.data) {
+      if (createdProduct && createdProduct.id) {
         // 后端创建成功，使用后端返回的数据
         const newProduct = {
-          ...response.data,
+          ...createdProduct,
           createTime: new Date().toLocaleString('zh-CN'),
           updateTime: new Date().toLocaleString('zh-CN')
         }
@@ -647,7 +643,7 @@ const handleEditSuccess = async (productData) => {
         
         console.log('✅ 产品已保存到后端，产品编号:', newProduct.productCode)
       } else {
-        throw new Error(response.message || '创建失败')
+        throw new Error('创建失败')
       }
     }
   } catch (error) {
@@ -711,12 +707,12 @@ const loadData = async () => {
     console.log('🔄 开始从后端加载产品手册数据...')
     const response = await productManualAPI.getAll()
     
-    if (response.code === 200 && Array.isArray(response.data)) {
-      tableData.value = response.data
-      console.log('✅ 产品手册数据加载成功，共', response.data.length, '条')
+    if (Array.isArray(response)) {
+      tableData.value = response
+      console.log('✅ 产品手册数据加载成功，共', response.length, '条')
       
       // 同步到localStorage作为缓存
-      localStorage.setItem('productManualData', JSON.stringify(response.data))
+      localStorage.setItem('productManualData', JSON.stringify(response))
       
       // 更新统计
       updateStats()

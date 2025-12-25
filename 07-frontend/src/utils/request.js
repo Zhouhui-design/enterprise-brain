@@ -36,6 +36,28 @@ service.interceptors.request.use(
   }
 )
 
+// 下划线转驼峰函数
+const snakeToCamel = (str) => {
+  return str.replace(/_([a-z])/g, (match, letter) => letter.toUpperCase())
+}
+
+// 递归转换对象或数组的所有键为驼峰命名
+const convertToCamelCase = (data) => {
+  if (Array.isArray(data)) {
+    return data.map(item => convertToCamelCase(item))
+  } else if (data !== null && typeof data === 'object') {
+    const camelCaseObj = {}
+    for (const key in data) {
+      if (data.hasOwnProperty(key)) {
+        const camelKey = snakeToCamel(key)
+        camelCaseObj[camelKey] = convertToCamelCase(data[key])
+      }
+    }
+    return camelCaseObj
+  }
+  return data
+}
+
 // 响应拦截器
 service.interceptors.response.use(
   response => {
@@ -47,9 +69,8 @@ service.interceptors.response.use(
     }
 
     // API返回格式统一处理
-    if (data.code === 200) {
-      return data.data || data
-    } else if (data.code === 401) {
+    // 检查是否为错误响应
+    if (data.code === 401 || data.status === 401) {
       // token过期，跳转登录页
       ElMessageBox.confirm(
         '登录状态已过期，请重新登录',
@@ -64,14 +85,19 @@ service.interceptors.response.use(
         window.location.href = '/login'
       })
       return Promise.reject(new Error('登录状态已过期'))
-    } else if (data.code) {
-      // 有code但不是200
+    } else if (data.code && data.code !== 200) {
+      // 有错误信息且不是成功状态
       ElMessage.error(data.message || '请求失败')
       return Promise.reject(new Error(data.message || '请求失败'))
-    } else {
-      // 无code字段，直接返回数据（兼容旧版API）
-      return data
     }
+
+    // 所有成功响应都进行转换
+    let result = data.data || data
+    
+    // 将结果转换为驼峰命名
+    result = convertToCamelCase(result)
+    
+    return result
   },
   error => {
     let message = '网络错误'

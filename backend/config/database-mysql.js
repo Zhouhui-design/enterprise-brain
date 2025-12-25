@@ -185,7 +185,7 @@ async function initializeDatabase() {
         level INT DEFAULT 1 COMMENT '层级',
         component_code VARCHAR(100) NOT NULL COMMENT '子件编码',
         component_name VARCHAR(200) NOT NULL COMMENT '子件名称',
-        standard_quantity DECIMAL(10,4) DEFAULT 1 COMMENT '标准用量',
+        quantity DECIMAL(10,4) DEFAULT 1 COMMENT '标准用量',
         output_process VARCHAR(100) COMMENT '产出工序',
         component_source VARCHAR(50) COMMENT '子件来源',
         process_wage DECIMAL(10,2) DEFAULT 0 COMMENT '加工工资',

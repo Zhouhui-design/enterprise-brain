@@ -6,11 +6,21 @@ export const usePageSettings = (key: string) => {
   const workflowConfigs = ref([]);
   const codeRules = ref([]);
 
+  // 下划线转驼峰函数
+  const snakeToCamel = (str) => {
+    return str.replace(/_([a-z])/g, (match, letter) => letter.toUpperCase());
+  };
+
   const initSettings = (defaultColumns) => {
     const savedSettings = localStorage.getItem(`pageSettings_${key}`);
     if (savedSettings) {
       try {
-        columnConfigs.value = JSON.parse(savedSettings);
+        const loadedColumns = JSON.parse(savedSettings);
+        // 确保所有列的prop属性都是驼峰命名
+        columnConfigs.value = loadedColumns.map(col => ({
+          ...col,
+          prop: snakeToCamel(col.prop)
+        }));
       } catch (error) {
         console.error('解析页面设置失败:', error);
         columnConfigs.value = defaultColumns.map((col, index) => ({

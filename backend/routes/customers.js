@@ -228,15 +228,18 @@ router.post('/', async (req, res) => {
  * 更新客户信息
  * PUT /api/customers/:id
  */
-router.put('/:id', (req, res) => {
+router.put('/:id', async (req, res) => {
+  let connection
   try {
     const { id } = req.params
     console.log('=== 更新客户 ===', id)
     console.log('请求数据:', req.body)
     
+    connection = await pool.getConnection()
+    
     // 检查客户是否存在
-    const existing = db.prepare('SELECT id FROM customers WHERE id = ?').get(id)
-    if (!existing) {
+    const [existing] = await connection.execute('SELECT id FROM customers WHERE id = ?', [id])
+    if (!existing || existing.length === 0) {
       return res.status(404).json({
         success: false,
         message: '客户不存在'
@@ -268,8 +271,11 @@ router.put('/:id', (req, res) => {
     
     // 如果修改了客户编号，检查是否重复
     if (customerCode) {
-      const duplicate = db.prepare('SELECT id FROM customers WHERE customer_code = ? AND id != ?').get(customerCode, id)
-      if (duplicate) {
+      const [duplicate] = await connection.execute(
+        'SELECT id FROM customers WHERE customer_code = ? AND id != ?',
+        [customerCode, id]
+      )
+      if (duplicate && duplicate.length > 0) {
         return res.status(400).json({
           success: false,
           message: '客户编号已存在'
@@ -277,8 +283,8 @@ router.put('/:id', (req, res) => {
       }
     }
     
-    // 更新数据
-    const stmt = db.prepare(`
+    // 更新数据 - MySQL语法
+    await connection.execute(`
       UPDATE customers SET
         customer_code = COALESCE(?, customer_code),
         customer_name = COALESCE(?, customer_name),
@@ -300,21 +306,20 @@ router.put('/:id', (req, res) => {
         tags = ?,
         remark = ?,
         updated_by = ?,
-        updated_at = datetime('now')
+        updated_at = CURRENT_TIMESTAMP
       WHERE id = ?
-    `)
-    
-    stmt.run(
+    `, [
       customerCode, customerName, customerType, status,
       contactPerson, contactPhone, contactEmail, contactAddress,
       company, companyAddress, industry, region, taxNumber,
       creditLevel, creditLimit, salesPerson, source,
       tags ? JSON.stringify(tags) : null, remark, updatedBy,
       id
-    )
+    ])
     
     // 获取更新后的客户
-    const updatedCustomer = db.prepare('SELECT * FROM customers WHERE id = ?').get(id)
+    const [updatedCustomers] = await connection.execute('SELECT * FROM customers WHERE id = ?', [id])
+    const updatedCustomer = updatedCustomers[0]
     
     console.log('✅ 更新成功')
     
@@ -330,6 +335,8 @@ router.put('/:id', (req, res) => {
       message: '更新客户失败',
       error: error.message
     })
+  } finally {
+    if (connection) connection.release()
   }
 })
 
@@ -337,14 +344,17 @@ router.put('/:id', (req, res) => {
  * 删除客户
  * DELETE /api/customers/:id
  */
-router.delete('/:id', (req, res) => {
+router.delete('/:id', async (req, res) => {
+  let connection
   try {
     const { id } = req.params
     console.log('=== 删除客户 ===', id)
     
+    connection = await pool.getConnection()
+    
     // 检查客户是否存在
-    const existing = db.prepare('SELECT id FROM customers WHERE id = ?').get(id)
-    if (!existing) {
+    const [existing] = await connection.execute('SELECT id FROM customers WHERE id = ?', [id])
+    if (!existing || existing.length === 0) {
       return res.status(404).json({
         success: false,
         message: '客户不存在'
@@ -354,7 +364,7 @@ router.delete('/:id', (req, res) => {
     // TODO: 检查是否有关联的订单，如果有则不允许删除
     
     // 删除客户
-    db.prepare('DELETE FROM customers WHERE id = ?').run(id)
+    await connection.execute('DELETE FROM customers WHERE id = ?', [id])
     
     console.log('✅ 删除成功')
     
@@ -369,6 +379,8 @@ router.delete('/:id', (req, res) => {
       message: '删除客户失败',
       error: error.message
     })
+  } finally {
+    if (connection) connection.release()
   }
 })
 
@@ -376,7 +388,8 @@ router.delete('/:id', (req, res) => {
  * 批量删除客户
  * POST /api/customers/batch-delete
  */
-router.post('/batch-delete', (req, res) => {
+router.post('/batch-delete', async (req, res) => {
+  let connection
   try {
     const { ids } = req.body
     console.log('=== 批量删除客户 ===', ids)
@@ -388,17 +401,21 @@ router.post('/batch-delete', (req, res) => {
       })
     }
     
-    const placeholders = ids.map(() => '?').join(',')
-    const stmt = db.prepare(`DELETE FROM customers WHERE id IN (${placeholders})`)
-    const result = stmt.run(...ids)
+    connection = await pool.getConnection()
     
-    console.log('✅ 批量删除成功，删除数量:', result.changes)
+    const placeholders = ids.map(() => '?').join(',')
+    const [result] = await connection.execute(
+      `DELETE FROM customers WHERE id IN (${placeholders})`,
+      ids
+    )
+    
+    console.log('✅ 批量删除成功，删除数量:', result.affectedRows)
     
     res.json({
       success: true,
-      message: `成功删除 ${result.changes} 个客户`,
+      message: `成功删除 ${result.affectedRows} 个客户`,
       data: {
-        deletedCount: result.changes
+        deletedCount: result.affectedRows
       }
     })
   } catch (error) {
@@ -408,6 +425,8 @@ router.post('/batch-delete', (req, res) => {
       message: '批量删除客户失败',
       error: error.message
     })
+  } finally {
+    if (connection) connection.release()
   }
 })
 

@@ -2375,6 +2375,42 @@ const handleSave = async () => {
 // 提交（保存到主表格并关闭对话框）
 const handleSubmit = async () => {
   try {
+    // 表单验证
+    if (!formData.value.productCode) {
+      ElMessage.warning('请输入产品编号')
+      return
+    }
+    
+    if (!formData.value.productName) {
+      ElMessage.warning('请输入产品名称')
+      return
+    }
+    
+    if (!formData.value.bomName) {
+      ElMessage.warning('请输入BOM名称')
+      return
+    }
+    
+    // 子件验证
+    if (formData.value.childItems && formData.value.childItems.length > 0) {
+      for (const child of formData.value.childItems) {
+        if (!child.childCode) {
+          ElMessage.warning('子件编码不能为空')
+          return
+        }
+        
+        if (!child.childName) {
+          ElMessage.warning('子件名称不能为空')
+          return
+        }
+        
+        if (!child.standardQty || parseFloat(child.standardQty) <= 0) {
+          ElMessage.warning('子件数量必须大于0')
+          return
+        }
+      }
+    }
+    
     // 确保有bomCode
     if (!formData.value.bomCode) {
       const timestamp = Date.now()
@@ -3049,32 +3085,31 @@ const handlePushToManual = async (row) => {
     
     // 使用API保存到MySQL数据库
     try {
-      const response = await productManualAPI.create(productManualData)
+      // 尝试创建产品手册，响应拦截器会直接返回数据或抛出错误
+      const createdProduct = await productManualAPI.create(productManualData)
       
-      if (response.code === 200) {
-        // 推送成功
-        console.log('产品推送成功:', response)
-        
-        // 更新BOM的推送状态
-        const bomIndex = tableData.value.findIndex(b => b.id === row.id)
-        if (bomIndex !== -1) {
-          tableData.value[bomIndex].isPushedToManual = 1
-        }
-        
-        // 使用普通消息通知（避免appContext错误）
-        setTimeout(() => {
-          ElMessage({
-            type: 'success',
-            message: `推送成功！\n产品编号：${row.productCode}\n请到产品手册页面查看`,
-            duration: 3000
-          })
-        }, 100)
-      } else {
-        throw new Error(response.message || '推送失败')
+      // 推送成功
+      console.log('产品推送成功:', createdProduct)
+      
+      // 更新BOM的推送状态
+      const bomIndex = tableData.value.findIndex(b => b.id === row.id)
+      if (bomIndex !== -1) {
+        tableData.value[bomIndex].isPushedToManual = 1
       }
+      
+      // 使用普通消息通知（避免appContext错误）
+      setTimeout(() => {
+        ElMessage({
+          type: 'success',
+          message: `推送成功！\n产品编号：${row.productCode}\n请到产品手册页面查看`,
+          duration: 3000
+        })
+      }, 100)
     } catch (apiError) {
-      // 如果是产品编号已存在错误，提示用户是否覆盖
-      if (apiError.response && apiError.response.status === 400) {
+      console.error('推送错误:', apiError)
+      
+      // 检查是否是产品编号已存在错误
+      if (apiError.message && apiError.message.includes('已存在')) {
         try {
           await ElMessageBox.confirm(
             `产品手册中已存在相同产品编号（${row.productCode}），是否覆盖？`,
@@ -3088,25 +3123,26 @@ const handlePushToManual = async (row) => {
           
           // 用户选择覆盖，查找并更新
           const allProducts = await productManualAPI.getAll()
-          if (allProducts.code === 200) {
-            const existing = allProducts.data.find(p => p.productCode === row.productCode)
-            if (existing) {
-              await productManualAPI.update(existing.id, productManualData)
-              
-              setTimeout(() => {
-                ElMessage({
-                  type: 'success',
-                  message: `覆盖成功！\n产品编号：${row.productCode}`,
-                  duration: 3000
-                })
-              }, 100)
-            }
+          
+          // 直接从数组中查找
+          const existing = allProducts.find(p => p.productCode === row.productCode)
+          if (existing) {
+            await productManualAPI.update(existing.id, productManualData)
+            
+            setTimeout(() => {
+              ElMessage({
+                type: 'success',
+                message: `覆盖成功！\n产品编号：${row.productCode}`,
+                duration: 3000
+              })
+            }, 100)
           }
         } catch (confirmError) {
           // 用户取消覆盖
           return
         }
       } else {
+        // 其他错误
         throw apiError
       }
     }

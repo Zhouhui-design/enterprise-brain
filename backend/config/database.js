@@ -381,11 +381,24 @@ async function initializeDatabase() {
         updated_by VARCHAR(100) COMMENT '更新人',
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
         updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+        -- 产品信息字段（直接合并到主表）
+        product_code VARCHAR(100) COMMENT '产品编码',
+        product_name VARCHAR(200) COMMENT '产品名称',
+        product_spec VARCHAR(200) COMMENT '产品规格',
+        product_color VARCHAR(50) COMMENT '产品颜色',
+        product_unit VARCHAR(20) COMMENT '产品单位',
+        order_quantity DECIMAL(15,3) COMMENT '订单数量',
+        unit_price_excluding_tax DECIMAL(15,2) COMMENT '不含税单价',
+        product_tax_rate DECIMAL(5,2) COMMENT '产品税率',
+        accessories TEXT COMMENT '配件',
+        output_process VARCHAR(100) COMMENT '产出工序',
+        product_source VARCHAR(50) COMMENT '产品来源',
         INDEX idx_internal_order_no (internal_order_no),
         INDEX idx_customer_order_no (customer_order_no),
         INDEX idx_customer_name (customer_name),
         INDEX idx_status (status),
-        INDEX idx_created_at (created_at)
+        INDEX idx_created_at (created_at),
+        INDEX idx_product_code (product_code)
       ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='销售订单表'
     `);
 
@@ -407,6 +420,7 @@ async function initializeDatabase() {
         total_price DECIMAL(10,2) DEFAULT 0.00 COMMENT '含税总价',
         accessories TEXT COMMENT '配件（JSON格式）',
         output_process VARCHAR(100) COMMENT '产出工序',
+        product_source VARCHAR(100) COMMENT '产品来源',
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
         updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
         INDEX idx_order_id (order_id),
@@ -1014,38 +1028,45 @@ async function initializeDatabase() {
     }
     
     // 创建INSERT触发器：自动计算 plan_quantity = order_quantity - available_stock
-    await connection.query(`
-      CREATE TRIGGER before_insert_master_production_plans_calc_plan_quantity
-      BEFORE INSERT ON master_production_plans
-      FOR EACH ROW
-      BEGIN
-        IF NEW.order_quantity IS NOT NULL AND NEW.available_stock IS NOT NULL THEN
-          SET NEW.plan_quantity = IF(
-            NEW.available_stock >= NEW.order_quantity,
-            0,
-            NEW.order_quantity - NEW.available_stock
-          );
-        END IF;
-      END
-    `);
-    
-    // 创建UPDATE触发器：订单数量或可用库存变化时自动重新计算
-    await connection.query(`
-      CREATE TRIGGER before_update_master_production_plans_calc_plan_quantity
-      BEFORE UPDATE ON master_production_plans
-      FOR EACH ROW
-      BEGIN
-        IF (NEW.order_quantity != OLD.order_quantity OR NEW.available_stock != OLD.available_stock) 
-           AND NEW.order_quantity IS NOT NULL 
-           AND NEW.available_stock IS NOT NULL THEN
-          SET NEW.plan_quantity = IF(
-            NEW.available_stock >= NEW.order_quantity,
-            0,
-            NEW.order_quantity - NEW.available_stock
-          );
-        END IF;
-      END
-    `);
+    try {
+      await connection.query(`
+        CREATE TRIGGER before_insert_master_production_plans_calc_plan_quantity
+        BEFORE INSERT ON master_production_plans
+        FOR EACH ROW
+        BEGIN
+          IF NEW.order_quantity IS NOT NULL AND NEW.available_stock IS NOT NULL THEN
+            SET NEW.plan_quantity = IF(
+              NEW.available_stock >= NEW.order_quantity,
+              0,
+              NEW.order_quantity - NEW.available_stock
+            );
+          END IF;
+        END
+      `);
+      
+      // 创建UPDATE触发器：订单数量或可用库存变化时自动重新计算
+      await connection.query(`
+        CREATE TRIGGER before_update_master_production_plans_calc_plan_quantity
+        BEFORE UPDATE ON master_production_plans
+        FOR EACH ROW
+        BEGIN
+          IF (NEW.order_quantity != OLD.order_quantity OR NEW.available_stock != OLD.available_stock) 
+             AND NEW.order_quantity IS NOT NULL 
+             AND NEW.available_stock IS NOT NULL THEN
+            SET NEW.plan_quantity = IF(
+              NEW.available_stock >= NEW.order_quantity,
+              0,
+              NEW.order_quantity - NEW.available_stock
+            );
+          END IF;
+        END
+      `);
+      
+      console.log('✅ 主生产计划触发器创建成功');
+    } catch (e) {
+      console.log('⚠️ 触发器已存在或创建失败，跳过触发器创建');
+      // 忽略触发器创建错误，继续执行后续初始化
+    }
     
     // 创建页面设置表
     await connection.execute(`
@@ -1075,6 +1096,71 @@ async function initializeDatabase() {
       ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='自定义节日表'
     `);
     
+    // 创建采购计划表
+    await connection.execute(`
+      CREATE TABLE IF NOT EXISTS procurement_plans (
+        id VARCHAR(100) PRIMARY KEY COMMENT '采购计划ID',
+        procurement_plan_no VARCHAR(100) UNIQUE NOT NULL COMMENT '采购计划编号',
+        purchase_order_no VARCHAR(100) COMMENT '采购订单编号',
+        source_form_name VARCHAR(100) COMMENT '来源表单名称',
+        source_no VARCHAR(100) COMMENT '来源单号',
+        material_code VARCHAR(100) NOT NULL COMMENT '物料编码',
+        material_name VARCHAR(200) NOT NULL COMMENT '物料名称',
+        material_image VARCHAR(500) COMMENT '物料图片',
+        required_quantity DECIMAL(15,3) NOT NULL COMMENT '需求数量',
+        base_unit VARCHAR(20) NOT NULL COMMENT '基本单位',
+        sales_order_no VARCHAR(100) COMMENT '销售订单号',
+        customer_order_no VARCHAR(100) COMMENT '客户订单号',
+        master_plan_no VARCHAR(100) COMMENT '主计划编号',
+        process_plan_no VARCHAR(100) COMMENT '工序计划编号',
+        material_plan_no VARCHAR(100) COMMENT '物料计划编号',
+        procurement_lead_time INT DEFAULT 3 COMMENT '采购提前期',
+        demand_date DATE NOT NULL COMMENT '需求日期',
+        plan_arrival_date DATE COMMENT '计划回厂日期',
+        procurement_status VARCHAR(50) DEFAULT 'PENDING_ORDER' COMMENT '采购状态',
+        supplier_name VARCHAR(200) COMMENT '供应商名称',
+        purchaser VARCHAR(100) COMMENT '采购员',
+        inquiry_date DATE COMMENT '询价日期',
+        order_date DATE COMMENT '下单日期',
+        promised_arrival_date DATE COMMENT '承诺回厂日期',
+        plan_purchase_quantity DECIMAL(15,3) DEFAULT 0 COMMENT '计划采购数量',
+        conversion_rate DECIMAL(10,4) DEFAULT 1 COMMENT '换算率',
+        purchase_unit VARCHAR(20) COMMENT '采购单位',
+        plan_unit_price DECIMAL(15,2) DEFAULT 0 COMMENT '计划单价',
+        plan_total_amount DECIMAL(15,2) DEFAULT 0 COMMENT '计划总金额',
+        actual_purchase_quantity DECIMAL(15,3) DEFAULT 0 COMMENT '实际采购数量',
+        actual_unit_price DECIMAL(15,2) DEFAULT 0 COMMENT '实际单价',
+        actual_total_amount DECIMAL(15,2) DEFAULT 0 COMMENT '实际总金额',
+        actual_arrival_date DATE COMMENT '实际回厂日期',
+        actual_warehouse_quantity DECIMAL(15,3) DEFAULT 0 COMMENT '实际入库数量',
+        warehouse_receipt_no VARCHAR(100) COMMENT '入库单号',
+        warehouse_person VARCHAR(100) COMMENT '入库人',
+        quality_inspector VARCHAR(100) COMMENT '质检人',
+        return_order_no VARCHAR(100) COMMENT '退货单号',
+        return_handler VARCHAR(100) COMMENT '退货处理人',
+        actual_warehouse_unit_price DECIMAL(15,2) DEFAULT 0 COMMENT '实际入库单价',
+        supplier_delivery_note_no VARCHAR(100) COMMENT '供应商送货单号',
+        delivery_note_image VARCHAR(500) COMMENT '送货单图片',
+        payment_method VARCHAR(50) COMMENT '付款方式',
+        is_paid TINYINT DEFAULT 0 COMMENT '是否已付款',
+        payment_no VARCHAR(100) COMMENT '付款单号',
+        payment_person VARCHAR(100) COMMENT '付款人',
+        reimbursement_no VARCHAR(100) COMMENT '报销单号',
+        reimbursement_person VARCHAR(100) COMMENT '报销人',
+        monthly_reconciliation_date DATE COMMENT '月结对账日期',
+        monthly_payment_date DATE COMMENT '月结付款日期',
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+        INDEX idx_procurement_plan_no (procurement_plan_no),
+        INDEX idx_purchase_order_no (purchase_order_no),
+        INDEX idx_material_code (material_code),
+        INDEX idx_sales_order_no (sales_order_no),
+        INDEX idx_procurement_status (procurement_status),
+        INDEX idx_supplier_name (supplier_name),
+        INDEX idx_created_at (created_at)
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='采购计划表'
+    `);
+
     // 创建企业日历表
     await connection.execute(`
       CREATE TABLE IF NOT EXISTS company_calendar (
@@ -1107,10 +1193,6 @@ async function initializeDatabase() {
   }
 }
 
-// 执行初始化
-initializeDatabase().catch(err => {
-  console.error('数据库初始化错误:', err);
-  process.exit(1);
-});
 
-module.exports = { pool, query };
+
+module.exports = { pool, query, initializeDatabase };

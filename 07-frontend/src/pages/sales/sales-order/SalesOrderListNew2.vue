@@ -415,11 +415,25 @@ const getStatusType = (status) => {
   return STATUS_TYPE_MAP[status] || 'info'
 }
 
-const formatColumnValue = ({ column, cellValue }) => {
-  if (!cellValue) return '-'
+// 修复：使用Element Plus期望的参数格式 (row, column, cellValue, index)
+const formatColumnValue = (row, column, cellValue, index) => {
+  console.log('格式化:', column.property, '=', cellValue, '类型:', typeof cellValue)
+  
+  // 只有null和undefined才显示'-'，0和''等falsy值应该正常显示
+  if (cellValue === null || cellValue === undefined) return '-'
+  
+  // 检查column是否存在，避免undefined错误
+  if (!column || !column.property) {
+    return String(cellValue)
+  }
+  
+  // 特殊处理：将status字段映射到orderStatus
+  if (column.property === 'orderStatus' && !cellValue) {
+    return '-'
+  }
   
   // 日期格式化
-  if (['orderTime', 'promisedDelivery', 'customerDelivery', 'plannedPaymentDate', 'estimatedCompletionDate', 'createTime'].includes(column.property)) {
+  if (['orderTime', 'promisedDelivery', 'customerDelivery', 'plannedPaymentDate', 'estimatedCompletionDate', 'createTime', 'createdAt', 'updatedAt'].includes(column.property)) {
     try {
       const date = new Date(cellValue)
       if (isNaN(date.getTime())) return '-'
@@ -433,11 +447,21 @@ const formatColumnValue = ({ column, cellValue }) => {
   }
   
   // 金额格式化
-  if (['unitPriceExcludingTax', 'unitPriceIncludingTax', 'amountExcludingTax', 'amountIncludingTax', 'totalAmountExcludingTax', 'totalAmountIncludingTax', 'fees', 'totalReceivable', 'plannedPaymentAmount'].includes(column.property)) {
-    return `¥${Number(cellValue).toLocaleString('zh-CN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+  if (['unitPriceExcludingTax', 'unitPriceIncludingTax', 'amountExcludingTax', 'amountIncludingTax', 'totalAmountExcludingTax', 'totalAmountIncludingTax', 'fees', 'totalReceivable', 'plannedPaymentAmount', 'advancePaymentAmount'].includes(column.property)) {
+    const num = Number(cellValue)
+    if (isNaN(num)) return '-'
+    return `¥${num.toLocaleString('zh-CN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
   }
   
-  return cellValue
+  // 数字列格式化
+  if (['orderQuantity', 'currentExchangeRate', 'taxRate', 'advancePaymentRatio'].includes(column.property)) {
+    const num = Number(cellValue)
+    if (isNaN(num)) return '-'
+    return num.toLocaleString('zh-CN')
+  }
+  
+  // 默认处理：转换为字符串
+  return String(cellValue)
 }
 
 // ========== 初始化 ==========

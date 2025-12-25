@@ -201,7 +201,7 @@ class ListStyleProductionBomService {
         
         // 构建当前子件结构签名（用于比较）
         const currentSignature = currentDirectChildren
-          .map(child => `${child.component_code}:${child.standard_quantity || 0}`)
+          .map(child => `${child.component_code}:${child.quantity || 0}`)
           .sort()
           .join('|');
         
@@ -242,7 +242,7 @@ class ListStyleProductionBomService {
             currentChildren: currentDirectChildren.map(c => ({
               code: c.component_code,
               name: c.component_name,
-              quantity: c.standard_quantity || 0
+              quantity: c.quantity || 0
             })),
             existingBomId: existingBoms[0].id // 用于查询已存在的子件
           });
@@ -367,7 +367,7 @@ class ListStyleProductionBomService {
             child.component_code, // 子件编号
             child.component_name, // 子件名称
             child.component_source || '', // 子件来源（从生产BOM获取）
-            child.standard_quantity || 0 // 标准用量
+            child.quantity || 0 // 标准用量
           ]);
         }
         
