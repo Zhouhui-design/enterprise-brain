@@ -1,0 +1,40 @@
+﻿name: Java Backend CI
+
+on:
+  push:
+    branches: [ main, develop ]
+    paths: [ '08-backend/**' ]
+  pull_request:
+    branches: [ main, develop ]
+    paths: [ '08-backend/**' ]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v3
+    
+    - name: Setup Java
+      uses: actions/setup-java@v3
+      with:
+        java-version: '17'
+        distribution: 'temurin'
+        cache: 'maven'
+    
+    - name: Build with Maven
+      run: mvn clean compile -DskipTests
+      working-directory: 08-backend
+    
+    - name: Verify build
+      run: mvn package -DskipTests
+      working-directory: 08-backend
+    
+    - name: Upload build artifact
+      if: success()
+      uses: actions/upload-artifact@v3
+      with:
+        name: java-backend-jar
+        path: 08-backend/target/*.jar
+        retention-days: 7
