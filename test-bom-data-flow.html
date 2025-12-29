@@ -1,0 +1,218 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <title>生产BOM数据流测试</title>
+  <style>
+    body { font-family: Arial, sans-serif; padding: 20px; }
+    .section { margin: 20px 0; padding: 15px; border: 1px solid #ddd; border-radius: 5px; }
+    .success { background-color: #f0f9ff; border-color: #67C23A; }
+    .error { background-color: #fef0f0; border-color: #F56C6C; }
+    pre { background: #f5f5f5; padding: 10px; overflow-x: auto; }
+    h2 { margin-top: 0; }
+  </style>
+</head>
+<body>
+  <h1>🔍 生产BOM数据流诊断</h1>
+  
+  <div id="step1" class="section">
+    <h2>步骤1: 测试后端API</h2>
+    <button onclick="testBackendAPI()">测试 /api/production-boms/list</button>
+    <div id="step1-result"></div>
+  </div>
+
+  <div id="step2" class="section">
+    <h2>步骤2: 测试字段转换</h2>
+    <button onclick="testFieldConversion()">测试字段映射转换</button>
+    <div id="step2-result"></div>
+  </div>
+
+  <div id="step3" class="section">
+    <h2>步骤3: 模拟前端加载</h2>
+    <button onclick="simulateFrontendLoad()">模拟完整数据加载流程</button>
+    <div id="step3-result"></div>
+  </div>
+
+  <script>
+    // 字段转换函数（从 bomApiService.js 复制）
+    function convertFromBackend(bomData) {
+      return {
+        id: bomData.id,
+        bomCode: bomData.bom_code,
+        bomName: bomData.bom_name,
+        productCode: bomData.product_code,
+        productName: bomData.product_name,
+        version: bomData.version,
+        status: bomData.status,
+        designer: bomData.designer,
+        itemCount: bomData.material_count,
+        remark: bomData.remark,
+        reviewer: bomData.auditor,
+        effectiveDate: bomData.effective_date,
+        totalLabor: bomData.total_labor,
+        totalMaterial: bomData.total_material,
+        productImage: bomData.product_image,
+        isPushedToManual: bomData.is_pushed_to_manual,
+        createTime: bomData.created_at,
+        updateTime: bomData.updated_at
+      }
+    }
+
+    async function testBackendAPI() {
+      const result = document.getElementById('step1-result');
+      result.innerHTML = '<p>⏳ 正在调用后端API...</p>';
+      
+      try {
+        const response = await fetch('http://localhost:3005/api/production-boms/list');
+        const json = await response.json();
+        
+        if (json.code === 200) {
+          const data = json.data;
+          result.innerHTML = `
+            <p>✅ <strong>后端API调用成功</strong></p>
+            <p>返回记录数: ${data.length}</p>
+            <p>第一条记录的字段名:</p>
+            <pre>${Object.keys(data[0] || {}).join('\n')}</pre>
+            <p>完整数据:</p>
+            <pre>${JSON.stringify(data, null, 2)}</pre>
+          `;
+          document.getElementById('step1').className = 'section success';
+          return data;
+        } else {
+          throw new Error(`API返回错误: ${json.message}`);
+        }
+      } catch (error) {
+        result.innerHTML = `<p>❌ <strong>错误:</strong> ${error.message}</p>`;
+        document.getElementById('step1').className = 'section error';
+        throw error;
+      }
+    }
+
+    async function testFieldConversion() {
+      const result = document.getElementById('step2-result');
+      result.innerHTML = '<p>⏳ 正在测试字段转换...</p>';
+      
+      try {
+        const backendData = await testBackendAPI();
+        
+        const convertedData = backendData.map(item => convertFromBackend(item));
+        
+        result.innerHTML = `
+          <p>✅ <strong>字段转换成功</strong></p>
+          <p>转换后的字段名:</p>
+          <pre>${Object.keys(convertedData[0] || {}).join('\n')}</pre>
+          <p>转换后的完整数据:</p>
+          <pre>${JSON.stringify(convertedData, null, 2)}</pre>
+          <h3>字段对比:</h3>
+          <table border="1" cellpadding="5" style="border-collapse: collapse; width: 100%;">
+            <tr>
+              <th>后端字段（蛇形）</th>
+              <th>前端字段（驼峰）</th>
+              <th>值</th>
+            </tr>
+            <tr>
+              <td>bom_code</td>
+              <td>bomCode</td>
+              <td>${convertedData[0]?.bomCode || '❌ 未转换'}</td>
+            </tr>
+            <tr>
+              <td>bom_name</td>
+              <td>bomName</td>
+              <td>${convertedData[0]?.bomName || '❌ 未转换'}</td>
+            </tr>
+            <tr>
+              <td>product_code</td>
+              <td>productCode</td>
+              <td>${convertedData[0]?.productCode || '❌ 未转换'}</td>
+            </tr>
+            <tr>
+              <td>product_name</td>
+              <td>productName</td>
+              <td>${convertedData[0]?.productName || '❌ 未转换'}</td>
+            </tr>
+            <tr>
+              <td>material_count</td>
+              <td>itemCount</td>
+              <td>${convertedData[0]?.itemCount || '❌ 未转换'}</td>
+            </tr>
+          </table>
+        `;
+        document.getElementById('step2').className = 'section success';
+        return convertedData;
+      } catch (error) {
+        result.innerHTML = `<p>❌ <strong>错误:</strong> ${error.message}</p>`;
+        document.getElementById('step2').className = 'section error';
+        throw error;
+      }
+    }
+
+    async function simulateFrontendLoad() {
+      const result = document.getElementById('step3-result');
+      result.innerHTML = '<p>⏳ 正在模拟前端加载...</p>';
+      
+      try {
+        const convertedData = await testFieldConversion();
+        
+        // 模拟 Vue 表格渲染需要的数据格式
+        const tableData = convertedData;
+        
+        result.innerHTML = `
+          <p>✅ <strong>模拟加载成功</strong></p>
+          <p>可用于表格渲染的数据:</p>
+          <h3>表格预览 (模拟 el-table):</h3>
+          <table border="1" cellpadding="8" style="border-collapse: collapse; width: 100%; background: white;">
+            <thead style="background: #f5f7fa;">
+              <tr>
+                <th>BOM编号</th>
+                <th>BOM名称</th>
+                <th>产品编号</th>
+                <th>产品名称</th>
+                <th>版本号</th>
+                <th>状态</th>
+                <th>物料数量</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${tableData.map(row => `
+                <tr>
+                  <td>${row.bomCode || '<span style="color: red;">空值</span>'}</td>
+                  <td>${row.bomName || '<span style="color: red;">空值</span>'}</td>
+                  <td>${row.productCode || '<span style="color: red;">空值</span>'}</td>
+                  <td>${row.productName || '<span style="color: red;">空值</span>'}</td>
+                  <td>${row.version || '<span style="color: red;">空值</span>'}</td>
+                  <td>${row.status || '<span style="color: red;">空值</span>'}</td>
+                  <td>${row.itemCount !== undefined ? row.itemCount : '<span style="color: red;">空值</span>'}</td>
+                </tr>
+              `).join('')}
+            </tbody>
+          </table>
+          <h3>🎯 诊断结论:</h3>
+          <p>${tableData[0]?.bomCode ? '✅ 数据转换正常，字段映射正确' : '❌ 数据转换失败，bomCode为空'}</p>
+          <p>如果这里显示正常，但前端页面显示空白行，则问题在于:</p>
+          <ol>
+            <li>Vite HMR热更新导致的状态丢失</li>
+            <li>Vue组件缓存问题</li>
+            <li>前端代码中的其他错误拦截了数据</li>
+          </ol>
+          <p><strong>建议:</strong> 完全关闭浏览器，重新打开 http://localhost:3003/bom/production</p>
+        `;
+        document.getElementById('step3').className = 'section success';
+      } catch (error) {
+        result.innerHTML = `<p>❌ <strong>错误:</strong> ${error.message}</p>`;
+        document.getElementById('step3').className = 'section error';
+      }
+    }
+
+    // 自动执行所有测试
+    window.onload = async () => {
+      console.log('🚀 开始自动诊断...');
+      try {
+        await simulateFrontendLoad();
+        console.log('✅ 诊断完成');
+      } catch (error) {
+        console.error('❌ 诊断失败:', error);
+      }
+    };
+  </script>
+</body>
+</html>

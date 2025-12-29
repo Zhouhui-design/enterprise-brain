@@ -9,11 +9,15 @@ class BOMAPIService {
    */
   async getAllBoms() {
     try {
-      // request.js的响应拦截器已经处理了code，直接返回数据数组
+      // request.js的响应拦截器已经处理了code并自动转换为驼峰命名，直接返回数据数组
       const data = await productionBomAPI.getAllBOMs()
-      console.log(`从后端获取到${data.length}条生产BOM数据`)
-      // 转换数据格式
-      return data.map(item => this.convertFromBackend(item))
+      console.log(`✅ 从后端获取到${data.length}条生产BOM数据`)
+      console.log('📋 数据字段:', data.length > 0 ? Object.keys(data[0]).join(', ') : '无数据')
+      console.log('📄 第一条数据:', data[0])
+      
+      // ⚠️ request.js已经自动将字段从蛇形转为驼峰，这里不需要再转换
+      // 直接返回，字段名已经是: bomCode, bomName, productCode 等
+      return data
     } catch (error) {
       console.error('获取生产BOM列表失败:', error)
       throw error
@@ -25,9 +29,13 @@ class BOMAPIService {
    */
   async getBomDetail(id) {
     try {
-      // request.js的响应拦截器已经处理了code，直接返回数据对象
+      // request.js的响应拦截器已经处理了code并自动转换为驼峰命名
       const data = await productionBomAPI.getBOMDetail(id)
-      return this.convertFromBackend(data, true)
+      console.log('✅ 获取BOM详情成功, ID:', id)
+      console.log('📋 数据字段:', Object.keys(data).join(', '))
+      
+      // ⚠️ request.js已经自动转换，直接返回
+      return data
     } catch (error) {
       console.error('获取BOM详情失败:', error)
       throw error

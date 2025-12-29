@@ -139,55 +139,62 @@
   </nav>
 </template>
 
-<script setup lang="ts">
+<script setup>
 import { ref, computed, onMounted, onUnmounted, nextTick } from 'vue'
 import { useRouter } from 'vue-router'
 
-interface BreadcrumbItem {
-  label: string
-  path?: string
-  icon?: string
-  badge?: string | number
-  disabled?: boolean
-  hidden?: boolean
-}
-
-interface Props {
-  items?: BreadcrumbItem[]
-  showHome?: boolean
-  homeLabel?: string
-  homePath?: string
-  showHomeText?: boolean
-  separator?: string
-  variant?: 'default' | 'minimal' | 'detailed'
-  maxItems?: number
-  showExpandButton?: boolean
-  collapsible?: boolean
-}
-
-const props = withDefaults(defineProps<Props>(), {
-  items: () => [],
-  showHome: true,
-  homeLabel: '首页',
-  homePath: '/',
-  showHomeText: false,
-  separator: 'chevron-right',
-  variant: 'default',
-  maxItems: 5,
-  showExpandButton: true,
-  collapsible: true
+// Props定义
+const props = defineProps({
+  items: {
+    type: Array,
+    default: () => []
+  },
+  showHome: {
+    type: Boolean,
+    default: true
+  },
+  homeLabel: {
+    type: String,
+    default: '首页'
+  },
+  homePath: {
+    type: String,
+    default: '/'
+  },
+  showHomeText: {
+    type: Boolean,
+    default: false
+  },
+  separator: {
+    type: String,
+    default: 'chevron-right'
+  },
+  variant: {
+    type: String,
+    default: 'default'
+  },
+  maxItems: {
+    type: Number,
+    default: 5
+  },
+  showExpandButton: {
+    type: Boolean,
+    default: true
+  },
+  collapsible: {
+    type: Boolean,
+    default: true
+  }
 })
 
-const emit = defineEmits<{
-  'item-click': [item: BreadcrumbItem, index: number]
-}>()
+const emit = defineEmits(['item-click'])
 
 const router = useRouter()
 
 // 响应式状态
 const showExpandMenu = ref(false)
 const isOverflowing = ref(false)
-const containerRef = ref<HTMLElement>()
+const containerRef = ref(null)
 
 // 计算属性
 const navClasses = computed(() => [
@@ -210,7 +217,7 @@ const expandMenuClasses = computed(() => [
 ])
 
 const separatorIcon = computed(() => {
-  const iconMap: Record<string, string> = {
+  const iconMap = {
     'chevron-right': 'fas fa-chevron-right',
     'chevron-left': 'fas fa-chevron-left',
     'slash': 'fas fa-slash',
@@ -241,7 +248,7 @@ const visibleItems = computed(() => {
       label: '...',
       icon: 'fas fa-ellipsis-h',
       hidden: true
-    } as BreadcrumbItem,
+    },
     ...props.items.slice(-1)
   ]
   
@@ -249,7 +256,7 @@ const visibleItems = computed(() => {
 })
 
 // 方法
-const getItemClasses = (item: BreadcrumbItem, index: number) => [
+const getItemClasses = (item, index) => [
   'breadcrumb-nav__item-inner',
   {
     'breadcrumb-nav__item--current': index === props.items.length - 1,
@@ -258,7 +265,7 @@ const getItemClasses = (item: BreadcrumbItem, index: number) => [
   }
 ]
 
-const formatBadge = (badge: string | number) => {
+const formatBadge = (badge) => {
   if (typeof badge === 'number') {
     return badge > 99 ? '99+' : badge.toString()
   }
@@ -285,7 +292,7 @@ const closeExpandMenu = () => {
   showExpandMenu.value = false
 }
 
-const handleItemClick = (item: BreadcrumbItem, index: number) => {
+const handleItemClick = (item, index) => {
   if (item.disabled) return
   
   emit('item-click', item, index)
@@ -302,8 +309,8 @@ const handleItemClick = (item: BreadcrumbItem, index: number) => {
 }
 
 // 点击外部关闭展开菜单
-const handleClickOutside = (event: Event) => {
-  const target = event.target as HTMLElement
+const handleClickOutside = (event) => {
+  const target = event.target
   if (!target.closest('.breadcrumb-nav')) {
     closeExpandMenu()
   }
@@ -315,7 +322,7 @@ const handleResize = () => {
 }
 
 // 键盘导航支持
-const handleKeyDown = (event: KeyboardEvent) => {
+const handleKeyDown = (event) => {
   if (event.key === 'Escape') {
     closeExpandMenu()
   }
