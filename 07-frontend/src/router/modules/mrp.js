@@ -13,6 +13,12 @@ export default {
       meta: { title: '工序能力负荷表' }
     },
     {
+      path: 'capacity-load-flow',
+      name: 'CapacityLoadFlow',
+      component: () => import('@/pages/mrp/CapacityLoadFlow.vue'),
+      meta: { title: '产能负荷流' }
+    },
+    {
       path: 'plan-approve',
       name: 'MRPPlanApprove',
       component: () => import('@/pages/mrp/MRPPlanApprove.vue'),

@@ -33,60 +33,63 @@ class MaterialAPIService {
     
     // 安全解析source字段
     let sourceValue = []
-    if (obj.source) {
-      if (typeof obj.source === 'string') {
+    const sourceField = obj.source
+    if (sourceField) {
+      if (typeof sourceField === 'string') {
         try {
           // 尝试解析JSON字符串
-          const trimmed = obj.source.trim()
+          const trimmed = sourceField.trim()
           if (trimmed && trimmed !== '[]' && trimmed !== '') {
             sourceValue = JSON.parse(trimmed)
           }
         } catch (error) {
           // JSON解析失败，尝试按逗号分割
-          console.warn(`物料 ${obj.material_code} 的source字段JSON解析失败，使用逗号分割: ${obj.source}`)
-          sourceValue = obj.source.split(',').map(s => s.trim()).filter(s => s)
+          const materialCode = obj.materialCode || obj.material_code || 'unknown'
+          console.warn(`物料 ${materialCode} 的source字段JSON解析失败，使用逗号分割: ${sourceField}`)
+          sourceValue = sourceField.split(',').map(s => s.trim()).filter(s => s)
         }
-      } else if (Array.isArray(obj.source)) {
-        sourceValue = obj.source
+      } else if (Array.isArray(sourceField)) {
+        sourceValue = sourceField
       }
     }
     
+    // ✅ 优先使用camelCase字段，如果不存在则从snake_case转换
     return {
       id: obj.id,
-      materialCode: obj.material_code,
-      bomNumber: obj.bom_number,
-      materialName: obj.material_name,
-      sizeSpec: obj.size_spec,
+      materialCode: obj.materialCode || obj.material_code,
+      bomNumber: obj.bomNumber || obj.bom_number,
+      materialName: obj.materialName || obj.material_name,
+      sizeSpec: obj.sizeSpec || obj.size_spec,
       color: obj.color,
       material: obj.material,
-      majorCategory: obj.major_category,
-      middleCategory: obj.middle_category,
-      minorCategory: obj.minor_category,
+      majorCategory: obj.majorCategory || obj.major_category,
+      middleCategory: obj.middleCategory || obj.middle_category,
+      minorCategory: obj.minorCategory || obj.minor_category,
       model: obj.model,
       series: obj.series,
       source: sourceValue,
       description: obj.description,
-      materialImage: obj.material_image,
-      baseUnit: obj.base_unit,
-      saleUnit: obj.sale_unit,
-      saleConversionRate: obj.sale_conversion_rate,
-      purchaseUnit: obj.purchase_unit,
-      purchaseConversionRate: obj.purchase_conversion_rate,
-      kgPerPcs: obj.kg_per_pcs,
-      pcsPerKg: obj.pcs_per_kg,
-      processName: obj.process_name,
-      outputProcessName: obj.output_process_name || '', // 产出工序名称
-      standardTime: obj.standard_time,
-      quotaTime: obj.quota_time,
-      minimumPackagingQuantity: parseFloat(obj.minimum_packaging_quantity) || 1, // 最小包装量
-      processPrice: parseFloat(obj.process_price) || 0,
-      materialLoss: obj.material_loss,
-      purchaseCycle: obj.purchase_cycle,
-      purchasePrice: parseFloat(obj.purchase_price) || 0,
-      basePrice: parseFloat(obj.base_price) || 0,
+      materialImage: obj.materialImage || obj.material_image,
+      baseUnit: obj.baseUnit || obj.base_unit,
+      saleUnit: obj.saleUnit || obj.sale_unit,
+      saleConversionRate: obj.saleConversionRate || obj.sale_conversion_rate,
+      purchaseUnit: obj.purchaseUnit || obj.purchase_unit,
+      purchaseConversionRate: obj.purchaseConversionRate || obj.purchase_conversion_rate,
+      kgPerPcs: obj.kgPerPcs || obj.kg_per_pcs,
+      pcsPerKg: obj.pcsPerKg || obj.pcs_per_kg,
+      processName: obj.processName || obj.process_name,
+      outputProcessName: obj.outputProcessName || obj.output_process_name || '', // 产出工序名称
+      standardTime: obj.standardTime || obj.standard_time,
+      quotaTime: obj.quotaTime || obj.quota_time,
+      minimumPackagingQuantity: parseFloat(obj.minimumPackagingQuantity || obj.minimum_packaging_quantity) || 1, // 最小包装量
+      processPrice: parseFloat(obj.processPrice || obj.process_price) || 0,
+      materialLoss: obj.materialLoss || obj.material_loss,
+      purchaseCycle: obj.purchaseCycle || obj.purchase_cycle,
+      purchasePrice: parseFloat(obj.purchasePrice || obj.purchase_price) || 0,
+      basePrice: parseFloat(obj.basePrice || obj.base_price) || 0,
       status: obj.status,
-      createTime: obj.created_at,
-      updateTime: obj.updated_at
+      createTime: obj.createTime || obj.created_at,
+      updateTime: obj.updateTime || obj.updated_at
     }
   }
 

@@ -53,6 +53,16 @@ export default {
         }
       ]
     },
+    // 供应商管理（简短URL）
+    {
+      path: 'supplier-management',
+      name: 'SupplierManagementShort',
+      component: () => import('@/pages/purchase/supplier-management/SupplierList.vue'),
+      meta: { 
+        title: '供应商管理',
+        permission: ['purchase:suppliers:list']
+      }
+    },
     // 采购计划
     {
       path: 'procurement-plans',
@@ -84,6 +94,16 @@ export default {
           }
         }
       ]
+    },
+    // 采购计划（简短URL）
+    {
+      path: 'procurement-plan',
+      name: 'ProcurementPlanShort',
+      component: () => import('@/pages/purchase/ProcurementPlanList.vue'),
+      meta: {
+        title: '采购计划',
+        permission: ['purchase:procurement-plans:list']
+      }
     },
     // 采购申请
     {

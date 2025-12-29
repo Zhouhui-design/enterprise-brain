@@ -30,7 +30,8 @@ class BOMService {
         bom.childItems = components.map(component => {
           return {
             ...component,
-            standard_quantity: component.quantity, // 使用正确的字段名，数据库中实际是quantity字段
+            standard_quantity: component.quantity, // ⚠️ 前端期望这个字段名
+            quantity: component.quantity, // 数据库字段名
           };
         });
       }
@@ -62,7 +63,8 @@ class BOMService {
         bom.childItems = components.map(component => {
           return {
             ...component,
-            standard_quantity: component.quantity, // 使用正确的字段名，数据库中实际是quantity字段
+            standard_quantity: component.quantity, // ⚠️ 前端期望这个字段名
+            quantity: component.quantity, // 数据库字段名
           };
         });
         console.log(`✅ 产品 ${productCode} 的BOM包含 ${components.length} 个子件`);

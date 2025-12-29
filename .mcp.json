@@ -1,22 +1,3 @@
 {
-  "mcpServers": {
-    "cloudbase": {
-      "command": "cloudbase-mcp",
-      "args": [],
-      "env": {
-        "INTEGRATION_IDE": "CloudBaseCLI"
-      }
-    },
-    "mysql": {
-      "command": "mysql-mcp",
-      "args": [],
-      "env": {
-        "DB_HOST": "localhost",
-        "DB_PORT": "3306",
-        "DB_USER": "root",
-        "DB_PASSWORD": "zH754277289hUi~197547",
-        "DB_NAME": "enterprise_brain"
-      }
-    }
-  }
+  "mcpServers": {}
 }

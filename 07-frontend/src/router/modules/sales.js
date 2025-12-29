@@ -131,6 +131,24 @@ export default {
             title: '订单审批',
             permission: ['sales:orders:approve']
           }
+        },
+        {
+          path: 'mock-scheduling-list',
+          name: 'MockSchedulingList',
+          component: () => import('@/pages/sales/orders/MockSchedulingList.vue'),
+          meta: { 
+            title: '模拟排程列表',
+            permission: ['sales:orders:mock-scheduling']
+          }
+        },
+        {
+          path: 'mock-scheduling-process-list',
+          name: 'MockSchedulingProcessList',
+          component: () => import('@/pages/sales/orders/MockSchedulingProcessList.vue'),
+          meta: { 
+            title: '模拟排程工序表',
+            permission: ['sales:orders:mock-scheduling']
+          }
         }
       ]
     },

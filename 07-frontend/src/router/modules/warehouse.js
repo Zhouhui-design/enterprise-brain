@@ -41,6 +41,24 @@ export default {
       }
     },
     {
+      path: 'inventory-flow',
+      name: 'InventoryFlow',
+      component: () => import('@/pages/warehouse/InventoryFlow.vue'),
+      meta: { 
+        title: '出入库流水账',
+        icon: 'List'
+      }
+    },
+    {
+      path: 'in',
+      name: 'WarehouseInShort',
+      component: () => import('@/pages/warehouse/WarehouseIn.vue'),
+      meta: { 
+        title: '入库',
+        permission: ['warehouse:in']
+      }
+    },
+    {
       path: 'warehouse-in',
       name: 'WarehouseIn',
       component: () => import('@/pages/warehouse/WarehouseIn.vue'),
@@ -55,6 +73,15 @@ export default {
       component: () => import('@/pages/warehouse/WarehouseOut.vue'),
       meta: { 
         title: '出库管理',
+        permission: ['warehouse:out']
+      }
+    },
+    {
+      path: 'out',
+      name: 'WarehouseOutShort',
+      component: () => import('@/pages/warehouse/WarehouseOut.vue'),
+      meta: { 
+        title: '出库',
         permission: ['warehouse:out']
       }
     },

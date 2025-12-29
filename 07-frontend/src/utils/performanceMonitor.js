@@ -547,6 +547,67 @@ export class PerformanceMonitor {
   }
 
   /**
+   * 记录导航性能指标
+   */
+  recordNavigationMetric(entry) {
+    const navigationMetric = {
+      type: 'navigation',
+      duration: entry.duration,
+      domContentLoadedTime: entry.domContentLoadedEventEnd - entry.domContentLoadedEventStart,
+      loadTime: entry.loadEventEnd - entry.loadEventStart,
+      redirectTime: entry.redirectEnd - entry.redirectStart,
+      dnsTime: entry.domainLookupEnd - entry.domainLookupStart,
+      tcpTime: entry.connectEnd - entry.connectStart,
+      requestTime: entry.responseStart - entry.requestStart,
+      responseTime: entry.responseEnd - entry.responseStart,
+      timestamp: Date.now()
+    }
+    
+    this.recordCustomMetric({ name: 'navigation', ...navigationMetric })
+  }
+
+  /**
+   * 记录资源加载性能指标
+   */
+  recordResourceMetric(entry) {
+    const resourceMetric = {
+      type: 'resource',
+      name: entry.name,
+      duration: entry.duration,
+      size: entry.transferSize || entry.encodedBodySize || 0,
+      initiatorType: entry.initiatorType,
+      timestamp: Date.now()
+    }
+    
+    this.recordNetworkMetric(resourceMetric)
+  }
+
+  /**
+   * 记录长任务性能指标
+   */
+  recordLongTaskMetric(entry) {
+    const longTaskMetric = {
+      type: 'longtask',
+      duration: entry.duration,
+      startTime: entry.startTime,
+      attribution: entry.attribution ? entry.attribution.map(attr => ({
+        name: attr.name,
+        entryType: attr.entryType,
+        startTime: attr.startTime,
+        duration: attr.duration
+      })) : [],
+      timestamp: Date.now()
+    }
+    
+    this.recordCustomMetric({ name: 'longtask', ...longTaskMetric })
+    
+    // 长任务警告
+    if (entry.duration > 50) {
+      console.warn(`检测到长任务: ${entry.duration.toFixed(2)}ms`)
+    }
+  }
+
+  /**
    * 检查性能阈值
    */
   checkPerformanceThresholds(type, name, value) {
@@ -822,6 +883,11 @@ export class PerformanceMonitor {
   getCacheHitRate(requests) {
     const cached = requests.filter(r => r.cache === 'hit').length
     return requests.length > 0 ? cached / requests.length : 0
+  }
+
+  calculateCacheHitRate(requests) {
+    // 兼容方法，调用getCacheHitRate
+    return this.getCacheHitRate(requests)
   }
 
   getMostCommonInteractions(sessions) {
