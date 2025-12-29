@@ -567,7 +567,12 @@
               <span>{{ calculateLevel0Labor(row) }}</span>
             </template>
           </el-table-column>
-          <!-- 需求1：新增5个后道字段列 -->
+          <!-- 需求1：新增6个后道字段列（增加后道产品来源） -->
+          <el-table-column prop="nextProductSource" label="后道产品来源" min-width="130" align="center">
+            <template #default="{ row }">
+              <span>{{ row.nextProductSource || '-' }}</span>
+            </template>
+          </el-table-column>
           <el-table-column prop="nextProcessName" label="后道工序名称" min-width="130" align="center">
             <template #default="{ row }">
               <span>{{ row.nextProcessName || '-' }}</span>
@@ -729,7 +734,8 @@
               <span>{{ calculateLevel0Labor(row) }}</span>
             </template>
           </el-table-column>
-          <!-- 需求1：详情页新增5个后道字段列 -->
+          <!-- 需求1：详情页新增6个后道字段列（增加后道产品来源） -->
+          <el-table-column prop="nextProductSource" label="后道产品来源" width="130" align="center" />
           <el-table-column prop="nextProcessName" label="后道工序名称" width="130" align="center" />
           <el-table-column prop="nextProductCode" label="后道工序产品编号" width="150" align="center" />
           <el-table-column prop="nextProductName" label="后道工序产品名称" width="150" align="center" />
@@ -1457,10 +1463,11 @@ const handleAddChild = () => {
     materialLoss: 0,
     materialPrice: 0,
     indent: 0, // 缩进层级
-    // 需求2+5：自动填充后道字段
-    nextProcessName: formData.value.outputProcess || '', // 父件.产出工序
-    nextProductCode: formData.value.productCode || '', // 父件.产出编号
-    nextProductName: formData.value.productName || '', // 父件.产出名称
+    // 需求2：自动填充后道字段（增加后道产品来源）
+    nextProductSource: formData.value.outputProcess || '', // 父件属性区域中的"产出工序"
+    nextProcessName: formData.value.outputProcess || '', // 父件属性区域中的"产出工序"
+    nextProductCode: formData.value.productCode || '', // 父件属性区域中的"产出编号"
+    nextProductName: formData.value.productName || '', // 父件属性区域中的"产出名称"
     nextStandardQty: 1, // 固定值1
     nextLevelAddress: '0' // 需求5：固定值0
   }
@@ -1529,7 +1536,8 @@ const handleAddChildLevelForRow = (row, index) => {
     materialLoss: 0,
     materialPrice: 0,
     indent: currentIndent + 1,
-    // 需求3+6：自动填充后道字段
+    // 需求3+6：自动填充后道字段（增加后道产品来源）
+    nextProductSource: row.outputProcess || '', // 当前行.产出工序
     nextProcessName: row.outputProcess || '', // 当前行.产出工序
     nextProductCode: row.childCode || '', // 当前行.子件编号
     nextProductName: row.childName || '', // 当前行.子件名称

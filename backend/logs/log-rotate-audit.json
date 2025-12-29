@@ -34,6 +34,11 @@
             "date": 1766984918137,
             "name": "c:\\Users\\sardenesy\\Projects\\enterpise-brain\\backend\\logs\\access\\enterprise-brain-access-2025-12-29.log",
             "hash": "2900d982f0d58ede743fa075be8e6cd77db5c8b039a401b7ddccae70f6f517cf"
+        },
+        {
+            "date": 1767048653683,
+            "name": "C:\\Users\\sardenesy\\Projects\\enterpise-brain\\backend\\logs\\error\\enterprise-brain-error-2025-12-30.log",
+            "hash": "4bf787e8d94d83d9cb229276d4b7b5488182eb3d65d77463bbc4e73eaa99d899"
         }
     ],
     "hashType": "sha256"
