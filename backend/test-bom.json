@@ -1,0 +1,30 @@
+{
+  "bomCode": "TEST-BOM-002",
+  "bomName": "测试BOM",
+  "productCode": "PROD-001",
+  "productName": "测试产品",
+  "version": "V1.0",
+  "status": "draft",
+  "designer": "测试设计师",
+  "itemCount": 2,
+  "remark": "这是测试",
+  "reviewer": "测试审核人",
+  "effectiveDate": "2025-12-29",
+  "totalLabor": 100.00,
+  "totalMaterial": 500.00,
+  "productImage": null,
+  "childItems": [
+    {
+      "level": 1,
+      "childCode": "CHILD-001",
+      "childName": "子件1",
+      "standardQty": 2.5,
+      "outputProcess": "组装",
+      "source": "自制",
+      "processWage": 10.00,
+      "materialLoss": 0.05,
+      "materialPrice": 20.00,
+      "materialCost": 50.00
+    }
+  ]
+}

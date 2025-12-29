@@ -567,6 +567,32 @@
               <span>{{ calculateLevel0Labor(row) }}</span>
             </template>
           </el-table-column>
+          <!-- 需求1：新增5个后道字段列 -->
+          <el-table-column prop="nextProcessName" label="后道工序名称" min-width="130" align="center">
+            <template #default="{ row }">
+              <span>{{ row.nextProcessName || '-' }}</span>
+            </template>
+          </el-table-column>
+          <el-table-column prop="nextProductCode" label="后道工序产品编号" min-width="150" align="center">
+            <template #default="{ row }">
+              <span>{{ row.nextProductCode || '-' }}</span>
+            </template>
+          </el-table-column>
+          <el-table-column prop="nextProductName" label="后道工序产品名称" min-width="150" align="center">
+            <template #default="{ row }">
+              <span>{{ row.nextProductName || '-' }}</span>
+            </template>
+          </el-table-column>
+          <el-table-column prop="nextStandardQty" label="后道0阶标准用量" min-width="150" align="right">
+            <template #default="{ row }">
+              <span>{{ row.nextStandardQty || 1 }}</span>
+            </template>
+          </el-table-column>
+          <el-table-column prop="nextLevelAddress" label="后道产品层阶地址" min-width="150" align="center">
+            <template #default="{ row }">
+              <span>{{ row.nextLevelAddress || '-' }}</span>
+            </template>
+          </el-table-column>
           <el-table-column label="操作" width="240" fixed="right" align="center">
             <template #default="{ row, $index }">
               <el-button link type="success" size="small" @click="handleAddChildLevelForRow(row, $index)">
@@ -703,6 +729,12 @@
               <span>{{ calculateLevel0Labor(row) }}</span>
             </template>
           </el-table-column>
+          <!-- 需求1：详情页新增5个后道字段列 -->
+          <el-table-column prop="nextProcessName" label="后道工序名称" width="130" align="center" />
+          <el-table-column prop="nextProductCode" label="后道工序产品编号" width="150" align="center" />
+          <el-table-column prop="nextProductName" label="后道工序产品名称" width="150" align="center" />
+          <el-table-column prop="nextStandardQty" label="后道0阶标准用量" width="150" align="right" />
+          <el-table-column prop="nextLevelAddress" label="后道产品层阶地址" width="150" align="center" />
         </el-table>
       </div>
 
@@ -1424,7 +1456,13 @@ const handleAddChild = () => {
     processWage: 0,
     materialLoss: 0,
     materialPrice: 0,
-    indent: 0 // 缩进层级
+    indent: 0, // 缩进层级
+    // 需求2+5：自动填充后道字段
+    nextProcessName: formData.value.outputProcess || '', // 父件.产出工序
+    nextProductCode: formData.value.productCode || '', // 父件.产出编号
+    nextProductName: formData.value.productName || '', // 父件.产出名称
+    nextStandardQty: 1, // 固定值1
+    nextLevelAddress: '0' // 需求5：固定值0
   }
   
   formData.value.childItems.push(newItem)
@@ -1491,6 +1529,12 @@ const handleAddChildLevelForRow = (row, index) => {
     materialLoss: 0,
     materialPrice: 0,
     indent: currentIndent + 1,
+    // 需求3+6：自动填充后道字段
+    nextProcessName: row.outputProcess || '', // 当前行.产出工序
+    nextProductCode: row.childCode || '', // 当前行.子件编号
+    nextProductName: row.childName || '', // 当前行.子件名称
+    nextStandardQty: row.standardQty || 1, // 当前行.0阶标准用量
+    nextLevelAddress: row.levelPath || '', // 需求6：当前行.层阶地址
     parentIndex: actualIndex // 记录父级在完整列表中的索引
   }
   

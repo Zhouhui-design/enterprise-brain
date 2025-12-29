@@ -83,11 +83,14 @@ class BOMService {
   static async createProductionBOM(bomData) {
     const connection = await pool.getConnection();
     try {
+      console.log('🔍 收到BOM数据:', JSON.stringify(bomData, null, 2));
+      
       // 处理数据结构，确保字段名正确映射
       const processedData = { ...bomData };
 
       // 处理子件数据，确保字段名正确映射
       const processedChildItems = (processedData.childItems || []).map(item => {
+        console.log('  子件项:', item);
         return item;
       });
 
@@ -96,6 +99,7 @@ class BOMService {
       await connection.beginTransaction();
 
       // 插入BOM主表 - 确保字段名和值正确映射
+      console.log('📝 准备插入BOM主表...');
       const [result] = await connection.execute(
         `
         INSERT INTO production_boms (
@@ -124,18 +128,28 @@ class BOMService {
       );
 
       const bomId = result.insertId;
+      console.log(`✅ BOM主表插入成功, ID: ${bomId}`);
 
       // 插入子件 - 确保字段名正确映射（数据库字段是quantity，不是standard_quantity）
       if (processedChildItems && processedChildItems.length > 0) {
+        console.log(`📝 准备插入${processedChildItems.length}个子件...`);
         for (let i = 0; i < processedChildItems.length; i++) {
           const item = processedChildItems[i];
+          console.log(`  插入子件 ${i + 1}:`, {
+            childCode: item.childCode,
+            childName: item.childName,
+            standardQty: item.standardQty
+          });
+          
           await connection.execute(
             `
             INSERT INTO bom_components (
               bom_id, sequence, level, component_code, component_name,
               quantity, output_process, component_source,
-              process_wage, material_loss, material_price, material_cost
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+              process_wage, material_loss, material_price, material_cost,
+              next_process_name, next_product_code, next_product_name, 
+              next_standard_qty, next_level_address
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
           `,
             [
               bomId, // bom_id
@@ -150,18 +164,26 @@ class BOMService {
               parseFloat(item.materialLoss) || 0, // material_loss
               parseFloat(item.materialPrice) || 0, // material_price
               parseFloat((parseFloat(item.materialPrice) || 0) * (item.standardQty || 1)) || 0, // material_cost (计算得出)
+              item.nextProcessName || null, // next_process_name
+              item.nextProductCode || null, // next_product_code
+              item.nextProductName || null, // next_product_name
+              item.nextStandardQty || 1, // next_standard_qty
+              item.nextLevelAddress || null, // next_level_address
             ],
           );
         }
+        console.log('✅ 所有子件插入成功');
       }
 
       await connection.commit();
-      console.log(`BOM创建成功, ID: ${bomId}, BOM编号: ${bomInfo.bomCode}`);
+      console.log(`✅ BOM创建成功, ID: ${bomId}, BOM编号: ${bomInfo.bomCode}`);
 
       return { id: bomId, ...bomInfo };
     } catch (error) {
       await connection.rollback();
-      console.error('创建生产BOM失败:', error);
+      console.error('❌ 创建生产BOM失败:', error);
+      console.error('错误详情:', error.message);
+      console.error('错误栈:', error.stack);
       throw error;
     } finally {
       connection.release();
@@ -235,8 +257,10 @@ class BOMService {
             INSERT INTO bom_components (
               bom_id, sequence, level, component_code, component_name,
               quantity, output_process, component_source,
-              process_wage, material_loss, material_price, material_cost
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+              process_wage, material_loss, material_price, material_cost,
+              next_process_name, next_product_code, next_product_name, 
+              next_standard_qty, next_level_address
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
           `;
 
           // 只传递表中存在的字段值
@@ -253,6 +277,11 @@ class BOMService {
             parseFloat(item.materialLoss) || 0,
             parseFloat(item.materialPrice) || 0,
             parseFloat(item.materialCost) || 0,
+            item.nextProcessName || null, // next_process_name
+            item.nextProductCode || null, // next_product_code
+            item.nextProductName || null, // next_product_name
+            item.nextStandardQty || 1, // next_standard_qty
+            item.nextLevelAddress || null, // next_level_address
           ];
 
           await connection.execute(sql, params);
