@@ -1,0 +1,23 @@
+{
+  "development": {
+    "username": "root",
+    "password": "zH754277289hUi~197547",
+    "database": "enterprise_brain",
+    "host": "127.0.0.1",
+    "dialect": "mysql"
+  },
+  "test": {
+    "username": "root",
+    "password": "zH754277289hUi~197547",
+    "database": "enterprise_brain_test",
+    "host": "127.0.0.1",
+    "dialect": "mysql"
+  },
+  "production": {
+    "username": "root",
+    "password": "zH754277289hUi~197547",
+    "database": "enterprise_brain",
+    "host": "127.0.0.1",
+    "dialect": "mysql"
+  }
+}

@@ -1,77 +1,25 @@
-# Logs
-logs
-*.log
-npm-debug.log*
-yarn-debug.log*
-yarn-error.log*
-pnpm-debug.log*
-lerna-debug.log*
-
-# Dependencies
 node_modules
-
-# Build outputs
+*.log
 dist
-*.local
-
-# Editor directories and files
-.idea
-*.suo
-*.ntvs*
-*.njsproj
-*.sln
-*.sw?
-.vscode/
-
-# Environment variables
-.env.local
 .env
-
-# Database files
-*.db
-*.sql
-!*.sql.example
-!migrations/
-
-# Backup files
-*.tar.gz
-*.zip
+.env.local
+.idea
+.vscode/
+.codebuddy/
+.mcp.json
+*.tmp
+*.temp
+.DS_Store
+Thumbs.db
 beifenshuju/
-beifenshuju_backup_*/
 backup_*/
-
-# Test and debug files
 test_*.js
 test-*.js
-!test/
 diagnose-*.js
 manual-*.js
 check-*.js
-
-# Temporary files
-*.tmp
-*.temp
-
-# OS files
-.DS_Store
-Thumbs.db
-
-# Codebuddy files
-.codebuddy/
-
-# MCP configuration
-.mcp.json
-
-# API test files
-test-api.js
-
-# Batch files
-*.bat
-
-# Documentation files with Chinese names
-*.md
-!README.md
-!README-*.md
-
-# Migration scripts
-!migrations/
+# 允许备份目录和服务脚本
+!full-backup/
+!start-all-services.bat
+!stop-all-services.bat
+!restart-services.bat

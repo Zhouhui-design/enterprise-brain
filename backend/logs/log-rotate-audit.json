@@ -1,0 +1,40 @@
+{
+    "keep": {
+        "days": true,
+        "amount": 15
+    },
+    "auditLog": "C:\\Users\\sardenesy\\Projects\\enterpise-brain\\backend\\logs\\log-rotate-audit.json",
+    "files": [
+        {
+            "date": 1766984808883,
+            "name": "C:\\Users\\sardenesy\\Projects\\enterpise-brain\\backend\\logs\\error\\enterprise-brain-error-2025-12-29.log",
+            "hash": "714c85bcfa6e7ddf82bd60ff239fa0ac0ba26abb26326f4851d77cc4e1f70b37"
+        },
+        {
+            "date": 1766984808886,
+            "name": "C:\\Users\\sardenesy\\Projects\\enterpise-brain\\backend\\logs\\combined\\enterprise-brain-combined-2025-12-29.log",
+            "hash": "dcf658e5d35ac90af444cbf3ac58004e257d988796c2332025c190452f945802"
+        },
+        {
+            "date": 1766984808890,
+            "name": "C:\\Users\\sardenesy\\Projects\\enterpise-brain\\backend\\logs\\access\\enterprise-brain-access-2025-12-29.log",
+            "hash": "f53c532d8503e2b457536d97d0763935e5b6ccd41b06e6701a1d54679102fb0f"
+        },
+        {
+            "date": 1766984918129,
+            "name": "c:\\Users\\sardenesy\\Projects\\enterpise-brain\\backend\\logs\\error\\enterprise-brain-error-2025-12-29.log",
+            "hash": "48f4325927534b626944e290ed0f99e1d4a49ecc7e8396b8823400271d9edcde"
+        },
+        {
+            "date": 1766984918133,
+            "name": "c:\\Users\\sardenesy\\Projects\\enterpise-brain\\backend\\logs\\combined\\enterprise-brain-combined-2025-12-29.log",
+            "hash": "f7dcc15dfe0405926522137f8f4650f651ded0437439d6402bdbb34c4a860de2"
+        },
+        {
+            "date": 1766984918137,
+            "name": "c:\\Users\\sardenesy\\Projects\\enterpise-brain\\backend\\logs\\access\\enterprise-brain-access-2025-12-29.log",
+            "hash": "2900d982f0d58ede743fa075be8e6cd77db5c8b039a401b7ddccae70f6f517cf"
+        }
+    ],
+    "hashType": "sha256"
+}
