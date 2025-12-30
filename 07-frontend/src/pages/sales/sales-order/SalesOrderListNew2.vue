@@ -100,6 +100,15 @@
           执行MRP运算
         </el-button>
         <el-button 
+          type="warning" 
+          size="small" 
+          @click="handleSimulationScheduling"
+          :disabled="!hasSelection"
+        >
+          <el-icon><Calendar /></el-icon>
+          模拟排程
+        </el-button>
+        <el-button 
           type="danger" 
           size="small" 
           @click="handleManualTerminate"
@@ -183,7 +192,7 @@
 <script setup>
 import { ref, computed, onMounted } from 'vue'
 import { 
-  Plus, Delete, Refresh, Setting, Search, CircleCheck, DataAnalysis 
+  Plus, Delete, Refresh, Setting, Search, CircleCheck, DataAnalysis, Calendar 
 } from '@element-plus/icons-vue'
 import { ElMessageBox, ElMessage } from 'element-plus'
 import { 
@@ -225,6 +234,51 @@ const {
   handleMRPCalculation: mrpCalculation,
   handleManualTerminate: manualTerminate
 } = useSalesOrderActions()
+
+// ========== 模拟排程功能 ==========
+const handleSimulationScheduling = async () => {
+  if (!selectedRows.value || selectedRows.value.length === 0) {
+    ElMessage.warning('请选择要进行模拟排程的订单')
+    return
+  }
+
+  try {
+    await ElMessageBox.confirm(
+      `确定要将选中的 ${selectedRows.value.length} 个订单推送到模拟排程列表吗？`,
+      '模拟排程确认',
+      {
+        confirmButtonText: '确定',
+        cancelButtonText: '取消',
+        type: 'warning'
+      }
+    )
+
+    // 调用模拟排程推送API
+    const response = await fetch('/api/simulation-scheduling/push-from-sales-orders', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        salesOrderIds: selectedRows.value.map(row => row.id)
+      })
+    })
+
+    const result = await response.json()
+    
+    if (result.success) {
+      ElMessage.success(`成功推送 ${result.data.pushedCount} 个订单到模拟排程列表`)
+      await loadData() // 重新加载订单列表
+    } else {
+      ElMessage.error(result.message || '模拟排程推送失败')
+    }
+  } catch (error) {
+    if (error !== 'cancel') {
+      console.error('模拟排程推送失败:', error)
+      ElMessage.error('模拟排程推送失败')
+    }
+  }
+}
 
 // ========== 页面设置 ==========
 const showSettings = ref(false)

@@ -52,6 +52,7 @@ function loadRoutes(app) {
     'procurementPlans': '/api/procurement-plans',
     'supplierEvaluations': '/api/supplier-evaluations',
     'supplierManagement': '/api/supplier-management',
+    'simulationScheduling': '/api/simulation-scheduling',
     'warehouses-test-simple': '/api/warehouses',
     'bomPushRoutes': '/api/bom-push',
     'logs': '/api/logs'

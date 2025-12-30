@@ -175,6 +175,13 @@ const routes = [
       }
     ]
   },
+  // 模拟排程路径别名 - 解决404问题
+  {
+    path: '/simulation-scheduling',
+    redirect: '/sales/simulation-scheduling/list',
+    hidden: true
+  },
+
   // 404页面
   {
     path: '/:pathMatch(.*)*',

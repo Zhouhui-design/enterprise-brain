@@ -153,6 +153,29 @@ export default {
       ]
     },
 
+    // 模拟排程
+    {
+      path: 'simulation-scheduling',
+      name: 'SimulationScheduling',
+      redirect: '/sales/simulation-scheduling/list',
+      meta: { 
+        title: '模拟排程', 
+        icon: 'Schedule',
+        permission: ['sales:simulation-scheduling']
+      },
+      children: [
+        {
+          path: 'list',
+          name: 'SimulationSchedulingList',
+          component: () => import('@/pages/simulation-scheduling/SimulationSchedulingList.vue'),
+          meta: { 
+            title: '模拟排程列表',
+            permission: ['sales:simulation-scheduling:list']
+          }
+        }
+      ]
+    },
+
     // 销售报表
     {
       path: 'reports',

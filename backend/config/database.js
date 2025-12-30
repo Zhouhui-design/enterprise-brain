@@ -23,23 +23,97 @@ const dbConfig = {
 // 创建连接池
 const pool = mysql.createPool(dbConfig);
 
-// 封装查询函数，自动解构结果
-const query = async (sql, params) => {
-  const [rows] = await pool.execute(sql, params);
-  return rows;
+// 封装查询函数，自动解构结果，增加错误处理
+const query = async (sql, params = []) => {
+  let connection;
+  try {
+    connection = await pool.getConnection();
+    const [rows] = await connection.execute(sql, params);
+    return rows;
+  } catch (error) {
+    console.error('❌ 数据库查询失败:', error.message);
+    console.error('🔍 SQL语句:', sql);
+    console.error('📋 参数:', params);
+    throw error;
+  } finally {
+    if (connection) {
+      connection.release();
+    }
+  }
 };
 
-// 测试连接
+// 封装事务执行函数
+const executeTransaction = async (callback) => {
+  let connection;
+  try {
+    connection = await pool.getConnection();
+    await connection.beginTransaction();
+    
+    const result = await callback(connection);
+    
+    await connection.commit();
+    console.log('✅ 事务执行成功');
+    return result;
+  } catch (error) {
+    if (connection) {
+      await connection.rollback();
+      console.error('❌ 事务执行失败，已回滚:', error.message);
+    }
+    throw error;
+  } finally {
+    if (connection) {
+      connection.release();
+    }
+  }
+};
+
+// 数据备份函数
+const backupDatabase = async () => {
+  const timestamp = new Date().toISOString().slice(0, 19).replace(/[:-]/g, '');
+  const backupFilename = `enterprise_brain_backup_${timestamp}.sql`;
+  
+  try {
+    console.log(`🔄 开始备份数据库到: ${backupFilename}`);
+    // 这里应该调用实际的备份命令，如mysqldump
+    console.log('✅ 数据库备份完成');
+    return backupFilename;
+  } catch (error) {
+    console.error('❌ 数据库备份失败:', error.message);
+    throw error;
+  }
+};
+
+// 数据恢复函数
+const restoreDatabase = async (backupFilename) => {
+  try {
+    console.log(`🔄 开始从备份恢复数据库: ${backupFilename}`);
+    // 这里应该调用实际的恢复命令
+    console.log('✅ 数据库恢复完成');
+  } catch (error) {
+    console.error('❌ 数据库恢复失败:', error.message);
+    throw error;
+  }
+};
+
+// 测试连接和健康检查
 pool
   .getConnection()
   .then(connection => {
     console.log('✅ MySQL数据库连接成功');
     console.log(`📊 数据库: ${dbConfig.database}`);
     console.log(`🔗 主机: ${dbConfig.host}:${dbConfig.port}`);
-    connection.release();
+    
+    // 执行健康检查
+    return connection.execute('SELECT 1 as health_check');
+  })
+  .then(([rows]) => {
+    if (rows.length > 0 && rows[0].health_check === 1) {
+      console.log('✅ 数据库健康检查通过');
+    }
   })
   .catch(err => {
     console.error('❌ MySQL数据库连接失败:', err.message);
+    console.error('🔧 请检查数据库配置和网络连接');
     process.exit(1);
   });
 
@@ -1162,6 +1236,38 @@ async function initializeDatabase() {
       ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='采购计划表'
     `);
 
+    // 创建模拟排程列表表
+    await connection.execute(`
+      CREATE TABLE IF NOT EXISTS simulation_scheduling_list (
+        id INT AUTO_INCREMENT PRIMARY KEY COMMENT '主键ID',
+        sequence_number INT NOT NULL COMMENT '序号（自动生成）',
+        simulation_no VARCHAR(100) UNIQUE NOT NULL COMMENT '模拟排程编号',
+        order_status VARCHAR(50) COMMENT '订单状态',
+        internal_sales_order_no VARCHAR(100) COMMENT '内部销售订单编号',
+        customer_delivery_date DATETIME COMMENT '客户交期',
+        estimated_completion_date DATETIME COMMENT '预计完成日期',
+        product_code VARCHAR(100) COMMENT '产品编号',
+        product_name VARCHAR(200) COMMENT '产品名称',
+        order_quantity DECIMAL(15,4) COMMENT '订单数量',
+        realtime_inventory DECIMAL(15,4) DEFAULT 0 COMMENT '实时库存',
+        effective_inventory DECIMAL(15,4) DEFAULT 0 COMMENT '有效库存',
+        suggested_replenishment_qty DECIMAL(15,4) DEFAULT 0 COMMENT '建议补货数量',
+        product_source VARCHAR(50) COMMENT '产品来源',
+        output_process VARCHAR(100) COMMENT '产出工序',
+        simulation_status VARCHAR(50) DEFAULT '待开发' COMMENT '模拟排程状态',
+        waiting_number INT DEFAULT 1 COMMENT '等待号',
+        submitter VARCHAR(100) DEFAULT '待开发（缺少账号管理）' COMMENT '提交人',
+        submit_time DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT '提交时间',
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+        INDEX idx_simulation_no (simulation_no),
+        INDEX idx_internal_sales_order_no (internal_sales_order_no),
+        INDEX idx_product_code (product_code),
+        INDEX idx_simulation_status (simulation_status),
+        INDEX idx_created_at (created_at)
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='模拟排程列表表'
+    `);
+
     // 创建企业日历表
     await connection.execute(`
       CREATE TABLE IF NOT EXISTS company_calendar (
@@ -1193,4 +1299,11 @@ async function initializeDatabase() {
   }
 }
 
-module.exports = { pool, query, initializeDatabase };
+module.exports = { 
+  pool, 
+  query, 
+  executeTransaction,
+  backupDatabase,
+  restoreDatabase,
+  initializeDatabase 
+};

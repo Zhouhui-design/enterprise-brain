@@ -6,7 +6,7 @@
 const http = require('http');
 
 // API基础URL
-const BASE_URL = 'http://localhost:3008';
+const BASE_URL = 'http://localhost:3005';
 
 /**
  * 调用API的通用方法

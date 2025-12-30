@@ -20,6 +20,7 @@ export default defineConfig({
   server: {
     port: 3003,
     host: '0.0.0.0',
+    strictPort: true, // 严格使用指定端口，如果被占用则失败
     open: '/auth/login',
     proxy: {
       '/api': {
@@ -44,6 +45,12 @@ export default defineConfig({
         './src/router/**/*.js'
       ]
     }
+  },
+  // ✅ 添加端口信息显示配置
+  onListening: function({ port }) {
+    console.log(`🚀 前端服务已启动: http://localhost:${port}`)
+    console.log(`📱 API代理地址: http://localhost:${port}/api -> http://localhost:3005`)
+    console.log(`🌐 在浏览器中打开: http://localhost:${port}/auth/login`)
   },
   // ✅ 优化依赖预构建
   optimizeDeps: {

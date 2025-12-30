@@ -322,6 +322,12 @@ export default {
               icon: 'el-icon-document'
             },
             {
+              path: '/sales/simulation-scheduling/list',
+              name: 'SimulationSchedulingList',
+              meta: { title: '模拟排程列表' },
+              icon: 'el-icon-s-order'
+            },
+            {
               path: '/bom/sales',
               name: 'SalesBom',
               meta: { title: '销售BOM' },
