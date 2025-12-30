@@ -89,7 +89,7 @@ const getSimulationSchedulingList = async (params) => {
     `SELECT COUNT(*) as total FROM simulation_scheduling_list ${whereClause}`,
     queryParams
   );
-  const total = countResult[0].total;
+  const total = countResult && countResult[0] ? countResult[0].total : 0;
 
   // 获取列表数据（按创建时间倒序，序号正序）
   // ⚠️ Windows MySQL 修复：LIMIT和OFFSET不能用占位符，必须直接拼接
@@ -100,11 +100,12 @@ const getSimulationSchedulingList = async (params) => {
     LIMIT ${pageSizeInt} OFFSET ${offset}
   `, queryParams);
 
+  // 确保返回结构完整
   return {
     success: true,
     data: {
-      list,
-      total,
+      list: list || [], // 确保list是数组
+      total: total || 0, // 确保total有值
       page: pageInt,
       pageSize: pageSizeInt,
     }
@@ -427,18 +428,19 @@ const pushFromSalesOrders = async (salesOrderIds) => {
     const placeholders = salesOrderIds.map(() => '?').join(',');
     const [salesOrders] = await connection.execute(
       `SELECT 
-        id,
-        internal_order_no,
-        status as order_status,
-        customer_delivery,
-        product_code,
-        product_name,
-        order_quantity,
-        product_source,
-        output_process
-      FROM sales_orders 
-      WHERE id IN (${placeholders})
-      ORDER BY created_at DESC`,
+        so.id,
+        so.order_number,
+        so.status as order_status,
+        so.created_at as customer_delivery,
+        sop.product_code,
+        sop.product_name,
+        sop.order_quantity,
+        sop.output_process,
+        sop.product_source
+      FROM sales_orders so
+      LEFT JOIN sales_order_products sop ON so.id = sop.order_id
+      WHERE so.id IN (${placeholders})
+      ORDER BY so.created_at DESC`,
       salesOrderIds
     );
 
@@ -447,7 +449,7 @@ const pushFromSalesOrders = async (salesOrderIds) => {
     }
 
     // 检查是否已存在相同的销售订单编号
-    const internalOrderNos = salesOrders.map(order => order.internal_order_no);
+    const internalOrderNos = salesOrders.map(order => order.order_number);
     const checkPlaceholders = internalOrderNos.map(() => '?').join(',');
     const [existingRecords] = await connection.execute(
       `SELECT internal_sales_order_no, simulation_no 
@@ -458,7 +460,7 @@ const pushFromSalesOrders = async (salesOrderIds) => {
 
     if (existingRecords.length > 0) {
       const existingOrders = existingRecords.map(record => 
-        `内部订单号: ${record.internal_sales_order_no} (模拟排程号: ${record.simulation_no})`
+        `订单号: ${record.internal_sales_order_no} (模拟排程号: ${record.simulation_no})`
       ).join(', ');
       throw new Error(`以下销售订单已存在于模拟排程列表中: ${existingOrders}`);
     }
@@ -501,7 +503,7 @@ const pushFromSalesOrders = async (salesOrderIds) => {
         currentSequenceNumber++,
         simulationNo,
         salesOrder.order_status,
-        salesOrder.internal_order_no,
+        salesOrder.order_number,
         salesOrder.customer_delivery,
         null, // 预计完成日期暂时为空
         salesOrder.product_code,
@@ -510,8 +512,8 @@ const pushFromSalesOrders = async (salesOrderIds) => {
         realtimeInventory,
         effectiveInventory,
         suggestedReplenishmentQty,
-        salesOrder.product_source,
-        salesOrder.output_process,
+        salesOrder.product_source || '自制',
+        salesOrder.output_process || '组装',
         '待开发',
         1,
         '待开发（缺少账号管理）',
@@ -520,7 +522,7 @@ const pushFromSalesOrders = async (salesOrderIds) => {
 
       insertResults.push({
         salesOrderId: salesOrder.id,
-        internalOrderNo: salesOrder.internal_order_no,
+        internalOrderNo: salesOrder.order_number,
         simulationId: result.insertId,
         simulationNo,
         sequenceNumber: currentSequenceNumber - 1

@@ -20,11 +20,13 @@ router.get('/', async (req, res) => {
 
     const result = await simulationSchedulingService.getSimulationSchedulingList(req.query);
 
-    console.log('✅ 获取模拟排程列表成功，记录数:', result.data.list.length);
+    console.log('✅ 获取模拟排程列表成功，记录数:', result.data?.list?.length || 0);
+    console.log('📊 返回结果结构:', JSON.stringify(result, null, 2));
     
     res.json(result);
   } catch (error) {
     console.error('❌ 获取模拟排程列表失败:', error.message);
+    console.error('🔍 错误堆栈:', error.stack);
     res.status(500).json({
       success: false,
       message: '获取模拟排程列表失败',

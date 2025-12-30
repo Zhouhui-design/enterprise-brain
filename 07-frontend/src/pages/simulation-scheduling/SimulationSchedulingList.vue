@@ -172,12 +172,13 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted, reactive } from 'vue'
+import { ref, computed, onMounted, onUnmounted, reactive } from 'vue'
 import { 
   Plus, Edit, Refresh, Setting, Search
 } from '@element-plus/icons-vue'
 import { ElMessageBox, ElMessage } from 'element-plus'
 import StandardTablePage from '@/components/common/layout/StandardTablePage.vue'
+import PageSettingsDialog from '@/features/material-preparation/components/PageSettingsDialog.vue'
 
 // ========== 状态管理 ==========
 const loading = ref(false)
@@ -282,6 +283,102 @@ const tableColumns = computed(() => {
 
 // ========== 页面设置 ==========
 const showSettings = ref(false)
+
+// 页面设置相关数据和方法
+const businessVariables = ref([])
+const workflowConfigs = ref([])
+const codeRules = ref([])
+
+// 业务变量操作
+const addBusinessVariable = () => {
+  businessVariables.value.push({
+    name: '',
+    value: '',
+    description: ''
+  })
+}
+
+const removeBusinessVariable = (index) => {
+  businessVariables.value.splice(index, 1)
+}
+
+const saveBusinessVariables = () => {
+  // TODO: 保存业务变量到后端
+  ElMessage.success('业务变量保存成功')
+}
+
+// 流程配置操作
+const addWorkflowConfig = () => {
+  workflowConfigs.value.push({
+    buttonName: '',
+    approvers: [],
+    description: ''
+  })
+}
+
+const removeWorkflowConfig = (index) => {
+  workflowConfigs.value.splice(index, 1)
+}
+
+const saveWorkflowConfigs = () => {
+  // TODO: 保存流程配置到后端
+  ElMessage.success('流程配置保存成功')
+}
+
+// 编码规则操作
+const addCodeRule = () => {
+  codeRules.value.push({
+    fieldName: '',
+    prefix: '',
+    dateFormat: 'YYYYMMDD',
+    serialLength: 4,
+    example: ''
+  })
+}
+
+const removeCodeRule = (index) => {
+  codeRules.value.splice(index, 1)
+}
+
+const saveCodeRules = () => {
+  // TODO: 保存编码规则到后端
+  ElMessage.success('编码规则保存成功')
+}
+
+const updateCodeExample = (rule) => {
+  // 生成示例编码
+  const now = new Date()
+  let dateStr = ''
+  switch (rule.dateFormat) {
+    case 'YYYYMMDD':
+      dateStr = now.getFullYear() + String(now.getMonth() + 1).padStart(2, '0') + String(now.getDate()).padStart(2, '0')
+      break
+    case 'YYYYMM':
+      dateStr = now.getFullYear() + String(now.getMonth() + 1).padStart(2, '0')
+      break
+    case 'YYYY':
+      dateStr = now.getFullYear().toString()
+      break
+    default:
+      dateStr = 'YYYYMMDD'
+  }
+  
+  const serial = '1'.padStart(rule.serialLength, '0')
+  rule.example = `${rule.prefix}${dateStr}${serial}`
+}
+
+// 列配置操作
+const reorderColumns = (newColumns) => {
+  columnConfigs.value = newColumns.map((col, index) => ({
+    ...col,
+    order: index
+  }))
+}
+
+const saveColumnConfigs = () => {
+  // TODO: 保存列配置到后端
+  ElMessage.success('列配置保存成功')
+}
 
 // ========== API调用 ==========
 const loadData = async () => {
@@ -492,9 +589,26 @@ const formatColumnValue = (row, column, cellValue, index) => {
   return String(cellValue)
 }
 
+// ========== 数据推送事件处理 ==========
+const handleDataPushed = (event) => {
+  console.log('?? 接收到模拟排程数据推送:', event.detail)
+  loadData()
+}
+
 // ========== 初始化 ==========
 onMounted(() => {
-  loadData()
+  // 页面加载时不自动获取数据，等待用户从销售订单页面推送数据
+  console.log('📋 模拟排程列表页面已加载，等待数据推送...')
+  
+  // 添加数据推送监听器
+  window.addEventListener('simulation-scheduling-data-pushed', handleDataPushed)
+})
+
+// ========== 清理工作 ==========
+onUnmounted(() => {
+  // 移除事件监听器，防止内存泄漏
+  window.removeEventListener('simulation-scheduling-data-pushed', handleDataPushed)
+  console.log('🧹 模拟排程列表页面事件监听器已清理')
 })
 </script>
 

@@ -190,7 +190,7 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { 
   Plus, Delete, Refresh, Setting, Search, CircleCheck, DataAnalysis, Calendar 
 } from '@element-plus/icons-vue'
@@ -269,6 +269,20 @@ const handleSimulationScheduling = async () => {
     if (result.success) {
       ElMessage.success(`成功推送 ${result.data.pushedCount} 个订单到模拟排程列表`)
       await loadData() // 重新加载订单列表
+      
+      // 触发事件通知模拟排程列表页面有新数据
+      window.dispatchEvent(new CustomEvent('simulation-scheduling-data-pushed', {
+        detail: {
+          pushedCount: result.data.pushedCount,
+          salesOrderIds: selectedRows.value.map(row => row.id),
+          timestamp: new Date().toISOString()
+        }
+      }))
+      
+      console.log('📤 已触发模拟排程数据推送事件:', {
+        pushedCount: result.data.pushedCount,
+        salesOrderIds: selectedRows.value.map(row => row.id)
+      })
     } else {
       ElMessage.error(result.message || '模拟排程推送失败')
     }
