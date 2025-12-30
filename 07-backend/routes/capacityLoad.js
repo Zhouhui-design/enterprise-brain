@@ -3,19 +3,45 @@ const router = express.Router();
 const fs = require('fs');
 const path = require('path');
 
-// 模拟工序能力负荷表数据
-const CAPACITY_LOAD_FILE = path.join(__dirname, '../data/capacityLoad.json');
+// 模拟工序能力负荷表数据 - 使用内存数组，不依赖文件系统
+let capacityLoadData = [];
 
-// 确保数据文件存在
-if (!fs.existsSync(CAPACITY_LOAD_FILE)) {
-  fs.writeFileSync(CAPACITY_LOAD_FILE, JSON.stringify([], null, 2));
-}
+// 模拟初始数据
+capacityLoadData = [
+  {
+    id: 1,
+    processName: '切割',
+    date: '2025-12-31',
+    remainingHours: 8,
+    maxCapacity: 16,
+    currentLoad: 50,
+    status: '正常'
+  },
+  {
+    id: 2,
+    processName: '焊接',
+    date: '2025-12-30',
+    remainingHours: 6,
+    maxCapacity: 12,
+    currentLoad: 75,
+    status: '繁忙'
+  },
+  {
+    id: 3,
+    processName: '组装',
+    date: '2025-12-29',
+    remainingHours: 4,
+    maxCapacity: 8,
+    currentLoad: 90,
+    status: '饱和'
+  }
+];
 
 // 读取工序能力负荷表数据
 const readCapacityLoadData = () => {
   try {
-    const data = fs.readFileSync(CAPACITY_LOAD_FILE, 'utf8');
-    return JSON.parse(data);
+    // 直接返回内存中的数据
+    return capacityLoadData;
   } catch (error) {
     console.error('读取工序能力负荷表数据失败:', error);
     return [];
@@ -25,7 +51,8 @@ const readCapacityLoadData = () => {
 // 写入工序能力负荷表数据
 const writeCapacityLoadData = (data) => {
   try {
-    fs.writeFileSync(CAPACITY_LOAD_FILE, JSON.stringify(data, null, 2));
+    // 更新内存中的数据
+    capacityLoadData = data;
     return true;
   } catch (error) {
     console.error('写入工序能力负荷表数据失败:', error);
@@ -49,10 +76,10 @@ router.post('/query-next-schedule-date', (req, res) => {
     }
     
     // 读取工序能力负荷表数据
-    const capacityLoadData = readCapacityLoadData();
+    const capacityData = readCapacityLoadData();
     
     // 筛选符合条件的数据
-    const filteredData = capacityLoadData.filter(item => {
+    const filteredData = capacityData.filter(item => {
       // 工序名称匹配
       const processMatch = item.processName === processName;
       // 日期 >= 当前计划排程日期

@@ -1,0 +1,212 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>BOM导出功能测试</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 50px auto;
+            padding: 20px;
+        }
+        .test-section {
+            margin: 20px 0;
+            padding: 20px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+        }
+        .test-button {
+            background: #409EFF;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 4px;
+            cursor: pointer;
+            margin: 10px 5px;
+        }
+        .test-button:hover {
+            background: #337ecc;
+        }
+        .result {
+            margin-top: 20px;
+            padding: 10px;
+            background: #f5f5f5;
+            border-radius: 4px;
+        }
+        .success {
+            background: #f0f9ff;
+            border: 1px solid #409EFF;
+            color: #409EFF;
+        }
+        .error {
+            background: #fef0f0;
+            border: 1px solid #F56C6C;
+            color: #F56C6C;
+        }
+    </style>
+</head>
+<body>
+    <h1>BOM导出功能测试</h1>
+    
+    <div class="test-section">
+        <h3>测试数据</h3>
+        <p>以下是要导出的BOM测试数据：</p>
+        <pre id="testData"></pre>
+    </div>
+
+    <div class="test-section">
+        <h3>测试操作</h3>
+        <button class="test-button" onclick="testExport()">测试导出功能</button>
+        <button class="test-button" onclick="testImport()">测试导入功能</button>
+        <button class="test-button" onclick="testTemplate()">测试模板功能</button>
+    </div>
+
+    <div id="result" class="result" style="display: none;">
+        <h3>测试结果</h3>
+        <div id="resultContent"></div>
+    </div>
+
+    <script type="module">
+        // 测试数据
+        const testData = [
+            {
+                bomCode: 'TEST-BOM-001',
+                bomName: '测试BOM产品',
+                productCode: 'P-TEST-001',
+                productName: '测试产品A',
+                version: 'V1.0',
+                status: 'draft',
+                designer: '测试设计师',
+                reviewer: '测试审核员',
+                itemCount: 2,
+                effectiveDate: '2024-01-01',
+                totalLabor: 100,
+                totalMaterial: 500,
+                isPushedToManual: false,
+                createTime: '2024-01-01 10:00:00',
+                updateTime: '2024-01-01 10:00:00',
+                remark: '这是一个测试BOM',
+                childItems: [
+                    {
+                        sequence: 1,
+                        level: 1,
+                        levelPath: '1',
+                        childCode: 'C-001',
+                        childName: '测试子件A',
+                        standardQty: 2,
+                        level0Qty: 2,
+                        outputProcess: '组装',
+                        source: '自制',
+                        processWage: 20,
+                        materialLoss: 5,
+                        materialPrice: 100,
+                        materialCost: 210,
+                        level0Labor: 40,
+                        nextProductSource: '',
+                        nextProcessName: '',
+                        nextProductCode: '',
+                        nextProductName: '',
+                        nextStandardQty: 1,
+                        nextLevelAddress: ''
+                    },
+                    {
+                        sequence: 2,
+                        level: 1,
+                        levelPath: '2',
+                        childCode: 'C-002',
+                        childName: '测试子件B',
+                        standardQty: 1,
+                        level0Qty: 1,
+                        outputProcess: '包装',
+                        source: '外购',
+                        processWage: 10,
+                        materialLoss: 2,
+                        materialPrice: 200,
+                        materialCost: 204,
+                        level0Labor: 20,
+                        nextProductSource: '',
+                        nextProcessName: '',
+                        nextProductCode: '',
+                        nextProductName: '',
+                        nextStandardQty: 1,
+                        nextLevelAddress: ''
+                    }
+                ]
+            }
+        ];
+
+        // 显示测试数据
+        document.getElementById('testData').textContent = JSON.stringify(testData, null, 2);
+
+        // 显示结果函数
+        function showResult(success, message) {
+            const resultDiv = document.getElementById('result');
+            const resultContent = document.getElementById('resultContent');
+            
+            resultDiv.style.display = 'block';
+            resultDiv.className = 'result ' + (success ? 'success' : 'error');
+            resultContent.textContent = message;
+        }
+
+        // 测试导出功能
+        window.testExport = async function() {
+            try {
+                console.log('🧪 开始测试导出功能...');
+                
+                // 动态导入Excel工具
+                const { exportBOMToExcel } = await import('./src/utils/excelUtils.js');
+                
+                const filename = await exportBOMToExcel(testData, {
+                    includeChildren: true,
+                    includeTemplate: true
+                });
+                
+                showResult(true, `✅ 导出测试成功！文件名: ${filename}`);
+                console.log('✅ 导出测试成功:', filename);
+                
+            } catch (error) {
+                console.error('❌ 导出测试失败:', error);
+                showResult(false, `❌ 导出测试失败: ${error.message}`);
+            }
+        };
+
+        // 测试导入功能
+        window.testImport = async function() {
+            try {
+                console.log('🧪 开始测试导入功能...');
+                
+                // 动态导入Excel工具
+                const { importBOMFromExcel } = await import('./src/utils/excelUtils.js');
+                
+                showResult(true, '✅ 导入工具加载成功！请选择Excel文件进行测试');
+                console.log('✅ 导入工具加载成功');
+                
+            } catch (error) {
+                console.error('❌ 导入测试失败:', error);
+                showResult(false, `❌ 导入测试失败: ${error.message}`);
+            }
+        };
+
+        // 测试模板功能
+        window.testTemplate = async function() {
+            try {
+                console.log('🧪 开始测试模板功能...');
+                
+                // 动态导入Excel工具
+                const { createBOMTemplate } = await import('./src/utils/excelUtils.js');
+                
+                const template = createBOMTemplate();
+                
+                showResult(true, `✅ 模板生成测试成功！生成了 ${template.length} 个模板项`);
+                console.log('✅ 模板生成测试成功:', template);
+                
+            } catch (error) {
+                console.error('❌ 模板测试失败:', error);
+                showResult(false, `❌ 模板测试失败: ${error.message}`);
+            }
+        };
+    </script>
+</body>
+</html>

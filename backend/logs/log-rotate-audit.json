@@ -39,6 +39,16 @@
             "date": 1767048653683,
             "name": "C:\\Users\\sardenesy\\Projects\\enterpise-brain\\backend\\logs\\error\\enterprise-brain-error-2025-12-30.log",
             "hash": "4bf787e8d94d83d9cb229276d4b7b5488182eb3d65d77463bbc4e73eaa99d899"
+        },
+        {
+            "date": 1767052291533,
+            "name": "C:\\Users\\sardenesy\\Projects\\enterpise-brain\\backend\\logs\\combined\\enterprise-brain-combined-2025-12-30.log",
+            "hash": "e55c32e7b80451f596893d15ec4d0394493c75ebec68c61168dab66d705c6ea8"
+        },
+        {
+            "date": 1767052291539,
+            "name": "C:\\Users\\sardenesy\\Projects\\enterpise-brain\\backend\\logs\\access\\enterprise-brain-access-2025-12-30.log",
+            "hash": "6f3f526067eda331e5da58cd3f9756581e4f8d1a1d49a6fe60e2983f1bd939fd"
         }
     ],
     "hashType": "sha256"

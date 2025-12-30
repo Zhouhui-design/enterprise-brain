@@ -1,16 +1,109 @@
 const express = require('express');
 const router = express.Router();
-const { Op } = require('sequelize');
-const { 
-  Product, 
-  ProductCategory, 
-  ProductStock,
-  ProductPriceHistory
-} = require('../models');
-const { authenticateToken, requireRole } = require('../middleware/auth');
+
+// 模拟产品数据
+let products = [
+  {
+    id: 1,
+    name: '传感器A1',
+    code: 'PRD20251230001',
+    categoryId: 1,
+    categoryName: '传感器类',
+    description: '高精度压力传感器',
+    specifications: '精度:±0.1%FSO',
+    unit: '个',
+    unitPrice: 150.00,
+    costPrice: 80.00,
+    weight: 0.5,
+    dimensions: '100*50*20mm',
+    barcode: '6901234567890123',
+    images: ['/images/sensor1.jpg'],
+    status: 'active',
+    tags: ['工业', '自动化'],
+    stockQuantity: 100,
+    reservedQuantity: 10,
+    availableQuantity: 90,
+    warehouse: '主仓库',
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString()
+  },
+  {
+    id: 2,
+    name: '电机B2',
+    code: 'PRD20251230002',
+    categoryId: 2,
+    categoryName: '电机类',
+    description: '高扭矩步进电机',
+    specifications: '步距:1.8°, 扭矩:4.2N·m',
+    unit: '台',
+    unitPrice: 320.00,
+    costPrice: 180.00,
+    weight: 2.5,
+    dimensions: 'φ60*80mm',
+    barcode: '6901234567890124',
+    images: ['/images/motor1.jpg'],
+    status: 'active',
+    tags: ['精密', '定位'],
+    stockQuantity: 50,
+    reservedQuantity: 5,
+    availableQuantity: 45,
+    warehouse: '主仓库',
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString()
+  },
+  {
+    id: 3,
+    name: '外壳C3',
+    code: 'PRD20251230003',
+    categoryId: 3,
+    categoryName: '结构件类',
+    description: 'ABS塑料防护外壳',
+    specifications: 'IP65防护等级',
+    unit: '个',
+    unitPrice: 45.00,
+    costPrice: 25.00,
+    weight: 0.8,
+    dimensions: '200*150*100mm',
+    barcode: '6901234567890125',
+    images: ['/images/shell1.jpg'],
+    status: 'active',
+    tags: ['防护', '结构件'],
+    stockQuantity: 200,
+    reservedQuantity: 20,
+    availableQuantity: 180,
+    warehouse: '主仓库',
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString()
+  }
+];
+
+// 模拟产品分类
+let categories = [
+  {
+    id: 1,
+    name: '传感器类',
+    description: '各类传感器产品',
+    parentId: null,
+    productCount: 1
+  },
+  {
+    id: 2,
+    name: '电机类',
+    description: '各类电机产品',
+    parentId: null,
+    productCount: 1
+  },
+  {
+    id: 3,
+    name: '结构件类',
+    description: '各类结构件产品',
+    parentId: null,
+    productCount: 1
+  }
+];
 
 // 获取产品列表
-router.get('/', authenticateToken, async (req, res) => {
+router.get('/', (req, res) => {
   try {
     const {
       page = 1,
@@ -25,80 +118,70 @@ router.get('/', authenticateToken, async (req, res) => {
       sortOrder = 'DESC'
     } = req.query;
 
-    const whereClause = {};
+    let filteredProducts = [...products];
     
     // 状态筛选
     if (status) {
-      whereClause.status = status;
-    } else {
-      whereClause.status = 'active'; // 默认只显示激活的产品
+      filteredProducts = filteredProducts.filter(product => product.status === status);
     }
     
     // 分类筛选
     if (category) {
-      whereClause.categoryId = category;
+      filteredProducts = filteredProducts.filter(product => product.categoryId == category);
     }
     
     // 搜索筛选
     if (search) {
-      whereClause[Op.or] = [
-        { name: { [Op.like]: `%${search}%` } },
-        { code: { [Op.like]: `%${search}%` } },
-        { description: { [Op.like]: `%${search}%` } }
-      ];
+      const searchLower = search.toLowerCase();
+      filteredProducts = filteredProducts.filter(product => 
+        product.name.toLowerCase().includes(searchLower) ||
+        product.code.toLowerCase().includes(searchLower) ||
+        product.description.toLowerCase().includes(searchLower)
+      );
     }
     
     // 价格范围筛选
-    if (minPrice && maxPrice) {
-      whereClause.unitPrice = {
-        [Op.between]: [parseFloat(minPrice), parseFloat(maxPrice)]
-      };
-    } else if (minPrice) {
-      whereClause.unitPrice = { [Op.gte]: parseFloat(minPrice) };
-    } else if (maxPrice) {
-      whereClause.unitPrice = { [Op.lte]: parseFloat(maxPrice) };
+    if (minPrice) {
+      filteredProducts = filteredProducts.filter(product => product.unitPrice >= parseFloat(minPrice));
+    }
+    if (maxPrice) {
+      filteredProducts = filteredProducts.filter(product => product.unitPrice <= parseFloat(maxPrice));
     }
     
     // 库存筛选
     if (inStock === 'true') {
-      whereClause.stockQuantity = { [Op.gt]: 0 };
-    } else if (inStock === 'false') {
-      whereClause.stockQuantity = { [Op.lte]: 0 };
+      filteredProducts = filteredProducts.filter(product => product.availableQuantity > 0);
     }
 
-    // 构建查询
-    const query = {
-      where: whereClause,
-      include: [
-        {
-          model: ProductCategory,
-          as: 'category',
-          attributes: ['id', 'name', 'description']
-        },
-        {
-          model: ProductStock,
-          as: 'stock',
-          attributes: ['quantity', 'reservedQuantity', 'availableQuantity', 'warehouse']
-        }
-      ],
-      order: [[sortBy, sortOrder.toUpperCase()]],
-      limit: parseInt(pageSize),
-      offset: (parseInt(page) - 1) * parseInt(pageSize)
-    };
+    // 排序
+    filteredProducts.sort((a, b) => {
+      const aValue = a[sortBy];
+      const bValue = b[sortBy];
+      const order = sortOrder.toUpperCase() === 'ASC' ? 1 : -1;
+      
+      if (aValue < bValue) return -1 * order;
+      if (aValue > bValue) return 1 * order;
+      return 0;
+    });
 
-    const { count, rows } = await Product.findAndCountAll(query);
+    // 分页
+    const total = filteredProducts.length;
+    const startIndex = (parseInt(page) - 1) * parseInt(pageSize);
+    const endIndex = startIndex + parseInt(pageSize);
+    const paginatedProducts = filteredProducts.slice(startIndex, endIndex);
 
     res.json({
       success: true,
       data: {
-        products: rows,
+        products: paginatedProducts,
         pagination: {
-          total: count,
+          total,
           page: parseInt(page),
           pageSize: parseInt(pageSize),
-          totalPages: Math.ceil(count / pageSize)
+          totalPages: Math.ceil(total / pageSize)
         }
-      }
+      },
+      message: '获取产品列表成功'
     });
   } catch (error) {
     console.error('获取产品列表失败:', error);
@@ -111,28 +194,10 @@ router.get('/', authenticateToken, async (req, res) => {
 });
 
 // 获取产品详情
-router.get('/:id', authenticateToken, async (req, res) => {
+router.get('/:id', (req, res) => {
   try {
     const { id } = req.params;
-
-    const product = await Product.findByPk(id, {
-      include: [
-        {
-          model: ProductCategory,
-          as: 'category'
-        },
-        {
-          model: ProductStock,
-          as: 'stock'
-        },
-        {
-          model: ProductPriceHistory,
-          as: 'priceHistory',
-          order: [['effectiveDate', 'DESC']],
-          limit: 10
-        }
-      ]
-    });
+    const product = products.find(p => p.id == id);
 
     if (!product) {
       return res.status(404).json({
@@ -143,7 +208,8 @@ router.get('/:id', authenticateToken, async (req, res) => {
 
     res.json({
       success: true,
-      data: product
+      data: product,
+      message: '获取产品详情成功'
     });
   } catch (error) {
     console.error('获取产品详情失败:', error);
@@ -156,7 +222,7 @@ router.get('/:id', authenticateToken, async (req, res) => {
 });
 
 // 创建产品
-router.post('/', authenticateToken, requireRole(['product', 'admin']), async (req, res) => {
+router.post('/', (req, res) => {
   try {
     const {
       name,
@@ -174,17 +240,15 @@ router.post('/', authenticateToken, requireRole(['product', 'admin']), async (re
       status = 'active',
       tags,
       stockQuantity = 0,
-      warehouse = 'main'
+      warehouse = '主仓库'
     } = req.body;
 
-    // 生成产品编号
-    const productCode = code || generateProductCode();
-
-    // 创建产品
-    const product = await Product.create({
-      code: productCode,
+    const newProduct = {
+      id: Date.now(),
+      code: code || `PRD${Date.now()}`,
       name,
       categoryId,
+      categoryName: categories.find(c => c.id == categoryId)?.name || '',
       description,
       specifications,
       unit,
@@ -196,52 +260,19 @@ router.post('/', authenticateToken, requireRole(['product', 'admin']), async (re
       images,
       status,
       tags,
-      createdBy: req.user.id
-    });
-
-    // 创建库存记录
-    await ProductStock.create({
-      productId: product.id,
-      quantity: stockQuantity,
+      stockQuantity,
       reservedQuantity: 0,
       availableQuantity: stockQuantity,
       warehouse,
-      lastUpdated: new Date(),
-      updatedBy: req.user.id
-    });
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString()
+    };
 
-    // 创建价格历史记录
-    await ProductPriceHistory.create({
-      productId: product.id,
-      price: unitPrice,
-      type: 'selling',
-      effectiveDate: new Date(),
-      reason: '产品创建',
-      updatedBy: req.user.id
-    });
-
-    if (costPrice && costPrice > 0) {
-      await ProductPriceHistory.create({
-        productId: product.id,
-        price: costPrice,
-        type: 'cost',
-        effectiveDate: new Date(),
-        reason: '产品创建',
-        updatedBy: req.user.id
-      });
-    }
-
-    // 获取完整的产品信息
-    const completeProduct = await Product.findByPk(product.id, {
-      include: [
-        { model: ProductCategory, as: 'category' },
-        { model: ProductStock, as: 'stock' }
-      ]
-    });
+    products.push(newProduct);
 
     res.status(201).json({
       success: true,
-      data: completeProduct,
+      data: newProduct,
       message: '产品创建成功'
     });
   } catch (error) {
@@ -255,75 +286,34 @@ router.post('/', authenticateToken, requireRole(['product', 'admin']), async (re
 });
 
 // 更新产品
-router.put('/:id', authenticateToken, requireRole(['product', 'admin']), async (req, res) => {
+router.put('/:id', (req, res) => {
   try {
     const { id } = req.params;
     const updateData = req.body;
-
-    const product = await Product.findByPk(id);
-    if (!product) {
+    
+    const index = products.findIndex(p => p.id == id);
+    if (index === -1) {
       return res.status(404).json({
         success: false,
         message: '产品不存在'
       });
     }
 
-    const oldUnitPrice = product.unitPrice;
-    const oldCostPrice = product.costPrice;
-
     // 更新产品信息
-    await product.update({
+    products[index] = {
+      ...products[index],
       ...updateData,
-      updatedBy: req.user.id,
-      updatedAt: new Date()
-    });
+      updatedAt: new Date().toISOString()
+    };
 
-    // 如果价格发生变化，记录价格历史
-    if (updateData.unitPrice && updateData.unitPrice !== oldUnitPrice) {
-      await ProductPriceHistory.create({
-        productId: id,
-        price: updateData.unitPrice,
-        type: 'selling',
-        effectiveDate: new Date(),
-        reason: '价格更新',
-        updatedBy: req.user.id
-      });
+    // 如果分类发生变化，更新分类名称
+    if (updateData.categoryId) {
+      products[index].categoryName = categories.find(c => c.id == updateData.categoryId)?.name || '';
     }
-
-    if (updateData.costPrice && updateData.costPrice !== oldCostPrice) {
-      await ProductPriceHistory.create({
-        productId: id,
-        price: updateData.costPrice,
-        type: 'cost',
-        effectiveDate: new Date(),
-        reason: '成本价格更新',
-        updatedBy: req.user.id
-      });
-    }
-
-    // 更新库存
-    if (updateData.stockQuantity !== undefined) {
-      await ProductStock.update({
-        quantity: updateData.stockQuantity,
-        availableQuantity: updateData.stockQuantity,
-        lastUpdated: new Date(),
-        updatedBy: req.user.id
-      }, {
-        where: { productId: id }
-      });
-    }
-
-    // 获取更新后的产品信息
-    const updatedProduct = await Product.findByPk(id, {
-      include: [
-        { model: ProductCategory, as: 'category' },
-        { model: ProductStock, as: 'stock' }
-      ]
-    });
 
     res.json({
       success: true,
-      data: updatedProduct,
+      data: products[index],
       message: '产品更新成功'
     });
   } catch (error) {
@@ -337,42 +327,31 @@ router.put('/:id', authenticateToken, requireRole(['product', 'admin']), async (
 });
 
 // 删除产品
-router.delete('/:id', authenticateToken, requireRole(['admin']), async (req, res) => {
+router.delete('/:id', (req, res) => {
   try {
     const { id } = req.params;
-
-    const product = await Product.findByPk(id);
-    if (!product) {
+    const index = products.findIndex(p => p.id == id);
+    
+    if (index === -1) {
       return res.status(404).json({
         success: false,
         message: '产品不存在'
       });
     }
 
-    // 检查产品是否被使用
-    const { SalesOrderItem } = require('../models');
-    const orderItemsCount = await SalesOrderItem.count({
-      where: { productId: id }
-    });
-
-    if (orderItemsCount > 0) {
-      // 如果产品被使用，只是标记为不活跃而不是删除
-      await product.update({
-        status: 'inactive',
-        updatedBy: req.user.id,
-        updatedAt: new Date()
-      });
-
+    // 如果产品有库存，只是停用而不删除
+    if (products[index].availableQuantity > 0) {
+      products[index].status = 'inactive';
+      products[index].updatedAt = new Date().toISOString();
+      
       return res.json({
         success: true,
-        message: '产品已被停用（因为有订单使用该产品）'
+        message: '产品已停用（因为有库存）'
       });
     }
 
-    // 删除相关数据
-    await ProductStock.destroy({ where: { productId: id } });
-    await ProductPriceHistory.destroy({ where: { productId: id } });
-    await Product.destroy({ where: { id } });
+    // 删除产品
+    products.splice(index, 1);
 
     res.json({
       success: true,
@@ -389,29 +368,12 @@ router.delete('/:id', authenticateToken, requireRole(['admin']), async (req, res
 });
 
 // 获取产品分类列表
-router.get('/categories', authenticateToken, async (req, res) => {
+router.get('/categories', (req, res) => {
   try {
-    const categories = await ProductCategory.findAll({
-      include: [{
-        model: Product,
-        as: 'products',
-        attributes: ['id'],
-        required: false
-      }],
-      order: [['name', 'ASC']]
-    });
-
-    // 为每个分类添加产品数量
-    const categoriesWithCount = categories.map(category => {
-      return {
-        ...category.toJSON(),
-        productCount: category.products ? category.products.length : 0
-      };
-    });
-
     res.json({
       success: true,
-      data: categoriesWithCount
+      data: categories,
+      message: '获取产品分类成功'
     });
   } catch (error) {
     console.error('获取产品分类失败:', error);
@@ -424,20 +386,24 @@ router.get('/categories', authenticateToken, async (req, res) => {
 });
 
 // 创建产品分类
-router.post('/categories', authenticateToken, requireRole(['product', 'admin']), async (req, res) => {
+router.post('/categories', (req, res) => {
   try {
     const { name, description, parentId } = req.body;
 
-    const category = await ProductCategory.create({
+    const newCategory = {
+      id: Date.now(),
       name,
       description,
       parentId,
-      createdBy: req.user.id
-    });
+      productCount: 0,
+      createdAt: new Date().toISOString()
+    };
+
+    categories.push(newCategory);
 
     res.status(201).json({
       success: true,
-      data: category,
+      data: newCategory,
       message: '产品分类创建成功'
     });
   } catch (error) {
@@ -449,238 +415,5 @@ router.post('/categories', authenticateToken, requireRole(['product', 'admin']),
     });
   }
 });
-
-// 获取库存信息
-router.get('/stock/info', authenticateToken, async (req, res) => {
-  try {
-    const {
-      productId,
-      warehouse,
-      lowStock,
-      search
-    } = req.query;
-
-    const whereClause = {};
-    
-    if (productId) {
-      whereClause.productId = productId;
-    }
-    
-    if (warehouse) {
-      whereClause.warehouse = warehouse;
-    }
-    
-    // 低库存筛选
-    if (lowStock === 'true') {
-      whereClause[Op.and] = [
-        { quantity: { [Op.lte]: 10 } },
-        { quantity: { [Op.gt]: 0 } }
-      ];
-    }
-
-    const query = {
-      where: whereClause,
-      include: [{
-        model: Product,
-        as: 'product',
-        attributes: ['id', 'name', 'code', 'unit'],
-        where: search ? {
-          [Op.or]: [
-            { name: { [Op.like]: `%${search}%` } },
-            { code: { [Op.like]: `%${search}%` } }
-          ]
-        } : undefined
-      }],
-      order: [['warehouse', 'ASC'], ['quantity', 'ASC']]
-    };
-
-    const stocks = await ProductStock.findAll(query);
-
-    res.json({
-      success: true,
-      data: stocks
-    });
-  } catch (error) {
-    console.error('获取库存信息失败:', error);
-    res.status(500).json({
-      success: false,
-      message: '获取库存信息失败',
-      error: error.message
-    });
-  }
-});
-
-// 更新库存
-router.put('/stock/:productId', authenticateToken, requireRole(['warehouse', 'admin']), async (req, res) => {
-  try {
-    const { productId } = req.params;
-    const { quantity, operation, warehouse, reason } = req.body;
-
-    const stock = await ProductStock.findOne({
-      where: { 
-        productId,
-        warehouse: warehouse || 'main'
-      }
-    });
-
-    if (!stock) {
-      return res.status(404).json({
-        success: false,
-        message: '库存记录不存在'
-      });
-    }
-
-    let newQuantity = stock.quantity;
-    
-    switch (operation) {
-      case 'add':
-        newQuantity = stock.quantity + quantity;
-        break;
-      case 'subtract':
-        newQuantity = Math.max(0, stock.quantity - quantity);
-        break;
-      case 'set':
-        newQuantity = quantity;
-        break;
-      default:
-        return res.status(400).json({
-          success: false,
-          message: '无效的操作类型'
-        });
-    }
-
-    const availableQuantity = newQuantity - stock.reservedQuantity;
-
-    await stock.update({
-      quantity: newQuantity,
-      availableQuantity,
-      lastUpdated: new Date(),
-      updatedBy: req.user.id
-    });
-
-    // 记录库存变动日志（这里可以扩展为单独的库存日志表）
-    console.log(`库存变动: 产品${productId}, 仓库${warehouse}, 操作${operation}, 数量${quantity}, 原因${reason}, 操作人${req.user.id}`);
-
-    res.json({
-      success: true,
-      data: stock,
-      message: '库存更新成功'
-    });
-  } catch (error) {
-    console.error('更新库存失败:', error);
-    res.status(500).json({
-      success: false,
-      message: '更新库存失败',
-      error: error.message
-    });
-  }
-});
-
-// 获取产品价格历史
-router.get('/:id/price-history', authenticateToken, async (req, res) => {
-  try {
-    const { id } = req.params;
-    const { type, limit = 50 } = req.query;
-
-    const whereClause = { productId: id };
-    if (type) {
-      whereClause.type = type;
-    }
-
-    const priceHistory = await ProductPriceHistory.findAll({
-      where: whereClause,
-      order: [['effectiveDate', 'DESC']],
-      limit: parseInt(limit)
-    });
-
-    res.json({
-      success: true,
-      data: priceHistory
-    });
-  } catch (error) {
-    console.error('获取价格历史失败:', error);
-    res.status(500).json({
-      success: false,
-      message: '获取价格历史失败',
-      error: error.message
-    });
-  }
-});
-
-// 导出产品列表
-router.get('/export', authenticateToken, async (req, res) => {
-  try {
-    const {
-      format = 'excel',
-      category,
-      status,
-      minPrice,
-      maxPrice
-    } = req.query;
-
-    const whereClause = {};
-    
-    if (status) {
-      whereClause.status = status;
-    }
-    
-    if (category) {
-      whereClause.categoryId = category;
-    }
-    
-    if (minPrice && maxPrice) {
-      whereClause.unitPrice = {
-        [Op.between]: [parseFloat(minPrice), parseFloat(maxPrice)]
-      };
-    }
-
-    const products = await Product.findAll({
-      where: whereClause,
-      include: [
-        {
-          model: ProductCategory,
-          as: 'category',
-          attributes: ['name']
-        },
-        {
-          model: ProductStock,
-          as: 'stock',
-          attributes: ['quantity', 'availableQuantity', 'warehouse']
-        }
-      ],
-      order: [['code', 'ASC']]
-    });
-
-    // 这里应该根据format参数生成对应的文件
-    // 暂时返回JSON格式的数据
-    res.json({
-      success: true,
-      data: {
-        products,
-        exportFormat: format,
-        exportedAt: new Date(),
-        totalRecords: products.length
-      },
-      message: '产品数据导出成功'
-    });
-  } catch (error) {
-    console.error('导出产品失败:', error);
-    res.status(500).json({
-      success: false,
-      message: '导出产品失败',
-      error: error.message
-    });
-  }
-});
-
-// 生成产品编号的辅助函数
-function generateProductCode() {
-  const now = new Date();
-  const year = now.getFullYear();
-  const month = String(now.getMonth() + 1).padStart(2, '0');
-  const day = String(now.getDate()).padStart(2, '0');
-  const random = Math.floor(Math.random() * 1000).toString().padStart(3, '0');
-  return `PRD${year}${month}${day}${random}`;
-}
 
 module.exports = router;

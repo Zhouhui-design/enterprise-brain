@@ -31,14 +31,12 @@
           <el-icon><List /></el-icon>
           生成列表式BOM
         </el-button>
-        <el-button type="success" @click="handleImport">
-          <el-icon><Upload /></el-icon>
-          导入
-        </el-button>
-        <el-button type="warning" @click="handleExport">
-          <el-icon><Download /></el-icon>
-          导出
-        </el-button>
+        <!-- 导入导出组件 -->
+        <BOMImportExport 
+          :table-data="tableData" 
+          :selected-rows="selectedRows"
+          @refresh="handleRefresh"
+        />
         <el-button @click="handlePrint">
           <el-icon><Printer /></el-icon>
           打印
@@ -336,6 +334,11 @@
               </el-form-item>
             </el-col>
             <el-col :span="8">
+              <el-form-item label="产品来源">
+                <el-input v-model="formData.productSource" readonly placeholder="自动生成" style="width: 100%;" />
+              </el-form-item>
+            </el-col>
+            <el-col :span="8">
               <el-form-item label="总人工">
                 <div style="display: flex; gap: 10px; width: 100%;">
                   <el-input v-model="formData.totalLabor" readonly style="flex: 1;" />
@@ -350,6 +353,26 @@
                 <div style="display: flex; gap: 10px; width: 100%;">
                   <el-input v-model="formData.totalMaterial" readonly style="flex: 1;" />
                   <el-button type="primary" @click="handleCalculateMaterial">计算材料费用</el-button>
+                </div>
+              </el-form-item>
+            </el-col>
+            <el-col :span="8">
+              <el-form-item label="产品来源">
+                <el-input v-model="formData.productSource" readonly placeholder="自动生成" style="width: 100%;" />
+              </el-form-item>
+            </el-col>
+            <el-col :span="8">
+              <el-form-item label="产品图片">
+                <div style="display: flex; align-items: center; gap: 10px; width: 100%;">
+                  <el-image 
+                    v-if="formData.productImage"
+                    :src="formData.productImage" 
+                    :preview-src-list="[formData.productImage]"
+                    :preview-teleported="true"
+                    style="width: 80px; height: 80px; cursor: pointer;"
+                    fit="cover"
+                  />
+                  <span v-else style="color: #909399;">无图片</span>
                 </div>
               </el-form-item>
             </el-col>
@@ -946,6 +969,7 @@ import {
   Setting, Operation, PriceTag, Money, Coin, User, Grid, Files, Folder, DataAnalysis, List
 } from '@element-plus/icons-vue'
 import SmartSelect from '@/components/SmartSelect.vue'
+import BOMImportExport from '@/components/BOMImportExport.vue'
 import { copyToClipboard, getCopyableColumnProps } from '@/utils/clipboard'
 // 使用后端API服务
 import materialApiService from '@/services/api/materialApiService'
@@ -1330,7 +1354,7 @@ const handleGenerateWithMode = async (bomId, mode) => {
   }
 }
 
-// 产品编码变化时，自动填充产品名称和产出工序
+// 产品编码变化时，自动填充产品名称、产出工序和产品来源
 const handleProductCodeChange = (value) => {
   if (!value) {
     return
@@ -1341,8 +1365,19 @@ const handleProductCodeChange = (value) => {
   if (material) {
     formData.value.productName = material.materialName
     formData.value.outputProcess = material.processName || '' // 填充产出工序（来自物料库的process_name字段）
-    console.log(`产品编码 ${value} lookup产出工序: ${formData.value.outputProcess}`)
-    ElMessage.success('已自动填充产品名称和产出工序')
+    
+    // 需求2：产品编码不为空，则产品名称= lookup(产品物料库页面的物料编码=父件属性的产品编码，产品物料库页面的物料名称=父件属性的产品名称），增加一个产品物料库页面的"来源"=父件属性的产品来源
+    // 修复：source字段可能是数组，取第一个值或处理为数组格式
+    if (material.source && Array.isArray(material.source) && material.source.length > 0) {
+      formData.value.productSource = material.source[0] // 取来源数组的第一个值
+    } else if (material.source && typeof material.source === 'string') {
+      formData.value.productSource = material.source
+    } else {
+      formData.value.productSource = ''
+    }
+    
+    console.log(`产品编码 ${value} lookup产出工序: ${formData.value.outputProcess}, 产品来源: ${formData.value.productSource}`)
+    ElMessage.success('已自动填充产品名称、产出工序和产品来源')
   } else {
     console.warn(`未找到产品编码: ${value}`)
   }
@@ -1358,7 +1393,18 @@ const handleProductNameChange = (value) => {
   const material = materialList.value.find(m => m.materialName === value)
   if (material) {
     formData.value.productCode = material.materialCode
-    ElMessage.success('已自动填充产品编码')
+    
+    // 需求2：产品编码不为空，则产品名称= lookup(产品物料库页面的物料编码=父件属性的产品编码，产品物料库页面的物料名称=父件属性的产品名称），增加一个产品物料库页面的"来源"=父件属性的产品来源
+    // 修复：source字段可能是数组，取第一个值或处理为数组格式
+    if (material.source && Array.isArray(material.source) && material.source.length > 0) {
+      formData.value.productSource = material.source[0] // 取来源数组的第一个值
+    } else if (material.source && typeof material.source === 'string') {
+      formData.value.productSource = material.source
+    } else {
+      formData.value.productSource = ''
+    }
+    
+    ElMessage.success('已自动填充产品编码和产品来源')
   }
 }
 
@@ -1464,7 +1510,7 @@ const handleAddChild = () => {
     materialPrice: 0,
     indent: 0, // 缩进层级
     // 需求2：自动填充后道字段（增加后道产品来源）
-    nextProductSource: formData.value.outputProcess || '', // 父件属性区域中的"产出工序"
+    nextProductSource: formData.value.productSource || '', // 父件属性区域中的"产品来源"
     nextProcessName: formData.value.outputProcess || '', // 父件属性区域中的"产出工序"
     nextProductCode: formData.value.productCode || '', // 父件属性区域中的"产出编号"
     nextProductName: formData.value.productName || '', // 父件属性区域中的"产出名称"
@@ -1536,8 +1582,8 @@ const handleAddChildLevelForRow = (row, index) => {
     materialLoss: 0,
     materialPrice: 0,
     indent: currentIndent + 1,
-    // 需求3+6：自动填充后道字段（增加后道产品来源）
-    nextProductSource: row.outputProcess || '', // 当前行.产出工序
+    // 需求4：修改"后道产品来源"
+    nextProductSource: row.source || '', // 当前行.子件来源
     nextProcessName: row.outputProcess || '', // 当前行.产出工序
     nextProductCode: row.childCode || '', // 当前行.子件编号
     nextProductName: row.childName || '', // 当前行.子件名称
@@ -1739,7 +1785,6 @@ const handleRowClick = (row, column, event) => {
     handleMoveTo(row, targetIndex)
   }
 }
-
 // 子件编码变化时，自动填充子件名称和其他字段（数据流水线）
 const handleChildCodeChange = (value, row) => {
   if (!value) {
@@ -1752,7 +1797,7 @@ const handleChildCodeChange = (value, row) => {
     row.childName = material.materialName
     
     // 数据流水线：从物料库自动填充其他字段
-    // 产出工序 = 物料库的产出工序名称，如果为空则默认为“采购”
+    // 产出工序 = 物料库的产出工序名称，如果为空则默认为"采购"
     row.outputProcess = material.processName || '采购'
     
     // 子件来源 = 物料库的来源（取第一个）
@@ -1770,9 +1815,11 @@ const handleChildCodeChange = (value, row) => {
       row.materialLoss = material.materialLoss
     }
     
-    // 材料单价 = 物料库的基础单价
-    if (material.basePrice !== undefined && material.basePrice !== null) {
+    // 材料单价 = 严格使用基础单价，没有则设为0
+    if (material.basePrice !== undefined && material.basePrice !== null && material.basePrice > 0) {
       row.materialPrice = material.basePrice
+    } else {
+      row.materialPrice = 0
     }
     
     console.log('数据流水线自动填充:', {
@@ -1785,10 +1832,9 @@ const handleChildCodeChange = (value, row) => {
       materialPrice: row.materialPrice
     })
     
-    ElMessage.success('已自动填充子件信息（材料单价使用基础单价）')
+    ElMessage.success('已自动填充子件信息（材料单价严格使用基础单价）')
   }
 }
-
 // 子件名称变化时，自动填充子件编码和其他字段（数据流水线）
 const handleChildNameChange = (value, row) => {
   if (!value) {
@@ -1801,7 +1847,7 @@ const handleChildNameChange = (value, row) => {
     row.childCode = material.materialCode
     
     // 数据流水线：从物料库自动填充其他字段
-    // 产出工序 = 物料库的产出工序名称，如果为空则默认为“采购”
+    // 产出工序 = 物料库的产出工序名称，如果为空则默认为"采购"
     row.outputProcess = material.processName || '采购'
     
     // 子件来源 = 物料库的来源（取第一个）
@@ -1819,9 +1865,11 @@ const handleChildNameChange = (value, row) => {
       row.materialLoss = material.materialLoss
     }
     
-    // 材料单价 = 物料库的基础单价
-    if (material.basePrice !== undefined && material.basePrice !== null) {
+    // 材料单价 = 严格使用基础单价，没有则设为0
+    if (material.basePrice !== undefined && material.basePrice !== null && material.basePrice > 0) {
       row.materialPrice = material.basePrice
+    } else {
+      row.materialPrice = 0
     }
     
     console.log('数据流水线自动填充:', {
@@ -1834,7 +1882,7 @@ const handleChildNameChange = (value, row) => {
       materialPrice: row.materialPrice
     })
     
-    ElMessage.success('已自动填充子件信息（材料单价使用基础单价）')
+    ElMessage.success('已自动填充子件信息（材料单价严格使用基础单价）')
   }
 }
 
@@ -2081,7 +2129,7 @@ const handleLoadMaterialPrice = () => {
   }
   
   let successCount = 0
-  let noMaterialCount = 0
+  let noBasePriceCount = 0
   let updatedCount = 0
   let noChangeCount = 0
   
@@ -2095,21 +2143,24 @@ const handleLoadMaterialPrice = () => {
     const material = materialList.value.find(m => m.materialCode === row.childCode)
     
     if (!material) {
-      noMaterialCount++
-      continue
-    }
-    
-    // 检查基础单价是否存在
-    if (material.basePrice === undefined || material.basePrice === null) {
-      noMaterialCount++
+      noBasePriceCount++
       continue
     }
     
     // 记录旧值
     const oldPrice = row.materialPrice || 0
-    const newPrice = material.basePrice
+    let newPrice = 0
     
-    // 强制更新为基础单价（无论当前值是什么）
+    // 严格使用基础单价，没有则默认为0
+    if (material.basePrice !== undefined && material.basePrice !== null && material.basePrice > 0) {
+      newPrice = material.basePrice
+    } else {
+      // 没有基础单价则设为0
+      newPrice = 0
+      noBasePriceCount++
+    }
+    
+    // 强制更新为计算出的单价
     row.materialPrice = newPrice
     
     if (Math.abs(oldPrice - newPrice) > 0.01) {
@@ -2119,23 +2170,24 @@ const handleLoadMaterialPrice = () => {
     }
     
     successCount++
+    console.log(`物料 ${row.childCode}: 基础单价 = ${newPrice}`)
   }
   
   // 显示详细的加载结果
   const messages = []
-  messages.push(`✅ 成功加载：${successCount} 条`)
+  messages.push(`✅ 处理完成：${successCount} 条`)
   if (updatedCount > 0) {
     messages.push(`🔄 值已更新：${updatedCount} 条`)
   }
   if (noChangeCount > 0) {
     messages.push(`✔️ 值未变化：${noChangeCount} 条`)
   }
-  if (noMaterialCount > 0) {
-    messages.push(`⚠️ 无物料数据：${noMaterialCount} 条`)
+  if (noBasePriceCount > 0) {
+    messages.push(`⚠️ 无基础单价（设为0）：${noBasePriceCount} 条`)
   }
   
   ElMessage.success({
-    message: `材料单价加载完成（基础单价）\n${messages.join('\n')}`,
+    message: `材料单价加载完成（严格使用基础单价）\n${messages.join('\n')}`,
     duration: 5000,
     dangerouslyUseHTMLString: true
   })

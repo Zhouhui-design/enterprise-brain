@@ -369,6 +369,7 @@ import { ElMessage } from 'element-plus'
 import { Plus, ArrowLeft, ArrowRight } from '@element-plus/icons-vue'
 import SmartSelect from '@/components/SmartSelect.vue'
 import request from '@/utils/request'
+import axios from 'axios'
 
 const props = defineProps({
   materialData: {
@@ -668,20 +669,70 @@ onMounted(() => {
   loadSupplierList() // ✅ 加载供应商列表
 })
 
-// 从 localStorage 加载工序数据
-const loadProcessList = () => {
+// 从后端API加载工序列表数据
+const loadProcessList = async () => {
+  try {
+    console.log('🔍 开始加载工序列表...')
+    
+    // 使用与工序列表页面相同的API地址
+    const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://192.168.2.229:3005/api'
+    const axiosInstance = axios.create({
+      timeout: 5000,
+      baseURL: API_BASE_URL
+    })
+    
+    const response = await axiosInstance.get('/processes/list')
+    const result = response.data
+    
+    if (result.code === 200 && result.data) {
+      // 转换后端数据格式为前端需要的格式
+      processList.value = result.data.map(item => ({
+        id: item.id,
+        processCode: item.process_code,
+        processName: item.process_name,
+        processPrincipal: item.responsible_person,
+        dispatchMethod: item.dispatch_method,
+        selfOrOutsource: item.self_or_outsource || '',
+        availableWorkstations: item.available_workstations || 0,
+        isStorage: item.is_warehousing === 1,
+        completionWarehouse: item.completion_warehouse || '',
+        workshopName: item.workshop_name,
+        processWage: parseFloat(item.process_wage) || 0,
+        createTime: new Date(item.created_at).toLocaleString('zh-CN'),
+        updateTime: new Date(item.updated_at).toLocaleString('zh-CN')
+      }))
+      
+      console.log(`✅ 从后端加载工序列表成功，共 ${processList.value.length} 条数据`)
+      
+      // 同时保存到localStorage作为备份
+      localStorage.setItem('processListData', JSON.stringify(processList.value))
+    } else {
+      console.warn('⚠️ 后端返回数据格式异常:', result)
+      // 尝试从localStorage加载备份数据
+      loadProcessListFromLocal()
+    }
+  } catch (error) {
+    console.error('❌ 从后端加载工序列表失败:', error)
+    // API失败，尝试从localStorage加载备份数据
+    loadProcessListFromLocal()
+  }
+}
+
+// 从localStorage加载工序数据作为备用方案
+const loadProcessListFromLocal = () => {
   try {
     const processData = localStorage.getItem('processListData')
     if (processData) {
       const data = JSON.parse(processData)
       processList.value = data || []
-      console.log('加载工序数据成功:', processList.value.length, '条')
+      console.log('✅ 从localStorage加载工序数据成功:', processList.value.length, '条')
     } else {
-      console.log('未找到工序数据')
+      console.log('⚠️ 未找到工序数据')
+      processList.value = []
     }
   } catch (error) {
-    console.error('加载工序数据失败:', error)
-    ElMessage.error('加载工序数据失败')
+    console.error('❌ 从localStorage加载工序数据失败:', error)
+    processList.value = []
   }
 }
 

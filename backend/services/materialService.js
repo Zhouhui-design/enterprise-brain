@@ -144,10 +144,18 @@ class MaterialService {
     try {
       await connection.beginTransaction();
 
-      // 计算基础单价
+      // 计算基础单价 - 只要有采购单价，就应该自动计算基础单价
       const purchasePrice = materialData.purchase_price || materialData.purchasePrice || 0;
       const purchaseConversionRate = materialData.purchase_conversion_rate || materialData.purchaseConversionRate || 1;
-      const basePrice = purchaseConversionRate > 0 ? purchasePrice / purchaseConversionRate : 0;
+      
+      let basePrice = 0;
+      if (purchasePrice > 0) {
+        // 只要有采购单价，就自动计算基础单价
+        basePrice = purchaseConversionRate > 0 ? purchasePrice / purchaseConversionRate : purchasePrice;
+        console.log(`创建物料 - 基础单价计算: 采购单价=${purchasePrice}, 转换率=${purchaseConversionRate}, 基础单价=${basePrice}`);
+      } else {
+        console.log(`创建物料 - 无采购单价，基础单价设为0`);
+      }
 
       const sql = `
         INSERT INTO materials (
@@ -240,11 +248,19 @@ class MaterialService {
         try {
           const materialCode = materialData.material_code || materialData.materialCode;
 
-          // 计算基础单价
+          // 计算基础单价 - 只要有采购单价，就应该自动计算基础单价
           const purchasePrice = materialData.purchase_price || materialData.purchasePrice || 0;
           const purchaseConversionRate =
             materialData.purchase_conversion_rate || materialData.purchaseConversionRate || 1;
-          const basePrice = purchaseConversionRate > 0 ? purchasePrice / purchaseConversionRate : 0;
+          
+          let basePrice = 0;
+          if (purchasePrice > 0) {
+            // 只要有采购单价，就自动计算基础单价
+            basePrice = purchaseConversionRate > 0 ? purchasePrice / purchaseConversionRate : purchasePrice;
+            console.log(`批量导入物料 ${materialCode} - 基础单价计算: 采购单价=${purchasePrice}, 转换率=${purchaseConversionRate}, 基础单价=${basePrice}`);
+          } else {
+            console.log(`批量导入物料 ${materialCode} - 无采购单价，基础单价设为0`);
+          }
 
           // 检查物料编码是否已存在
           const [existing] = await connection.execute('SELECT id FROM materials WHERE material_code = ?', [
@@ -386,10 +402,18 @@ class MaterialService {
     try {
       await connection.beginTransaction();
 
-      // 计算基础单价
+      // 计算基础单价 - 只要有采购单价，就应该自动计算基础单价
       const purchasePrice = materialData.purchase_price || materialData.purchasePrice || 0;
       const purchaseConversionRate = materialData.purchase_conversion_rate || materialData.purchaseConversionRate || 1;
-      const basePrice = purchaseConversionRate > 0 ? purchasePrice / purchaseConversionRate : 0;
+      
+      let basePrice = 0;
+      if (purchasePrice > 0) {
+        // 只要有采购单价，就自动计算基础单价
+        basePrice = purchaseConversionRate > 0 ? purchasePrice / purchaseConversionRate : purchasePrice;
+        console.log(`更新物料 ID:${id} - 基础单价计算: 采购单价=${purchasePrice}, 转换率=${purchaseConversionRate}, 基础单价=${basePrice}`);
+      } else {
+        console.log(`更新物料 ID:${id} - 无采购单价，基础单价设为0`);
+      }
 
       const sql = `
         UPDATE materials SET

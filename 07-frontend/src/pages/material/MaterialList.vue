@@ -121,14 +121,7 @@
       <!-- 来源自定义渲染 -->
       <template #source="{ row }">
         <span v-if="row.source && row.source.length > 0">
-          <el-tag 
-            v-for="(item, index) in row.source" 
-            :key="index" 
-            size="small" 
-            style="margin-right: 5px;"
-          >
-            {{ item }}
-          </el-tag>
+          {{ Array.isArray(row.source) ? row.source.join(', ') : row.source }}
         </span>
         <span v-else>-</span>
       </template>
