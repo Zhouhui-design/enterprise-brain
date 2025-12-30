@@ -144,7 +144,7 @@ export default {
         {
           path: 'mock-scheduling-process-list',
           name: 'MockSchedulingProcessList',
-          component: () => import('@/pages/sales/orders/MockSchedulingProcessList.vue'),
+          component: () => import('@/pages/sales/simulation-scheduling-process-table/index.vue'),
           meta: { 
             title: '模拟排程工序表',
             permission: ['sales:orders:mock-scheduling']
@@ -171,6 +171,29 @@ export default {
           meta: { 
             title: '模拟排程列表',
             permission: ['sales:simulation-scheduling:list']
+          }
+        }
+      ]
+    },
+
+    // 模拟物料需求明细
+    {
+      path: 'simulation-material-requirements',
+      name: 'SimulationMaterialRequirements',
+      redirect: '/sales/simulation-material-requirements/list',
+      meta: { 
+        title: '模拟物料需求明细', 
+        icon: 'List',
+        permission: ['sales:simulation-material-requirements']
+      },
+      children: [
+        {
+          path: 'list',
+          name: 'SimulationMaterialRequirementList',
+          component: () => import('@/pages/simulation-material-requirements/SimulationMaterialRequirementList.vue'),
+          meta: { 
+            title: '模拟物料需求明细',
+            permission: ['sales:simulation-material-requirements:list']
           }
         }
       ]

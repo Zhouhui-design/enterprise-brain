@@ -328,6 +328,18 @@ export default {
               icon: 'el-icon-s-order'
             },
             {
+              path: '/sales/simulation-material-requirements/list',
+              name: 'SimulationMaterialRequirementList',
+              meta: { title: '模拟物料需求明细' },
+              icon: 'el-icon-document-copy'
+            },
+            {
+              path: '/sales/orders/mock-scheduling-process-list',
+              name: 'MockSchedulingProcessList',
+              meta: { title: '模拟排程工序表' },
+              icon: 'el-icon-data-board'
+            },
+            {
               path: '/bom/sales',
               name: 'SalesBom',
               meta: { title: '销售BOM' },

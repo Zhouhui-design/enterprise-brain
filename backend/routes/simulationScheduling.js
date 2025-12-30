@@ -179,6 +179,22 @@ router.post('/push-from-sales-orders', async (req, res) => {
 
     console.log('✅ 从销售订单推送数据成功，推送数量:', result.data.pushedCount);
 
+    // 触发物料需求明细计算
+    if (result.data.insertResults && result.data.insertResults.length > 0) {
+      const simulationIds = result.data.insertResults.map(item => item.simulationId);
+      
+      // 异步触发物料需求计算，避免阻塞当前操作
+      setTimeout(async () => {
+        try {
+          const { handleSimulationSchedulingUpdate } = require('../services/simulationMaterialRequirementService');
+          await handleSimulationSchedulingUpdate(simulationIds);
+          console.log('✅ 物料需求明细计算触发成功');
+        } catch (error) {
+          console.error('❌ 物料需求明细计算触发失败:', error.message);
+        }
+      }, 2000); // 延迟2秒执行，确保模拟排程数据已完全保存
+    }
+
     res.json(result);
   } catch (error) {
     console.error('❌ 从销售订单推送数据失败:', error.message);
