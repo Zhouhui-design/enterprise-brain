@@ -1,0 +1,204 @@
+# Prometheus告警规则
+# 企业级系统告警配置
+
+groups:
+  - name: enterprise_brain_alerts
+    rules:
+      # 服务可用性告警
+      - alert: ServiceDown
+        expr: up == 0
+        for: 1m
+        labels:
+          severity: critical
+          service: "{{ $labels.job }}"
+        annotations:
+          summary: "服务 {{ $labels.job }} 已停止运行"
+          description: "服务 {{ $labels.instance }} 已经停止运行超过1分钟"
+
+      # 后端服务错误率告警
+      - alert: HighErrorRate
+        expr: rate(http_requests_total{status=~"5.."}[5m]) > 0.1
+        for: 2m
+        labels:
+          severity: warning
+          service: backend
+        annotations:
+          summary: "后端服务错误率过高"
+          description: "后端服务错误率在过去5分钟内为 {{ $value | humanizePercentage }}，超过10%阈值"
+
+      # 响应时间告警
+      - alert: HighResponseTime
+        expr: histogram_quantile(0.95, rate(http_request_duration_seconds_bucket[5m])) > 1
+        for: 3m
+        labels:
+          severity: warning
+          service: backend
+        annotations:
+          summary: "后端服务响应时间过长"
+          description: "95%的请求响应时间超过1秒，当前值为 {{ $value }}秒"
+
+      # CPU使用率告警
+      - alert: HighCPUUsage
+        expr: 100 - (avg by(instance) (irate(node_cpu_seconds_total{mode="idle"}[5m])) * 100) > 80
+        for: 5m
+        labels:
+          severity: warning
+          service: system
+        annotations:
+          summary: "CPU使用率过高"
+          description: "实例 {{ $labels.instance }} 的CPU使用率为 {{ $value }}%，超过80%阈值"
+
+      # 内存使用率告警
+      - alert: HighMemoryUsage
+        expr: (1 - (node_memory_MemAvailable_bytes / node_memory_MemTotal_bytes)) * 100 > 85
+        for: 5m
+        labels:
+          severity: warning
+          service: system
+        annotations:
+          summary: "内存使用率过高"
+          description: "实例 {{ $labels.instance }} 的内存使用率为 {{ $value }}%，超过85%阈值"
+
+      # 磁盘空间告警
+      - alert: LowDiskSpace
+        expr: (node_filesystem_avail_bytes / node_filesystem_size_bytes) * 100 < 15
+        for: 2m
+        labels:
+          severity: critical
+          service: system
+        annotations:
+          summary: "磁盘空间不足"
+          description: "实例 {{ $labels.instance }} 的磁盘 {{ $labels.mountpoint }} 剩余空间为 {{ $value }}%，低于15%阈值"
+
+      # 数据库连接数告警
+      - alert: TooManyDatabaseConnections
+        expr: mysql_global_status_threads_connected / mysql_global_variables_max_connections * 100 > 80
+        for: 3m
+        labels:
+          severity: warning
+          service: mysql
+        annotations:
+          summary: "MySQL连接数过高"
+          description: "MySQL连接数使用率为 {{ $value }}%，超过80%阈值"
+
+      # 数据库慢查询告警
+      - alert: SlowDatabaseQueries
+        expr: rate(mysql_global_status_slow_queries[5m]) > 0.1
+        for: 2m
+        labels:
+          severity: warning
+          service: mysql
+        annotations:
+          summary: "MySQL慢查询过多"
+          description: "MySQL慢查询率为 {{ $value }}/秒，超过0.1/秒阈值"
+
+      # Redis内存使用率告警
+      - alert: HighRedisMemoryUsage
+        expr: redis_memory_used_bytes / redis_config_maxmemory * 100 > 90
+        for: 5m
+        labels:
+          severity: warning
+          service: redis
+        annotations:
+          summary: "Redis内存使用率过高"
+          description: "Redis内存使用率为 {{ $value }}%，超过90%阈值"
+
+      # Redis连接数告警
+      - alert: TooManyRedisConnections
+        expr: redis_connected_clients > 100
+        for: 3m
+        labels:
+          severity: warning
+          service: redis
+        annotations:
+          summary: "Redis连接数过多"
+          description: "Redis连接数为 {{ $value }}，超过100个连接"
+
+      # 容器状态告警
+      - alert: ContainerNotRunning
+        expr: container_state_running == 0
+        for: 1m
+        labels:
+          severity: critical
+          service: docker
+        annotations:
+          summary: "容器未运行"
+          description: "容器 {{ $labels.name }} 未运行"
+
+      # 容器资源使用告警
+      - alert: HighContainerCPUUsage
+        expr: rate(container_cpu_usage_seconds_total[5m]) * 100 > 80
+        for: 5m
+        labels:
+          severity: warning
+          service: docker
+        annotations:
+          summary: "容器CPU使用率过高"
+          description: "容器 {{ $labels.name }} 的CPU使用率为 {{ $value }}%，超过80%阈值"
+
+      # 网络流量告警
+      - alert: HighNetworkTraffic
+        expr: rate(container_network_receive_bytes_total[5m]) + rate(container_network_transmit_bytes_total[5m]) > 100000000
+        for: 5m
+        labels:
+          severity: warning
+          service: network
+        annotations:
+          summary: "网络流量过高"
+          description: "容器 {{ $labels.name }} 的网络流量为 {{ $value | humanizeBytes }}/秒"
+
+      # API请求量异常
+      - alert: UnusualAPIRequests
+        expr: rate(http_requests_total[5m]) > 100
+        for: 2m
+        labels:
+          severity: info
+          service: backend
+        annotations:
+          summary: "API请求量异常"
+          description: "API请求量在过去5分钟内为 {{ $value }}/秒，可能存在异常流量"
+
+      # Jenkins构建失败告警
+      - alert: JenkinsBuildFailure
+        expr: jenkins_job_last_build_result_0 != 0
+        for: 1m
+        labels:
+          severity: warning
+          service: jenkins
+        annotations:
+          summary: "Jenkins构建失败"
+          description: "Jenkins任务 {{ $labels.job }} 构建失败"
+
+      # SSL证书过期告警
+      - alert: SSLCertificateExpiringSoon
+        expr: probe_ssl_earliest_cert_expiry - time() < 86400 * 30
+        for: 1h
+        labels:
+          severity: warning
+          service: ssl
+        annotations:
+          summary: "SSL证书即将过期"
+          description: "SSL证书将在30天内过期，实例: {{ $labels.instance }}"
+
+  - name: business_alerts
+    rules:
+      # 业务指标告警
+      - alert: HighOrderFailureRate
+        expr: rate(orders_failed_total[5m]) / rate(orders_total[5m]) > 0.05
+        for: 3m
+        labels:
+          severity: warning
+          service: business
+        annotations:
+          summary: "订单失败率过高"
+          description: "订单失败率为 {{ $value | humanizePercentage }}，超过5%阈值"
+
+      - alert: LowSystemPerformance
+        expr: avg(rate(http_request_duration_seconds_sum[5m])) / avg(rate(http_request_duration_seconds_count[5m])) > 2
+        for: 5m
+        labels:
+          severity: warning
+          service: business
+        annotations:
+          summary: "系统性能下降"
+          description: "系统平均响应时间为 {{ $value }}秒，超过2秒阈值"

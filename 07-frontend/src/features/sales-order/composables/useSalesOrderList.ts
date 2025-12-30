@@ -40,89 +40,97 @@ export const useSalesOrderList = () => {
   // ✅ 字段映射函数：将后端下划线命名转换为前端驼峰命名
   const mapOrderFields = (order: any) => {
     return {
-      // 基础字段
+      // 基础字段 - 根据实际数据库字段映射
       id: order.id,
-      internalOrderNo: order.internal_order_no || order.internalOrderNo,
-      customerOrderNo: order.customer_order_no || order.customerOrderNo,
-      customerName: order.customer_name || order.customerName,
-      customerId: order.customer_id || order.customerId,
-      salesperson: order.salesperson,
-      quotationNo: order.quotation_no || order.quotationNo,
-      orderType: order.order_type || order.orderType,
+      internalOrderNo: order.order_number, // 数据库字段是order_number
+      customerOrderNo: order.customer_order_no || '', // 暂时为空，数据库中没有这个字段
+      customerName: order.customer_name || '未知客户', // 从LEFT JOIN customers表获取
+      customerId: order.customer_id,
+      salesperson: order.sales_person_name || '未知销售员', // 从LEFT JOIN users表获取
+      salespersonId: order.sales_person_id,
+      quotationNo: '', // 暂时为空
+      orderType: order.order_type || '标准订单',
       
       // 时间字段
-      orderTime: order.order_time || order.orderTime,
-      promisedDelivery: order.promised_delivery || order.promisedDelivery,
-      customerDelivery: order.customer_delivery || order.customerDelivery,
-      estimatedCompletionDate: order.estimated_completion_date || order.estimatedCompletionDate,
+      orderTime: order.order_date || order.created_at,
+      promisedDelivery: order.promised_delivery || null,
+      customerDelivery: order.customer_delivery || null,
+      estimatedCompletionDate: order.estimated_completion_date || null,
       
       // 状态字段
-      orderStatus: order.status || order.orderStatus,
+      orderStatus: order.status || 'pending',
       status: order.status,
       
+      // 优先级
+      priority: order.priority || 'normal',
+      
       // 部门和配送信息
-      salesDepartment: order.sales_department || order.salesDepartment,
-      deliveryMethod: order.delivery_method || order.deliveryMethod,
-      returnOrderNo: order.return_order_no || order.returnOrderNo,
+      salesDepartment: '', // 暂时为空
+      deliveryMethod: order.delivery_method || '',
+      returnOrderNo: order.return_order_no || '',
       
       // 金额和货币
-      orderCurrency: order.order_currency || order.orderCurrency,
-      currentExchangeRate: order.current_exchange_rate || order.currentExchangeRate,
-      taxRate: order.tax_rate || order.taxRate,
-      fees: order.fees,
-      totalAmount: order.total_amount || order.totalAmount,
-      totalAmountExcludingTax: order.total_amount_excluding_tax || order.totalAmountExcludingTax,
-      totalTax: order.total_tax || order.totalTax,
+      orderCurrency: 'CNY', // 默认人民币
+      currentExchangeRate: 1.0, // 默认汇率
+      taxRate: 13, // 默认税率
+      fees: 0,
+      totalAmount: order.total_amount || 0,
+      totalAmountExcludingTax: order.total_amount_excluding_tax || 0,
+      totalTax: order.total_tax || 0,
       
       // 附件和备注
-      orderAttachment: order.order_attachment || order.orderAttachment,
-      packagingAttachment: order.packaging_attachment || order.packagingAttachment,
-      orderNotes: order.order_notes || order.orderNotes,
+      orderAttachment: '',
+      packagingAttachment: '',
+      orderNotes: order.customer_notes || order.internal_notes || '',
       
       // 包装信息
-      packagingMethod: order.packaging_method || order.packagingMethod,
-      packagingRequirements: order.packaging_requirements || order.packagingRequirements,
+      packagingMethod: '',
+      packagingRequirements: order.special_requirements || '',
       
       // 收货和账单信息
-      consignee: order.consignee,
-      deliveryAddress: order.delivery_address || order.deliveryAddress,
-      billRecipient: order.bill_recipient || order.billRecipient,
-      billAddress: order.bill_address || order.billAddress,
+      consignee: '',
+      deliveryAddress: '',
+      billRecipient: '',
+      billAddress: '',
       
       // 付款信息
-      paymentMethod: order.payment_method || order.paymentMethod,
-      advancePaymentRatio: order.advance_payment_ratio || order.advancePaymentRatio,
-      advancePaymentAmount: order.advance_payment_amount || order.advancePaymentAmount,
-      plannedPaymentAccount: order.planned_payment_account || order.plannedPaymentAccount,
-      totalReceivable: order.total_receivable || order.totalReceivable,
+      paymentMethod: '',
+      advancePaymentRatio: 0,
+      advancePaymentAmount: 0,
+      plannedPaymentAccount: '',
+      totalReceivable: order.total_amount || 0,
       
       // 售后信息
-      hasAfterSales: order.has_after_sales || order.hasAfterSales,
-      afterSalesOrderNo: order.after_sales_order_no || order.afterSalesOrderNo,
-      afterSalesDetails: order.after_sales_details || order.afterSalesDetails,
+      hasAfterSales: false,
+      afterSalesOrderNo: '',
+      afterSalesDetails: '',
       
-      // 🆕 产品信息字段（直接从主表读取，无需再查询产品明细表）
-      productCode: order.product_code || order.productCode,
-      productName: order.product_name || order.productName,
-      productSpec: order.product_spec || order.productSpec,
-      productColor: order.product_color || order.productColor,
-      productUnit: order.product_unit || order.productUnit,
-      orderQuantity: order.order_quantity || order.orderQuantity,
-      unitPriceExcludingTax: order.unit_price_excluding_tax || order.unitPriceExcludingTax,
-      productTaxRate: order.product_tax_rate || order.productTaxRate,
-      accessories: order.accessories,
-      outputProcess: order.output_process || order.outputProcess,
-      productSource: order.product_source || order.productSource,
+      // 客户联系方式（从customers表获取）
+      customerContact: order.customer_contact || '',
+      customerPhone: order.customer_phone || '',
+      
+      // 产品信息字段（暂时为空，数据库中没有这些字段）
+      productCode: '',
+      productName: '',
+      productSpec: '',
+      productColor: '',
+      productUnit: '',
+      orderQuantity: 0,
+      unitPriceExcludingTax: 0,
+      productTaxRate: 13,
+      accessories: '',
+      outputProcess: '',
+      productSource: '',
       
       // 系统字段
-      createdBy: order.created_by || order.createdBy,
-      updatedBy: order.updated_by || order.updatedBy,
-      createdAt: order.created_at || order.createdAt,
-      updatedAt: order.updated_at || order.updatedAt,
-      createTime: order.created_at || order.createdAt || order.createTime,
+      createdBy: order.created_by || 'admin',
+      updatedBy: order.updated_by || '',
+      createdAt: order.created_at,
+      updatedAt: order.updated_at,
+      createTime: order.created_at,
       
       // 提交人
-      submitter: order.created_by || order.submitter || order.createdBy
+      submitter: order.created_by || order.sales_person_name || 'admin'
     }
   }
 
@@ -223,26 +231,36 @@ export const useSalesOrderList = () => {
   // 批量删除
   const batchDelete = async (rows: any[]) => {
     if (!rows || rows.length === 0) {
-      return
+      throw new Error('请选择要删除的订单')
     }
     
     // 获取要删除的ID列表
     const idsToDelete = rows.map(row => row.id)
     
+    console.log('🔄 开始批量删除操作，删除ID列表:', idsToDelete)
+    
     try {
       // 调用后端API进行批量删除
-      await salesOrderApi.batchDeleteSalesOrders(idsToDelete)
+      const response = await salesOrderApi.batchDeleteSalesOrders(idsToDelete)
       
-      // 从tableData中移除对应行
-      tableData.value = tableData.value.filter(row => !idsToDelete.includes(row.id))
+      console.log('✅ 批量删除API响应:', response)
       
-      // 更新分页总数
-      pagination.value.total = tableData.value.length
+      // 重新加载数据以确保数据一致性
+      await loadData()
       
       // 清空选中行
       selectedRows.value = []
+      
+      console.log('🔄 批量删除完成，已重新加载数据')
+      
+      return response
     } catch (error) {
-      console.error('批量删除失败:', error)
+      console.error('❌ 批量删除失败:', error)
+      console.error('📋 错误详情:', {
+        message: error.message,
+        response: error.response?.data,
+        status: error.response?.status
+      })
       throw error
     }
   }

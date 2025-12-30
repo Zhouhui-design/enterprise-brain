@@ -263,7 +263,7 @@
 <script setup>
 import { ref, computed, watch } from 'vue'
 import { Plus, Delete, Download, Upload, Printer, Setting, Refresh, Filter, Rank } from '@element-plus/icons-vue'
-import draggable from 'vuedraggable'
+import { draggable } from 'vuedraggable'
 import { ElMessage, ElMessageBox } from 'element-plus'
 
 const props = defineProps({

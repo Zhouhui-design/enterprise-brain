@@ -577,7 +577,7 @@ import {
   Document, Calendar, OfficeBuilding, Money, Paperclip, 
   Box, Location, Goods, Service, Tickets
 } from '@element-plus/icons-vue'
-import { customerApi } from '@/api/customer'
+import customerApi from '@/api/customer'
 import { salesOrderApi } from '@/api/salesOrder'
 import productManualAPI from '@/api/productManual'
 

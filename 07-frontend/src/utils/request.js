@@ -2,9 +2,25 @@ import axios from 'axios'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { getToken, removeToken } from '@/utils/auth'
 
-// 创建axios实例
+// 创建axios实例 - 支持Docker容器环境
+const getBaseURL = () => {
+  // 检查是否在Docker环境中运行
+  const isDocker = import.meta.env.VITE_DOCKER_ENV === 'true' || window.location.hostname === 'localhost'
+  
+  if (isDocker) {
+    // Docker环境中，API通过Nginx代理访问
+    return '/api'
+  } else if (import.meta.env.VITE_API_BASE_URL) {
+    // 开发环境使用配置的URL
+    return import.meta.env.VITE_API_BASE_URL
+  } else {
+    // 默认相对路径，通过Nginx代理
+    return '/api'
+  }
+}
+
 const service = axios.create({
-  baseURL: import.meta.env.VITE_API_BASE_URL || '/api',
+  baseURL: getBaseURL(),
   timeout: 15000,
   headers: {
     'Content-Type': 'application/json;charset=utf-8'
@@ -124,16 +140,31 @@ service.interceptors.response.use(
           message = '拒绝访问'
           break
         case 404:
-          message = '请求地址不存在'
+          message = '请求的资源不存在，请联系管理员'
           break
         case 500:
-          message = '服务器内部错误'
+          message = '服务器内部错误，请稍后重试'
+          break
+        case 502:
+          message = '网关错误，请检查服务器状态'
+          break
+        case 503:
+          message = '服务暂时不可用，请稍后重试'
+          break
+        case 504:
+          message = '网关超时，请稍后重试'
           break
         default:
-          message = `请求失败: ${status}`
+          message = `请求失败 (${status}): ${data.message || '服务器错误'}`
       }
     } else if (error.code === 'ECONNABORTED') {
-      message = '请求超时'
+      message = '请求超时，请检查网络连接'
+    } else if (error.code === 'ECONNREFUSED') {
+      message = '无法连接到服务器，请检查后端服务是否启动'
+    } else if (error.code === 'ENOTFOUND') {
+      message = '网络连接失败，请检查网络设置'
+    } else if (error.code === 'ERR_NETWORK') {
+      message = '网络连接错误，请检查网络状态'
     } else if (error.message) {
       message = error.message
     }

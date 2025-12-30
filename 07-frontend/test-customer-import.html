@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>客户API导入测试</title>
+</head>
+<body>
+    <h1>客户API导入测试</h1>
+    <div id="test-result"></div>
+    
+    <script type="module">
+        // 测试导入
+        try {
+            import('./src/api/customer.js').then(module => {
+                console.log('✅ customer.js 导入成功:', module);
+                document.getElementById('test-result').innerHTML = `
+                    <div style="color: green;">
+                        <h2>✅ 导入成功！</h2>
+                        <p>默认导出: ${module.default ? '存在' : '不存在'}</p>
+                        <p>命名导出 customerApi: ${module.customerApi ? '存在' : '不存在'}</p>
+                        <pre>${JSON.stringify(Object.keys(module), null, 2)}</pre>
+                    </div>
+                `;
+            }).catch(error => {
+                console.error('❌ 导入失败:', error);
+                document.getElementById('test-result').innerHTML = `
+                    <div style="color: red;">
+                        <h2>❌ 导入失败！</h2>
+                        <p>${error.message}</p>
+                    </div>
+                `;
+            });
+        } catch (error) {
+            console.error('❌ 测试失败:', error);
+            document.getElementById('test-result').innerHTML = `
+                <div style="color: red;">
+                    <h2>❌ 测试失败！</h2>
+                    <p>${error.message}</p>
+                </div>
+            `;
+        }
+    </script>
+</body>
+</html>

@@ -227,7 +227,7 @@
 <script setup>
 import { ref, computed, watch } from 'vue'
 import { Plus, Rank } from '@element-plus/icons-vue'
-import draggable from 'vuedraggable'
+import { draggable } from 'vuedraggable'
 
 const props = defineProps({
   modelValue: {

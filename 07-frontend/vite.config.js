@@ -18,7 +18,7 @@ export default defineConfig({
     extensions: ['.mjs', '.js', '.ts', '.jsx', '.tsx', '.json', '.vue']
   },
   server: {
-    port: 3003,
+    port: 3006, // 修改为用户实际访问的端口
     host: '0.0.0.0',
     strictPort: true, // 严格使用指定端口，如果被占用则失败
     open: '/auth/login',
@@ -26,6 +26,18 @@ export default defineConfig({
       '/api': {
         target: 'http://localhost:3005',
         changeOrigin: true,
+        secure: false,
+        configure: (proxy, _options) => {
+          proxy.on('error', (err, _req, _res) => {
+            console.log('proxy error', err);
+          });
+          proxy.on('proxyReq', (proxyReq, req, _res) => {
+            console.log('Sending Request to Target:', req.method, req.url);
+          });
+          proxy.on('proxyRes', (proxyRes, req, _res) => {
+            console.log('Received Response from Target:', proxyRes.statusCode, req.url);
+          });
+        },
       }
     },
     // ✅ 禁用HMR错误覆盖层
@@ -48,11 +60,11 @@ export default defineConfig({
   },
   // ✅ 添加端口信息显示配置
   onListening: function({ port }) {
-    console.log(`🚀 前端服务已启动: http://localhost:${port}`)
+    console.log(`?? 前端服务已启动: http://localhost:${port}`)
     console.log(`📱 API代理地址: http://localhost:${port}/api -> http://localhost:3005`)
     console.log(`🌐 在浏览器中打开: http://localhost:${port}/auth/login`)
   },
-  // ✅ 优化依赖预构建
+  // ✅ 优化依赖预构建 - 修复模块加载问题
   optimizeDeps: {
     include: [
       'vue',
@@ -62,9 +74,11 @@ export default defineConfig({
       '@element-plus/icons-vue'
     ],
     // ✅ 排除容易导致问题的依赖
-    exclude: ['vue-demi'],
-    // ✅ 强制预构建，避免运行时发现新依赖导致刷新
+    exclude: ['vue-demi', 'vuedraggable'],
+    // ✅ 强制预构建，解决动态导入问题
     force: true,
+    // ✅ 修复动态导入问题
+    preload: ['vue', 'vue-router', 'element-plus'],
     // ✅ esbuild选项
     esbuildOptions: {
       target: 'es2020',

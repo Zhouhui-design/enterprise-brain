@@ -49,7 +49,7 @@
 <script setup>
 import { ref, watch } from 'vue'
 import { Setting, Rank } from '@element-plus/icons-vue'
-import draggable from 'vuedraggable'
+import { draggable } from 'vuedraggable'
 
 const props = defineProps({
   columns: {

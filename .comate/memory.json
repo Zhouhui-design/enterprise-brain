@@ -1,0 +1,27 @@
+[
+  {
+    "topic": "开发环境配置",
+    "memory_to_store": "用户使用Windows 10系统，电脑配置较低，国内网络环境，遇到Docker Desktop WSL问题，已切换到无Docker的Node.js直接部署方案。用户授权全栈技术开发助理agent优化开发和测试环境。",
+    "memory_id": "497e"
+  },
+  {
+    "topic": "系统重装计划",
+    "memory_to_store": "用户计划重装系统，从Windows 10换为Ubuntu系统，询问是否有Linux版本的Comate独立IDE",
+    "memory_id": "c0cb"
+  },
+  {
+    "topic": "Comate IDE Linux版本查询",
+    "memory_to_store": "用户询问Comate IDE是否有Linux版本，用于Ubuntu系统。根据搜索结果，Comate AI IDE确实支持Linux系统，系统要求为：Linux glibc >= 2.28，glibcxx >= 3.4.25（如Ubuntu 20+，Fedora 36+）。支持JetBrains IDEs、VS Code等多种IDE环境，以及Remote SSH、Docker、WSL等远程开发环境。",
+    "memory_id": "16e9"
+  },
+  {
+    "topic": "系统重装Ubuntu+Comate IDE",
+    "memory_to_store": "用户准备重装系统换用Ubuntu，并使用Comate IDE。需要提供Ubuntu系统下Comate IDE的安装和配置指导。",
+    "memory_id": "222f"
+  },
+  {
+    "topic": "Comate IDE登录和开发环境配置",
+    "memory_to_store": "用户计划在Linux版本中登录Comate IDE使用相同的账号，需要记住相关规则和配置要点：\n1. 用户使用Windows 10系统，计划重装为Ubuntu系统\n2. 项目已从C盘克隆到D盘，G盘正在刻录Ubuntu系统盘\n3. 企业大脑项目包含前后端，需要配置完整的开发环境\n4. 用户要求在Linux版本的Comate IDE中使用相同账号登录\n5. 需要记住Comate IDE的登录规则、项目配置、开发工作流程",
+    "memory_id": "60a0"
+  }
+]

@@ -5,19 +5,26 @@
 
 const mysql = require('mysql2/promise');
 
-// 数据库连接配置
+// 数据库连接配置 - 支持Docker容器环境
 const dbConfig = {
-  host: 'localhost',
-  port: 3306,
-  user: 'root',
-  password: 'zH754277289hUi~197547',
-  database: 'enterprise_brain',
+  host: process.env.DB_HOST || 'localhost',
+  port: process.env.DB_PORT || 3306,
+  user: process.env.DB_USER || 'root',
+  password: process.env.DB_PASSWORD || 'zH754277289hUi~197547',
+  database: process.env.DB_NAME || 'enterprise_brain',
   charset: 'utf8mb4',
   waitForConnections: true,
   connectionLimit: 10,
   queueLimit: 0,
   enableKeepAlive: true,
   keepAliveInitialDelay: 0,
+  // 添加连接超时配置
+  acquireTimeout: 60000,
+  timeout: 60000,
+  reconnect: true,
+  // 连接池配置优化
+  idleTimeout: 300000,
+  maxIdle: 5,
 };
 
 // 创建连接池
@@ -80,6 +87,183 @@ const backupDatabase = async () => {
   } catch (error) {
     console.error('❌ 数据库备份失败:', error.message);
     throw error;
+  }
+};
+
+// 客户数据备份函数
+const backupCustomerData = async () => {
+  const connection = await pool.getConnection();
+  try {
+    const timestamp = new Date().toISOString().slice(0, 19).replace(/[:-]/g, '');
+    const backupId = `backup_${timestamp}`;
+    
+    console.log(`🔄 开始备份客户数据: ${backupId}`);
+    
+    // 备份所有客户数据到备份历史表
+    await connection.execute(`
+      INSERT INTO customers_backup_history (
+        backup_id, customer_id, customer_code, customer_name, customer_type,
+        status, contact_person, contact_phone, contact_email, company,
+        industry, region, contact_address, credit_limit, sales_person,
+        tax_number, remark, created_by, updated_by, created_at, updated_at,
+        backup_time, operation_type
+      )
+      SELECT 
+        ?, id, customer_code, customer_name, customer_type,
+        status, contact_person, contact_phone, contact_email, company,
+        industry, region, contact_address, credit_limit, sales_person,
+        tax_number, remark, created_by, updated_by, created_at, updated_at,
+        NOW(), 'backup'
+      FROM customers
+    `, [backupId]);
+    
+    // 记录备份日志
+    const [countResult] = await connection.execute('SELECT COUNT(*) as count FROM customers');
+    const recordCount = countResult[0].count;
+    
+    await connection.execute(`
+      INSERT INTO backup_logs (table_name, backup_table, backup_time, record_count, backup_type, operator)
+      VALUES ('customers', ?, NOW(), ?, 'auto', 'system')
+    `, [backupId, recordCount]);
+    
+    console.log(`✅ 客户数据备份完成: ${backupId}, 共 ${recordCount} 条记录`);
+    return backupId;
+  } catch (error) {
+    console.error('❌ 客户数据备份失败:', error.message);
+    throw error;
+  } finally {
+    connection.release();
+  }
+};
+
+// 客户数据恢复函数
+const restoreCustomerData = async (backupId, targetTable = 'customers') => {
+  const connection = await pool.getConnection();
+  try {
+    await connection.beginTransaction();
+    
+    console.log(`🔄 开始从备份恢复客户数据: ${backupId}`);
+    
+    // 检查备份是否存在
+    const [backupCheck] = await connection.execute(
+      'SELECT COUNT(*) as count FROM customers_backup_history WHERE backup_id = ?',
+      [backupId]
+    );
+    
+    if (backupCheck[0].count === 0) {
+      throw new Error(`备份 ${backupId} 不存在`);
+    }
+    
+    // 备份当前数据
+    const currentBackupId = `before_restore_${new Date().toISOString().slice(0, 19).replace(/[:-]/g, '')}`;
+    await connection.execute(`
+      INSERT INTO customers_backup_history (
+        backup_id, customer_id, customer_code, customer_name, customer_type,
+        status, contact_person, contact_phone, contact_email, company,
+        industry, region, contact_address, credit_limit, sales_person,
+        tax_number, remark, created_by, updated_by, created_at, updated_at,
+        backup_time, operation_type
+      )
+      SELECT 
+        ?, id, customer_code, customer_name, customer_type,
+        status, contact_person, contact_phone, contact_email, company,
+        industry, region, contact_address, credit_limit, sales_person,
+        tax_number, remark, created_by, updated_by, created_at, updated_at,
+        NOW(), 'restore_backup'
+      FROM ${targetTable}
+    `, [currentBackupId]);
+    
+    // 清空目标表
+    await connection.execute(`DELETE FROM ${targetTable}`);
+    
+    // 从备份恢复数据
+    await connection.execute(`
+      INSERT INTO ${targetTable} (
+        id, customer_code, customer_name, customer_type, status,
+        contact_person, contact_phone, contact_email, company,
+        industry, region, contact_address, credit_limit, sales_person,
+        tax_number, remark, created_by, updated_by, created_at, updated_at
+      )
+      SELECT DISTINCT
+        customer_id, customer_code, customer_name, customer_type, status,
+        contact_person, contact_phone, contact_email, company,
+        industry, region, contact_address, credit_limit, sales_person,
+        tax_number, remark, created_by, updated_by, created_at, updated_at
+      FROM customers_backup_history 
+      WHERE backup_id = ?
+      ORDER BY id
+    `, [backupId]);
+    
+    // 重置自增ID
+    await connection.execute(`ALTER TABLE ${targetTable} AUTO_INCREMENT = 1`);
+    
+    // 记录恢复日志
+    await connection.execute(`
+      INSERT INTO backup_logs (table_name, backup_table, backup_time, record_count, backup_type, operator, remark)
+      VALUES ('customers', ?, NOW(), (SELECT COUNT(*) FROM ${targetTable}), 'manual', 'system', ?)
+    `, [backupId, `从备份 ${backupId} 恢复数据`]);
+    
+    await connection.commit();
+    console.log(`✅ 客户数据恢复完成: 从备份 ${backupId} 恢复到 ${targetTable}`);
+    
+    return true;
+  } catch (error) {
+    await connection.rollback();
+    console.error('❌ 客户数据恢复失败:', error.message);
+    throw error;
+  } finally {
+    connection.release();
+  }
+};
+
+// 记录客户操作日志
+const logCustomerOperation = async (customerId, operationType, operationData, operator = 'admin') => {
+  const connection = await pool.getConnection();
+  try {
+    await connection.execute(`
+      INSERT INTO customers_operation_log (customer_id, customer_code, operation_type, operation_data, operator, ip_address, user_agent)
+      VALUES (?, ?, ?, ?, ?, ?, ?)
+    `, [
+      customerId,
+      operationData.customer_code || null,
+      operationType,
+      JSON.stringify(operationData),
+      operator,
+      operationData.ip_address || null,
+      operationData.user_agent || null
+    ]);
+    
+    console.log(`✅ 客户操作日志记录: ${operationType}, 客户ID: ${customerId}`);
+  } catch (error) {
+    console.error('❌ 记录客户操作日志失败:', error.message);
+    // 不抛出错误，避免影响主要业务流程
+  } finally {
+    connection.release();
+  }
+};
+
+// 获取客户数据备份列表
+const getCustomerBackupList = async () => {
+  const connection = await pool.getConnection();
+  try {
+    const [backups] = await connection.execute(`
+      SELECT 
+        backup_id,
+        COUNT(*) as record_count,
+        MIN(backup_time) as backup_time,
+        operation_type,
+        GROUP_CONCAT(DISTINCT customer_code ORDER BY customer_code SEPARATOR ', ') as customer_codes
+      FROM customers_backup_history 
+      GROUP BY backup_id, operation_type
+      ORDER BY backup_time DESC
+    `);
+    
+    return backups;
+  } catch (error) {
+    console.error('❌ 获取客户备份列表失败:', error.message);
+    throw error;
+  } finally {
+    connection.release();
   }
 };
 
@@ -1299,11 +1483,80 @@ async function initializeDatabase() {
   }
 }
 
+// 定时备份任务
+let backupInterval = null;
+
+// 启动自动备份
+const startAutoBackup = () => {
+  // 每日凌晨2点执行备份
+  const scheduleBackup = () => {
+    const now = new Date();
+    const nextBackup = new Date();
+    nextBackup.setHours(2, 0, 0, 0); // 设置为凌晨2点
+    
+    // 如果当前时间已经超过今天的凌晨2点，则设置为明天凌晨2点
+    if (now.getTime() > nextBackup.getTime()) {
+      nextBackup.setDate(nextBackup.getDate() + 1);
+    }
+    
+    const timeUntilNextBackup = nextBackup.getTime() - now.getTime();
+    
+    console.log(`🕰️ 下次客户数据备份时间: ${nextBackup.toLocaleString('zh-CN')}`);
+    
+    setTimeout(async () => {
+      try {
+        await backupCustomerData();
+        console.log('✅ 自动客户数据备份完成');
+        // 递归调用，实现每日备份
+        scheduleBackup();
+      } catch (error) {
+        console.error('❌ 自动客户数据备份失败:', error.message);
+        // 即使失败也要继续调度
+        scheduleBackup();
+      }
+    }, timeUntilNextBackup);
+  };
+  
+  scheduleBackup();
+};
+
+// 停止自动备份
+const stopAutoBackup = () => {
+  if (backupInterval) {
+    clearInterval(backupInterval);
+    backupInterval = null;
+    console.log('⏹️ 自动客户数据备份已停止');
+  }
+};
+
+// 手动触发备份（立即执行）
+const triggerImmediateBackup = async () => {
+  try {
+    const backupId = await backupCustomerData();
+    console.log(`✅ 手动客户数据备份完成: ${backupId}`);
+    return backupId;
+  } catch (error) {
+    console.error('❌ 手动客户数据备份失败:', error.message);
+    throw error;
+  }
+};
+
+// 启动自动备份服务
+console.log('🚀 启动客户数据自动备份服务...');
+startAutoBackup();
+
 module.exports = { 
   pool, 
   query, 
   executeTransaction,
   backupDatabase,
   restoreDatabase,
-  initializeDatabase 
+  initializeDatabase,
+  backupCustomerData,
+  restoreCustomerData,
+  logCustomerOperation,
+  getCustomerBackupList,
+  startAutoBackup,
+  stopAutoBackup,
+  triggerImmediateBackup
 };

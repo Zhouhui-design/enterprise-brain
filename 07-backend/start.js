@@ -62,7 +62,7 @@ console.log(`
 • 健康检查: http://${process.env.HOST}:${process.env.PORT}/health
 • 上传目录: ${path.join(__dirname, 'uploads')}
 
-🎯 功能模块:
+?? 功能模块:
 ✅ BOM导入导出 (/api/bom-import)
 ✅ 物料管理 (/api/materials)  
 ✅ BOM草稿 (/api/bom-draft)
@@ -73,6 +73,7 @@ console.log(`
 ✅ 打包工序计划 (/api/packing-process-plans)
 ✅ 产品管理 (/api/products)
 ✅ 销售订单 (/api/sales-orders)
+✅ 客户管理 (/api/customers)
 
 📝 日志级别: ${process.env.NODE_ENV === 'development' ? 'DEBUG' : 'INFO'}
 

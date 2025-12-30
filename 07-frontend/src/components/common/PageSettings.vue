@@ -267,7 +267,7 @@
 import { ref, watch, computed } from 'vue'
 import { ElMessage } from 'element-plus'
 import { Rank } from '@element-plus/icons-vue'
-import draggable from 'vuedraggable'
+import { draggable } from 'vuedraggable'
 
 const props = defineProps({
   modelValue: {

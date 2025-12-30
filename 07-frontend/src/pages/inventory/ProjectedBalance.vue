@@ -296,7 +296,7 @@ import {
   Plus, Search, Delete, Download, Upload, Printer, Setting, Refresh, Filter, Rank
 } from '@element-plus/icons-vue'
 import { projectedBalanceApi } from '@/api/projectedBalance'
-import draggable from 'vuedraggable'
+import { draggable } from 'vuedraggable'
 
 // 数据
 const loading = ref(false)

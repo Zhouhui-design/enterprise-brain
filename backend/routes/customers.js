@@ -1,6 +1,6 @@
 const express = require('express');
 const router = express.Router();
-const { pool } = require('../config/database');
+const { pool, executeTransaction, logCustomerOperation, backupCustomerData } = require('../config/database');
 
 // ==================== 客户管理API ====================
 
@@ -124,7 +124,6 @@ router.get('/:id', async (req, res) => {
 /**
  * 创建新客户
  * POST /api/customers
- */
 router.post('/', async (req, res) => {
   let connection;
   try {
@@ -158,71 +157,86 @@ router.post('/', async (req, res) => {
       });
     }
 
-    connection = await pool.getConnection();
+    // 使用事务确保数据一致性
+    const result = await executeTransaction(async (connection) => {
+      // 自动生成客户编号（如果没有提供）
+      let finalCustomerCode = customerCode;
+      if (!finalCustomerCode) {
+        const year = new Date().getFullYear();
+        const [countResult] = await connection.execute('SELECT COUNT(*) as count FROM customers');
+        const count = countResult[0].count;
+        finalCustomerCode = `C${year}${String(count + 1).padStart(4, '0')}`;
+        console.log('自动生成客户编号:', finalCustomerCode);
+      }
 
-    // 自动生成客户编号（如果没有提供）
-    let finalCustomerCode = customerCode;
-    if (!finalCustomerCode) {
-      const year = new Date().getFullYear();
-      const [countResult] = await connection.execute('SELECT COUNT(*) as count FROM customers');
-      const count = countResult[0].count;
-      finalCustomerCode = `C${year}${String(count + 1).padStart(4, '0')}`;
-      console.log('自动生成客户编号:', finalCustomerCode);
-    }
-
-    // 检查客户编号是否已存在
-    const [existing] = await connection.execute('SELECT id FROM customers WHERE customer_code = ?', [
-      finalCustomerCode,
-    ]);
-    if (existing && existing.length > 0) {
-      return res.status(400).json({
-        success: false,
-        message: '客户编号已存在',
-      });
-    }
-
-    // 插入数据
-    await connection.execute(
-      `
-      INSERT INTO customers (
-        customer_code, customer_name, customer_type, status,
-        contact_person, contact_phone, contact_email, contact_address,
-        company, industry, region, tax_number,
-        credit_limit, sales_person, remark, created_by
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-    `,
-      [
+      // 检查客户编号是否已存在
+      const [existing] = await connection.execute('SELECT id FROM customers WHERE customer_code = ?', [
         finalCustomerCode,
-        customerName,
-        customerType,
-        status,
-        contactPerson || null,
-        contactPhone || null,
-        contactEmail || null,
-        contactAddress || null,
-        company || null,
-        industry || null,
-        region || null,
-        taxNumber || null,
-        creditLimit,
-        salesPerson || null,
-        remark || null,
-        createdBy,
-      ],
-    );
+      ]);
+      if (existing && existing.length > 0) {
+        throw new Error('客户编号已存在');
+      }
 
-    // 获取创建的客户
-    const [newCustomers] = await connection.execute('SELECT * FROM customers WHERE customer_code = ?', [
-      finalCustomerCode,
-    ]);
-    const newCustomer = newCustomers[0];
+      // 插入数据
+      await connection.execute(
+        `
+        INSERT INTO customers (
+          customer_code, customer_name, customer_type, status,
+          contact_person, contact_phone, contact_email, contact_address,
+          company, industry, region, tax_number,
+          credit_limit, sales_person, remark, created_by
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        `,
+        [
+          finalCustomerCode,
+          customerName,
+          customerType,
+          status,
+          contactPerson || null,
+          contactPhone || null,
+          contactEmail || null,
+          contactAddress || null,
+          company || null,
+          industry || null,
+          region || null,
+          taxNumber || null,
+          creditLimit,
+          salesPerson || null,
+          remark || null,
+          createdBy,
+        ],
+      );
 
-    console.log('✅ 创建成功，ID:', newCustomer.id);
+      // 获取创建的客户
+      const [newCustomers] = await connection.execute('SELECT * FROM customers WHERE customer_code = ?', [
+        finalCustomerCode,
+      ]);
+      const newCustomer = newCustomers[0];
+
+      // 记录操作日志
+      await logCustomerOperation(
+        newCustomer.id,
+        'CREATE',
+        {
+          customer_code: newCustomer.customer_code,
+          customer_name: newCustomer.customer_name,
+          operation: 'create',
+          ip_address: req.ip,
+          user_agent: req.get('User-Agent'),
+          request_data: req.body
+        },
+        createdBy
+      );
+
+      return newCustomer;
+    });
+
+    console.log('✅ 创建成功，ID:', result.id);
 
     res.json({
       success: true,
       message: '创建客户成功',
-      data: newCustomer,
+      data: result,
     });
   } catch (error) {
     console.error('❌ 创建客户失败:', error);
@@ -231,8 +245,6 @@ router.post('/', async (req, res) => {
       message: '创建客户失败',
       error: error.message,
     });
-  } finally {
-    if (connection) connection.release();
   }
 });
 
@@ -496,6 +508,196 @@ router.get('/statistics/overview', async (req, res) => {
     });
   } finally {
     if (connection) connection.release();
+  }
+});
+
+/**
+ * 获取客户数据备份列表
+ * GET /api/customers/backups
+ */
+router.get('/backups', async (req, res) => {
+  try {
+    console.log('=== 获取客户数据备份列表 ===');
+    
+    const backups = await getCustomerBackupList();
+    
+    console.log('✅ 获取备份列表成功，共', backups.length, '个备份点');
+    
+    res.json({
+      success: true,
+      data: backups,
+    });
+  } catch (error) {
+    console.error('❌ 获取备份列表失败:', error);
+    res.status(500).json({
+      success: false,
+      message: '获取备份列表失败',
+      error: error.message,
+    });
+  }
+});
+
+/**
+ * 从备份恢复客户数据
+ * POST /api/customers/restore
+ */
+router.post('/restore', async (req, res) => {
+  try {
+    console.log('=== 从备份恢复客户数据 ===');
+    
+    const { backupId, targetTable = 'customers' } = req.body;
+    
+    if (!backupId) {
+      return res.status(400).json({
+        success: false,
+        message: '请提供备份ID',
+      });
+    }
+    
+    // 先创建当前数据的备份
+    const currentBackupId = await backupCustomerData();
+    console.log('✅ 当前数据已备份:', currentBackupId);
+    
+    // 执行恢复操作
+    const success = await restoreCustomerData(backupId, targetTable);
+    
+    if (success) {
+      console.log('✅ 数据恢复成功');
+      
+      res.json({
+        success: true,
+        message: `成功从备份 ${backupId} 恢复客户数据`,
+        data: {
+          backupId,
+          targetTable,
+          preRestoreBackup: currentBackupId
+        }
+      });
+    } else {
+      throw new Error('恢复操作失败');
+    }
+  } catch (error) {
+    console.error('❌ 数据恢复失败:', error);
+    res.status(500).json({
+      success: false,
+      message: '数据恢复失败',
+      error: error.message,
+    });
+  }
+});
+
+/**
+ * 手动触发备份
+ * POST /api/customers/backup
+ */
+router.post('/backup', async (req, res) => {
+  try {
+    console.log('=== 手动触发客户数据备份 ===');
+    
+    const backupId = await triggerImmediateBackup();
+    
+    console.log('✅ 手动备份成功:', backupId);
+    
+    res.json({
+      success: true,
+      message: '客户数据备份成功',
+      data: {
+        backupId,
+        backupTime: new Date().toISOString()
+      }
+    });
+  } catch (error) {
+    console.error('❌ 手动备份失败:', error);
+    res.status(500).json({
+      success: false,
+      message: '手动备份失败',
+      error: error.message,
+    });
+  }
+});
+
+/**
+ * 数据一致性检查
+ * GET /api/customers/health-check
+ */
+router.get('/health-check', async (req, res) => {
+  try {
+    console.log('=== 客户数据一致性检查 ===');
+    
+    const healthCheck = {
+      databaseConnection: true, // 如果能到这里，说明数据库连接正常
+      totalCustomers: 0,
+      dataIntegrity: {
+        duplicateCodes: 0,
+        nullNames: 0,
+        invalidStatus: 0
+      },
+      lastBackup: null,
+      systemStatus: 'healthy'
+    };
+    
+    // 检查总客户数
+    const connection = await pool.getConnection();
+    const [countResult] = await connection.execute('SELECT COUNT(*) as count FROM customers');
+    healthCheck.totalCustomers = countResult[0].count;
+    
+    // 检查数据完整性
+    const [duplicateCheck] = await connection.execute(`
+      SELECT customer_code, COUNT(*) as count 
+      FROM customers 
+      GROUP BY customer_code 
+      HAVING count > 1
+    `);
+    healthCheck.dataIntegrity.duplicateCodes = duplicateCheck.length;
+    
+    const [nullNameCheck] = await connection.execute(`
+      SELECT COUNT(*) as count FROM customers WHERE customer_name IS NULL OR customer_name = ''
+    `);
+    healthCheck.dataIntegrity.nullNames = nullNameCheck[0].count;
+    
+    const [invalidStatusCheck] = await connection.execute(`
+      SELECT COUNT(*) as count FROM customers 
+      WHERE status NOT IN ('active', 'inactive', 'lost', 'frozen')
+    `);
+    healthCheck.dataIntegrity.invalidStatus = invalidStatusCheck[0].count;
+    
+    // 获取最新备份信息
+    const [backupLogs] = await connection.execute(`
+      SELECT backup_time, record_count 
+      FROM backup_logs 
+      WHERE table_name = 'customers' 
+      ORDER BY backup_time DESC 
+      LIMIT 1
+    `);
+    
+    if (backupLogs.length > 0) {
+      healthCheck.lastBackup = {
+        backupTime: backupLogs[0].backup_time,
+        recordCount: backupLogs[0].record_count
+      };
+    }
+    
+    // 评估系统状态
+    const issues = Object.values(healthCheck.dataIntegrity).reduce((sum, val) => sum + val, 0);
+    if (issues > 0) {
+      healthCheck.systemStatus = 'warning';
+    }
+    
+    connection.release();
+    
+    console.log('✅ 健康检查完成:', healthCheck);
+    
+    res.json({
+      success: true,
+      data: healthCheck,
+    });
+  } catch (error) {
+    console.error('❌ 健康检查失败:', error);
+    res.status(500).json({
+      success: false,
+      message: '健康检查失败',
+      error: error.message,
+    });
   }
 });
 

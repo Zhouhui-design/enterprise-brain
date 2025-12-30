@@ -242,18 +242,26 @@ router.get('/', async (req, res) => {
     connection = await pool.getConnection();
     console.log('✅ 成功获取数据库连接');
 
-    // 简化查询，不处理搜索条件，直接获取所有数据
     // 获取总数
     console.log('🔍 执行计数查询...');
     const [countResult] = await connection.execute('SELECT COUNT(*) as total FROM sales_orders');
     const total = countResult[0].total;
     console.log('📊 销售订单总数:', total);
 
-    // 获取列表数据
+    // 获取列表数据，包含关联的客户信息
     console.log('🔍 执行列表查询...');
-    // ⚠️ Windows MySQL 修复：LIMIT和OFFSET不能用占位符，必须直接拼接
     const [orders] = await connection.execute(
-      `SELECT * FROM sales_orders ORDER BY created_at DESC LIMIT ${pageSizeInt} OFFSET ${offset}`,
+      `SELECT 
+        so.*,
+        c.name as customer_name,
+        c.contact_person as customer_contact,
+        c.phone as customer_phone,
+        u.name as sales_person_name
+      FROM sales_orders so
+      LEFT JOIN customers c ON so.customer_id = c.id
+      LEFT JOIN users u ON so.sales_person_id = u.id
+      ORDER BY so.created_at DESC 
+      LIMIT ${pageSizeInt} OFFSET ${offset}`
     );
     console.log('📋 查询到的订单数量:', orders.length);
 
@@ -323,6 +331,115 @@ router.get('/:id', async (req, res) => {
     });
   } finally {
     if (connection) connection.release();
+  }
+});
+
+/**
+ * 批量删除销售订单
+ * POST /api/sales-orders/batch-delete
+ */
+router.post('/batch-delete', async (req, res) => {
+  let connection;
+  try {
+    console.log('🗑️ 收到批量删除销售订单请求:', JSON.stringify(req.body, null, 2));
+    
+    const { ids } = req.body;
+    
+    // 参数验证
+    if (!ids || !Array.isArray(ids) || ids.length === 0) {
+      return res.status(400).json({
+        success: false,
+        message: '请提供要删除的订单ID列表'
+      });
+    }
+    
+    // 验证ID格式（UUID）
+    const validIds = ids.filter(id => {
+      return typeof id === 'string' && 
+             id.match(/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i);
+    });
+    
+    if (validIds.length !== ids.length) {
+      return res.status(400).json({
+        success: false,
+        message: '提供的订单ID格式不正确'
+      });
+    }
+    
+    console.log(`🔄 开始批量删除 ${ids.length} 个销售订单`);
+    
+    connection = await pool.getConnection();
+    await connection.beginTransaction();
+    
+    // 检查要删除的订单是否存在
+    const [existingOrders] = await connection.execute(
+      `SELECT id, internal_order_no, customer_name FROM sales_orders WHERE id IN (${ids.map(() => '?').join(',')})`,
+      ids
+    );
+    
+    console.log(`📋 找到 ${existingOrders.length} 个存在的订单，详情:`, existingOrders);
+    
+    if (existingOrders.length === 0) {
+      await connection.rollback();
+      return res.status(404).json({
+        success: false,
+        message: '未找到要删除的订单'
+      });
+    }
+    
+    // 记录删除前的订单信息（用于日志）
+    const orderInfo = existingOrders.map(order => ({
+      id: order.id,
+      internalOrderNo: order.internal_order_no,
+      customerName: order.customer_name
+    }));
+    
+    // 执行批量删除
+    const [result] = await connection.execute(
+      `DELETE FROM sales_orders WHERE id IN (${ids.map(() => '?').join(',')})`,
+      ids
+    );
+    
+    console.log(`✅ 数据库删除结果: 影响行数 ${result.affectedRows}`);
+    
+    await connection.commit();
+    
+    // 记录删除操作日志
+    console.log(`?? 批量删除销售订单成功:`, {
+      deletedCount: result.affectedRows,
+      orderInfo,
+      deletedAt: new Date().toISOString()
+    });
+    
+    res.json({
+      success: true,
+      message: `成功删除${result.affectedRows}条订单`,
+      data: {
+        deletedCount: result.affectedRows,
+        deletedOrders: orderInfo
+      }
+    });
+    
+  } catch (error) {
+    if (connection) {
+      await connection.rollback();
+    }
+    console.error('❌ 批量删除销售订单失败:', error);
+    console.error('📋 错误详情:', {
+      message: error.message,
+      stack: error.stack,
+      requestIds: req.body.ids
+    });
+    
+    res.status(500).json({
+      success: false,
+      message: '批量删除失败',
+      error: process.env.NODE_ENV === 'development' ? error.message : '服务器内部错误'
+    });
+  } finally {
+    if (connection) {
+      connection.release();
+    }
   }
 });
 

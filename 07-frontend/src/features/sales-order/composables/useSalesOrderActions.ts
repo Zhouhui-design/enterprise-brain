@@ -69,10 +69,15 @@ export const useSalesOrderActions = () => {
         type: 'warning'
       })
       
-      // 模拟API请求
-      await new Promise(resolve => setTimeout(resolve, 500))
+      // 获取要删除的ID列表
+      const ids = rows.map(row => row.id)
       
-      ElMessage.success('批量删除成功')
+      // 调用后端API进行批量删除
+      const response = await salesOrderApi.batchDeleteSalesOrders(ids)
+      
+      console.log('✅ 批量删除API响应:', response)
+      
+      ElMessage.success(`批量删除成功，共删除${response.data?.deletedCount || rows.length}条订单`)
       // 刷新数据
       await refresh()
     } catch (error) {

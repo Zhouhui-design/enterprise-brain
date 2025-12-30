@@ -41,7 +41,9 @@ class SalesWebSocket {
       const user = token ? await this.verifyToken(token) : null;
 
       if (!user) {
-        ws.close(4001, '未授权的连接');
+        // 对于未授权的连接，提供更友好的处理
+        console.log('WebSocket连接未授权，尝试提供基础服务');
+        this.setupUnauthorizedConnection(ws);
         return;
       }
 
@@ -91,6 +93,134 @@ class SalesWebSocket {
       console.error('处理WebSocket连接失败:', error);
       ws.close(4002, '连接处理失败');
     }
+  }
+
+  setupUnauthorizedConnection(ws) {
+    const clientId = this.generateClientId();
+    const client = {
+      id: clientId,
+      ws,
+      user: null, // 未认证用户
+      subscriptions: new Set(),
+      lastPing: Date.now(),
+      config: {
+        timeRange: 60,
+        refreshRate: 30,
+      },
+      connectedAt: new Date(),
+      isUnauthorized: true, // 标记为未授权连接
+    };
+
+    this.clients.set(clientId, client);
+    ws.clientId = clientId;
+
+    console.log(`未授权客户端 ${clientId} 已连接`);
+
+    // 发送受限连接消息
+    this.sendToClient(client, {
+      type: 'limited_connection',
+      clientId,
+      message: '连接已建立，但功能受限。请登录以获得完整功能。',
+      availableFeatures: ['heartbeat', 'public_data'],
+      timestamp: new Date().toISOString(),
+    });
+
+    // 设置消息处理（仅支持有限功能）
+    ws.on('message', message => {
+      this.handleUnauthorizedMessage(client, message);
+    });
+
+    ws.on('close', (code, reason) => {
+      this.handleDisconnection(clientId, code, reason);
+    });
+
+    ws.on('error', error => {
+      console.error(`未授权客户端 ${clientId} 错误:`, error);
+    });
+  }
+
+  async handleUnauthorizedMessage(client, message) {
+    try {
+      const data = JSON.parse(message);
+
+      switch (data.type) {
+        case 'heartbeat':
+          client.lastPing = Date.now();
+          this.sendToClient(client, {
+            type: 'heartbeat_response',
+            timestamp: new Date().toISOString(),
+          });
+          break;
+
+        case 'public_data':
+          // 提供公开数据，不需要认证
+          this.sendToClient(client, {
+            type: 'public_data_response',
+            data: {
+              serverTime: new Date().toISOString(),
+              serverUptime: process.uptime(),
+              features: {
+                realTimeSales: false,
+                notifications: false,
+                publicStats: true,
+              },
+            },
+            timestamp: new Date().toISOString(),
+          });
+          break;
+
+        case 'authenticate':
+          // 尝试重新认证
+          const token = data.token;
+          if (token) {
+            const user = await this.verifyToken(token);
+            if (user) {
+              // 认证成功，升级连接
+              this.upgradeConnection(client, user);
+            } else {
+              this.sendToClient(client, {
+                type: 'auth_failed',
+                message: '认证失败，请检查token',
+                timestamp: new Date().toISOString(),
+              });
+            }
+          }
+          break;
+
+        default:
+          console.warn(`未授权客户端请求不支持的功能: ${data.type}`);
+          this.sendToClient(client, {
+            type: 'feature_not_available',
+            message: '此功能需要认证后才能使用',
+            requestedFeature: data.type,
+            timestamp: new Date().toISOString(),
+          });
+      }
+    } catch (error) {
+      console.error('处理未授权客户端消息失败:', error);
+    }
+  }
+
+  upgradeConnection(client, user) {
+    // 升级未授权连接为已授权连接
+    client.user = user;
+    client.isUnauthorized = false;
+    
+    console.log(`客户端 ${client.id} 已认证，用户: ${user.name}`);
+
+    // 发送认证成功消息
+    this.sendToClient(client, {
+      type: 'authentication_success',
+      message: '认证成功',
+      user: {
+        id: user.id,
+        name: user.name,
+      },
+      timestamp: new Date().toISOString(),
+    });
+
+    // 发送初始数据
+    this.sendInitialData(client);
   }
 
   async handleMessage(client, message) {

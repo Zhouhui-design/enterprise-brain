@@ -16,6 +16,7 @@ const packingProcessRoutes = require('./routes/packingProcessPlans');
 const processRoutes = require('./routes/processes');
 const productRoutes = require('./routes/products');
 const salesOrderRoutes = require('./routes/salesOrders');
+const customerRoutes = require('./routes/customers');
 
 // 创建Express应用
 const app = express();
@@ -55,7 +56,8 @@ app.get('/health', (req, res) => {
       'packing-process-plans': true,
       'processes': true,
       'products': true,
-      'sales-orders': true
+      'sales-orders': true,
+      'customers': true
     }
   });
 });
@@ -71,6 +73,7 @@ app.use('/api/packing-process-plans', packingProcessRoutes);
 app.use('/api/processes', processRoutes);
 app.use('/api/products', productRoutes);
 app.use('/api/sales-orders', salesOrderRoutes);
+app.use('/api/customers', customerRoutes);
 
 // 根路径
 app.get('/', (req, res) => {
@@ -88,7 +91,8 @@ app.get('/', (req, res) => {
       '打包工序计划': '/api/packing-process-plans',
       '工序管理': '/api/processes',
       '产品管理': '/api/products',
-      '销售订单': '/api/sales-orders'
+      '销售订单': '/api/sales-orders',
+      '客户管理': '/api/customers'
     }
   });
 });

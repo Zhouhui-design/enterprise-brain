@@ -41,7 +41,8 @@ export default {
     {
       path: 'company-calendar',
       name: 'CompanyCalendar',
-      component: () => import('@/pages/human-resources/CompanyCalendar.vue'),
+      // 修复动态导入问题 - 添加webpack注释
+      component: () => import(/* webpackChunkName: "human-resources" */ '@/pages/human-resources/CompanyCalendar.vue'),
       meta: { title: '企业日历' }
     }
   ]

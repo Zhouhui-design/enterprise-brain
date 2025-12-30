@@ -1,0 +1,583 @@
+pipeline {
+    agent any
+
+    environment {
+        DOCKER_REGISTRY = 'localhost:5000'
+        APP_NAME = 'enterprise-brain-frontend'
+        DOCKER_CREDENTIALS = 'docker-registry-creds'
+        NODE_VERSION = '18'
+    }
+
+    triggers {
+        // Git提交触发
+        pollSCM('H/5 * * * *')
+        // 定时构建（每天凌晨2点）
+        cron('0 2 * * *')
+    }
+
+    options {
+        // 构建历史保留
+        buildDiscarder(logRotator(numToKeepStr: '30', artifactNumToKeepStr: '10'))
+        // 超时设置
+        timeout(time: 30, unit: 'MINUTES')
+        // 并发控制
+        disableConcurrentBuilds()
+        // 时间戳
+        timestamps()
+    }
+
+    stages {
+        stage('Checkout') {
+            steps {
+                script {
+                    // 检出代码
+                    checkout([
+                        $class: 'GitSCM',
+                        branches: [[name: '*/main']],
+                        userRemoteConfigs: [[
+                            credentialsId: 'github-creds',
+                            url: 'https://github.com/your-org/enterprise-brain.git'
+                        ]],
+                        doGenerateSubmoduleConfigurations: false,
+                        submoduleCfg: [],
+                        extensions: [
+                            [$class: 'CloneOption', noTags: false, reference: '', shallow: true],
+                            [$class: 'LocalBranch', localBranch: 'main']
+                        ]
+                    ])
+                    
+                    // 显示构建信息
+                    echo "🚀 开始构建 ${env.JOB_NAME} #${env.BUILD_NUMBER}"
+                    echo "📋 分支: ${env.GIT_BRANCH}"
+                    echo "📝 提交: ${env.GIT_COMMIT}"
+                    echo "👤 构建者: ${env.BUILD_USER}"
+                }
+            }
+        }
+
+        stage('环境检查') {
+            parallel {
+                stage('Node.js版本检查') {
+                    steps {
+                        script {
+                            sh '''
+                                echo "🔍 检查Node.js版本..."
+                                node --version
+                                npm --version
+                                
+                                # 验证Node.js版本
+                                if [ "$(node -v | cut -d'v' -f2 | cut -d'.' -f1)" -lt "${NODE_VERSION}" ]; then
+                                    echo "❌ Node.js版本过低，需要 >= ${NODE_VERSION}"
+                                    exit 1
+                                fi
+                                echo "✅ Node.js版本检查通过"
+                            '''
+                        }
+                    }
+                }
+
+                stage('Docker环境检查') {
+                    steps {
+                        script {
+                            sh '''
+                                echo "🔍 检查Docker环境..."
+                                docker --version
+                                docker-compose --version
+                                
+                                # 测试Docker可用性
+                                if ! docker info >/dev/null 2>&1; then
+                                    echo "❌ Docker服务未运行"
+                                    exit 1
+                                fi
+                                echo "✅ Docker环境检查通过"
+                            '''
+                        }
+                    }
+                }
+            }
+        }
+
+        stage('依赖安装') {
+            steps {
+                script {
+                    // 清理可能存在的node_modules
+                    sh 'rm -rf node_modules package-lock.json'
+                    
+                    // 设置npm镜像源（加速下载）
+                    sh '''
+                        npm config set registry https://registry.npmmirror.com
+                        npm config set disturl https://npmmirror.com/dist
+                    '''
+                    
+                    // 安装依赖
+                    sh '''
+                        echo "📦 安装项目依赖..."
+                        npm install --prefer-offline --no-audit --no-fund
+                        echo "✅ 依赖安装完成"
+                    '''
+                }
+            }
+        }
+
+        stage('代码质量检查') {
+            parallel {
+                stage('ESLint检查') {
+                    steps {
+                        script {
+                            sh '''
+                                echo "🔍 执行ESLint检查..."
+                                npm run lint:check
+                                echo "✅ ESLint检查通过"
+                            '''
+                        }
+                    }
+                }
+
+                stage('Prettier格式检查') {
+                    steps {
+                        script {
+                            sh '''
+                                echo "🔍 执行Prettier格式检查..."
+                                npm run format:check
+                                echo "✅ Prettier检查通过"
+                            '''
+                        }
+                    }
+                }
+
+                stage('类型检查') {
+                    steps {
+                        script {
+                            sh '''
+                                echo "🔍 执行TypeScript类型检查..."
+                                npm run type-check
+                                echo "✅ 类型检查通过"
+                            '''
+                        }
+                    }
+                }
+            }
+        }
+
+        stage('单元测试') {
+            steps {
+                script {
+                    sh '''
+                        echo "🧪 执行单元测试..."
+                        npm run test:unit --coverage
+                        echo "✅ 单元测试通过"
+                    '''
+                    
+                    // 发布测试报告
+                    publishHTML([
+                        allowMissing: false,
+                        alwaysLinkToLastBuild: true,
+                        keepAll: true,
+                        reportDir: 'coverage',
+                        reportFiles: 'index.html',
+                        reportName: '单元测试覆盖率报告'
+                    ])
+                }
+            }
+        }
+
+        stage('E2E测试') {
+            when {
+                anyOf {
+                    branch 'main'
+                    changeRequest()
+                }
+            }
+            steps {
+                script {
+                    sh '''
+                        echo "🧪 执行E2E测试..."
+                        npm run test:e2e:ci
+                        echo "✅ E2E测试通过"
+                    '''
+                    
+                    // 发布E2E测试报告
+                    publishHTML([
+                        allowMissing: false,
+                        alwaysLinkToLastBuild: true,
+                        keepAll: true,
+                        reportDir: 'test-results/e2e',
+                        reportFiles: 'index.html',
+                        reportName: 'E2E测试报告'
+                    ])
+                }
+            }
+        }
+
+        stage('构建应用') {
+            steps {
+                script {
+                    sh '''
+                        echo "🔨 构建前端应用..."
+                        # 设置环境变量
+                        export VITE_APP_VERSION="${BUILD_NUMBER}"
+                        export VITE_BUILD_TIME="$(date '+%Y-%m-%d %H:%M:%S')"
+                        export VITE_GIT_COMMIT="${GIT_COMMIT:0:8}"
+                        
+                        # 执行构建
+                        npm run build:prod
+                        
+                        # 验证构建结果
+                        if [ ! -d "dist" ]; then
+                            echo "❌ 构建失败，未找到dist目录"
+                            exit 1
+                        fi
+                        
+                        # 检查关键文件
+                        if [ ! -f "dist/index.html" ]; then
+                            echo "❌ 构建失败，未找到index.html"
+                            exit 1
+                        fi
+                        
+                        echo "✅ 构建完成"
+                        echo "📊 构建产物大小:"
+                        du -sh dist/*
+                    '''
+                }
+            }
+        }
+
+        stage('安全扫描') {
+            steps {
+                script {
+                    sh '''
+                        echo "🔍 执行安全扫描..."
+                        
+                        # 使用npm audit检查依赖漏洞
+                        npm audit --audit-level high --json > audit-report.json || true
+                        
+                        # 使用trivy扫描容器镜像（如果存在）
+                        if command -v trivy >/dev/null 2>&1; then
+                            echo "📋 扫描基础镜像漏洞..."
+                            trivy image --format json --output trivy-report.json node:18-alpine || true
+                        fi
+                        
+                        echo "✅ 安全扫描完成"
+                    '''
+                    
+                    // 发布安全报告
+                    archiveArtifacts artifacts: 'audit-report.json,trivy-report.json', fingerprint: true
+                }
+            }
+        }
+
+        stage('构建Docker镜像') {
+            when {
+                anyOf {
+                    branch 'main'
+                    changeRequest()
+                }
+            }
+            steps {
+                script {
+                    sh '''
+                        echo "🐳 构建Docker镜像..."
+                        
+                        # 构建参数
+                        IMAGE_TAG="${BUILD_NUMBER}-${GIT_COMMIT:0:8}"
+                        IMAGE_NAME="${DOCKER_REGISTRY}/${APP_NAME}:${IMAGE_TAG}"
+                        LATEST_IMAGE="${DOCKER_REGISTRY}/${APP_NAME}:latest"
+                        
+                        # 构建镜像
+                        docker build \
+                            --build-arg NODE_VERSION=${NODE_VERSION} \
+                            --build-arg BUILD_DATE="$(date -u +'%Y-%m-%dT%H:%M:%SZ')" \
+                            --build-arg VCS_REF=${GIT_COMMIT} \
+                            --build-arg VERSION=${IMAGE_TAG} \
+                            -t ${IMAGE_NAME} \
+                            -t ${LATEST_IMAGE} \
+                            .
+                        
+                        # 验证镜像
+                        if ! docker inspect ${IMAGE_NAME} >/dev/null 2>&1; then
+                            echo "❌ Docker镜像构建失败"
+                            exit 1
+                        fi
+                        
+                        echo "✅ Docker镜像构建完成"
+                        echo "📋 镜像信息:"
+                        docker images ${APP_NAME}
+                    '''
+                }
+            }
+        }
+
+        stage('推送镜像') {
+            when {
+                branch 'main'
+            }
+            steps {
+                script {
+                    withCredentials([usernamePassword(credentialsId: env.DOCKER_CREDENTIALS, usernameVariable: 'DOCKER_USER', passwordVariable: 'DOCKER_PASS')]) {
+                        sh '''
+                            echo "📤 推送Docker镜像..."
+                            
+                            # 登录镜像仓库
+                            echo ${DOCKER_PASS} | docker login ${DOCKER_REGISTRY} -u ${DOCKER_USER} --password-stdin
+                            
+                            # 推送镜像
+                            IMAGE_TAG="${BUILD_NUMBER}-${GIT_COMMIT:0:8}"
+                            IMAGE_NAME="${DOCKER_REGISTRY}/${APP_NAME}:${IMAGE_TAG}"
+                            LATEST_IMAGE="${DOCKER_REGISTRY}/${APP_NAME}:latest"
+                            
+                            docker push ${IMAGE_NAME}
+                            docker push ${LATEST_IMAGE}
+                            
+                            echo "✅ 镜像推送完成"
+                        '''
+                    }
+                }
+            }
+        }
+
+        stage('部署到测试环境') {
+            when {
+                branch 'main'
+            }
+            steps {
+                script {
+                    sh '''
+                        echo "🚀 部署到测试环境..."
+                        
+                        # 更新docker-compose.yml中的镜像标签
+                        IMAGE_TAG="${BUILD_NUMBER}-${GIT_COMMIT:0:8}"
+                        sed -i "s|enterprise-brain-frontend:.*|${DOCKER_REGISTRY}/${APP_NAME}:${IMAGE_TAG}|g" ../docker-compose.yml
+                        
+                        # 部署到测试环境
+                        cd ..
+                        docker-compose -f docker-compose.yml pull frontend
+                        docker-compose -f docker-compose.yml up -d frontend
+                        
+                        # 等待服务启动
+                        sleep 10
+                        
+                        # 健康检查
+                        if curl -f http://localhost:3006/health >/dev/null 2>&1; then
+                            echo "✅ 前端服务部署成功"
+                        else
+                            echo "❌ 前端服务部署失败"
+                            docker-compose logs frontend
+                            exit 1
+                        fi
+                    '''
+                }
+            }
+        }
+
+        stage('集成测试') {
+            when {
+                branch 'main'
+            }
+            steps {
+                script {
+                    sh '''
+                        echo "🧪 执行集成测试..."
+                        
+                        # 等待所有服务就绪
+                        sleep 30
+                        
+                        # 执行集成测试
+                        npm run test:integration
+                        
+                        echo "✅ 集成测试通过"
+                    '''
+                    
+                    // 发布集成测试报告
+                    publishHTML([
+                        allowMissing: false,
+                        alwaysLinkToLastBuild: true,
+                        keepAll: true,
+                        reportDir: 'test-results/integration',
+                        reportFiles: 'index.html',
+                        reportName: '集成测试报告'
+                    ])
+                }
+            }
+        }
+
+        stage('性能测试') {
+            when {
+                branch 'main'
+                changeRequest()
+            }
+            steps {
+                script {
+                    sh '''
+                        echo "📊 执行性能测试..."
+                        
+                        # 使用Lighthouse进行性能测试
+                        npm run lighthouse:ci
+                        
+                        echo "✅ 性能测试完成"
+                    '''
+                    
+                    // 发布性能测试报告
+                    publishHTML([
+                        allowMissing: false,
+                        alwaysLinkToLastBuild: true,
+                        keepAll: true,
+                        reportDir: 'lighthouse-report',
+                        reportFiles: 'index.html',
+                        reportName: 'Lighthouse性能报告'
+                    ])
+                }
+            }
+        }
+
+        stage('生成部署包') {
+            when {
+                branch 'main'
+            }
+            steps {
+                script {
+                    sh '''
+                        echo "📦 生成部署包..."
+                        
+                        # 创建部署目录
+                        DEPLOY_DIR="deploy-package-${BUILD_NUMBER}"
+                        mkdir -p ${DEPLOY_DIR}
+                        
+                        # 复制构建产物
+                        cp -r dist ${DEPLOY_DIR}/
+                        
+                        # 复制配置文件
+                        cp .env.example ${DEPLOY_DIR}/
+                        cp docker-compose.yml ${DEPLOY_DIR}/
+                        cp -r scripts ${DEPLOY_DIR}/
+                        
+                        # 生成部署信息
+                        cat > ${DEPLOY_DIR}/deploy-info.json << EOF
+                        {
+                            "build_number": "${BUILD_NUMBER}",
+                            "build_time": "$(date -u +'%Y-%m-%dT%H:%M:%SZ')",
+                            "git_commit": "${GIT_COMMIT}",
+                            "git_branch": "${GIT_BRANCH}",
+                            "app_version": "${IMAGE_TAG}",
+                            "deploy_environment": "production"
+                        }
+                        EOF
+                        
+                        # 生成部署脚本
+                        cat > ${DEPLOY_DIR}/deploy.sh << 'EOF'
+                        #!/bin/bash
+                        echo "🚀 部署Enterprise Brain前端..."
+                        
+                        # 设置环境变量
+                        export IMAGE_TAG="${IMAGE_TAG}"
+                        
+                        # 部署服务
+                        docker-compose pull frontend
+                        docker-compose up -d frontend
+                        
+                        echo "✅ 部署完成"
+                        EOF
+                        
+                        chmod +x ${DEPLOY_DIR}/deploy.sh
+                        
+                        # 打包
+                        tar -czf enterprise-brain-frontend-${BUILD_NUMBER}.tar.gz ${DEPLOY_DIR}
+                        
+                        echo "✅ 部署包生成完成"
+                    '''
+                    
+                    // 归档部署包
+                    archiveArtifacts artifacts: "enterprise-brain-frontend-*.tar.gz", fingerprint: true
+                }
+            }
+        }
+    }
+
+    post {
+        always {
+            // 清理工作空间
+            script {
+                sh '''
+                    echo "🧹 清理工作空间..."
+                    docker system prune -f || true
+                    rm -rf node_modules dist coverage test-results deploy-package-*
+                    echo "✅ 工作空间清理完成"
+                '''
+            }
+        }
+
+        success {
+            script {
+                // 构建成功通知
+                sh '''
+                    echo "🎉 构建成功！"
+                    echo "📊 构建统计:"
+                    echo "   - 构建编号: ${BUILD_NUMBER}"
+                    echo "   - 分支: ${GIT_BRANCH}"
+                    echo "   - 提交: ${GIT_COMMIT}"
+                    echo "   - 构建时间: ${BUILD_DURATION}"
+                    echo "   - 访问地址: http://localhost:3006"
+                '''
+                
+                // 发送通知
+                emailext (
+                    subject: "✅ ${env.JOB_NAME} 构建成功 - #${env.BUILD_NUMBER}",
+                    body: """
+                        <h2>🎉 构建成功</h2>
+                        <p><strong>项目:</strong> ${env.JOB_NAME}</p>
+                        <p><strong>构建编号:</strong> #${env.BUILD_NUMBER}</p>
+                        <p><strong>分支:</strong> ${env.GIT_BRANCH}</p>
+                        <p><strong>提交:</strong> ${env.GIT_COMMIT}</p>
+                        <p><strong>构建时间:</strong> ${env.BUILD_DURATION}</p>
+                        <p><strong>访问地址:</strong> <a href="http://localhost:3006">http://localhost:3006</a></p>
+                        <p><strong>测试报告:</strong> <a href="${env.BUILD_URL}testResults/">查看详情</a></p>
+                    """,
+                    to: "${env.CHANGE_AUTHOR_EMAIL},admin@company.com",
+                    from: "jenkins@company.com"
+                )
+            }
+        }
+
+        failure {
+            script {
+                // 构建失败通知
+                sh '''
+                    echo "❌ 构建失败！"
+                    echo "📊 失败信息:"
+                    echo "   - 构建编号: ${BUILD_NUMBER}"
+                    echo "   - 分支: ${GIT_BRANCH}"
+                    echo "   - 提交: ${GIT_COMMIT}"
+                    echo "   - 失败阶段: ${STAGE_NAME}"
+                    echo "   - 失败原因: 检查构建日志"
+                '''
+                
+                // 发送通知
+                emailext (
+                    subject: "❌ ${env.JOB_NAME} 构建失败 - #${env.BUILD_NUMBER}",
+                    body: """
+                        <h2>❌ 构建失败</h2>
+                        <p><strong>项目:</strong> ${env.JOB_NAME}</p>
+                        <p><strong>构建编号:</strong> #${env.BUILD_NUMBER}</p>
+                        <p><strong>分支:</strong> ${env.GIT_BRANCH}</p>
+                        <p><strong>提交:</strong> ${env.GIT_COMMIT}</p>
+                        <p><strong>失败阶段:</strong> ${env.STAGE_NAME}</p>
+                        <p><strong>查看日志:</strong> <a href="${env.BUILD_URL}console">点击查看</a></p>
+                    """,
+                    to: "${env.CHANGE_AUTHOR_EMAIL},devops@company.com",
+                    from: "jenkins@company.com"
+                )
+            }
+        }
+
+        unstable {
+            script {
+                echo "⚠️ 构建不稳定，部分测试失败"
+            }
+        }
+
+        aborted {
+            script {
+                echo "⏹️ 构建被中止"
+            }
+        }
+    }
+}

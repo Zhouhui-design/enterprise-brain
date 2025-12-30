@@ -260,7 +260,8 @@ import { ElMessage, ElMessageBox } from 'element-plus'
 import { Search, Plus, User, Trophy, Connection, Money, Upload, Download, Printer, UploadFilled } from '@element-plus/icons-vue'
 import CustomerCreate from './CustomerCreate.vue'
 import CustomerView from './CustomerView.vue'
-import { customerApi } from '@/api/customer'
+import customerApi from '@/api/customer'
+import { customerDataManager } from '@/utils/CustomerDataManager'
 
 // 数据
 const tableRef = ref(null)
@@ -296,15 +297,32 @@ const nextCustomerId = ref(3)
 const hasSelection = computed(() => selectedRows.value.length > 0)
 
 const filteredTableData = computed(() => {
-  let data = tableData.value
+  // 使用CustomerDataManager的当前数据，添加安全检查
+  let data = []
+  try {
+    if (customerDataManager && typeof customerDataManager.getCurrentData === 'function') {
+      data = customerDataManager.getCurrentData()
+    } else {
+      // 如果customerDataManager未初始化，使用tableData
+      data = tableData.value
+    }
+  } catch (error) {
+    console.warn('获取数据失败，使用本地数据:', error)
+    data = tableData.value
+  }
+  
+  // 确保data是数组
+  if (!Array.isArray(data)) {
+    data = []
+  }
   
   // 搜索过滤
   if (searchText.value) {
     const searchLower = searchText.value.toLowerCase()
     data = data.filter(row => 
-      row.customerName.toLowerCase().includes(searchLower) ||
-      row.contactPerson.includes(searchText.value) ||
-      row.contactPhone.includes(searchText.value)
+      row.customerName && row.customerName.toLowerCase().includes(searchLower) ||
+      row.contactPerson && row.contactPerson.includes(searchText.value) ||
+      row.contactPhone && row.contactPhone.includes(searchText.value)
     )
   }
   
@@ -620,35 +638,40 @@ const handleRefresh = () => {
   ElMessage.success('刷新成功')
 }
 
-// 本地存储键名
-const CUSTOMER_LIST_KEY = 'customerListData'
-
-// 从本地存储加载客户数据
-const loadCustomerData = () => {
-  try {
-    const cached = localStorage.getItem(CUSTOMER_LIST_KEY)
-    if (cached) {
-      return JSON.parse(cached)
-    }
-  } catch (error) {
-    console.error('❌ 从本地存储加载数据失败:', error)
-  }
-  return []
-}
-
-// 保存客户数据到本地存储
-const saveCustomerData = (data) => {
-  try {
-    localStorage.setItem(CUSTOMER_LIST_KEY, JSON.stringify(data))
-    console.log('✅ 数据已保存到本地存储')
-  } catch (error) {
-    console.error('❌ 保存数据到本地存储失败:', error)
-  }
+// 获取系统状态
+const getSystemStatus = () => {
+  return customerDataManager.getStatus()
 }
 
 // 生命周期
 onMounted(async () => {
   console.log('=== 客户台账页面初始化 ===')
+  
+  // 初始化CustomerDataManager
+  await customerDataManager.init()
+  
+  // 设置数据更新监听器
+  customerDataManager.on('sync:complete', (data) => {
+    console.log('✅ 数据同步完成:', data)
+    // 更新统计数据
+    loadStats()
+    ElMessage.success(`数据同步完成，共${data.apiData}条记录`)
+  })
+  
+  customerDataManager.on('sync:error', (error) => {
+    console.error('❌ 数据同步失败:', error)
+    ElMessage.warning('数据同步失败，使用本地缓存数据')
+  })
+  
+  customerDataManager.on('offline:enabled', () => {
+    console.log('📡 离线模式已启用')
+    ElMessage.warning('网络已断开，进入离线模式')
+  })
+  
+  customerDataManager.on('offline:disabled', () => {
+    console.log('🌐 离线模式已禁用')
+    ElMessage.success('网络已恢复，退出离线模式')
+  })
   
   const updateTableHeight = () => {
     tableHeight.value = window.innerHeight - 450
@@ -656,70 +679,25 @@ onMounted(async () => {
   updateTableHeight()
   window.addEventListener('resize', updateTableHeight)
   
-  // 1. 首先从本地存储加载数据，确保页面快速显示
-  const cachedData = loadCustomerData()
-  if (cachedData.length > 0) {
-    tableData.value = cachedData
-    totalCount.value = cachedData.length
-    console.log('✅ 从本地存储加载', cachedData.length, '条数据')
-  } else {
-    // 初始化空数据，等待API返回
-    tableData.value = []
-    totalCount.value = 0
-    console.log('ℹ️ 初始化空数据，等待API返回')
-  }
-  
-  // 2. 在后台尝试从API获取最新数据，不阻塞页面显示
-  const fetchDataFromApi = async () => {
-    try {
-      const response = await customerApi.getCustomers({
-        page: currentPage.value,
-        pageSize: pageSize.value
-      })
-      
-      if (response.data.success) {
-        const customers = response.data.data.list
-        const apiData = customers.map(c => ({
-          id: c.id,
-          customerCode: c.customer_code,
-          customerName: c.customer_name,
-          customerType: c.customer_type,
-          status: c.status,
-          contactPerson: c.contact_person,
-          contactPhone: c.contact_phone,
-          contactEmail: c.contact_email,
-          company: c.company,
-          industry: c.industry,
-          region: c.region,
-          address: c.contact_address,
-          createTime: new Date(c.created_at).toLocaleString('zh-CN')
-        }))
-        
-        // 无论API返回多少数据，都更新本地存储和页面数据
-        tableData.value = apiData
-        totalCount.value = response.data.data.total
-        console.log('✅ 从后端加载', apiData.length, '条数据')
-        // 保存到本地存储作为备份
-        saveCustomerData(apiData)
-        ElMessage.success('数据已从服务器更新')
-      }
-      
-      const statsRes = await customerApi.getCustomerStats()
-      if (statsRes.data.success) {
-        stats.value = statsRes.data.data
-        console.log('✅ 统计数据:', stats.value)
-      }
-    } catch (error) {
-      console.error('❌ 后台加载失败:', error)
-      // 不显示错误提示，避免干扰用户
-    }
-  }
-  
-  // 启动后台数据获取
-  fetchDataFromApi()
+  // 加载统计数据
+  await loadStats()
   
   console.log('=== 初始化完成 ===')
 })
+
+// 加载统计数据
+const loadStats = async () => {
+  try {
+    const statsRes = await customerApi.getCustomerStats()
+    if (statsRes.data.success) {
+      stats.value = statsRes.data.data
+      console.log('✅ 统计数据加载成功:', stats.value)
+    }
+  } catch (error) {
+    console.error('❌ 统计数据加载失败:', error)
+    // 使用默认统计数据
+  }
+}
 </script>
 
 <style scoped>

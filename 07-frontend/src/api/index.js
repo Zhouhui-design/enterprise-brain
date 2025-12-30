@@ -87,6 +87,11 @@ export const salesOrderAPI = {
   // 获取订单统计
   getOrderStats: (params) => {
     return api.get('/salesOrders/stats', { params })
+  },
+
+  // 批量删除订单
+  batchDeleteSalesOrders: (ids) => {
+    return api.post('/salesOrders/batch-delete', { ids })
   }
 }
 
